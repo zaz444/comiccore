@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -206,4 +207,214 @@
         window.onload = init;
     </script>
 </body>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComicCore | Connections</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        /* colors now in theme.css */
+        
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 80px; }
+        .header { position: sticky; top: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); border-bottom: 1px solid var(--border); padding: 15px; z-index: 100; }
+        .search-bar { display: flex; align-items: center; background: #1a1a1a; padding: 12px; border-radius: 12px; border: 1px solid var(--border); }
+        .search-bar input { background: none; border: none; color: white; width: 100%; margin-left: 10px; outline: none; }
+        
+        .section-title { padding: 25px 20px 10px; font-size: 11px; color: var(--subtext); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; }
+        .user-list { padding: 0 15px; }
+        
+        .user-card { 
+            background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; 
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; transition: 0.3s;
+        }
+
+        .user-card.has-unread { border-color: var(--notif) !important; box-shadow: 0 0 15px rgba(255, 255, 0, 0.1); }
+        .user-card.danger-zone { border-color: var(--error) !important; }
+        
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .user-pic { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #222; }
+        
+        .btn-group { display: flex; gap: 6px; }
+        .btn { padding: 8px 14px; border-radius: 20px; border: none; font-weight: 700; cursor: pointer; font-size: 10px; transition: 0.2s; }
+        .btn-add { background: var(--accent); color: #000; }
+        .btn-msg { background: #262626; color: #fff; position: relative; }
+        .btn-remove { background: #1a1a1a; color: #666; border: 1px solid var(--border); }
+        .btn-block { background: transparent; color: var(--error); border: 1px solid rgba(255,68,68,0.2); }
+        .btn-confirm { background: var(--error); color: #fff; }
+
+        .notif-dot { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; background: var(--error); border: 2px solid var(--card); border-radius: 50%; }
+
+        .nav-bar { position: fixed; bottom: 0; width: 100%; height: 70px; background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; align-items: center; }
+        .nav-icon { font-size: 24px; text-decoration: none; opacity: 0.4; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="search-bar">
+            <span>🔍</span>
+            <input type="text" id="userSearch" placeholder="Search creators...">
+        </div>
+    </div>
+
+    <div id="friendsSection" style="display:none;">
+        <div class="section-title">Your Friends</div>
+        <div id="friendsList" class="user-list"></div>
+    </div>
+
+    <div class="section-title">Suggested</div>
+    <div id="suggestedList" class="user-list"></div>
+
+    <div class="nav-bar">
+        <a href="index.html" class="nav-icon">🏠</a>
+        <a href="discover.html" class="nav-icon">🌐</a>
+        <a href="create.html" class="nav-icon">➕</a>
+        <a href="connections.html" class="nav-icon" style="opacity:1">⚡</a>
+        <a href="profile.html" class="nav-icon">👤</a>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
+        const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+        const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        const myHandle = myProfile.handle;
+
+        async function init() {
+            // Privacy gate — if user disabled Friends/Connections in settings, block access
+            if (localStorage.getItem('cc-privacy-friends') === 'false') {
+                document.body.innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#000;color:#fff;text-align:center;gap:16px;">
+                        <div style="font-size:48px">🔒</div>
+                        <h2 style="margin:0">Connections is Disabled</h2>
+                        <p style="color:#666;margin:0">You've turned this off in Settings.</p>
+                        <a href="settings.html" style="background:#FF7A00;color:#000;padding:12px 24px;border-radius:24px;font-weight:700;text-decoration:none;margin-top:8px">Go to Settings</a>
+                        <a href="index.html" style="color:#666;font-size:13px">← Back Home</a>
+                    </div>`;
+                return;
+            }
+            if (!myHandle) return;
+            loadFriends();
+            loadSuggested();
+
+            _supabase.channel('conn-updates')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, loadFriends)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'connections' }, loadFriends)
+                .subscribe();
+        }
+
+        async function loadFriends() {
+            const { data: connections } = await _supabase.from('connections')
+                .select('*').or(`sender_handle.eq.${myHandle},receiver_handle.eq.${myHandle}`).eq('status', 'accepted');
+
+            const container = document.getElementById('friendsList');
+            const section = document.getElementById('friendsSection');
+
+            if (connections && connections.length > 0) {
+                container.innerHTML = "";
+                section.style.display = 'block';
+
+                for (const conn of connections) {
+                    const friendHandle = conn.sender_handle === myHandle ? conn.receiver_handle : conn.sender_handle;
+                    const { data: p } = await _supabase.from('profiles').select('name, pic').eq('handle', friendHandle).single();
+                    
+                    const { count: unread } = await _supabase.from('messages')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('sender_handle', friendHandle).eq('receiver_handle', myHandle).eq('is_read', false);
+
+                    const card = document.createElement('div');
+                    card.className = `user-card ${unread > 0 ? 'has-unread' : ''}`;
+                    card.id = `card-${conn.id}`;
+                    card.innerHTML = `
+                        <div class="user-info">
+                            <img src="${p?.pic || 'https://via.placeholder.com/50'}" class="user-pic">
+                            <div>
+                                <span class="user-name">${p?.name || 'User'}</span>
+                                <span class="user-handle">@${friendHandle}</span>
+                            </div>
+                        </div>
+                        <div class="btn-group" id="group-${conn.id}">
+                            <button class="btn btn-msg" onclick="location.href='messages.html?to=${friendHandle}'">
+                                DM ${unread > 0 ? '<div class="notif-dot"></div>' : ''}
+                            </button>
+                            <button class="btn btn-remove" onclick="confirmAction('${conn.id}', 'remove')">Remove</button>
+                            <button class="btn btn-block" onclick="confirmAction('${conn.id}', 'block')">Block</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                }
+            } else { section.style.display = 'none'; }
+        }
+
+        function confirmAction(connId, type) {
+            const card = document.getElementById(`card-${connId}`);
+            const group = document.getElementById(`group-${connId}`);
+            
+            card.classList.add('danger-zone');
+            group.innerHTML = `
+                <button class="btn btn-confirm" onclick="executeAction('${connId}', '${type}')">Confirm ${type}?</button>
+                <button class="btn btn-msg" onclick="loadFriends()">Cancel</button>
+            `;
+        }
+
+        async function executeAction(connId, type) {
+            if (type === 'remove') {
+                await _supabase.from('connections').delete().eq('id', connId);
+            } else if (type === 'block') {
+                // Blocks typically set a status or delete and add to a block table
+                // For this logic, we'll simply delete the connection
+                await _supabase.from('connections').delete().eq('id', connId);
+            }
+            loadFriends();
+            loadSuggested();
+        }
+
+        async function loadSuggested() {
+            const { data: users } = await _supabase.from('profiles').select('*').neq('handle', myHandle).limit(5);
+            const container = document.getElementById('suggestedList');
+            container.innerHTML = "";
+            users.forEach(u => {
+                const div = document.createElement('div');
+                div.className = 'user-card';
+                div.innerHTML = `
+                    <div class="user-info">
+                        <img src="${u.pic || ''}" class="user-pic">
+                        <div><span class="user-name">${u.name}</span><span class="user-handle">@${u.handle}</span></div>
+                    </div>
+                    <button class="btn btn-add" id="add-${u.handle}" onclick="sendReq('${u.handle}')">Add</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        async function sendReq(h) {
+            const btn = document.getElementById(`add-${h}`);
+            btn.innerText = "...";
+
+            // Check if target has requests disabled (stored in their profile settings column)
+            const { data: targetProfile } = await _supabase
+                .from('profiles').select('settings').eq('handle', h).single();
+            const targetSettings = targetProfile?.settings || {};
+            if (targetSettings['cc-privacy-requests'] === false) {
+                btn.innerText = "Unavailable";
+                btn.disabled = true;
+                btn.style.opacity = '0.4';
+                return;
+            }
+
+            await _supabase.from('connections').insert([{ sender_handle: myHandle, receiver_handle: h, status: 'pending' }]);
+            btn.innerText = "Sent";
+            btn.disabled = true;
+        }
+
+        window.onload = init;
+    </script>
+</body>
+>>>>>>> ba49e38988dbbfe6054c14b4b3cd75b00beef1af
 </html>

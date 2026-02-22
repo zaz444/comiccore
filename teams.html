@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -320,4 +321,328 @@
         init();
     </script>
 </body>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComicCore - Teams</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        /* colors now in theme.css */
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--bg); z-index: 100; }
+        .back-btn { background: none; border: 1px solid var(--border); color: white; padding: 8px 15px; border-radius: 8px; cursor: pointer; }
+        .limit-bar { background: #111; padding: 8px 20px; font-size: 11px; border-bottom: 1px solid var(--border); color: var(--secondary-text); display: flex; gap: 15px; }
+        .limit-bar b { color: var(--accent); }
+        
+        .create-area { padding: 20px; border-bottom: 1px solid var(--border); background: #111; }
+        .ticket-input { width: 100%; background: #222; border: 1px solid var(--border); color: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; box-sizing: border-box; }
+        .upload-preview { width: 60px; height: 60px; border-radius: 12px; background: #222; border: 2px dashed var(--border); margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; background-size: cover; background-position: center; }
+        
+        .ticket-list { padding: 20px; display: grid; gap: 15px; }
+        .ticket-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 15px; position: relative; }
+        .private-badge { position: absolute; top: 15px; right: 15px; background: #333; color: #ccc; font-size: 10px; padding: 3px 8px; border-radius: 5px; font-weight: bold; }
+        .ticket-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .ticket-pfp { width: 45px; height: 45px; border-radius: 10px; background: var(--accent); object-fit: cover; }
+        .ticket-info h3 { margin: 0; font-size: 16px; }
+        .ticket-info p { margin: 2px 0; font-size: 12px; color: var(--secondary-text); }
+        
+        .btn-join { width: 100%; background: var(--accent); border: none; color: white; padding: 12px; border-radius: 10px; font-weight: 800; cursor: pointer; margin-top: 10px; }
+        .btn-join:disabled { background: #333; color: #777; cursor: not-allowed; }
+        .btn-leave { width: 100%; background: #222; border: 1px solid var(--danger); color: var(--danger); padding: 12px; border-radius: 10px; font-weight: 800; cursor: pointer; margin-top: 10px; }
+        
+        #owner-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 1000; overflow-y: auto; padding: 20px; }
+        .modal-box { background: var(--card); padding: 25px; border-radius: 20px; width: 100%; max-width: 400px; border: 1px solid var(--border); margin: auto; }
+        .modal-section { background: #111; padding: 10px; border-radius: 10px; margin-bottom: 15px; }
+        .modal-section h4 { margin: 0 0 10px 0; font-size: 13px; color: var(--secondary-text); border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .member-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 8px 12px; border-radius: 8px; margin-bottom: 5px; font-size: 14px; }
+        .action-btn { border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <button class="back-btn" onclick="location.href='discover.html'">← Home</button>
+        <h2 style="margin:0; font-size:18px;">ComicCore Teams</h2>
+    </div>
+
+    <div class="limit-bar">
+        <span>Created: <b id="stat-created">0</b>/5</span>
+        <span>Joined: <b id="stat-joined">0</b>/15</span>
+    </div>
+
+    <div class="create-area">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <p style="margin:0; font-size: 11px; font-weight: 800; color: var(--accent); letter-spacing: 1px;">NEW PROJECT</p>
+            <label style="font-size: 12px; color: #ccc;"><input type="checkbox" id="ticket-private-create"> Private</label>
+        </div>
+        
+        <div class="upload-preview" id="pfp-preview" onclick="document.getElementById('ticket-pfp-input').click()">+</div>
+        <input type="file" id="ticket-pfp-input" hidden accept="image/*" onchange="previewImage(this, false)">
+        
+        <input type="text" id="ticket-name" class="ticket-input" placeholder="Project Name">
+        <input type="text" id="ticket-desc" class="ticket-input" placeholder="What roles are you looking for?">
+        <button class="btn-join" id="post-btn" onclick="createTicket()">Post Project Ticket</button>
+    </div>
+
+    <div class="ticket-list" id="ticket-list"></div>
+
+    <div id="owner-modal">
+        <div class="modal-box">
+            <h3 id="manage-name" style="margin-top:0;">Manage Team</h3>
+            
+            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px;">
+                <div class="upload-preview" id="edit-pfp-preview" style="margin:0;" onclick="document.getElementById('edit-pfp-input').click()">Edit</div>
+                <input type="file" id="edit-pfp-input" hidden accept="image/*" onchange="previewImage(this, true)">
+                <div style="flex: 1;">
+                    <input type="text" id="edit-name" class="ticket-input" style="margin:0;" placeholder="Project Name">
+                </div>
+            </div>
+
+            <label style="font-size: 14px; color: white; display:block; margin-bottom: 15px;">
+                <input type="checkbox" id="edit-private"> Private Project (Hidden from main feed)
+            </label>
+
+            <div class="modal-section" id="pending-list"></div>
+            <div class="modal-section" id="member-list"></div>
+
+            <button class="btn-join" style="background:#00C851;" onclick="saveChanges()">Save Changes</button>
+            <button class="btn-leave" onclick="deleteTicket()">DELETE PROJECT</button>
+            <button onclick="closeModal()" style="background:none; border:none; color: #777; width:100%; margin-top:10px; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co'; 
+        const SUPABASE_KEY = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let activeManageId = null;
+        let base64Pfp = "https://via.placeholder.com/150/FF7A00/FFFFFF?text=Team";
+        let base64PfpEdit = ""; 
+        let myVerifiedHandle = "";
+
+        async function init() {
+            if (localStorage.getItem('cc-privacy-team') === 'false') {
+                document.body.innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#0a0a0a;color:#fff;text-align:center;gap:16px;">
+                        <div style="font-size:48px">🔒</div>
+                        <h2 style="margin:0">Teams is Disabled</h2>
+                        <p style="color:#666;margin:0">You've turned this off in Settings.</p>
+                        <a href="settings.html" style="background:#FF7A00;color:#000;padding:12px 24px;border-radius:24px;font-weight:700;text-decoration:none;margin-top:8px">Go to Settings</a>
+                        <a href="index.html" style="color:#666;font-size:13px">← Back Home</a>
+                    </div>`;
+                return;
+            }
+            const local = JSON.parse(localStorage.getItem('user_profile') || '{}');
+            const { data: { user } } = await _supabase.auth.getUser();
+            if (user) {
+                const { data: dbProfile } = await _supabase.from('profiles').select('handle').eq('id', user.id).single();
+                myVerifiedHandle = dbProfile?.handle || local.handle;
+            } else {
+                myVerifiedHandle = local.handle;
+            }
+            if (!myVerifiedHandle || myVerifiedHandle === "anonymous") {
+                alert("Please save your profile first!");
+                return location.href = 'profile.html';
+            }
+            await updateStats();
+            await fetchTickets();
+        }
+
+        async function fetchTickets() {
+            const list = document.getElementById('ticket-list');
+            const { data: tickets } = await _supabase.from('team_tickets').select('*').order('created_at', {ascending: false});
+            const { data: myReqs } = await _supabase.from('team_requests').select('*').eq('sender_handle', myVerifiedHandle);
+
+            list.innerHTML = "";
+            tickets?.forEach(t => {
+                const isOwner = (String(t.owner_handle).trim() === String(myVerifiedHandle).trim());
+                const myStatus = myReqs?.find(r => r.ticket_id === String(t.id));
+
+                if (t.is_private && !isOwner && (!myStatus || (myStatus.status !== 'accepted' && myStatus.status !== 'pending'))) {
+                    return; 
+                }
+
+                const card = document.createElement('div');
+                card.className = 'ticket-card';
+                
+                // --- INTEGRATED NEW BUTTON LOGIC ---
+                let actionBtn = '';
+                if (isOwner) {
+                    actionBtn = `
+                        <div style="display:flex; gap:10px; margin-top:10px;">
+                            <button class="btn-join" style="background:#333; flex:1; margin:0;" onclick="openManage('${t.id}', '${t.team_name.replace(/'/g, "\\'")}', '${t.pfp}', ${t.is_private})">Manage Team</button>
+                            <button class="btn-join" style="background:var(--accent); color:#000; flex:1; margin:0;" onclick="location.href='team_chat.html?id=${t.id}'">💬 Chat</button>
+                        </div>
+                    `;
+                } else if (myStatus && myStatus.status === 'accepted') {
+                    actionBtn = `
+                        <div style="display:flex; gap:10px; margin-top:10px;">
+                            <button class="btn-leave" style="flex:1; margin:0;" onclick="leaveTeam('${t.id}')">Leave Project</button>
+                            <button class="btn-join" style="background:var(--accent); color:#000; flex:1; margin:0;" onclick="location.href='team_chat.html?id=${t.id}'">💬 Chat</button>
+                        </div>
+                    `;
+                } else {
+                    const sent = !!myStatus;
+                    actionBtn = `<button id="btn-join-${t.id}" class="btn-join" onclick="requestToJoin('${t.id}')" ${sent ? 'disabled' : ''} style="margin-top:10px;">${sent ? 'Requested' : 'Request to Join'}</button>`;
+                }
+
+                card.innerHTML = `
+                    ${t.is_private ? '<span class="private-badge">Private</span>' : ''}
+                    <div class="ticket-header">
+                        <img src="${t.pfp}" class="ticket-pfp">
+                        <div class="ticket-info">
+                            <h3>${t.team_name}</h3>
+                            <p>by @${t.owner_handle}</p>
+                        </div>
+                    </div>
+                    <p style="font-size:13px; color:#ccc; margin: 10px 0;">${t.description || ''}</p>
+                    ${actionBtn}
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        async function requestToJoin(tid) {
+            const btn = document.getElementById(`btn-join-${tid}`);
+            if (btn) {
+                btn.innerText = "Sending...";
+                btn.disabled = true;
+            }
+
+            const { error } = await _supabase.from('team_requests').insert([{ 
+                ticket_id: String(tid), 
+                sender_handle: myVerifiedHandle, 
+                status: 'pending' 
+            }]);
+
+            if (error) {
+                alert("Failed to send request: " + error.message);
+                if (btn) {
+                    btn.innerText = "Request to Join";
+                    btn.disabled = false;
+                }
+            } else {
+                if (btn) btn.innerText = "Requested";
+            }
+        }
+
+        async function createTicket() {
+            const name = document.getElementById('ticket-name').value;
+            const desc = document.getElementById('ticket-desc').value;
+            const isPriv = document.getElementById('ticket-private-create').checked;
+            if(!name) return alert("Enter project name");
+            const btn = document.getElementById('post-btn');
+            btn.innerText = "Posting...";
+            btn.disabled = true;
+            const { error } = await _supabase.from('team_tickets').insert([{ 
+                owner_handle: myVerifiedHandle, team_name: name, description: desc, pfp: base64Pfp, is_private: isPriv
+            }]);
+            if (error) { alert("Error: " + error.message); btn.innerText = "Post Project Ticket"; btn.disabled = false; }
+            else { location.reload(); }
+        }
+
+        async function leaveTeam(tid) {
+            if(!confirm("Are you sure you want to leave this project?")) return;
+            await _supabase.from('team_requests').delete().eq('ticket_id', String(tid)).eq('sender_handle', myVerifiedHandle);
+            location.reload();
+        }
+
+        async function openManage(id, name, pfp, isPrivate) {
+            activeManageId = id;
+            base64PfpEdit = pfp;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-private').checked = isPrivate;
+            document.getElementById('edit-pfp-preview').style.backgroundImage = `url(${pfp})`;
+            document.getElementById('edit-pfp-preview').innerText = "";
+            await loadModalMembers(id);
+            document.getElementById('owner-modal').style.display = 'flex';
+        }
+
+        async function loadModalMembers(id) {
+            const { data: reqs } = await _supabase.from('team_requests').select('*').eq('ticket_id', String(id));
+            const pendingList = document.getElementById('pending-list');
+            const memberList = document.getElementById('member-list');
+            pendingList.innerHTML = "<h4>Join Requests</h4>";
+            memberList.innerHTML = "<h4>Accepted Members</h4>";
+            let hasPending = false, hasMembers = false;
+            reqs?.forEach(r => {
+                if (r.status === 'pending') {
+                    hasPending = true;
+                    pendingList.innerHTML += `<div class="member-item"><span>@${r.sender_handle}</span><div><button class="action-btn" style="background:#00C851; color:white;" onclick="respondReq('${r.id}', 'accepted')">Accept</button> <button class="action-btn" style="background:#ff4444; color:white;" onclick="respondReq('${r.id}', 'declined')">Decline</button></div></div>`;
+                } else if (r.status === 'accepted') {
+                    hasMembers = true;
+                    memberList.innerHTML += `<div class="member-item"><span>@${r.sender_handle}</span><button class="action-btn" style="background:#ff4444; color:white;" onclick="kickMember('${r.id}')">Kick</button></div>`;
+                }
+            });
+            if(!hasPending) pendingList.innerHTML += "<p style='font-size:12px; color:#777;'>No pending requests.</p>";
+            if(!hasMembers) memberList.innerHTML += "<p style='font-size:12px; color:#777;'>No members yet.</p>";
+        }
+
+        async function respondReq(reqId, newStatus) {
+            if (newStatus === 'declined') { await _supabase.from('team_requests').delete().eq('id', reqId); }
+            else { await _supabase.from('team_requests').update({ status: newStatus }).eq('id', reqId); }
+            await loadModalMembers(activeManageId);
+        }
+
+        async function kickMember(reqId) {
+            if(!confirm("Are you sure you want to kick this member?")) return;
+            await _supabase.from('team_requests').delete().eq('id', reqId);
+            await loadModalMembers(activeManageId);
+        }
+
+        async function saveChanges() {
+            await _supabase.from('team_tickets').update({
+                team_name: document.getElementById('edit-name').value,
+                pfp: base64PfpEdit,
+                is_private: document.getElementById('edit-private').checked
+            }).eq('id', activeManageId);
+            location.reload();
+        }
+
+        async function deleteTicket() {
+            if(!confirm("Delete this team forever?")) return;
+            await _supabase.from('team_requests').delete().eq('ticket_id', String(activeManageId));
+            await _supabase.from('team_tickets').delete().eq('id', activeManageId);
+            location.reload();
+        }
+
+        function previewImage(input, isEdit) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (isEdit) {
+                        base64PfpEdit = e.target.result;
+                        document.getElementById('edit-pfp-preview').style.backgroundImage = `url(${e.target.result})`;
+                        document.getElementById('edit-pfp-preview').innerText = "";
+                    } else {
+                        base64Pfp = e.target.result;
+                        document.getElementById('pfp-preview').style.backgroundImage = `url(${e.target.result})`;
+                        document.getElementById('pfp-preview').innerText = "";
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        async function updateStats() {
+            const { count: c } = await _supabase.from('team_tickets').select('*', { count: 'exact', head: true }).eq('owner_handle', myVerifiedHandle);
+            const { count: j } = await _supabase.from('team_requests').select('*', { count: 'exact', head: true }).eq('sender_handle', myVerifiedHandle).eq('status', 'accepted');
+            document.getElementById('stat-created').innerText = c || 0;
+            document.getElementById('stat-joined').innerText = j || 0;
+            if (c >= 5) document.getElementById('post-btn').disabled = true;
+        }
+
+        function closeModal() { document.getElementById('owner-modal').style.display = 'none'; }
+
+        init();
+    </script>
+</body>
+>>>>>>> ba49e38988dbbfe6054c14b4b3cd75b00beef1af
 </html>
