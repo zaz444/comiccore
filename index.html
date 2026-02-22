@@ -167,7 +167,24 @@
             const { data: { user } } = await supabaseClient.auth.getUser();
             
             if (user) {
-                const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+                let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+
+                // Always re-sync from Supabase so handle is never missing.
+                // This is the root fix for the null handle constraint error.
+                if (!myProfile.handle) {
+                    const { data: freshProfile } = await supabaseClient
+                        .from('profiles')
+                        .select('*')
+                        .eq('permanent_id', user.id)
+                        .maybeSingle();
+
+                    if (freshProfile) {
+                        // Merge fresh data into localStorage — preserves any local-only keys
+                        myProfile = { ...myProfile, ...freshProfile };
+                        localStorage.setItem('user_profile', JSON.stringify(myProfile));
+                    }
+                }
+
                 document.getElementById('user-display').innerText = myProfile.name || "New Creator";
                 if (myProfile.pic) document.getElementById('nav-pfp').src = myProfile.pic;
 
