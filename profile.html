@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComicCore - Profile</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        /* colors now in theme.css */
+        
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: white; overflow-x: hidden; padding-bottom: 50px; }
+        #public-view { position: relative; }
+        
+        /* --- PUBLIC VIEW --- */
+        #public-view { display: none; padding: 20px; flex-direction: column; align-items: center; min-height: 100vh; }
+        .profile-name { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+        .profile-handle { color: var(--secondary); margin-bottom: 12px; font-size: 14px; }
+        .profile-bio { text-align: center; max-width: 400px; color: #ccc; margin-bottom: 20px; font-size: 13px; line-height: 1.4; }
+
+        /* Stats & Follow */
+        .stats-row { display: flex; gap: 25px; margin-bottom: 20px; text-align: center; }
+        .stat-item b { display: block; font-size: 18px; color: white; }
+        .stat-item span { font-size: 11px; color: var(--secondary); text-transform: uppercase; font-weight: 700; }
+        
+        .follow-btn { 
+            background: white; color: black; border: none; padding: 8px 25px; 
+            border-radius: 20px; font-weight: 800; font-size: 13px; cursor: pointer; margin-bottom: 20px;
+            transition: 0.2s;
+        }
+        .follow-btn.following { background: none; border: 1px solid var(--border); color: white; }
+        .follow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Social Icons */
+        .social-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 25px; }
+        .social-link { width: 36px; height: 36px; background: var(--card); border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 18px; border: 1px solid var(--border); transition: 0.2s; }
+        .social-link:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+        /* Comic Grid */
+        .grid-header { width: 100%; border-top: 1px solid var(--border); padding-top: 15px; margin-top: 10px; font-weight: 800; font-size: 12px; color: var(--secondary); text-transform: uppercase; letter-spacing: 1px; }
+        .comic-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; width: 100%; margin-top: 10px; }
+        .grid-item { aspect-ratio: 2/3; background: #111; overflow: hidden; cursor: pointer; }
+        .grid-item img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* --- EDIT VIEW --- */
+        #edit-view { display: none; padding: 20px; max-width: 500px; margin: 0 auto; }
+        .edit-section-title { font-size: 12px; color: var(--accent); font-weight: 900; margin: 25px 0 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 10px; color: var(--secondary); font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
+        .input-group input, .input-group textarea {
+            width: 100%; background: var(--input); border: 1px solid var(--border);
+            border-radius: 8px; padding: 10px; color: white; font-family: inherit; box-sizing: border-box; font-size: 14px;
+        }
+
+        .social-input-wrapper { display: flex; align-items: center; background: var(--input); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+        .social-icon-label { width: 40px; text-align: center; border-right: 1px solid var(--border); font-size: 16px; }
+        .social-input-wrapper input { border: none; background: none; }
+
+        .btn-save { background: var(--accent); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 20px; }
+
+        /* Banner */
+        .banner-wrap { width: 100%; height: 160px; background: linear-gradient(135deg,#1a1a2e,#16213e); position: relative; overflow: hidden; flex-shrink: 0; z-index: 1; }
+        .banner-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .banner-edit-btn { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 800; cursor: pointer; backdrop-filter: blur(6px); }
+
+        /* Profile header layout with banner */
+        .profile-header { display: flex; flex-direction: column; align-items: center; margin-top: -55px; position: relative; z-index: 2; }
+        .pfp-large { width: 110px; height: 110px; border-radius: 50%; border: 4px solid var(--bg); object-fit: cover; background: #222; }
+
+        /* Action buttons row */
+        .action-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+        .msg-btn { background: #222; color: white; border: 1px solid var(--border); padding: 8px 20px; border-radius: 20px; font-weight: 700; font-size: 13px; cursor: pointer; transition: 0.2s; }
+        .msg-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Followers modal */
+        .fol-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 3000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .fol-modal { background: #111; border: 1px solid var(--border); border-radius: 24px; width: 100%; max-width: 380px; max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; }
+        .fol-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 900; }
+        .fol-list { overflow-y: auto; flex: 1; }
+        .fol-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #1a1a1a; cursor: pointer; transition: 0.15s; }
+        .fol-row:hover { background: #1a1a1a; }
+        .fol-pic { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #222; border: 1px solid var(--border); }
+        .fol-name { font-weight: 700; font-size: 14px; }
+        .fol-handle { font-size: 11px; color: var(--secondary); }
+
+        /* Banner edit in editor */
+        .banner-edit-wrap { width: 100%; height: 120px; background: linear-gradient(135deg,#1a1a2e,#16213e); border-radius: 12px; overflow: hidden; position: relative; cursor: pointer; margin-bottom: 20px; }
+        .banner-edit-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .banner-edit-wrap .overlay-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); color: white; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
+
+        /* Banner crop modal */
+        .crop-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .crop-overlay.active { display: flex; }
+        .crop-container { position: relative; width: 100%; max-width: 500px; overflow: hidden; border-radius: 8px; background: #000; touch-action: none; }
+        .crop-source { display: block; width: 100%; user-select: none; pointer-events: none; }
+        .crop-frame { position: absolute; border: 2px solid var(--accent); box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); pointer-events: none; }
+        .crop-actions { display: flex; gap: 12px; margin-top: 20px; }
+        .crop-btn { padding: 12px 30px; border-radius: 20px; border: none; font-weight: 800; cursor: pointer; font-size: 14px; }
+        .crop-btn-confirm { background: var(--accent); color: #000; }
+        .crop-btn-cancel { background: #222; color: white; border: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+
+    <!-- Followers/Following modal -->
+    <div class="fol-overlay" id="fol-overlay" onclick="closeFolModal()">
+        <div class="fol-modal" onclick="event.stopPropagation()">
+            <div class="fol-header">
+                <span id="fol-title">Followers</span>
+                <span onclick="closeFolModal()" style="cursor:pointer;color:#666;font-size:20px;">✕</span>
+            </div>
+            <div class="fol-list" id="fol-list"></div>
+        </div>
+    </div>
+
+    <div id="public-view" style="padding:0;">
+        <!-- Banner -->
+        <div class="banner-wrap" id="view-banner-wrap">
+            <img id="view-banner" src="" style="display:none;">
+        </div>
+
+        <!-- Top nav overlay on banner -->
+        <div style="position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; z-index:10;">
+            <button onclick="history.back()" style="background:rgba(0,0,0,0.5);backdrop-filter:blur(6px); border:none; color:white; cursor:pointer; font-size:18px; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center;">✕</button>
+            <button id="edit-own-btn" onclick="openEditor()" style="display:none; background:rgba(0,0,0,0.6); backdrop-filter:blur(6px); color:white; border:1px solid rgba(255,255,255,0.2); padding:6px 16px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">Edit Profile</button>
+        </div>
+
+        <div class="profile-header" style="padding: 0 20px;">
+            <img id="view-pfp" src="" class="pfp-large">
+            <div id="view-name" class="profile-name" style="margin-top:10px;">Loading...</div>
+            <div id="view-handle" class="profile-handle">@handle</div>
+
+            <div class="stats-row" style="cursor:pointer;">
+                <div class="stat-item" id="stat-following" onclick="openFolModal('following')">
+                    <b id="count-following">0</b><span>Following</span>
+                </div>
+                <div class="stat-item" id="stat-followers" onclick="openFolModal('followers')">
+                    <b id="count-followers">0</b><span>Followers</span>
+                </div>
+            </div>
+
+            <!-- Action buttons: DM if friends, Message Request if not, nothing if own profile -->
+            <div class="action-row" id="action-row"></div>
+
+            <div id="view-bio" class="profile-bio">...</div>
+            <div id="social-links" class="social-grid"></div>
+        </div>
+
+        <div style="padding: 0 20px;">
+            <div class="grid-header">Creations</div>
+            <div id="user-comic-grid" class="comic-grid"></div>
+        </div>
+    </div>
+
+    <div id="edit-view">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <button onclick="closeEditor()" style="background:none; border:none; color:white; font-size:20px;">←</button>
+            <h2 style="font-size:16px; font-weight:900;">EDIT PROFILE</h2>
+            <div style="width:20px;"></div>
+        </div>
+
+        <!-- Banner upload -->
+        <div class="banner-edit-wrap" id="banner-edit-wrap" onclick="document.getElementById('banner-input').click()">
+            <img id="banner-preview" src="" style="display:none;" onload="document.querySelector('.overlay-hint').style.display='none'">
+            <div class="overlay-hint" id="banner-hint">📷 TAP TO SET BANNER</div>
+        </div>
+        <input type="file" id="banner-input" hidden accept="image/*">
+
+        <!-- PFP upload -->
+        <div style="text-align:center; margin: 0 0 20px;">
+            <div style="position:relative; display:inline-block; cursor:pointer;" onclick="document.getElementById('pfp-input').click()">
+                <img id="pfp-preview" src="" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:2px solid var(--accent);">
+                <div style="position:absolute; bottom:0; right:0; background:var(--accent); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;">✎</div>
+            </div>
+            <input type="file" id="pfp-input" hidden accept="image/*">
+        </div>
+
+        <div class="input-group">
+            <label>Name</label>
+            <input type="text" id="edit-name">
+        </div>
+        <div class="input-group">
+            <label>Bio</label>
+            <textarea id="edit-bio" rows="3"></textarea>
+        </div>
+
+        <div class="edit-section-title">Socials & Links</div>
+        <div id="social-inputs-container"></div>
+
+        <button class="btn-save" onclick="saveProfile()">SAVE PROFILE</button>
+    </div>
+
+    <!-- Banner crop modal -->
+    <div class="crop-overlay" id="crop-overlay">
+        <div style="font-size:11px;font-weight:800;color:#aaa;margin-bottom:12px;letter-spacing:1px;">DRAG TO POSITION BANNER</div>
+        <div class="crop-container" id="crop-container">
+            <img id="crop-source" class="crop-source">
+            <div class="crop-frame" id="crop-frame"></div>
+        </div>
+        <div style="font-size:10px;color:#555;margin-top:8px;">Pinch or scroll to zoom</div>
+        <div class="crop-actions">
+            <button class="crop-btn crop-btn-cancel" onclick="closeCropModal()">Cancel</button>
+            <button class="crop-btn crop-btn-confirm" onclick="confirmCrop()">Use This</button>
+        </div>
+    </div>
+
+    <script>
+        const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+        
+        const SOCIAL_CONFIG = [
+            { key: 'x', label: 'X (Twitter)', icon: '𝕏' },
+            { key: 'instagram', label: 'Instagram', icon: '📸' },
+            { key: 'tiktok', label: 'TikTok', icon: '🎵' },
+            { key: 'youtube', label: 'YouTube', icon: '📺' },
+            { key: 'discord', label: 'Discord', icon: '👾' },
+            { key: 'facebook', label: 'Facebook', icon: '👥' },
+            { key: 'snapchat', label: 'Snapchat', icon: '👻' },
+            { key: 'playstation', label: 'PSN', icon: '🎮' },
+            { key: 'xbox', label: 'Xbox', icon: '💚' },
+            { key: 'paypal', label: 'PayPal', icon: '💰' },
+            { key: 'cashapp', label: 'CashApp', icon: '💸' },
+            { key: 'gmail', label: 'Gmail', icon: '📧' }
+        ];
+
+        let pfpBase64 = "";
+        let bannerBase64 = "";
+        let currentViewedHandle = "";
+        const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+
+        // Social URL builder
+        function buildSocialUrl(key, val) {
+            if (!val) return null;
+            if (val.startsWith('http')) return val;
+            const map = {
+                x: `https://x.com/${val}`,
+                instagram: `https://instagram.com/${val}`,
+                tiktok: `https://tiktok.com/@${val}`,
+                youtube: `https://youtube.com/@${val}`,
+                facebook: `https://facebook.com/${val}`,
+                snapchat: `https://snapchat.com/add/${val}`,
+                gmail: `mailto:${val}`,
+                discord: val, // usually a server link or tag
+                playstation: `https://psnprofiles.com/${val}`,
+                xbox: `https://account.xbox.com/en-US/Profile?gamertag=${encodeURIComponent(val)}`,
+                paypal: `https://paypal.me/${val}`,
+                cashapp: `https://cash.app/$${val}`,
+            };
+            return map[key] || val;
+        }
+
+        async function init() {
+            const params = new URLSearchParams(window.location.search);
+            currentViewedHandle = params.get('u');
+
+            // Build social inputs in editor
+            const container = document.getElementById('social-inputs-container');
+            SOCIAL_CONFIG.forEach(s => {
+                container.innerHTML += `
+                    <div class="social-input-wrapper">
+                        <div class="social-icon-label">${s.icon}</div>
+                        <input type="text" id="social-${s.key}" placeholder="${s.label} username/link">
+                    </div>`;
+            });
+
+            if (currentViewedHandle) {
+                loadPublicProfile(currentViewedHandle);
+            } else {
+                openEditor();
+            }
+        }
+
+        async function loadPublicProfile(handle) {
+            document.getElementById('public-view').style.display = 'flex';
+            document.getElementById('public-view').style.flexDirection = 'column';
+            document.getElementById('edit-view').style.display = 'none';
+
+            const { data: profile } = await _supabase.from('profiles').select('*').eq('handle', handle).single();
+            if (!profile) return;
+
+            document.getElementById('view-name').innerText = profile.name || handle;
+            document.getElementById('view-handle').innerText = '@' + handle;
+            document.getElementById('view-bio').innerText = profile.bio || '';
+            document.getElementById('view-pfp').src = profile.pic || 'https://via.placeholder.com/150';
+
+            // Banner — always reset first to avoid stale state
+            const bannerImg = document.getElementById('view-banner');
+            if (profile.banner && profile.banner.length > 10) {
+                bannerImg.src = profile.banner;
+                bannerImg.style.display = 'block';
+            } else {
+                bannerImg.src = '';
+                bannerImg.style.display = 'none';
+            }
+
+            // Social links — clickable icons
+            const socialDiv = document.getElementById('social-links');
+            socialDiv.innerHTML = '';
+            const socials = profile.socials || {};
+            SOCIAL_CONFIG.forEach(s => {
+                const url = buildSocialUrl(s.key, socials[s.key]);
+                if (url) {
+                    socialDiv.innerHTML += `<a href="${url}" target="_blank" class="social-link" title="${s.label}">${s.icon}</a>`;
+                }
+            });
+
+            // Own profile vs other
+            const isOwn = handle === myProfile.handle;
+            document.getElementById('edit-own-btn').style.display = isOwn ? 'block' : 'none';
+
+            // Action buttons
+            const actionRow = document.getElementById('action-row');
+            actionRow.innerHTML = '';
+            if (!isOwn && myProfile.handle) {
+                // Check if friends (accepted connection)
+                const { data: conn } = await _supabase.from('connections')
+                    .select('id')
+                    .or(`and(sender_handle.eq.${myProfile.handle},receiver_handle.eq.${handle}),and(sender_handle.eq.${handle},receiver_handle.eq.${myProfile.handle})`)
+                    .eq('status', 'accepted')
+                    .maybeSingle();
+
+                if (conn) {
+                    // Friends → DM button
+                    actionRow.innerHTML = `<button class="msg-btn" onclick="location.href='messages.html?to=${handle}'">💬 Message</button>`;
+                }
+                // Not friends — no button here. Requests are sent from connections.html
+            }
+
+            // Follow counts — friends auto-follow each other
+            // Count accepted connections as mutual follows
+            loadFollowCounts(handle);
+            loadUserComics(handle);
+
+            // Privacy: hide stat clickability if profile has it locked
+            const folPrivacy = localStorage.getItem('cc-privacy-followers');
+            if (folPrivacy === 'false' && handle !== myProfile.handle) {
+                document.getElementById('stat-following').style.cursor = 'default';
+                document.getElementById('stat-followers').style.cursor = 'default';
+                document.getElementById('stat-following').onclick = null;
+                document.getElementById('stat-followers').onclick = null;
+            }
+        }
+
+        async function loadFollowCounts(handle) {
+            // Friends (accepted connections) = mutual follows
+            const { count: friends } = await _supabase.from('connections')
+                .select('*', { count: 'exact', head: true })
+                .or(`sender_handle.eq.${handle},receiver_handle.eq.${handle}`)
+                .eq('status', 'accepted');
+
+            document.getElementById('count-followers').innerText = friends || 0;
+            document.getElementById('count-following').innerText = friends || 0;
+        }
+
+        async function openFolModal(type) {
+            // Check privacy
+            const folPrivacy = localStorage.getItem('cc-privacy-followers');
+            if (folPrivacy === 'false' && currentViewedHandle !== myProfile.handle) return;
+
+            document.getElementById('fol-overlay').style.display = 'flex';
+            document.getElementById('fol-title').innerText = type === 'followers' ? 'Followers' : 'Following';
+            const list = document.getElementById('fol-list');
+            list.innerHTML = '<div style="padding:20px;text-align:center;color:#555;">Loading...</div>';
+
+            // Get all accepted connections for this handle — friends = mutual followers
+            const { data: conns } = await _supabase.from('connections')
+                .select('*')
+                .or(`sender_handle.eq.${currentViewedHandle},receiver_handle.eq.${currentViewedHandle}`)
+                .eq('status', 'accepted');
+
+            if (!conns || conns.length === 0) {
+                list.innerHTML = '<div style="padding:20px;text-align:center;color:#555;">No connections yet.</div>';
+                return;
+            }
+
+            list.innerHTML = '';
+            for (const c of conns) {
+                const friendHandle = c.sender_handle === currentViewedHandle ? c.receiver_handle : c.sender_handle;
+                const { data: p } = await _supabase.from('profiles').select('name, pic').eq('handle', friendHandle).single();
+                const row = document.createElement('div');
+                row.className = 'fol-row';
+                row.onclick = () => location.href = 'profile.html?u=' + friendHandle;
+                row.innerHTML = `
+                    <img src="${p?.pic || ''}" class="fol-pic" onerror="this.style.display='none'">
+                    <div>
+                        <div class="fol-name">${p?.name || friendHandle}</div>
+                        <div class="fol-handle">@${friendHandle}</div>
+                    </div>`;
+                list.appendChild(row);
+            }
+        }
+
+        function closeFolModal() {
+            document.getElementById('fol-overlay').style.display = 'none';
+        }
+
+        async function loadUserComics(handle) {
+            const { data: comics } = await _supabase.from('comics').select('id, cover').eq('owner_handle', handle);
+            const grid = document.getElementById('user-comic-grid');
+            grid.innerHTML = comics?.map(c => `
+                <div class="grid-item" onclick="location.href='reader.html?id=${c.id}'">
+                    <img src="${c.cover}">
+                </div>
+            `).join('') || '';
+        }
+
+        function openEditor() {
+            document.getElementById('public-view').style.display = 'none';
+            document.getElementById('edit-view').style.display = 'block';
+
+            document.getElementById('edit-name').value = myProfile.name || '';
+            document.getElementById('edit-bio').value = myProfile.bio || '';
+            document.getElementById('pfp-preview').src = myProfile.pic || '';
+            pfpBase64 = myProfile.pic || '';
+            bannerBase64 = myProfile.banner || '';
+
+            // Banner preview
+            const bPrev = document.getElementById('banner-preview');
+            const bHint = document.getElementById('banner-hint');
+            if (bannerBase64) {
+                bPrev.src = bannerBase64;
+                bPrev.style.display = 'block';
+                if (bHint) bHint.style.display = 'none';
+            } else {
+                bPrev.src = '';
+                bPrev.style.display = 'none';
+                if (bHint) bHint.style.display = 'flex';
+            }
+
+            const socials = myProfile.socials || {};
+            SOCIAL_CONFIG.forEach(s => {
+                const input = document.getElementById(`social-${s.key}`);
+                if (input) input.value = socials[s.key] || '';
+            });
+        }
+
+        async function saveProfile() {
+            const socials = {};
+            SOCIAL_CONFIG.forEach(s => {
+                const val = document.getElementById(`social-${s.key}`).value.trim();
+                if (val) socials[s.key] = val;
+            });
+
+            const updated = {
+                ...myProfile,
+                name: document.getElementById('edit-name').value,
+                bio: document.getElementById('edit-bio').value,
+                pic: pfpBase64,
+                banner: bannerBase64,
+                socials
+            };
+
+            const { error } = await _supabase.from('profiles').upsert({
+                handle: myProfile.handle,
+                name: updated.name,
+                bio: updated.bio,
+                pic: updated.pic,
+                banner: updated.banner,
+                socials: updated.socials
+            });
+
+            if (!error) {
+                localStorage.setItem('user_profile', JSON.stringify(updated));
+                location.href = `profile.html?u=${myProfile.handle}`;
+            } else {
+                alert(error.message);
+            }
+        }
+
+        // PFP file input
+        document.getElementById('pfp-input').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                pfpBase64 = reader.result;
+                document.getElementById('pfp-preview').src = pfpBase64;
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+
+        // Banner file input — opens crop modal
+        document.getElementById('banner-input').onchange = (e) => {
+            if (!e.target.files[0]) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => openCropModal(ev.target.result);
+            reader.readAsDataURL(e.target.files[0]);
+            e.target.value = ''; // allow re-selecting same file
+        };
+
+        // ── Crop modal logic ──
+        let cropImgNaturalW = 0, cropImgNaturalH = 0;
+        let cropOffsetX = 0, cropOffsetY = 0;
+        let cropScale = 1;
+        let cropDragStart = null;
+        const BANNER_RATIO = 16 / 6; // banner is roughly 16:6 aspect
+
+        function openCropModal(src) {
+            const overlay = document.getElementById('crop-overlay');
+            const img = document.getElementById('crop-source');
+            overlay.classList.add('active');
+            img.src = src;
+            img.onload = () => {
+                cropImgNaturalW = img.naturalWidth;
+                cropImgNaturalH = img.naturalHeight;
+                cropOffsetX = 0; cropOffsetY = 0; cropScale = 1;
+                updateCropFrame();
+            };
+        }
+
+        function closeCropModal() {
+            document.getElementById('crop-overlay').classList.remove('active');
+        }
+
+        function updateCropFrame() {
+            const container = document.getElementById('crop-container');
+            const img = document.getElementById('crop-source');
+            const frame = document.getElementById('crop-frame');
+            const cW = container.offsetWidth;
+            const cH = img.offsetHeight;
+            const frameW = cW;
+            const frameH = frameW / BANNER_RATIO;
+            const top = Math.max(0, Math.min(cH - frameH, (cH - frameH) / 2 + cropOffsetY));
+            frame.style.left = '0px';
+            frame.style.top = top + 'px';
+            frame.style.width = frameW + 'px';
+            frame.style.height = frameH + 'px';
+            frame._top = top;
+            frame._frameH = frameH;
+        }
+
+        // Touch/mouse drag to reposition crop
+        const cropContainer = document.getElementById('crop-container');
+        cropContainer.addEventListener('mousedown', e => { cropDragStart = { y: e.clientY, off: cropOffsetY }; });
+        window.addEventListener('mousemove', e => {
+            if (!cropDragStart) return;
+            cropOffsetY = cropDragStart.off + (e.clientY - cropDragStart.y);
+            updateCropFrame();
+        });
+        window.addEventListener('mouseup', () => cropDragStart = null);
+
+        cropContainer.addEventListener('touchstart', e => { cropDragStart = { y: e.touches[0].clientY, off: cropOffsetY }; }, {passive:true});
+        window.addEventListener('touchmove', e => {
+            if (!cropDragStart) return;
+            cropOffsetY = cropDragStart.off + (e.touches[0].clientY - cropDragStart.y);
+            updateCropFrame();
+        }, {passive:true});
+        window.addEventListener('touchend', () => cropDragStart = null);
+
+        function confirmCrop() {
+            const img = document.getElementById('crop-source');
+            const frame = document.getElementById('crop-frame');
+            const container = document.getElementById('crop-container');
+            const displayW = container.offsetWidth;
+            const displayH = img.offsetHeight;
+            const scaleX = cropImgNaturalW / displayW;
+            const scaleY = cropImgNaturalH / displayH;
+            const sx = 0;
+            const sy = Math.max(0, frame._top * scaleY);
+            const sw = cropImgNaturalW;
+            const sh = Math.min(frame._frameH * scaleY, cropImgNaturalH - sy);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 1200;
+            canvas.height = Math.round(1200 / BANNER_RATIO);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            bannerBase64 = canvas.toDataURL('image/jpeg', 0.85);
+
+            const prev = document.getElementById('banner-preview');
+            prev.src = bannerBase64;
+            prev.style.display = 'block';
+            document.getElementById('banner-hint').style.display = 'none';
+            closeCropModal();
+        }
+
+        function closeEditor() {
+            if (currentViewedHandle) loadPublicProfile(currentViewedHandle);
+            else location.href = 'discover.html';
+        }
+
+        init();
+    </script>
+</body>
+</html>

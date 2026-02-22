@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComicCore - Background Source</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+        .toolbar { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        .nav-btn { background: #2c2c2e; border: 1px solid var(--border); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; transition: 0.2s; }
+        .nav-btn:hover { background: #3a3a3c; }
+
+        .tab-row { display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 16px; flex-shrink: 0; }
+        .tab { padding: 12px 20px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--secondary); position: relative; border: none; background: none; transition: 0.2s; }
+        .tab.active { color: var(--accent); }
+        .tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: var(--accent); border-radius: 2px 2px 0 0; }
+
+        .tab-content { flex: 1; overflow-y: auto; padding: 20px; display: none; }
+        .tab-content.active { display: block; }
+
+        .section-label { font-size: 10px; font-weight: 900; color: #555; letter-spacing: 2px; text-transform: uppercase; margin: 20px 0 10px; }
+        .section-label:first-child { margin-top: 0; }
+
+        /* Colors */
+        .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .color-swatch { aspect-ratio: 1; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .color-swatch:hover { transform: scale(1.1); border-color: #fff; }
+        .custom-color-row { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; }
+        .custom-color-row input[type="color"] { width: 52px; height: 52px; border: none; border-radius: 10px; cursor: pointer; padding: 2px; background: #222; }
+        .custom-color-row button { flex: 1; padding: 14px; background: var(--accent); color: #000; border: none; border-radius: 10px; font-weight: 900; cursor: pointer; font-size: 13px; }
+
+        /* Gradients */
+        .gradient-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .grad-card { aspect-ratio: 1; border-radius: 12px; cursor: pointer; border: 2px solid transparent; transition: 0.15s; box-shadow: 0 2px 12px rgba(0,0,0,0.4); position: relative; overflow: hidden; }
+        .grad-card:hover { transform: scale(1.04); border-color: var(--accent); }
+        .grad-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.5); padding: 5px 8px; font-size: 10px; font-weight: 800; color: #fff; backdrop-filter: blur(4px); }
+        .grad-builder { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 20px; }
+        .grad-preview { width: 100%; height: 80px; border-radius: 10px; margin-bottom: 12px; border: 1px solid var(--border); }
+        .grad-controls { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+        .grad-controls label { font-size: 10px; font-weight: 800; color: #555; display: block; margin-bottom: 4px; letter-spacing: 1px; }
+        .grad-controls input[type="color"] { width: 44px; height: 44px; border: none; border-radius: 8px; cursor: pointer; padding: 2px; background: #222; display: block; }
+        .grad-controls select { background: #2a2a2a; border: 1px solid #444; color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 12px; outline: none; }
+        .grad-apply-btn { flex: 1; min-width: 100px; padding: 11px; background: var(--teal); color: #000; border: none; border-radius: 10px; font-weight: 900; cursor: pointer; font-size: 13px; }
+
+        /* Library */
+        .ratio-badge { display: inline-block; background: #222; color: #666; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; margin-left: 5px; border: 1px solid #333; }
+        .ratio-badge.match { background: rgba(0,255,102,0.1); color: var(--accent); border-color: var(--accent); }
+        .ratio-badge.mismatch { background: rgba(255,60,60,0.08); color: #ff453a; border-color: #ff453a; }
+        .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+        .bg-card { background: var(--card); border-radius: 12px; overflow: hidden; border: 2px solid transparent; transition: 0.2s; cursor: pointer; position: relative; }
+        .bg-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+        .bg-card.mismatch { opacity: 0.35; pointer-events: none; cursor: default; }
+        .bg-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+        .bg-info { padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; }
+        .bg-delete { color: #ff453a; cursor: pointer; pointer-events: all; padding: 2px 4px; }
+        .upload-zone { border: 2px dashed #333; border-radius: 14px; padding: 28px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 20px; }
+        .upload-zone:hover { border-color: var(--accent); background: rgba(0,255,102,0.03); }
+        .ratio-filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; background: #111; border-radius: 10px; border: 1px solid var(--border); font-size: 12px; }
+
+        /* Modal */
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(6px); }
+        .modal { background: var(--card); padding: 24px; border-radius: 20px; width: 100%; max-width: 420px; border: 1px solid var(--border); }
+        .modal input[type="text"] { width: 100%; padding: 11px 14px; background: #111; border: 1px solid #333; color: white; border-radius: 10px; margin: 10px 0; box-sizing: border-box; font-family: inherit; font-size: 14px; outline: none; }
+        .modal input:focus { border-color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <div>
+        <div style="font-size:18px; font-weight:900; color:var(--accent); letter-spacing:1px;">BACKGROUNDS</div>
+        <div style="font-size:10px; color:#555; font-weight:800; margin-top:2px;" id="ratio-display">All ratios</div>
+    </div>
+    <button class="nav-btn" onclick="goBack()">← BACK</button>
+</div>
+
+<div class="tab-row">
+    <button class="tab active" onclick="switchTab('colors')">🎨 Colors</button>
+    <button class="tab"        onclick="switchTab('gradients')">🌈 Gradients</button>
+    <button class="tab"        onclick="switchTab('library')">🖼 Library</button>
+</div>
+
+<!-- COLORS -->
+<div id="tab-colors" class="tab-content active">
+    <div class="section-label">Preset Colors</div>
+    <div class="color-grid" id="preset-colors"></div>
+    <div class="section-label">Custom Color</div>
+    <div class="custom-color-row">
+        <input type="color" id="custom-color-input" value="#ffffff">
+        <button onclick="applyCustomColor()">USE THIS COLOR</button>
+    </div>
+</div>
+
+<!-- GRADIENTS -->
+<div id="tab-gradients" class="tab-content">
+    <div class="section-label">Preset Gradients</div>
+    <div class="gradient-grid" id="preset-gradients"></div>
+    <div class="section-label">Custom Gradient</div>
+    <div class="grad-builder">
+        <div class="grad-preview" id="grad-preview"></div>
+        <div class="grad-controls">
+            <div><label>FROM</label><input type="color" id="grad-color1" value="#ff7a00" oninput="updateGradPreview()"></div>
+            <div><label>TO</label><input type="color" id="grad-color2" value="#ff0080" oninput="updateGradPreview()"></div>
+            <div>
+                <label>DIRECTION</label>
+                <select id="grad-dir" onchange="updateGradPreview()">
+                    <option value="to right">→ Horizontal</option>
+                    <option value="to bottom">↓ Vertical</option>
+                    <option value="to bottom right">↘ Diagonal</option>
+                    <option value="to bottom left">↙ Diagonal</option>
+                    <option value="135deg">↗ Slanted</option>
+                    <option value="circle">◎ Radial</option>
+                </select>
+            </div>
+            <button class="grad-apply-btn" onclick="applyCustomGradient()">APPLY</button>
+        </div>
+    </div>
+</div>
+
+<!-- LIBRARY -->
+<div id="tab-library" class="tab-content">
+    <div class="upload-zone" onclick="document.getElementById('upload-input').click()">
+        <div style="font-size:30px; margin-bottom:6px;">📤</div>
+        <p style="margin:0; color:#555; font-size:13px; font-weight:600;">Tap to upload a background image</p>
+        <p style="margin:6px 0 0; color:#444; font-size:11px;" id="upload-ratio-hint"></p>
+    </div>
+    <div class="ratio-filter-bar" id="ratio-filter-bar" style="display:none;">
+        <span style="color:var(--secondary); font-weight:600;">Ratio filter:</span>
+        <b style="color:var(--accent);" id="ratio-filter-label">—</b>
+        <span style="margin-left:auto; cursor:pointer; color:var(--accent); font-weight:700;" onclick="clearRatioFilter()">Show all</span>
+    </div>
+    <div class="section-label">YOUR BACKGROUNDS</div>
+    <div id="bg-container" class="bg-grid"></div>
+</div>
+
+<!-- Upload Modal -->
+<div id="upload-modal" class="overlay">
+    <div class="modal">
+        <h3 style="margin-top:0; color:var(--accent);">Upload Background</h3>
+        <div style="width:100%; height:180px; background:#000; overflow:hidden; border-radius:10px; margin-bottom:12px;">
+            <img id="crop-target" style="max-width:100%;">
+        </div>
+        <input type="text" id="bg-name" placeholder="Name (e.g., City Street)">
+        <p style="margin:0 0 12px; font-size:11px; color:#555; font-weight:700;" id="ratio-tag-note"></p>
+        <div style="display:flex; gap:8px;">
+            <button class="nav-btn" onclick="closeModal()" style="flex:1;">CANCEL</button>
+            <button class="nav-btn" id="save-btn" onclick="saveBackground()" style="flex:2; background:var(--accent); color:#000; border:none;">SAVE</button>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="upload-input" hidden accept="image/*">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<script>
+    const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+    let cropper = null;
+    let currentRatioFilter = null;
+    let showAllLibrary = false;
+
+    window.onload = function() {
+        const stored = localStorage.getItem('cc-bg-ratio-filter');
+        if (stored) {
+            currentRatioFilter = JSON.parse(stored);
+            const label = currentRatioFilter.w + ':' + currentRatioFilter.h;
+            document.getElementById('ratio-display').innerText = 'Canvas: ' + label;
+            document.getElementById('ratio-filter-bar').style.display = 'flex';
+            document.getElementById('ratio-filter-label').innerText = label;
+            document.getElementById('upload-ratio-hint').innerText = 'Will be tagged as ' + label + ' ratio';
+            document.getElementById('ratio-tag-note').innerText = 'Tagged as ratio ' + label;
+        } else {
+            document.getElementById('upload-ratio-hint').innerText = 'No ratio filter active — free crop. Works on any canvas.';
+            document.getElementById('ratio-tag-note').innerText = 'No ratio tag — will work on any canvas.';
+        }
+        renderPresetColors();
+        renderPresetGradients();
+        updateGradPreview();
+        loadLibrary();
+    };
+
+    function switchTab(name) {
+        const tabs = ['colors','gradients','library'];
+        document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === name));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        if (name === 'library') loadLibrary();
+    }
+
+    function applyBg(css) {
+        localStorage.setItem('pending_background', css);
+        goBack();
+    }
+
+    function goBack() {
+        localStorage.removeItem('cc-bg-ratio-filter');
+        location.href = 'create.html';
+    }
+
+    // ── Colors ──
+    const PRESET_COLORS = [
+        '#ffffff','#f5f5f0','#cccccc','#888888','#444444','#111111','#000000',
+        '#1a1a2e','#16213e','#0f3460','#533483','#e94560',
+        '#ff6b6b','#ff9f43','#feca57','#48dbfb','#0abde3',
+        '#1dd1a1','#10ac84','#2ecc71','#3498db','#9b59b6',
+        '#e67e22','#e74c3c','#34495e','#f8c291','#778ca3',
+    ];
+
+    function renderPresetColors() {
+        document.getElementById('preset-colors').innerHTML = PRESET_COLORS.map(c =>
+            `<div class="color-swatch" style="background:${c};" onclick="applyBg('${c}')" title="${c}"></div>`
+        ).join('');
+    }
+
+    function applyCustomColor() {
+        applyBg(document.getElementById('custom-color-input').value);
+    }
+
+    // ── Gradients ──
+    const PRESET_GRADIENTS = [
+        { name: 'Sunset',      css: 'linear-gradient(to bottom right, #f8771f, #eb3349)' },
+        { name: 'Ocean',       css: 'linear-gradient(to bottom, #2193b0, #6dd5ed)' },
+        { name: 'Forest',      css: 'linear-gradient(to bottom right, #134e5e, #71b280)' },
+        { name: 'Purple Haze', css: 'linear-gradient(135deg, #360033, #0b8793)' },
+        { name: 'Peach',       css: 'linear-gradient(to right, #ed4264, #ffedbc)' },
+        { name: 'Midnight',    css: 'linear-gradient(to bottom, #0f0c29, #302b63, #24243e)' },
+        { name: 'Candy',       css: 'linear-gradient(to right, #d53369, #cbad6d)' },
+        { name: 'Aurora',      css: 'linear-gradient(135deg, #00c6ff, #0072ff)' },
+        { name: 'Fire',        css: 'linear-gradient(to top, #f12711, #f5af19)' },
+        { name: 'Mint',        css: 'linear-gradient(to right, #00b09b, #96c93d)' },
+        { name: 'Rose Gold',   css: 'linear-gradient(135deg, #f093fb, #f5576c)' },
+        { name: 'Night Sky',   css: 'linear-gradient(to bottom, #0a0a0a, #1a1a4e, #2d2d8f)' },
+        { name: 'Lemon',       css: 'linear-gradient(to bottom right, #f7ff00, #db36a4)' },
+        { name: 'Steel',       css: 'linear-gradient(to right, #485563, #29323c)' },
+        { name: 'Violet',      css: 'linear-gradient(135deg, #7f00ff, #e100ff)' },
+        { name: 'Spring',      css: 'linear-gradient(to bottom right, #a8ff78, #78ffd6)' },
+        { name: 'Crimson',     css: 'linear-gradient(to bottom, #642b73, #c6426e)' },
+        { name: 'Cosmic',      css: 'radial-gradient(circle, #1a1a2e 0%, #16213e 50%, #0f3460 100%)' },
+        { name: 'Neon',        css: 'linear-gradient(135deg, #08f1ff, #ff00c1)' },
+        { name: 'Sand',        css: 'linear-gradient(to bottom right, #decba4, #3e5151)' },
+        { name: 'Lava',        css: 'radial-gradient(circle at 50% 120%, #ff4500, #1a0000)' },
+        { name: 'Fog',         css: 'linear-gradient(to bottom, #d7d2cc, #304352)' },
+        { name: 'Mango',       css: 'linear-gradient(to right, #ffe259, #ffa751)' },
+        { name: 'Blueberry',   css: 'linear-gradient(135deg, #1e3c72, #2a5298)' },
+    ];
+
+    function renderPresetGradients() {
+        document.getElementById('preset-gradients').innerHTML = PRESET_GRADIENTS.map(g =>
+            `<div class="grad-card" style="background:${g.css};" onclick="applyBg('${g.css}')"><div class="grad-label">${g.name}</div></div>`
+        ).join('');
+    }
+
+    function updateGradPreview() {
+        const c1 = document.getElementById('grad-color1').value;
+        const c2 = document.getElementById('grad-color2').value;
+        const dir = document.getElementById('grad-dir').value;
+        const css = dir === 'circle' ? `radial-gradient(circle, ${c1}, ${c2})` : `linear-gradient(${dir}, ${c1}, ${c2})`;
+        document.getElementById('grad-preview').style.background = css;
+    }
+
+    function applyCustomGradient() {
+        const c1 = document.getElementById('grad-color1').value;
+        const c2 = document.getElementById('grad-color2').value;
+        const dir = document.getElementById('grad-dir').value;
+        const css = dir === 'circle' ? `radial-gradient(circle, ${c1}, ${c2})` : `linear-gradient(${dir}, ${c1}, ${c2})`;
+        applyBg(css);
+    }
+
+    // ── Library ──
+    async function loadLibrary() {
+        const container = document.getElementById('bg-container');
+        container.innerHTML = '<p style="color:#555;font-size:13px;">Loading...</p>';
+        const { data, error } = await _supabase.from('backgrounds_library').select('*').order('id', { ascending: false });
+        if (error) { container.innerHTML = '<p style="color:#ff453a;">Error loading.</p>'; return; }
+        if (!data || !data.length) { container.innerHTML = '<p style="color:#555;font-size:13px;">No backgrounds yet. Upload one above!</p>'; return; }
+
+        const filterKey = currentRatioFilter && !showAllLibrary ? currentRatioFilter.w + ':' + currentRatioFilter.h : null;
+        container.innerHTML = '';
+        data.forEach(bg => {
+            const ratioKey = bg.ratio ? bg.ratio.w + ':' + bg.ratio.h : null;
+            const isMatch  = !filterKey || !ratioKey || ratioKey === filterKey;
+            const badgeClass = !ratioKey ? '' : (isMatch ? 'match' : 'mismatch');
+            const badgeText  = ratioKey || 'any';
+
+            const card = document.createElement('div');
+            card.className = 'bg-card' + (!isMatch ? ' mismatch' : '');
+            card.innerHTML = `
+                <img src="${bg.image_data}" onclick="applyBg('${bg.image_data}')">
+                <div class="bg-info">
+                    <div style="overflow:hidden;">
+                        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(bg.name || 'BG').toUpperCase()}</div>
+                        <span class="ratio-badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                    <span class="bg-delete" onclick="deleteBG(${bg.id}, event)">✕</span>
+                </div>`;
+            container.appendChild(card);
+        });
+    }
+
+    function clearRatioFilter() {
+        showAllLibrary = true;
+        document.getElementById('ratio-filter-bar').style.display = 'none';
+        loadLibrary();
+    }
+
+    document.getElementById('upload-input').onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            document.getElementById('upload-modal').style.display = 'flex';
+            const target = document.getElementById('crop-target');
+            target.src = ev.target.result;
+            if (cropper) cropper.destroy();
+            const ar = currentRatioFilter ? currentRatioFilter.w / currentRatioFilter.h : NaN;
+            cropper = new Cropper(target, { aspectRatio: ar, viewMode: 1 });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    async function saveBackground() {
+        const name = document.getElementById('bg-name').value || 'Untitled';
+        const btn  = document.getElementById('save-btn');
+        btn.innerText = 'Saving...'; btn.disabled = true;
+        const b64 = cropper.getCroppedCanvas({ maxWidth: 1200, maxHeight: 1200 }).toDataURL('image/jpeg', 0.85);
+        const { error } = await _supabase.from('backgrounds_library').insert([{
+            name, image_data: b64, ratio: currentRatioFilter || null
+        }]);
+        btn.innerText = 'SAVE'; btn.disabled = false;
+        if (error) { alert(error.message); return; }
+        closeModal();
+        switchTab('library');
+    }
+
+    async function deleteBG(id, e) {
+        e.stopPropagation();
+        if (!confirm('Delete this background?')) return;
+        await _supabase.from('backgrounds_library').delete().eq('id', id);
+        loadLibrary();
+    }
+
+    function closeModal() {
+        document.getElementById('upload-modal').style.display = 'none';
+        document.getElementById('bg-name').value = '';
+        if (cropper) { cropper.destroy(); cropper = null; }
+    }
+</script>
+</body>
+</html>
