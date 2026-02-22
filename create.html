@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
 
-```
 <!-- GIF encoder for export -->
 <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Mountains+of+Christmas&family=Shadows+Into+Light&family=Press+Start+2P&family=Caveat:wght@700&family=Bungee+Inline&family=Righteous&family=Fascinate&family=Pacifico&family=Abril+Fatface&family=Lilita+One&family=Audiowide&family=Russo+One&family=Black+Ops+One&family=Satisfy&family=Dancing+Script:wght@700&family=Bebas+Neue&family=Alfa+Slab+One&display=swap" rel="stylesheet">
@@ -409,13 +408,241 @@
         border: 1px solid var(--accent); color: var(--accent); border-radius: 8px;
         font-weight: 800; font-size: 11px; cursor: pointer; margin-top: 2px;
     }
-</style>
-```
 
-</head>
+    /* ──────────────────────────────────
+       CANVA-STYLE APP SHELL
+    ────────────────────────────────── */
+    
+    /* Override old layout styles */
+    .toolbar-top, .toolbar-bottom, #frame-drawer { display: none !important; }
+    .menu-popup { display: none !important; }
+
+    body {
+        overflow: hidden; display: flex; flex-direction: column; height: 100vh;
+        margin: 0; font-family: 'Inter', sans-serif;
+        background: var(--bg); color: var(--text);
+    }
+
+    #cc-app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* ── TOP BAR ── */
+    #top-bar {
+        height: 54px; background: var(--card); border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; gap: 6px;
+        padding: 0 10px; z-index: 2000; flex-shrink: 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+    .tb-brand {
+        font-size: 13px; font-weight: 900; color: var(--accent);
+        letter-spacing: 1.5px; padding: 0 8px; white-space: nowrap;
+    }
+    .tb-sep { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
+    .tb-spacer { flex: 1; }
+    .tb-btn {
+        background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text);
+        padding: 6px 11px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;
+        transition: 0.15s; display: flex; align-items: center; gap: 5px; white-space: nowrap;
+        font-family: inherit;
+    }
+    .tb-btn:hover { background: rgba(255,255,255,0.1); border-color: #555; }
+    .tb-btn.accent { background: var(--accent); color: #000; border-color: var(--accent); font-size: 12px; font-weight: 900; }
+    .tb-btn.accent:hover { opacity: 0.88; }
+    .tb-btn.teal-btn { border-color: var(--teal); color: var(--teal); background: rgba(0,210,255,0.07); }
+    .tb-btn.icon-btn { padding: 6px 9px; font-size: 15px; }
+    #onion-skin-control {
+        gap: 8px; align-items: center; background: rgba(255,255,255,0.04);
+        padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); flex-shrink: 0;
+    }
+    #onion-skin-control label { font-size: 9px; font-weight: 900; color: var(--text); letter-spacing: 0.5px; }
+
+    /* ── WORK AREA ── */
+    #work-area { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── LEFT SIDEBAR ── */
+    #left-sidebar {
+        display: flex; flex-direction: row; flex-shrink: 0;
+        z-index: 1500;
+    }
+    #sidebar-icons {
+        width: 64px; display: flex; flex-direction: column; align-items: center;
+        padding: 8px 0; gap: 1px; background: #0d0d0d; border-right: 1px solid #1a1a1a;
+        flex-shrink: 0; overflow-y: auto;
+    }
+    .sb-icon-btn {
+        width: 54px; height: 54px; border: none; background: none; color: #555;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 3px; cursor: pointer; border-radius: 10px; transition: 0.15s;
+        font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+        font-family: inherit;
+    }
+    .sb-icon-btn:hover { background: rgba(255,255,255,0.05); color: #aaa; }
+    .sb-icon-btn.active { background: rgba(255,122,0,0.15); color: var(--accent); }
+    .sb-icon-btn.teal-icon { }
+    .sb-icon-btn.teal-icon.active { background: rgba(0,210,255,0.12); color: var(--teal); }
+    .sb-icon-btn.danger-icon.active { background: rgba(255,59,48,0.12); color: var(--danger); }
+    .sb-icon { font-size: 21px; line-height: 1; }
+    .sb-divider { width: 36px; height: 1px; background: #1a1a1a; margin: 4px 0; flex-shrink: 0; }
+
+    /* ── SIDEBAR PANEL ── */
+    #sidebar-panel {
+        width: 0; overflow: hidden;
+        transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        background: #111; border-right: 1px solid #1a1a1a;
+        display: flex; flex-direction: column;
+    }
+    #sidebar-panel.open { width: 280px; }
+
+    .sp-content {
+        width: 280px; height: 100%; display: none; flex-direction: column; overflow: hidden;
+    }
+    .sp-content.active { display: flex; }
+    .sp-header {
+        padding: 12px 14px 10px; font-size: 10px; font-weight: 900; color: var(--accent);
+        letter-spacing: 2px; text-transform: uppercase; border-bottom: 1px solid #1a1a1a;
+        display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    }
+    .sp-close-btn { cursor: pointer; color: #444; font-size: 15px; font-weight: 900; transition: 0.12s; }
+    .sp-close-btn:hover { color: #aaa; }
+
+    /* Sprites panel */
+    .sp-search {
+        margin: 10px 10px 6px; padding: 8px 12px; background: #1a1a1a; border: 1px solid #252525;
+        color: white; border-radius: 8px; font-size: 12px; font-weight: 600; outline: none;
+        font-family: inherit; flex-shrink: 0;
+    }
+    .sp-search:focus { border-color: var(--accent); }
+    #sb-sprite-grid {
+        flex: 1; overflow-y: auto; padding: 4px 8px 10px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 7px;
+    }
+    #sb-sprite-grid::-webkit-scrollbar { width: 3px; }
+    #sb-sprite-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .sb-sprite-card {
+        background: #191919; border: 1.5px solid #242424; border-radius: 10px;
+        cursor: pointer; overflow: hidden; transition: 0.15s;
+        display: flex; flex-direction: column;
+    }
+    .sb-sprite-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+    .sb-sprite-card img { width: 100%; aspect-ratio: 1; object-fit: contain; padding: 6px; background: #111; }
+    .sb-sprite-card span {
+        font-size: 9px; font-weight: 800; color: #555; padding: 3px 6px 5px;
+        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+    }
+    .sp-load-msg { text-align: center; padding: 30px 16px; color: #333; font-size: 12px; font-weight: 700; grid-column: 1/-1; }
+
+    /* Add panel */
+    .sp-section-label {
+        font-size: 9px; font-weight: 900; color: #2a2a2a; text-transform: uppercase;
+        letter-spacing: 1.5px; padding: 10px 14px 4px; flex-shrink: 0;
+    }
+    .sp-action-btn {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 14px; cursor: pointer; border: none; background: none; color: #888;
+        font-size: 13px; font-weight: 600; font-family: inherit; width: 100%;
+        text-align: left; transition: 0.12s;
+    }
+    .sp-action-btn:hover { background: rgba(255,255,255,0.04); color: white; }
+    .sp-action-icon { font-size: 18px; width: 28px; text-align: center; flex-shrink: 0; }
+    .sp-add-scroll { flex: 1; overflow-y: auto; }
+
+    /* Layers panel */
+    #sb-layer-actions {
+        display: flex; gap: 5px; padding: 8px 10px; border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+    }
+    .sb-lay-btn {
+        flex: 1; padding: 6px 2px; background: #1a1a1a; border: 1px solid #252525; color: #777;
+        border-radius: 7px; font-size: 9.5px; font-weight: 800; cursor: pointer; text-align: center;
+        transition: 0.12s; font-family: inherit; white-space: nowrap;
+    }
+    .sb-lay-btn:hover { background: #222; color: white; }
+    .sb-lay-btn.danger { color: #ff453a; }
+    #sb-layer-list {
+        flex: 1; overflow-y: auto; padding: 6px;
+        display: flex; flex-direction: column; gap: 4px;
+    }
+    #sb-layer-list::-webkit-scrollbar { width: 3px; }
+    #sb-layer-list::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .sb-layer-item {
+        display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer;
+        border-radius: 8px; border: 1.5px solid transparent; background: #191919; transition: 0.12s;
+        font-size: 11px; font-weight: 700; color: #666;
+    }
+    .sb-layer-item:hover { border-color: #2a2a2a; color: #aaa; }
+    .sb-layer-item.active-l { border-color: var(--accent); color: var(--accent); background: rgba(255,122,0,0.07); }
+    .sb-layer-item.multi-l { border-color: var(--teal); background: rgba(0,210,255,0.07); color: var(--teal); }
+    .sb-layer-icon { font-size: 14px; flex-shrink: 0; }
+
+    /* ── VIEWPORT ── */
+    #viewport {
+        flex: 1; display: flex; justify-content: center; align-items: center;
+        background: #050505; position: relative; overflow: hidden;
+    }
+    #canvas-container { position: relative; display: inline-block; }
+    #global-frame-indicator {
+        position: absolute; bottom: -26px; left: 50%; transform: translateX(-50%);
+        font-weight: 900; font-size: 11px; color: #2a2a2a; letter-spacing: 2px;
+        white-space: nowrap;
+    }
+
+    /* ── FRAME STRIP ── */
+    #frame-strip {
+        height: 88px; background: #0a0a0a; border-top: 1px solid #1a1a1a;
+        display: flex; align-items: center; flex-shrink: 0; overflow: hidden; z-index: 1600;
+    }
+    #fs-nav {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 5px; padding: 0 10px; border-right: 1px solid #1a1a1a; height: 100%; flex-shrink: 0; min-width: 84px;
+    }
+    .fs-nav-row { display: flex; gap: 3px; }
+    #frame-label { font-size: 10px; font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+    .fs-nav-btn {
+        background: #1a1a1a; border: 1px solid #2a2a2a; color: #666; width: 26px; height: 26px;
+        border-radius: 5px; cursor: pointer; font-size: 11px; display: flex; align-items: center;
+        justify-content: center; transition: 0.12s; font-family: inherit;
+    }
+    .fs-nav-btn:hover { background: #222; color: white; }
+    #thumb-container {
+        flex: 1; display: flex; gap: 8px; overflow-x: auto; align-items: center;
+        padding: 0 12px; height: 100%;
+    }
+    #thumb-container::-webkit-scrollbar { height: 3px; }
+    #thumb-container::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    .frame-thumb {
+        min-width: 78px; height: 62px; background: #1a1a1a; border: 2px solid #2a2a2a;
+        border-radius: 7px; cursor: pointer; display: flex; align-items: center;
+        justify-content: center; font-size: 10px; flex-shrink: 0; font-weight: 900;
+        background-size: cover; background-position: center; transition: 0.15s;
+        color: #333; position: relative;
+    }
+    .frame-thumb:hover { border-color: #444; }
+    .frame-thumb.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    #fs-actions {
+        display: flex; flex-direction: column; gap: 4px;
+        padding: 0 10px; border-left: 1px solid #1a1a1a; height: 100%;
+        justify-content: center; flex-shrink: 0;
+    }
+    .fs-act-row { display: flex; gap: 4px; }
+    .fs-act-btn {
+        padding: 5px 8px; background: #1a1a1a; border: 1px solid #2a2a2a; color: #666;
+        border-radius: 6px; font-size: 9.5px; font-weight: 800; cursor: pointer; transition: 0.12s;
+        white-space: nowrap; font-family: inherit;
+    }
+    .fs-act-btn:hover { background: #222; color: white; }
+    .fs-act-btn.add-frame { background: rgba(255,122,0,0.12); border-color: rgba(255,122,0,0.4); color: var(--accent); }
+    .fs-act-btn.danger { color: #ff453a; }
+
+    /* ── Override old panel bottom positions for new layout ── */
+    #transform-ui { z-index: 3500; bottom: 100px; }
+    #bg-edit-panel { z-index: 3500; bottom: 100px; }
+    #fx-panel { z-index: 3500; bottom: 100px; }
+
+    /* Prevent scrollbar flicker */
+    #work-area::-webkit-scrollbar { display: none; }
+
+</style></head>
 <body>
 
-```
+<!-- ── OVERLAY MODALS (unchanged) ── -->
 <div id="library-modal" class="overlay-full">
     <div class="modal-content">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -462,6 +689,8 @@
 </div>
 
 <!-- ── FX Panel (layer-level blur + filters, multi-select) ── -->
+
+<!-- ── FLOATING PANELS (unchanged) ── -->
 <div id="fx-panel">
     <div class="fx-title">
         <span>🎨 FX — LAYER EFFECTS</span>
@@ -558,59 +787,7 @@
     </div>
 </div>
 
-<div class="toolbar-top">
-    <div style="display:flex; gap:8px;">
-        <button class="nav-btn" onclick="handleExit()">🏠 EXIT</button>
-        <button class="nav-btn" onclick="undo()" title="Undo (Ctrl+Z)">↩️</button>
-        <button class="nav-btn" onclick="redo()" title="Redo (Ctrl+Y)">↪️</button>
-    </div>
-    
-    <div id="onion-skin-control" style="display:none; gap:12px; align-items:center; background: #222; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--border);">
-        <div style="display:flex; gap:5px; align-items:center;">
-            <input type="checkbox" id="onion-toggle" onchange="render()">
-            <label style="font-size:10px; font-weight:900; color:var(--text);">ONION SKIN</label>
-        </div>
-        <input type="range" id="onion-opacity" min="0.1" max="0.7" step="0.1" value="0.3" oninput="render()" style="width: 50px;">
-    </div>
-
-    <div style="display:flex; gap:8px; align-items: center;">
-        <button class="nav-btn" onclick="location.href='offlines.html'" style="color:var(--teal); border-color: var(--teal);">📂 DRAFTS</button>
-        <button onclick="toggleDrawer()" id="drawer-toggle-btn" style="background:var(--accent); border:none; color:white; border-radius:8px; padding:8px 16px; font-weight:800; cursor:pointer;">FRAMES ▾</button>
-    </div>
-
-    <div style="display:flex; gap:8px; align-items:center;">
-        <button onclick="openExportModal()" style="color:var(--teal); background:none; border:1px solid var(--teal); border-radius:8px; padding:7px 14px; font-weight:900; cursor:pointer; font-size:13px;">EXPORT</button>
-        <button onclick="openPublishModal()" style="color:var(--accent); background:none; border:none; font-weight:900; cursor:pointer; font-size: 14px;">PUBLISH</button>
-    </div>
-</div>
-
-<div id="frame-drawer">
-    <div class="drawer-row" style="justify-content: space-between; border-bottom: 1px solid #222;">
-        <div style="display:flex; gap:6px;">
-            <button class="nav-btn" onclick="goToFrame(0)">⏮️</button>
-            <button class="nav-btn" onclick="prevFrame()">◀️</button>
-            <span id="frame-label" style="font-size:11px; font-weight:900; align-self:center; color: var(--accent);">1 / 1</span>
-            <button class="nav-btn" onclick="nextFrame()">▶️</button>
-            <button class="nav-btn" onclick="goToFrame(frames.length - 1)">⏭️</button>
-        </div>
-        <div style="display:flex; gap:6px;">
-            <button class="nav-btn" onclick="copyCurrentFrame()">🎞️ COPY</button>
-            <button class="nav-btn" onclick="pasteFrame()">📥 PASTE</button>
-            <button class="nav-btn" onclick="duplicateFrame()">👯 DUP</button>
-            <button class="nav-btn" style="color:var(--danger)" onclick="deleteFrame()">🗑️</button>
-        </div>
-    </div>
-    <div id="thumb-container" class="drawer-row" style="padding-top:10px;"></div>
-</div>
-
-<div id="viewport">
-    <div id="canvas-container">
-        <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
-        <div id="comic-frame" onclick="deselectLayer(event)"></div>
-        <div id="global-frame-indicator">FRAME 1</div>
-    </div>
-</div>
-
+<!-- ── TRANSFORM UI (unchanged) ── -->
 <div id="transform-ui">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:12px; font-weight:900; color:var(--accent);">TRANSFORM</span>
@@ -724,6 +901,7 @@
     </div>
 </div>
 
+<!-- ── LEGACY MENU DIVS (hidden, kept for JS compat) ── -->
 <div id="plus-menu" class="menu-popup">
     <button class="menu-item" onclick="openLibrary()">🎭 Sprite Library</button>
     <button class="menu-item" onclick="triggerImport('object')">📦 Upload Object</button>
@@ -744,22 +922,213 @@
     <div id="layer-list-container" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;"></div>
 </div>
 
-<div class="toolbar-bottom">
-    <button class="tool-btn" onclick="toggleMenu('plus-menu')"><span class="tool-icon">➕</span>ADD</button>
-    <button class="tool-btn" onclick="toggleTransform()"><span class="tool-icon">🔧</span>EDIT</button>
-    <button class="tool-btn" id="edit-action-btn" style="display:none; color:var(--teal);" onclick="editCurrentSpriteAction()">
-        <span class="tool-icon">🔄</span>SWAP
-    </button>
-    <button class="tool-btn" id="fx-btn" onclick="toggleFxPanel()"><span class="tool-icon">🎨</span>FX</button>
-    <button class="tool-btn" onclick="toggleMenu('layer-menu')"><span class="tool-icon">📚</span>LAYERS</button>
-    <div style="width:1px; height:30px; background:#333;"></div>
-    <button class="tool-btn" onclick="saveOffline()"><span class="tool-icon">💾</span>SAVE</button>
-</div>
+<!-- ─────────────────────────────────────────────
+     CANVA-STYLE APP SHELL
+───────────────────────────────────────────── -->
+<div id="cc-app">
+
+    <!-- TOP BAR -->
+    <div id="top-bar">
+        <button class="tb-btn" onclick="handleExit()">← Exit</button>
+        <span class="tb-brand">COMICCORE</span>
+        <div class="tb-sep"></div>
+        <button class="tb-btn icon-btn" onclick="undo()" title="Undo (Ctrl+Z)">↩</button>
+        <button class="tb-btn icon-btn" onclick="redo()" title="Redo (Ctrl+Y)">↪</button>
+
+        <!-- Onion skin - inline -->
+        <div id="onion-skin-control" style="display:none; gap:8px; align-items:center; background:rgba(255,255,255,0.04); padding:4px 10px; border-radius:8px; border:1px solid var(--border);">
+            <div style="display:flex; gap:5px; align-items:center;">
+                <input type="checkbox" id="onion-toggle" onchange="render()">
+                <label for="onion-toggle" style="font-size:9px; font-weight:900; color:var(--text); letter-spacing:0.5px;">ONION</label>
+            </div>
+            <input type="range" id="onion-opacity" min="0.1" max="0.7" step="0.1" value="0.3" oninput="render()" style="width:44px;">
+        </div>
+
+        <div class="tb-spacer"></div>
+
+        <!-- Right actions -->
+        <button class="tb-btn" onclick="saveOffline()">💾 Save</button>
+        <button class="tb-btn teal-btn" onclick="location.href='offlines.html'">📂 Drafts</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="openExportModal()">Export</button>
+        <button class="tb-btn accent" onclick="openPublishModal()">Publish ↑</button>
+
+        <!-- Edit-action (SWAP) button — shown when sprite selected -->
+        <button id="edit-action-btn" style="display:none; background:rgba(0,210,255,0.1); border:1px solid var(--teal); color:var(--teal); padding:6px 11px; border-radius:8px; cursor:pointer; font-size:11px; font-weight:800; font-family:inherit; white-space:nowrap;" onclick="editCurrentSpriteAction()">🔄 Swap</button>
+    </div>
+
+    <!-- WORK AREA -->
+    <div id="work-area">
+
+        <!-- LEFT SIDEBAR -->
+        <div id="left-sidebar">
+            <div id="sidebar-icons">
+
+                <!-- Sprites -->
+                <button class="sb-icon-btn" data-panel="sprites" onclick="toggleSidePanel('sprites')">
+                    <span class="sb-icon">🎭</span>Sprites
+                </button>
+
+                <!-- Add -->
+                <button class="sb-icon-btn" data-panel="add" onclick="toggleSidePanel('add')">
+                    <span class="sb-icon">➕</span>Add
+                </button>
+
+                <!-- Background -->
+                <button class="sb-icon-btn" data-panel="background" onclick="toggleSidePanel('background')">
+                    <span class="sb-icon">🖼</span>BG
+                </button>
+
+                <!-- Layers -->
+                <button class="sb-icon-btn" data-panel="layers" onclick="toggleSidePanel('layers')">
+                    <span class="sb-icon">📚</span>Layers
+                </button>
+
+                <div class="sb-divider"></div>
+
+                <!-- Edit/Transform (opens floating panel) -->
+                <button class="sb-icon-btn teal-icon" data-action="edit" onclick="sbEditAction()">
+                    <span class="sb-icon">🔧</span>Edit
+                </button>
+
+                <!-- FX (opens floating panel) -->
+                <button class="sb-icon-btn teal-icon" id="fx-btn" onclick="toggleFxPanel()">
+                    <span class="sb-icon">🎨</span>FX
+                </button>
+
+            </div>
+
+            <!-- SIDEBAR PANEL -->
+            <div id="sidebar-panel">
+
+                <!-- ── Sprites panel ── -->
+                <div class="sp-content" id="sp-sprites">
+                    <div class="sp-header">
+                        🎭 Sprites
+                        <span class="sp-close-btn" onclick="toggleSidePanel('sprites')">✕</span>
+                    </div>
+                    <input class="sp-search" id="sb-sprite-search" placeholder="Search sprites..." oninput="filterSidebarSprites()">
+                    <div id="sb-sprite-grid">
+                        <div class="sp-load-msg">Click to load sprites</div>
+                    </div>
+                </div>
+
+                <!-- ── Add panel ── -->
+                <div class="sp-content" id="sp-add">
+                    <div class="sp-header">
+                        ➕ Add Element
+                        <span class="sp-close-btn" onclick="toggleSidePanel('add')">✕</span>
+                    </div>
+                    <div class="sp-add-scroll">
+                        <div class="sp-section-label">Text</div>
+                        <button class="sp-action-btn" onclick="addText('standard'); toggleSidePanel('add')">
+                            <span class="sp-action-icon">💬</span> Speech Bubble
+                        </button>
+                        <button class="sp-action-btn" onclick="addText('thinking'); toggleSidePanel('add')">
+                            <span class="sp-action-icon">💭</span> Thinking Bubble
+                        </button>
+                        <button class="sp-action-btn" onclick="addText('plain'); toggleSidePanel('add')">
+                            <span class="sp-action-icon">✍️</span> Plain Text
+                        </button>
+                        <button class="sp-action-btn" onclick="addSubtitle(); toggleSidePanel('add')">
+                            <span class="sp-action-icon">📋</span> Subtitle Bar
+                        </button>
+
+                        <div class="sp-section-label">Media</div>
+                        <button class="sp-action-btn" onclick="toggleSidePanel('sprites')">
+                            <span class="sp-action-icon">🎭</span> Sprite Library
+                        </button>
+                        <button class="sp-action-btn" onclick="triggerImport('object'); toggleSidePanel('add')">
+                            <span class="sp-action-icon">📦</span> Upload Image
+                        </button>
+                        <button class="sp-action-btn" onclick="openMultiImport(); toggleSidePanel('add')">
+                            <span class="sp-action-icon">🗂</span> Multi-Frame Import
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── Background panel ── -->
+                <div class="sp-content" id="sp-background">
+                    <div class="sp-header">
+                        🖼 Background
+                        <span class="sp-close-btn" onclick="toggleSidePanel('background')">✕</span>
+                    </div>
+                    <div class="sp-add-scroll">
+                        <div class="sp-section-label">Source</div>
+                        <button class="sp-action-btn" onclick="openBackgroundSource(); toggleSidePanel('background')">
+                            <span class="sp-action-icon">🖼</span> Background Library
+                        </button>
+                        <button class="sp-action-btn" onclick="triggerImport('bg'); toggleSidePanel('background')">
+                            <span class="sp-action-icon">📷</span> Upload Local Image
+                        </button>
+                        <div class="sp-section-label">Adjust</div>
+                        <button class="sp-action-btn" onclick="openBgPanel(); toggleSidePanel('background')">
+                            <span class="sp-action-icon">🎚</span> Edit BG Transform & Filters
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── Layers panel ── -->
+                <div class="sp-content" id="sp-layers">
+                    <div class="sp-header">
+                        📚 Layers
+                        <span class="sp-close-btn" onclick="toggleSidePanel('layers')">✕</span>
+                    </div>
+                    <div id="sb-layer-actions">
+                        <button class="sb-lay-btn" onclick="sbCopyLayer()">📄 Copy</button>
+                        <button class="sb-lay-btn" onclick="sbPasteLayer()">📋 Paste</button>
+                        <button class="sb-lay-btn danger" onclick="deleteLayer()">🗑 Del</button>
+                    </div>
+                    <div id="sb-layer-list"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- CANVAS VIEWPORT -->
+        <div id="viewport">
+            <div id="canvas-container">
+                <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
+                <div id="comic-frame" onclick="deselectLayer(event)"></div>
+                <div id="global-frame-indicator">FRAME 1</div>
+            </div>
+        </div>
+
+    </div><!-- /work-area -->
+
+    <!-- FRAME STRIP -->
+    <div id="frame-strip">
+        <div id="fs-nav">
+            <div class="fs-nav-row">
+                <button class="fs-nav-btn" onclick="goToFrame(0)" title="First">⏮</button>
+                <button class="fs-nav-btn" onclick="prevFrame()" title="Prev">◀</button>
+                <button class="fs-nav-btn" onclick="nextFrame()" title="Next">▶</button>
+                <button class="fs-nav-btn" onclick="goToFrame(frames.length-1)" title="Last">⏭</button>
+            </div>
+            <span id="frame-label" style="font-size:10px; font-weight:900; color:var(--accent); letter-spacing:1px;">1 / 1</span>
+        </div>
+        <div id="thumb-container"></div>
+        <div id="fs-actions">
+            <div class="fs-act-row">
+                <button class="fs-act-btn add-frame" onclick="addFrame()">+ New Frame</button>
+                <button class="fs-act-btn" onclick="duplicateFrame()">⧉ Dup</button>
+            </div>
+            <div class="fs-act-row">
+                <button class="fs-act-btn" onclick="copyCurrentFrame()">🎞 Copy</button>
+                <button class="fs-act-btn" onclick="pasteFrame()">📥 Paste</button>
+                <button class="fs-act-btn danger" onclick="deleteFrame()">🗑 Del</button>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /cc-app -->
+
+<!-- HIDDEN LEGACY FRAME DRAWER (needed by JS) -->
+<div id="frame-drawer" style="display:none !important;"></div>
 
 <input type="file" id="img-input" hidden accept="image/*">
 <!-- FIX 2: cover-input now has onchange handler so the cropper fires correctly for cover uploads -->
 <input type="file" id="cover-input" hidden accept="image/*" onchange="handleCoverInput(event)">
-```
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
@@ -2483,7 +2852,145 @@
 
 </script>
 
-```
+<!-- ── Sidebar JS ── -->
+<script>
+    let activeSidePanel = null;
+    let sidebarSprites = null;
+
+    function toggleSidePanel(name) {
+        const panel = document.getElementById('sidebar-panel');
+        // Close if same panel clicked
+        if (activeSidePanel === name) {
+            panel.classList.remove('open');
+            document.querySelectorAll('.sp-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.sb-icon-btn[data-panel]').forEach(b => b.classList.remove('active'));
+            activeSidePanel = null;
+            return;
+        }
+        // Open new panel
+        activeSidePanel = name;
+        panel.classList.add('open');
+        document.querySelectorAll('.sp-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.sb-icon-btn[data-panel]').forEach(b => b.classList.remove('active'));
+        const content = document.getElementById('sp-' + name);
+        if (content) content.classList.add('active');
+        const btn = document.querySelector('.sb-icon-btn[data-panel="' + name + '"]');
+        if (btn) btn.classList.add('active');
+        // Panel-specific init
+        if (name === 'sprites' && !sidebarSprites) loadSidebarSprites();
+        if (name === 'layers') renderSidebarLayers();
+    }
+
+    async function loadSidebarSprites() {
+        const grid = document.getElementById('sb-sprite-grid');
+        grid.innerHTML = '<div class="sp-load-msg">Loading sprites...</div>';
+        try {
+            const { data } = await _supabase.from('sprites_library').select('*').order('created_at', { ascending: false });
+            sidebarSprites = data || [];
+            renderSidebarSprites(sidebarSprites);
+        } catch(e) {
+            grid.innerHTML = '<div class="sp-load-msg">Error loading sprites</div>';
+        }
+    }
+
+    function renderSidebarSprites(sprites) {
+        const grid = document.getElementById('sb-sprite-grid');
+        const q = (document.getElementById('sb-sprite-search')?.value || '').toLowerCase().trim();
+        const filtered = q ? sprites.filter(s =>
+            s.name.toLowerCase().includes(q) ||
+            (s.tags || []).some(t => t.includes(q))
+        ) : sprites;
+        if (!filtered.length) {
+            grid.innerHTML = '<div class="sp-load-msg">No sprites found</div>'; return;
+        }
+        grid.innerHTML = '';
+        filtered.forEach(pack => {
+            const div = document.createElement('div');
+            div.className = 'sb-sprite-card';
+            div.innerHTML = '<img src="' + pack.image_data + '"><span>' + pack.name + '</span>';
+            div.onclick = () => { openActionModal(pack); };
+            grid.appendChild(div);
+        });
+    }
+
+    function filterSidebarSprites() {
+        if (!sidebarSprites) return;
+        renderSidebarSprites(sidebarSprites);
+    }
+
+    function renderSidebarLayers() {
+        const container = document.getElementById('sb-layer-list');
+        if (!container) return;
+        container.innerHTML = '';
+        const layerIcons = { img: '🖼', bubble: '💬', thinking: '💭', text: '✍️', subtitle: '📋' };
+        [...frames[currentIdx].layers].reverse().forEach((l) => {
+            const item = document.createElement('div');
+            item.className = 'sb-layer-item';
+            const isActive = activeLayer?.id === l.id;
+            const isInSel = selectedLayers.some(s => s.id === l.id);
+            if (isActive) item.classList.add('active-l');
+            if (isInSel) item.classList.add('multi-l');
+            const icon = layerIcons[l.type] || '▫️';
+            const label = l.nameTag || (l.content ? l.content.substring(0, 18) : (l.type.toUpperCase()));
+            item.innerHTML = '<span class="sb-layer-icon">' + icon + '</span>' + label;
+            item.onclick = (e) => {
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                    const idx = selectedLayers.findIndex(s => s.id === l.id);
+                    if (idx === -1) selectedLayers.push(l); else selectedLayers.splice(idx, 1);
+                } else {
+                    selectedLayers = [l];
+                    activeLayer = l;
+                }
+                render();
+                renderSidebarLayers();
+                if (typeof updateFxHint === 'function') updateFxHint();
+            };
+            container.appendChild(item);
+        });
+        if (!container.children.length) {
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#333;font-size:11px;font-weight:700;">No layers yet</div>';
+        }
+    }
+
+    // Override renderLayerList to also update sidebar
+    const _origRenderLayerList = renderLayerList;
+    function renderLayerList() {
+        _origRenderLayerList();
+        renderSidebarLayers();
+    }
+
+    function sbEditAction() {
+        toggleTransform();
+        // Visual feedback
+        const btn = document.querySelector('.sb-icon-btn[data-action="edit"]');
+        if (btn) btn.classList.toggle('active');
+    }
+
+    function sbCopyLayer() {
+        copyLayer();
+    }
+    function sbPasteLayer() {
+        pasteLayer();
+    }
+
+    // Auto-refresh sidebar layers when render() runs
+    const _origRender = render;
+    render = function() {
+        _origRender();
+        if (activeSidePanel === 'layers') renderSidebarLayers();
+    };
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); }
+        if (e.key === 'Escape') {
+            if (activeSidePanel) toggleSidePanel(activeSidePanel);
+        }
+    });
+</script>
+
 <!-- ── iOS-style Float Toolbar ── -->
 <div id="ftb-pill">
     <div id="ftb-bar">
@@ -2610,7 +3117,6 @@
         <button onclick="closeExportModal()" style="width:100%; margin-top:12px; padding:12px; background:#222; color:#aaa; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
     </div>
 </div>
-```
 
 </body>
 </html>
