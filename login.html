@@ -63,9 +63,29 @@
         if (error) throw error;
         showStatus("Success! Check your email to verify.", "success");
       } else {
-        const { error } = await supabaseClient.auth.signInWithPassword({ email: e, password: p });
+        const { data: signInData, error } = await supabaseClient.auth.signInWithPassword({ email: e, password: p });
         if (error) throw error;
-        
+
+        // Fetch the full profile from Supabase so handle is always in localStorage
+        const user = signInData.user;
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('permanent_id', user.id)
+          .maybeSingle();
+
+        if (profile) {
+          // Save the complete profile — this is what every other page reads
+          localStorage.setItem('user_profile', JSON.stringify(profile));
+        } else {
+          // Profile row doesn't exist yet — save bare minimum so index.html
+          // self-heal (added earlier) can attempt a re-fetch
+          localStorage.setItem('user_profile', JSON.stringify({
+            permanent_id: user.id,
+            email: user.email
+          }));
+        }
+
         showStatus("Welcome Back! Redirecting...", "success");
         setTimeout(() => { window.location.href = "index.html"; }, 800);
       }
