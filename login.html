@@ -1,112 +1,325 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" href="theme.css">
-    <script src="theme.js"></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ComicCore | Login</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        /* colors now in theme.css */
-  body { margin: 0; padding: 40px 0; font-family: 'Inter', sans-serif; background-color: var(--bg-dark); display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-  .brand-header { color: white; font-size: 28px; font-weight: 700; margin-bottom: 30px; }
-  .container { background-color: #ffffff; width: 90%; max-width: 400px; border-radius: 28px; padding: 32px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); box-sizing: border-box; }
-  .status-banner { padding: 12px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; display: none; text-align: center; font-weight: 600; }
-  .success { background: #e6fffa; color: var(--success-green); border: 1px solid #b2f5ea; }
-  .error { background: #fff5f5; color: var(--error-red); border: 1px solid #feb2b2; }
-  .header-tabs { display: flex; margin-bottom: 30px; border-bottom: 1px solid #eee; }
-  .tab { flex: 1; text-align: center; padding: 12px; cursor: pointer; font-weight: 600; color: #999; }
-  .tab.active { color: #000; border-bottom: 3px solid var(--vibrant-orange); }
-  .form-content { display: none; }
-  .form-content.active { display: block; }
-  .input-group { margin-bottom: 16px; position: relative; }
-  .input-label { position: absolute; top: -8px; left: 20px; background: white; padding: 0 5px; font-size: 11px; color: var(--vibrant-orange); font-weight: 600; z-index: 1; }
-  input { width: 100%; padding: 16px 22px; border: 1.5px solid #ddd; border-radius: 50px; box-sizing: border-box; font-size: 16px; outline: none; }
-  .btn { width: 100%; padding: 16px; border: none; border-radius: 50px; font-weight: 700; font-size: 16px; cursor: pointer; background-color: var(--vibrant-orange); color: white; margin-top: 10px; }
-</style>
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComicCore | Login</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+    body {
+      margin: 0; padding: 40px 0 60px;
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+    }
+
+    .brand-header { color: white; font-size: 28px; font-weight: 900; margin-bottom: 30px; letter-spacing: -0.5px; }
+
+    .container {
+      background: #fff; width: 90%; max-width: 400px;
+      border-radius: 28px; padding: 32px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8); box-sizing: border-box;
+    }
+
+    .header-tabs { display: flex; margin-bottom: 28px; border-bottom: 1px solid #eee; }
+    .tab { flex: 1; text-align: center; padding: 12px; cursor: pointer; font-weight: 700; color: #aaa; transition: .2s; }
+    .tab.active { color: #000; border-bottom: 3px solid var(--vibrant-orange); }
+
+    .status-banner { padding: 12px; border-radius: 12px; margin-bottom: 18px; font-size: 13px; display: none; text-align: center; font-weight: 600; }
+    .success { background: #e6fffa; color: #276749; border: 1px solid #b2f5ea; }
+    .error   { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
+
+    .form-content { display: none; }
+    .form-content.active { display: block; }
+
+    .input-group { margin-bottom: 14px; position: relative; }
+    .input-label { position: absolute; top: -8px; left: 20px; background: white; padding: 0 5px; font-size: 11px; color: var(--vibrant-orange); font-weight: 700; z-index: 1; }
+    .input-group input {
+      width: 100%; padding: 15px 22px;
+      border: 1.5px solid #ddd; border-radius: 50px;
+      box-sizing: border-box; font-size: 15px; outline: none;
+      font-family: 'Inter', sans-serif; transition: border-color .2s;
+    }
+    .input-group input:focus { border-color: var(--vibrant-orange); }
+
+    .handle-wrap { position: relative; }
+    .handle-at { position: absolute; left: 22px; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 700; color: #aaa; pointer-events: none; z-index: 2; }
+    .handle-wrap input { padding-left: 36px !important; }
+
+    .pass-wrap { position: relative; }
+    .pass-wrap input { padding-right: 50px !important; }
+    .eye-btn { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 18px; color: #bbb; padding: 0; line-height: 1; transition: color .15s; }
+    .eye-btn:hover { color: #555; }
+
+    .pass-reminder { font-size: 11px; color: #e53e3e; font-weight: 700; margin: -8px 0 12px 22px; display: block; }
+
+    .handle-status { font-size: 11px; font-weight: 700; margin: -8px 0 10px 22px; display: block; min-height: 14px; }
+    .handle-status.ok    { color: #38a169; }
+    .handle-status.taken { color: #e53e3e; }
+    .handle-status.check { color: #aaa; }
+
+    .field-hint { font-size: 11px; color: #aaa; margin: -10px 0 12px 22px; display: block; }
+
+    .btn { width: 100%; padding: 16px; border: none; border-radius: 50px; font-weight: 800; font-size: 15px; cursor: pointer; background: var(--vibrant-orange); color: white; margin-top: 6px; transition: filter .15s, transform .1s; letter-spacing: .3px; }
+    .btn:hover   { filter: brightness(1.08); }
+    .btn:active  { transform: scale(.98); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .forgot-link { display: block; text-align: center; margin-top: 14px; font-size: 12px; color: #aaa; text-decoration: none; font-weight: 600; }
+    .forgot-link:hover { color: var(--vibrant-orange); }
+  </style>
 </head>
 <body>
 
 <div class="brand-header">ComicCore</div>
+
 <div class="container">
   <div id="status-banner" class="status-banner"></div>
-  
+
   <div class="header-tabs">
     <div id="t-create" class="tab active" onclick="toggle('create')">Create Account</div>
-    <div id="t-login" class="tab" onclick="toggle('login')">Log In</div>
+    <div id="t-login"  class="tab"        onclick="toggle('login')">Log In</div>
   </div>
 
+  <!-- SIGN UP -->
   <div id="c-create" class="form-content active">
-    <div class="input-group"><span class="input-label">Email</span><input type="email" id="reg-email" placeholder="Email"></div>
-    <div class="input-group"><input type="password" id="reg-pass" placeholder="Password"></div>
-    <button class="btn" onclick="handleAuth('signup')">Get Started</button>
+
+    <div class="input-group">
+      <span class="input-label">Username</span>
+      <div class="handle-wrap">
+        <span class="handle-at">@</span>
+        <input type="text" id="reg-handle" placeholder="yourhandle"
+          oninput="checkHandle(this.value)" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <span class="handle-status" id="handle-status"></span>
+    </div>
+
+    <div class="input-group">
+      <span class="input-label">Email</span>
+      <input type="email" id="reg-email" placeholder="you@email.com">
+    </div>
+
+    <div class="input-group">
+      <span class="input-label">Date of Birth</span>
+      <input type="date" id="reg-dob" style="padding-right:22px;">
+    </div>
+    <span class="field-hint">You must be 13 or older to join.</span>
+
+    <div class="input-group">
+      <span class="input-label">Password</span>
+      <div class="pass-wrap">
+        <input type="password" id="reg-pass" placeholder="Create a password">
+        <button class="eye-btn" type="button" onclick="toggleEye('reg-pass','eye-reg')">
+          <span id="eye-reg">👁</span>
+        </button>
+      </div>
+    </div>
+    <span class="pass-reminder">Remember your password !</span>
+
+    <button class="btn" id="signup-btn" onclick="handleSignup()">Get Started</button>
   </div>
 
+  <!-- LOG IN -->
   <div id="c-login" class="form-content">
-    <div class="input-group"><span class="input-label">Email</span><input type="email" id="log-email" placeholder="Email"></div>
-    <div class="input-group"><input type="password" id="log-pass" placeholder="Password"></div>
-    <button class="btn" onclick="handleAuth('login')">Sign In</button>
+
+    <div class="input-group">
+      <span class="input-label">Email</span>
+      <input type="email" id="log-email" placeholder="you@email.com">
+    </div>
+
+    <div class="input-group">
+      <span class="input-label">Password</span>
+      <div class="pass-wrap">
+        <input type="password" id="log-pass" placeholder="Your password"
+          onkeydown="if(event.key==='Enter') handleLogin()">
+        <button class="eye-btn" type="button" onclick="toggleEye('log-pass','eye-log')">
+          <span id="eye-log">👁</span>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn" onclick="handleLogin()">Sign In</button>
+    <a class="forgot-link" href="forgotpassword.html">Forgot your password?</a>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  const supabaseClient = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+  const _sb = supabase.createClient(
+    'https://mmycqeejhguzhtzkyjaj.supabase.co',
+    'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
+  );
 
-  async function handleAuth(mode) {
-    const e = document.getElementById(mode === 'signup' ? 'reg-email' : 'log-email').value;
-    const p = document.getElementById(mode === 'signup' ? 'reg-pass' : 'log-pass').value;
-
-    try {
-      if (mode === 'signup') {
-        const { error } = await supabaseClient.auth.signUp({ email: e, password: p });
-        if (error) throw error;
-        showStatus("Success! Check your email to verify.", "success");
-      } else {
-        const { data: signInData, error } = await supabaseClient.auth.signInWithPassword({ email: e, password: p });
-        if (error) throw error;
-
-        // Fetch the full profile from Supabase so handle is always in localStorage
-        const user = signInData.user;
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('*')
-          .eq('permanent_id', user.id)
-          .maybeSingle();
-
-        if (profile) {
-          // Save the complete profile — this is what every other page reads
-          localStorage.setItem('user_profile', JSON.stringify(profile));
-        } else {
-          // Profile row doesn't exist yet — save bare minimum so index.html
-          // self-heal (added earlier) can attempt a re-fetch
-          localStorage.setItem('user_profile', JSON.stringify({
-            permanent_id: user.id,
-            email: user.email
-          }));
-        }
-
-        showStatus("Welcome Back! Redirecting...", "success");
-        setTimeout(() => { window.location.href = "index.html"; }, 800);
-      }
-    } catch (err) {
-      showStatus(err.message, "error");
+  // Eye toggle
+  function toggleEye(inputId, iconId) {
+    const inp  = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      icon.textContent = '🙈';
+    } else {
+      inp.type = 'password';
+      icon.textContent = '👁';
     }
   }
 
-  function showStatus(msg, type) {
-    const banner = document.getElementById('status-banner');
-    banner.innerText = msg;
-    banner.className = `status-banner ${type}`;
-    banner.style.display = 'block';
+  // Live handle availability check
+  let handleTimer = null;
+  async function checkHandle(val) {
+    const status = document.getElementById('handle-status');
+    // Force lowercase, strip invalid chars
+    val = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    document.getElementById('reg-handle').value = val;
+
+    if (!val || val.length < 3) {
+      status.textContent = val.length > 0 ? 'At least 3 characters' : '';
+      status.className = 'handle-status check';
+      return;
+    }
+    status.textContent = 'Checking\u2026';
+    status.className = 'handle-status check';
+    clearTimeout(handleTimer);
+    handleTimer = setTimeout(async () => {
+      const { data } = await _sb.from('profiles').select('handle').eq('handle', val).maybeSingle();
+      if (data) {
+        status.textContent = '\u2715 @' + val + ' is already taken';
+        status.className = 'handle-status taken';
+      } else {
+        status.textContent = '\u2713 @' + val + ' is available';
+        status.className = 'handle-status ok';
+      }
+    }, 500);
   }
 
+  // Age check (must be 13+)
+  function isOldEnough(dob) {
+    if (!dob) return false;
+    const birth = new Date(dob);
+    const now   = new Date();
+    const age   = now.getFullYear() - birth.getFullYear()
+      - (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
+    return age >= 13;
+  }
+
+  // SIGN UP
+  async function handleSignup() {
+    const handle = document.getElementById('reg-handle').value.trim().toLowerCase();
+    const email  = document.getElementById('reg-email').value.trim();
+    const dob    = document.getElementById('reg-dob').value;
+    const pass   = document.getElementById('reg-pass').value;
+    const btn    = document.getElementById('signup-btn');
+
+    if (!handle || handle.length < 3) return showStatus('Username must be at least 3 characters.', 'error');
+    if (!email)                        return showStatus('Please enter your email.', 'error');
+    if (!dob)                          return showStatus('Please enter your date of birth.', 'error');
+    if (!isOldEnough(dob))             return showStatus('You must be 13 or older to join.', 'error');
+    if (pass.length < 6)               return showStatus('Password must be at least 6 characters.', 'error');
+
+    // Final server-side handle check
+    const { data: existing } = await _sb.from('profiles').select('handle').eq('handle', handle).maybeSingle();
+    if (existing) return showStatus('That username is already taken. Choose another.', 'error');
+
+    btn.disabled = true;
+    btn.textContent = 'Creating account\u2026';
+
+    try {
+      // Step 1: Create Supabase auth user
+      const { data: signUpData, error: signUpError } = await _sb.auth.signUp({ email, password: pass });
+      if (signUpError) throw signUpError;
+
+      const user = signUpData.user;
+
+      // Step 2: Insert the profile row — this is the fix for the NOT NULL constraint.
+      // The old code never did this, so handle was always null.
+      const { error: profileError } = await _sb.from('profiles').insert({
+        handle:       handle,
+        permanent_id: user.id,
+        name:         handle,
+        socials:      {},
+        settings:     {}
+      });
+      if (profileError) throw profileError;
+
+      // Step 3: Save to localStorage so index.html and profile.html work immediately
+      localStorage.setItem('user_profile', JSON.stringify({
+        handle,
+        permanent_id: user.id,
+        name:         handle,
+        email,
+        pic:          '',
+        banner:       '',
+        bio:          '',
+        socials:      {},
+        settings:     {}
+      }));
+
+      showStatus('Account created! Check your email to verify, then log in.', 'success');
+      btn.textContent = '\u2713 Account Created';
+
+    } catch (err) {
+      showStatus(err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Get Started';
+    }
+  }
+
+  // LOG IN
+  async function handleLogin() {
+    const email = document.getElementById('log-email').value.trim();
+    const pass  = document.getElementById('log-pass').value;
+
+    if (!email || !pass) return showStatus('Please enter your email and password.', 'error');
+
+    try {
+      const { data: signInData, error } = await _sb.auth.signInWithPassword({ email, password: pass });
+      if (error) throw error;
+
+      const user = signInData.user;
+
+      // Fetch the full profile — handle, name, pic, bio, everything
+      const { data: profile } = await _sb
+        .from('profiles')
+        .select('*')
+        .eq('permanent_id', user.id)
+        .maybeSingle();
+
+      if (profile) {
+        localStorage.setItem('user_profile', JSON.stringify(profile));
+      } else {
+        // Profile row missing — save bare minimum, index.html will try to recover
+        localStorage.setItem('user_profile', JSON.stringify({
+          permanent_id: user.id,
+          email:        user.email
+        }));
+      }
+
+      showStatus('Welcome back! Redirecting\u2026', 'success');
+      setTimeout(() => { window.location.href = 'index.html'; }, 800);
+
+    } catch (err) {
+      showStatus(err.message, 'error');
+    }
+  }
+
+  // Status banner
+  function showStatus(msg, type) {
+    const b = document.getElementById('status-banner');
+    b.innerText = msg;
+    b.className = `status-banner ${type}`;
+    b.style.display = 'block';
+    b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Tab toggle
   function toggle(mode) {
     const isCreate = mode === 'create';
     document.getElementById('t-create').className = isCreate ? 'tab active' : 'tab';
-    document.getElementById('t-login').className = isCreate ? 'tab' : 'tab active';
+    document.getElementById('t-login').className  = isCreate ? 'tab' : 'tab active';
     document.getElementById('c-create').className = isCreate ? 'form-content active' : 'form-content';
-    document.getElementById('c-login').className = isCreate ? 'form-content' : 'form-content active';
+    document.getElementById('c-login').className  = isCreate ? 'form-content' : 'form-content active';
+    document.getElementById('status-banner').style.display = 'none';
   }
 </script>
 </body>
