@@ -5,17 +5,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ComicCore — Reader</title>
-<link rel="stylesheet" href="theme.css">
-<script src="theme.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Shadows+Into+Light&family=Press+Start+2P&family=Caveat:wght@700&family=Bungee+Inline&family=Righteous&family=Pacifico&family=Abril+Fatface&family=Lilita+One&family=Audiowide&family=Russo+One&family=Black+Ops+One&family=Satisfy&family=Dancing+Script:wght@700&family=Bebas+Neue&family=Alfa+Slab+One&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{margin:0;font-family:'Inter',sans-serif;background:#000;color:#fff;height:100dvh;overflow:hidden;display:flex;flex-direction:column;user-select:none;}
 
 /* ── Progress bar ── */
 .prog-track{position:fixed;top:0;left:0;right:0;height:3px;z-index:500;background:rgba(255,255,255,.08);}
-.prog-fill{height:100%;background:var(–accent,#ff7a00);transition:width .4s cubic-bezier(.4,0,.2,1);}
+.prog-fill{height:100%;background:#ff7a00;transition:width .4s cubic-bezier(.4,0,.2,1);}
 
 /* ── Top bar ── */
 .top-bar{
@@ -45,20 +43,25 @@ flex:1;display:flex;align-items:center;justify-content:center;
 width:100%;height:100dvh;position:relative;overflow:hidden;touch-action:none;
 }
 
-/* ── Comic frame ── */
-.comic-frame{
+/* ── Comic frame (the actual rendered canvas) ── */
+#comic-frame{
 position:relative;overflow:hidden;background:#fff;
 box-shadow:0 8px 60px rgba(0,0,0,.85);
 transition:opacity .2s;
 }
-.comic-frame.fade{opacity:0;}
-.layer{position:absolute;pointer-events:none;}
+#comic-frame.fade{opacity:0;}
+
+/* All layer types sit inside #comic-frame */
+.r-layer{position:absolute;pointer-events:none;transform-origin:top left;}
+
+/* Speech bubble */
 .speech-bubble{
 padding:10px 13px;border:3px solid #000;border-radius:20px;
 background:#fff;color:#000;font-weight:800;text-align:center;
 min-width:36px;position:relative;word-wrap:break-word;line-height:1.4;
 }
-.bubble-tail{position:absolute;bottom:-13px;left:20px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:13px solid #000;}
+.bubble-tail{position:absolute;bottom:-13px;left:20px;width:0;height:0;
+border-left:9px solid transparent;border-right:9px solid transparent;border-top:13px solid #000;}
 .thought-dot-1,.thought-dot-2{position:absolute;background:#fff;border:3px solid #000;border-radius:50%;}
 .thought-dot-1{width:11px;height:11px;bottom:-17px;left:26px;}
 .thought-dot-2{width:7px;height:7px;bottom:-26px;left:32px;}
@@ -92,7 +95,7 @@ transition:.15s;backdrop-filter:blur(8px);
 .nb:disabled{opacity:.2;cursor:default;}
 .fdots{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:180px;line-height:42px;}
 .fd{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.22);transition:.2s;cursor:pointer;flex-shrink:0;}
-.fd.on{background:var(–accent,#ff7a00);width:14px;border-radius:3px;}
+.fd.on{background:#ff7a00;width:14px;border-radius:3px;}
 
 /* ── Finish overlay ── */
 .finish-card{
@@ -135,7 +138,6 @@ animation:slideUp .3s cubic-bezier(.4,0,.2,1);
 .share-title{font-size:16px;font-weight:900;margin:0 0 4px;letter-spacing:.3px;}
 .share-sub{font-size:12px;color:rgba(255,255,255,.4);margin:0 0 18px;}
 
-/* Link copy row */
 .link-row{
 display:flex;gap:8px;align-items:center;
 background:#111;border:1px solid #2c2c2e;border-radius:12px;
@@ -147,14 +149,13 @@ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 font-family:‘Courier New’,monospace;
 }
 .copy-btn{
-background:var(–accent,#ff7a00);color:#000;border:none;
+background:#ff7a00;color:#000;border:none;
 border-radius:8px;padding:7px 14px;font-size:12px;font-weight:900;
 cursor:pointer;white-space:nowrap;transition:.15s;flex-shrink:0;
 }
 .copy-btn:hover{filter:brightness(1.1);}
 .copy-btn.copied{background:#32d74b;}
 
-/* Platform buttons */
 .platforms{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
 .plat-btn{
 flex:1;min-width:calc(50% - 5px);
@@ -166,7 +167,6 @@ cursor:pointer;transition:.15s;text-decoration:none;
 .plat-btn:hover{background:#3a3a3c;transform:translateY(-1px);}
 .plat-btn .pi{font-size:20px;flex-shrink:0;}
 
-/* QR code */
 .qr-wrap{
 display:flex;align-items:center;gap:14px;
 background:#111;border:1px solid #2c2c2e;border-radius:12px;
@@ -177,7 +177,6 @@ padding:12px 14px;
 .qr-label{font-size:11px;font-weight:900;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
 .qr-hint{font-size:11px;color:rgba(255,255,255,.3);line-height:1.5;}
 
-/* Close btn */
 .sheet-close{
 width:100%;margin-top:16px;padding:13px;
 background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
@@ -186,7 +185,43 @@ cursor:pointer;transition:.15s;
 }
 .sheet-close:hover{background:rgba(255,255,255,.14);}
 
-/* Toast */
+/* ── Comments overlay ── */
+.comment-overlay{
+position:fixed;inset:0;z-index:950;
+display:none;align-items:flex-end;justify-content:center;
+background:rgba(0,0,0,.75);backdrop-filter:blur(8px);
+}
+.comment-overlay.open{display:flex;}
+.comment-sheet{
+background:#1c1c1e;border:1px solid #2c2c2e;
+border-radius:20px 20px 0 0;width:100%;max-width:480px;
+max-height:75dvh;display:flex;flex-direction:column;
+animation:slideUp .3s cubic-bezier(.4,0,.2,1);
+padding:20px 18px 0;
+}
+.comment-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.comment-header span{font-weight:900;font-size:15px;}
+.comment-header button{background:none;border:none;color:white;font-size:22px;cursor:pointer;}
+.comment-list{flex:1;overflow-y:auto;padding-bottom:8px;}
+.comment-item{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);}
+.comment-user{font-size:11px;font-weight:800;color:#ff7a00;margin-bottom:3px;}
+.comment-text{font-size:13px;color:rgba(255,255,255,.85);}
+.comment-empty{text-align:center;padding:30px 20px;color:rgba(255,255,255,.2);font-size:12px;font-weight:700;}
+.comment-input-row{
+display:flex;gap:8px;padding:12px 0 calc(14px + env(safe-area-inset-bottom));
+border-top:1px solid rgba(255,255,255,.08);margin-top:auto;
+}
+.comment-input{
+flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+color:white;padding:10px 14px;border-radius:12px;font-family:inherit;font-size:13px;outline:none;
+}
+.comment-input:focus{border-color:#ff7a00;}
+.comment-post-btn{
+background:#ff7a00;border:none;color:#000;
+padding:10px 16px;border-radius:12px;font-weight:900;cursor:pointer;font-size:13px;
+}
+
+/* ── Toast ── */
 .toast{
 position:fixed;bottom:120px;left:50%;transform:translateX(-50%) translateY(20px);
 background:#1c1c1e;border:1px solid #3a3a3c;color:#fff;
@@ -211,6 +246,7 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
   </div>
   <div style="display:flex;gap:6px;flex-shrink:0;">
     <button class="round-btn" id="star-btn" onclick="toggleStar()" title="Star">☆</button>
+    <button class="round-btn" id="comment-btn" onclick="openComments()" title="Comments" style="font-size:15px;">💬</button>
     <button class="round-btn" id="share-btn" onclick="openShare()" title="Share" style="font-size:15px;">↗</button>
     <button class="round-btn edit-c" id="edit-btn" style="display:none;" onclick="editComic()" title="Edit">✏</button>
     <button class="round-btn" id="fs-btn" onclick="toggleFS()" title="Fullscreen">⛶</button>
@@ -226,16 +262,15 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
   <div class="nav-zone" id="nz-up"    onclick="prevFrame()"></div>
   <div class="nav-zone" id="nz-down"  onclick="nextFrame()"></div>
 
-  <div class="comic-frame" id="cf"></div>
+  <div id="comic-frame"></div>
 
   <!-- Finish overlay -->
 
   <div class="finish-card" id="finish">
     <div class="finish-emoji">🎉</div>
     <div class="finish-title" id="fin-title">You finished it!</div>
-    <div class="finish-sub" id="fin-sub">Loved the story? Show the creator some love.</div>
+    <div class="finish-sub">Loved the story? Show the creator some love.</div>
     <button class="finish-star-btn" id="fin-star" onclick="finishStar()">⭐ Give a Star</button>
-    <!-- Share from finish screen -->
     <button class="finish-back" onclick="openShare()" style="border-color:rgba(255,122,0,.4);color:#ff7a00;">↗ Share this comic</button>
     <button class="finish-back" onclick="goBack()">← Back to Discover</button>
   </div>
@@ -252,508 +287,700 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
   </div>
 </div>
 
-<!-- ── Share Sheet ── -->
+<!-- Share Sheet -->
 
-<div class="share-sheet" id="share-sheet" onclick="closeShare(event)">
-  <div class="share-inner" onclick="event.stopPropagation()">
+<div class="share-sheet" id="share-sheet" onclick="if(event.target===this)closeShare()">
+  <div class="share-inner">
     <div class="share-title" id="sh-title">Share Comic</div>
     <div class="share-sub" id="sh-sub">Anyone with this link can read it</div>
-
-<!-- Copy link -->
-<div class="link-row">
-  <span class="link-text" id="sh-link-text">loading…</span>
-  <button class="copy-btn" id="copy-btn" onclick="copyLink()">Copy</button>
-</div>
-
-<!-- Platform shortcuts -->
-<div class="platforms">
-  <a class="plat-btn" id="discord-btn" href="#" target="_blank" onclick="trackShare('discord')">
-    <span class="pi">🎮</span><span>Discord</span>
-  </a>
-  <a class="plat-btn" id="twitter-btn" href="#" target="_blank" onclick="trackShare('twitter')">
-    <span class="pi">𝕏</span><span>X / Twitter</span>
-  </a>
-  <a class="plat-btn" id="whatsapp-btn" href="#" target="_blank" onclick="trackShare('whatsapp')">
-    <span class="pi">💬</span><span>WhatsApp</span>
-  </a>
-  <button class="plat-btn" onclick="nativeShare()">
-    <span class="pi">⬆</span><span>More…</span>
-  </button>
-</div>
-
-<!-- QR code for IRL sharing -->
-<div class="qr-wrap">
-  <canvas id="qr-canvas" width="80" height="80"></canvas>
-  <div class="qr-info">
-    <div class="qr-label">QR Code</div>
-    <div class="qr-hint">Scan with any camera app to open on another device</div>
+    <div class="link-row">
+      <span class="link-text" id="sh-link-text">loading…</span>
+      <button class="copy-btn" id="copy-btn" onclick="copyLink()">Copy</button>
+    </div>
+    <div class="platforms">
+      <a class="plat-btn" id="discord-btn" href="#" onclick="e=>{e.preventDefault();copyLink();showToast('Link copied! Paste it into Discord 🎮');}">
+        <span class="pi">🎮</span><span>Discord</span>
+      </a>
+      <a class="plat-btn" id="twitter-btn" href="#" target="_blank">
+        <span class="pi">𝕏</span><span>X / Twitter</span>
+      </a>
+      <a class="plat-btn" id="whatsapp-btn" href="#" target="_blank">
+        <span class="pi">💬</span><span>WhatsApp</span>
+      </a>
+      <button class="plat-btn" onclick="nativeShare()">
+        <span class="pi">⬆</span><span>More…</span>
+      </button>
+    </div>
+    <div class="qr-wrap">
+      <canvas id="qr-canvas" width="80" height="80"></canvas>
+      <div class="qr-info">
+        <div class="qr-label">QR Code</div>
+        <div class="qr-hint">Scan with any camera app to open on another device</div>
+      </div>
+    </div>
+    <button class="sheet-close" onclick="closeShare()">Close</button>
   </div>
 </div>
 
-<button class="sheet-close" onclick="closeShare()">Close</button>
+<!-- Comments overlay -->
 
+<div class="comment-overlay" id="comment-overlay" onclick="if(event.target===this)closeComments()">
+  <div class="comment-sheet">
+    <div class="comment-header">
+      <span>Comments</span>
+      <button onclick="closeComments()">✕</button>
+    </div>
+    <div class="comment-list" id="comment-list">
+      <div class="comment-empty">Loading…</div>
+    </div>
+    <div class="comment-input-row">
+      <input class="comment-input" id="comment-input" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment()">
+      <button class="comment-post-btn" onclick="postComment()">Post</button>
+    </div>
   </div>
 </div>
 
-<!-- Toast notification -->
+<!-- Toast -->
 
 <div class="toast" id="toast"></div>
 
 <script>
 // ── Config ────────────────────────────────────────────────
-// Canonical live URL for the reader — used for all share links.
-const READER_BASE = 'https://zaz444.github.io/comiccore/reader.html';
+const READER_BASE = location.origin + location.pathname;
+const _sb = supabase.createClient(
+  'https://mmycqeejhguzhtzkyjaj.supabase.co',
+  'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
+);
+const myP = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
-const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
-const myP = JSON.parse(localStorage.getItem('user_profile')||'{"handle":"guest"}');
-
-let comic=null, frames=[], idx=0, comicId=null, isStarred=false;
-let uiOn=true, hideTimer=null;
-let swipeDir = localStorage.getItem('cc-swipe-dir')||'horizontal';
-let txX=0, txY=0, txT=0;
+let comic = null, frames = [], idx = 0, comicId = null, isStarred = false;
+let uiOn = true, hideTimer = null;
+let swipeDir = 'horizontal';
+let txX = 0, txY = 0, txT = 0;
 let shareUrl = '';
+// The canonical editor canvas size (create.html uses 900px base)
+const EDITOR_BASE = 900;
 
-// ── Load ──────────────────────────────────────────────────
-async function boot(){
+// ── Boot ──────────────────────────────────────────────────
+async function boot() {
   comicId = new URLSearchParams(location.search).get('id');
-  if(!comicId) return location.href='discover.html';
-  const{data,error} = await _sb.from('comics').select('*').eq('id',comicId).single();
-  if(error||!data){alert('Comic not found.');return location.href='discover.html';}
-  comic=data; frames=data.data||data.frames||[];
-  document.title=(data.title||'Comic')+' — ComicCore';
-  document.getElementById('top-title').innerText=data.title||'Untitled';
-  document.getElementById('top-author').innerText='by @'+(data.owner_handle||'unknown');
-  swipeDir=localStorage.getItem('cc-swipe-dir')||data.swipe_dir||'horizontal';
+  if (!comicId) return location.href = 'discover.html';
+
+  const { data, error } = await _sb.from('comics').select('*').eq('id', comicId).single();
+  if (error || !data) { alert('Comic not found.'); return location.href = 'discover.html'; }
+
+  comic = data;
+  frames = data.data || data.frames || [];
+  document.title = (data.title || 'Comic') + ' — ComicCore';
+  document.getElementById('top-title').innerText = data.title || 'Untitled';
+  document.getElementById('top-author').innerText = 'by @' + (data.owner_handle || 'unknown');
+  swipeDir = localStorage.getItem('cc-swipe-dir') || data.swipe_dir || 'horizontal';
   setSwipeDir(swipeDir);
-  if(myP.handle&&myP.handle===data.owner_handle) document.getElementById('edit-btn').style.display='flex';
+
+  // Show edit button only to owner
+  if (myP.handle && myP.handle !== 'guest' && myP.handle === data.owner_handle) {
+    document.getElementById('edit-btn').style.display = 'flex';
+  }
+  // Hide star for owner
+  if (myP.handle && myP.handle === data.owner_handle) {
+    document.getElementById('star-btn').style.display = 'none';
+  }
+
   await checkStar();
-  const sv=localStorage.getItem('cc-progress-'+comicId);
-  if(sv!==null){const i=parseInt(sv);if(i>0&&i<frames.length)idx=i;}
-  buildDots(); renderFrame(); sched();
+
+  // Restore reading progress
+  const sv = localStorage.getItem('cc-progress-' + comicId);
+  if (sv !== null) { const i = parseInt(sv); if (i > 0 && i < frames.length) idx = i; }
+
+  buildDots();
+  renderFrame();
+  sched();
   buildShareUrl();
 }
 
-// ── Build share URL ───────────────────────────────────────
-function buildShareUrl(){
-  // Always points to the live GitHub Pages reader so shared links work for everyone.
+// ── Share URL ─────────────────────────────────────────────
+function buildShareUrl() {
   shareUrl = `${READER_BASE}?id=${encodeURIComponent(comicId)}`;
 }
 
-// ── Render ────────────────────────────────────────────────
-function renderFrame(anim=false){
-  const cf=document.getElementById('cf');
-  if(anim){cf.classList.add('fade');setTimeout(()=>cf.classList.remove('fade'),220);}
-  const f=frames[idx]; if(!f) return;
-  sizeFrame();
-  const bg=f.background||'#ffffff';
-  if(bg.startsWith('http')||bg.startsWith('data:')){
-    cf.style.backgroundImage=`url(${bg})`;cf.style.backgroundColor='';cf.style.backgroundSize='cover';cf.style.backgroundPosition='center';
-  } else if(bg.includes('gradient')){
-    cf.style.backgroundImage=bg;cf.style.backgroundColor='';
+// ═══════════════════════════════════════════════════════════
+// ── FAITHFUL FRAME RENDERER ─────────────────────────────
+// Mirrors create.html's render() logic exactly so what you
+// see in the editor is what readers see.
+// ═══════════════════════════════════════════════════════════
+function sizeFrame() {
+  const cf = document.getElementById('comic-frame');
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const r = comic?.canvas_ratio;
+  let cw, ch;
+  if (r && r.w && r.h) {
+    const ar = r.w / r.h;
+    if (vw / vh > ar) { ch = vh; cw = ch * ar; }
+    else { cw = vw; ch = cw / ar; }
   } else {
-    cf.style.backgroundColor=bg;cf.style.backgroundImage='none';
+    // default 1:1
+    const s = Math.min(vw, vh);
+    cw = s; ch = s;
   }
-  if(f.bgSettings){
-    const s=f.bgSettings;
-    if(s.scale) cf.style.backgroundSize=s.scale+'%';
-    if(s.x||s.y) cf.style.backgroundPosition=`calc(50% + ${s.x||0}px) calc(50% + ${s.y||0}px)`;
-    cf.style.filter=filterStyle(s.filter||'none');
-  } else cf.style.filter='';
-
-  cf.querySelectorAll('.layer').forEach(e=>e.remove());
-  const cr=cf.getBoundingClientRect();
-  const sx=cr.width/600, sy=cr.height/600, sc=Math.min(sx,sy);
-
-  f.layers.forEach(l=>{
-    const el=document.createElement('div'); el.className='layer';
-    if(l.type==='img'){
-      const img=document.createElement('img'); img.src=l.src;
-      img.style.cssText=`width:100%;height:100%;object-fit:contain;pointer-events:none;${l.flipped?'transform:scaleX(-1);':''}`;
-      if(l.opacity!=null) img.style.opacity=l.opacity/100;
-      const blurCSS=getSpriteFilterCSS(l);
-      const lfCSS=(l.layerFilter&&l.layerFilter!=='none')?l.layerFilter:'';
-      const combined=[blurCSS,lfCSS].filter(Boolean).join(' ');
-      if(combined) img.style.filter=combined;
-      el.appendChild(img);
-    } else if(l.type==='bubble'||l.type==='thinking'){
-      const b=document.createElement('div');
-      b.className='speech-bubble'+(l.type==='thinking'?' thinking':'');
-      b.style.fontSize=((l.fontSize||28)*sc)+'px';
-      b.style.fontFamily=l.fontFamily||'Inter,sans-serif';
-      b.style.textAlign=l.align||'center';
-      b.style.color=l.color||'#000';
-      b.style.fontWeight=l.bold?'900':'800';
-      b.style.fontStyle=l.italic?'italic':'normal';
-      if(l.underline||l.strikethrough){
-        const d=[l.underline?'underline':'',l.strikethrough?'line-through':''].filter(Boolean).join(' ');
-        b.style.textDecoration=d;
-      }
-      b.appendChild(document.createTextNode(l.content||''));
-      if(l.type==='thinking'){
-        const d1=document.createElement('div');d1.className='thought-dot-1';
-        const d2=document.createElement('div');d2.className='thought-dot-2';
-        b.appendChild(d1);b.appendChild(d2);
-      } else {
-        const t=document.createElement('div');t.className='bubble-tail';b.appendChild(t);
-      }
-      el.appendChild(b);
-    } else if(l.type==='subtitle'){
-      const nameColor=l.nameColor||'#ff9500';
-      const dialogColor=l.color||'#111';
-      const alignS=l.align||'left';
-      const fs=(l.fontSize||28)*sc;
-      el.innerHTML=`
-        <div style="background:${nameColor};color:#fff;font-size:${Math.max(8,fs*0.55)}px;font-weight:900;font-family:${l.fontFamily||'Inter'};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;text-align:${alignS};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.characterName||'CHARACTER'}</div>
-        <div style="background:rgba(255,255,255,0.96);color:${dialogColor};font-size:${fs}px;font-weight:${l.bold?'900':'700'};font-style:${l.italic?'italic':'normal'};font-family:${l.fontFamily||'Inter'};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,.1);border-top:none;">${l.content||'Dialogue...'}</div>`;
-    } else {
-      const decorations=[l.underline?'underline':'',l.strikethrough?'line-through':''].filter(Boolean).join(' ')||'none';
-      el.style.cssText=`color:${l.color||'#000'};font-weight:${l.bold?'900':'700'};font-style:${l.italic?'italic':'normal'};text-decoration:${decorations};text-align:${l.align||'left'};font-size:${(l.fontSize||28)*sc}px;font-family:${l.fontFamily||'Inter,sans-serif'};line-height:1.3;white-space:pre-wrap;`;
-      el.innerText=l.content||'';
-    }
-    // Apply layer FX
-    const blurCSS=getSpriteFilterCSS(l);
-    const lfCSS=(l.layerFilter&&l.layerFilter!=='none')?l.layerFilter:'';
-    const combined=[blurCSS,lfCSS].filter(Boolean).join(' ');
-    if(combined&&l.type!=='img') el.style.filter=combined;
-    if(l.opacity!=null&&l.type!=='img') el.style.opacity=l.opacity/100;
-
-    el.style.left=(l.x*sx)+'px'; el.style.top=(l.y*sy)+'px'; el.style.width=(l.w*sx)+'px';
-    if(l.h) el.style.height=(l.h*sy)+'px';
-    if(l.rotation) el.style.transform=(el.style.transform||'')+` rotate(${l.rotation}deg)`;
-    cf.appendChild(el);
-  });
-
-  const tot=frames.length;
-  document.getElementById('fctr').innerText=`${idx+1} / ${tot}`;
-  document.getElementById('prog').style.width=((idx+1)/tot*100)+'%';
-  document.getElementById('btn-prev').disabled=idx===0;
-  document.getElementById('btn-next').disabled=idx===tot-1;
-  document.getElementById('btn-prev').innerText=swipeDir==='vertical'?'▲':'◀';
-  document.getElementById('btn-next').innerText=swipeDir==='vertical'?'▼':'▶';
-  document.querySelectorAll('.fd').forEach((d,i)=>d.classList.toggle('on',i===idx));
+  cf.style.width  = Math.floor(cw) + 'px';
+  cf.style.height = Math.floor(ch) + 'px';
+  return { cw: Math.floor(cw), ch: Math.floor(ch) };
 }
 
-function getSpriteFilterCSS(layer){
-  if(!layer.blurType||layer.blurType==='none') return '';
-  const amt=layer.blurAmount||4;
-  if(layer.blurType==='soft') return `blur(${amt}px)`;
-  if(layer.blurType==='pixel') return `blur(${Math.max(1,Math.round(amt*0.6))}px) contrast(${100+amt*4}%) saturate(120%)`;
+function getEditorDimensions() {
+  // create.html uses BASE_SIZE=900, same ratio logic as sizeFrame
+  const r = comic?.canvas_ratio;
+  if (r && r.w && r.h) {
+    const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
+    const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
+    return { ew, eh };
+  }
+  return { ew: EDITOR_BASE, eh: EDITOR_BASE };
+}
+
+function getSpriteFilterCSS(layer) {
+  if (!layer.blurType || layer.blurType === 'none') return '';
+  const amt = layer.blurAmount || 4;
+  if (layer.blurType === 'soft') return `blur(${amt}px)`;
+  if (layer.blurType === 'pixel') return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
   return '';
 }
 
-function sizeFrame(){
-  const cf=document.getElementById('cf');
-  const vw=window.innerWidth, vh=window.innerHeight;
-  const r=comic?.canvas_ratio;
-  let w,h;
-  if(r&&r.w&&r.h){
-    const ar=r.w/r.h;
-    if(vw/vh>ar){h=vh;w=h*ar;}else{w=vw;h=w/ar;}
-  } else {w=Math.min(vw,vh);h=w;}
-  cf.style.width=Math.floor(w)+'px'; cf.style.height=Math.floor(h)+'px';
-}
+function renderFrame(anim = false) {
+  const cf = document.getElementById('comic-frame');
+  if (anim) { cf.classList.add('fade'); setTimeout(() => cf.classList.remove('fade'), 220); }
 
-function filterStyle(n){
-  const m={Grayscale:'grayscale(100%)',Sepia:'sepia(80%)',Vivid:'saturate(200%) contrast(110%)',Noir:'grayscale(100%) contrast(150%)',HDR:'contrast(130%) saturate(140%)',Matte:'contrast(85%) saturate(80%)','Soft Focus':'blur(1px) brightness(105%)',Dramatic:'contrast(150%) saturate(80%)',Clarendon:'contrast(120%) saturate(125%)',Kodachrome:'contrast(120%) saturate(130%)'};
-  return m[n]||'';
+  const f = frames[idx];
+  if (!f) return;
+
+  // 1. Size the frame to fit the viewport, preserving aspect ratio
+  const { cw, ch } = sizeFrame();
+
+  // 2. Scale factors: editor → reader
+  const { ew, eh } = getEditorDimensions();
+  const sx = cw / ew;
+  const sy = ch / eh;
+
+  // 3. Apply background (mirrors create.html's render() exactly)
+  const bg = f.background || '#ffffff';
+  const isBgImage    = bg.startsWith('http') || bg.startsWith('data:image');
+  const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+
+  // Clear old background div children (keep .r-layer elements)
+  cf.querySelectorAll('.r-bg-div').forEach(e => e.remove());
+
+  if (isBgImage) {
+    cf.style.backgroundColor  = 'transparent';
+    cf.style.backgroundImage  = `url(${bg})`;
+  } else if (isBgGradient) {
+    cf.style.backgroundColor  = 'transparent';
+    cf.style.backgroundImage  = bg;
+  } else {
+    cf.style.backgroundColor  = bg;
+    cf.style.backgroundImage  = 'none';
+  }
+
+  // Apply bgSettings (scale, rotate, x, y, filter) — mirrors create.html
+  const s = f.bgSettings || {};
+  const scale  = s.scale  ?? 100;
+  const rotate = s.rotate ?? 0;
+  const xOff   = s.x      ?? 0;
+  const yOff   = s.y      ?? 0;
+  const filter = s.filter || 'none';
+
+  if (isBgImage || isBgGradient) {
+    if (rotate !== 0) {
+      // Rotated bg: use an inset div (same as create.html render)
+      cf.style.backgroundImage = 'none';
+      cf.style.backgroundColor = 'transparent';
+      cf.style.filter = '';
+      const bgDiv = document.createElement('div');
+      bgDiv.className = 'r-bg-div';
+      const bgContent = isBgImage ? `url(${bg})` : bg;
+      bgDiv.style.cssText = [
+        'position:absolute', 'top:-60%', 'left:-60%',
+        'width:220%', 'height:220%',
+        `background:${bgContent}`,
+        `background-size:${isBgImage ? (scale * 2.2) + '%' : 'cover'}`,
+        'background-position:center', 'background-repeat:no-repeat',
+        `transform:rotate(${rotate}deg)`,
+        'pointer-events:none', 'z-index:0',
+        `filter:${filter === 'none' ? 'none' : filter}`,
+        'transform-origin:center center',
+      ].join(';');
+      cf.insertBefore(bgDiv, cf.firstChild);
+    } else {
+      cf.style.backgroundSize     = isBgGradient ? 'cover' : (scale + '%');
+      cf.style.backgroundPosition = (50 + xOff) + '% ' + (50 + yOff) + '%';
+      cf.style.filter = filter === 'none' ? '' : filter;
+    }
+  } else {
+    cf.style.backgroundSize     = '';
+    cf.style.backgroundPosition = '';
+    cf.style.filter             = '';
+  }
+
+  // 4. Remove old layers, add new ones
+  cf.querySelectorAll('.r-layer').forEach(e => e.remove());
+
+  f.layers.forEach(l => {
+    const el = document.createElement('div');
+    el.className = 'r-layer';
+
+    // Position & size — scaled from editor coords
+    const lx = l.x * sx;
+    const ly = l.y * sy;
+    const lw = l.w * sx;
+
+    el.style.left   = lx + 'px';
+    el.style.top    = ly + 'px';
+    el.style.width  = lw + 'px';
+    el.style.zIndex = 10;
+
+    // Rotation + flip (mirrors create.html transform)
+    const rot  = l.rotation || 0;
+    const flip = l.flipped ? -1 : 1;
+    el.style.transform = `rotate(${rot}deg) scaleX(${flip})`;
+    el.style.transformOrigin = 'top left';
+
+    // Opacity
+    if (l.opacity != null && l.opacity !== 100) {
+      el.style.opacity = l.opacity / 100;
+    }
+
+    // FX: blur + layer filter
+    const blurCSS = getSpriteFilterCSS(l);
+    const lfCSS   = (l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '';
+    const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
+
+    if (l.type === 'img') {
+      const img = document.createElement('img');
+      img.src = l.src;
+      img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+      if (combinedFilter) img.style.filter = combinedFilter;
+      el.appendChild(img);
+
+    } else if (l.type === 'bubble' || l.type === 'thinking') {
+      const fs = (l.fontSize || 28) * sx;
+      const ff = l.fontFamily || "'Inter', sans-serif";
+      const textColor = l.color || '#000';
+      const boldW   = l.bold   ? '900' : '800';
+      const italicS = l.italic ? 'italic' : 'normal';
+      const alignS  = l.align  || 'center';
+      const decos   = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+      const isThinking = l.type === 'thinking';
+
+      el.style.width = lw + 'px';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'speech-bubble';
+      bubble.style.cssText = `font-size:${fs}px;font-family:${ff};color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};text-decoration:${decos};`;
+      bubble.appendChild(document.createTextNode(l.content || ''));
+
+      if (!isThinking) {
+        const tail = document.createElement('div');
+        tail.className = 'bubble-tail';
+        bubble.appendChild(tail);
+      } else {
+        const d1 = document.createElement('div'); d1.className = 'thought-dot-1';
+        const d2 = document.createElement('div'); d2.className = 'thought-dot-2';
+        bubble.appendChild(d1); bubble.appendChild(d2);
+      }
+
+      if (combinedFilter) el.style.filter = combinedFilter;
+      el.appendChild(bubble);
+
+    } else if (l.type === 'subtitle') {
+      const fs = (l.fontSize || 28) * sx;
+      const ff = l.fontFamily || "'Inter', sans-serif";
+      const nameColor   = l.nameColor  || '#ff9500';
+      const dialogColor = l.color || '#111';
+      const alignS  = l.align  || 'left';
+      const boldW   = l.bold   ? '900' : '700';
+      const italicS = l.italic ? 'italic' : 'normal';
+
+      el.style.width = lw + 'px';
+      el.style.overflow = 'visible';
+      el.innerHTML = `
+        <div style="background:${nameColor};color:#fff;font-size:${Math.max(8, fs * 0.55)}px;font-weight:900;font-family:${ff};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;text-align:${alignS};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.characterName || 'CHARACTER'}</div>
+        <div style="background:rgba(255,255,255,0.96);color:${dialogColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,.1);border-top:none;">${l.content || ''}</div>`;
+
+      if (combinedFilter) el.style.filter = combinedFilter;
+
+    } else {
+      // Plain text
+      const fs = (l.fontSize || 28) * sx;
+      const ff = l.fontFamily || "'Inter', sans-serif";
+      const decos = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+      el.style.color         = l.color || '#000';
+      el.style.fontWeight    = l.bold   ? '900' : '700';
+      el.style.fontStyle     = l.italic ? 'italic' : 'normal';
+      el.style.textDecoration = decos;
+      el.style.textAlign     = l.align || 'left';
+      el.style.fontSize      = fs + 'px';
+      el.style.fontFamily    = ff;
+      el.style.lineHeight    = '1.3';
+      el.style.whiteSpace    = 'pre-wrap';
+      el.innerText           = l.content || '';
+
+      if (combinedFilter) el.style.filter = combinedFilter;
+    }
+
+    cf.appendChild(el);
+  });
+
+  // 5. Update UI chrome
+  const tot = frames.length;
+  document.getElementById('fctr').innerText = `${idx + 1} / ${tot}`;
+  document.getElementById('prog').style.width = ((idx + 1) / tot * 100) + '%';
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').disabled = idx === tot - 1;
+  document.getElementById('btn-prev').innerText = swipeDir === 'vertical' ? '▲' : '◀';
+  document.getElementById('btn-next').innerText = swipeDir === 'vertical' ? '▼' : '▶';
+  document.querySelectorAll('.fd').forEach((d, i) => d.classList.toggle('on', i === idx));
 }
 
 // ── Nav ───────────────────────────────────────────────────
-function nextFrame(){
-  if(idx<frames.length-1){idx++;renderFrame(true);saveProg();resetUI();}
+function nextFrame() {
+  if (idx < frames.length - 1) { idx++; renderFrame(true); saveProg(); resetUI(); }
   else showFinish();
 }
-function prevFrame(){
-  if(idx>0){idx--;renderFrame(true);saveProg();resetUI();}
+function prevFrame() {
+  if (idx > 0) { idx--; renderFrame(true); saveProg(); resetUI(); }
 }
-function jumpTo(i){idx=i;renderFrame(true);saveProg();}
+function jumpTo(i) { idx = i; renderFrame(true); saveProg(); }
 
-function setSwipeDir(d){
-  swipeDir=d;
-  const v=d==='vertical';
-  document.getElementById('nz-left').style.display=v?'none':'block';
-  document.getElementById('nz-right').style.display=v?'none':'block';
-  document.getElementById('nz-up').style.display=v?'block':'none';
-  document.getElementById('nz-down').style.display=v?'block':'none';
+function setSwipeDir(d) {
+  swipeDir = d;
+  const v = d === 'vertical';
+  document.getElementById('nz-left').style.display  = v ? 'none' : 'block';
+  document.getElementById('nz-right').style.display = v ? 'none' : 'block';
+  document.getElementById('nz-up').style.display    = v ? 'block' : 'none';
+  document.getElementById('nz-down').style.display  = v ? 'block' : 'none';
 }
 
 // ── Progress ──────────────────────────────────────────────
-function saveProg(){
-  if(!comicId) return;
-  idx>=frames.length-1
-    ? localStorage.removeItem('cc-progress-'+comicId)
-    : localStorage.setItem('cc-progress-'+comicId,idx);
+function saveProg() {
+  if (!comicId) return;
+  idx >= frames.length - 1
+    ? localStorage.removeItem('cc-progress-' + comicId)
+    : localStorage.setItem('cc-progress-' + comicId, idx);
 }
 
 // ── Star ──────────────────────────────────────────────────
-async function checkStar(){
-  if(!myP.handle||myP.handle==='guest') return;
-  if(myP.handle===comic?.owner_handle){document.getElementById('star-btn').style.display='none';return;}
-  const{data}=await _sb.from('messages').select('id').eq('sender_handle',myP.handle).eq('receiver_hand',comicId).eq('reaction','⭐').maybeSingle();
-  isStarred=!!data; updStar();
+async function checkStar() {
+  if (!myP.handle || myP.handle === 'guest') return;
+  if (myP.handle === comic?.owner_handle) return;
+  const { data } = await _sb
+    .from('messages')
+    .select('id')
+    .eq('sender_handle', myP.handle)
+    .eq('receiver_hand', comicId)
+    .eq('reaction', '⭐')
+    .maybeSingle();
+  isStarred = !!data;
+  updStar();
 }
-function updStar(){
-  const b=document.getElementById('star-btn');
-  b.innerHTML=isStarred?'⭐':'☆';
-  b.classList.toggle('starred',isStarred);
+
+function updStar() {
+  const b = document.getElementById('star-btn');
+  b.innerHTML = isStarred ? '⭐' : '☆';
+  b.classList.toggle('starred', isStarred);
 }
-async function toggleStar(){
-  if(!myP.handle||myP.handle==='guest') return alert('Log in to star!');
-  if(myP.handle===comic?.owner_handle) return;
-  if(isStarred){
-    await _sb.from('messages').delete().eq('sender_handle',myP.handle).eq('receiver_hand',comicId).eq('reaction','⭐');
-    isStarred=false;
+
+async function toggleStar() {
+  if (!myP.handle || myP.handle === 'guest') return showToast('Log in to star!');
+  if (myP.handle === comic?.owner_handle) return;
+  if (isStarred) {
+    await _sb.from('messages').delete()
+      .eq('sender_handle', myP.handle)
+      .eq('receiver_hand', comicId)
+      .eq('reaction', '⭐');
+    isStarred = false;
   } else {
-    await _sb.from('messages').insert([{sender_handle:myP.handle,receiver_hand:comicId,content:'⭐',reaction:'⭐'}]);
-    isStarred=true;
+    await _sb.from('messages').insert([{
+      sender_handle: myP.handle,
+      receiver_hand: comicId,
+      content: '⭐',
+      reaction: '⭐'
+    }]);
+    isStarred = true;
   }
   updStar();
-  const b=document.getElementById('star-btn');b.style.transform='scale(1.4)';setTimeout(()=>b.style.transform='',220);
+  const b = document.getElementById('star-btn');
+  b.style.transform = 'scale(1.4)';
+  setTimeout(() => b.style.transform = '', 220);
+  showToast(isStarred ? '⭐ Starred!' : 'Star removed');
 }
 
 // ── Finish ────────────────────────────────────────────────
-function showFinish(){
-  const fc=document.getElementById('finish'); fc.style.display='flex';
-  document.getElementById('fin-title').innerText=comic?.title?`Finished "${comic.title}"!`:'You finished it!';
-  const sb=document.getElementById('fin-star');
-  if(isStarred){sb.textContent='⭐ Already Starred';sb.classList.add('done');}
-  else if(myP.handle===comic?.owner_handle) sb.style.display='none';
+function showFinish() {
+  const fc = document.getElementById('finish');
+  fc.style.display = 'flex';
+  document.getElementById('fin-title').innerText = comic?.title ? `Finished "${comic.title}"!` : 'You finished it!';
+  const sb = document.getElementById('fin-star');
+  if (isStarred) { sb.textContent = '⭐ Already Starred'; sb.classList.add('done'); }
+  else if (myP.handle === comic?.owner_handle) sb.style.display = 'none';
 }
-async function finishStar(){
-  if(isStarred) return;
+
+async function finishStar() {
+  if (isStarred) return;
   await toggleStar();
-  const sb=document.getElementById('fin-star');sb.textContent='⭐ Starred!';sb.classList.add('done');
+  const sb = document.getElementById('fin-star');
+  sb.textContent = '⭐ Starred!';
+  sb.classList.add('done');
+}
+
+// ── Comments ──────────────────────────────────────────────
+async function openComments() {
+  document.getElementById('comment-overlay').classList.add('open');
+  clearTimeout(hideTimer);
+  await fetchComments();
+}
+
+function closeComments() {
+  document.getElementById('comment-overlay').classList.remove('open');
+  resetUI();
+}
+
+async function fetchComments() {
+  const list = document.getElementById('comment-list');
+  list.innerHTML = '<div class="comment-empty">Loading…</div>';
+  const { data: comments, error } = await _sb
+    .from('messages')
+    .select('*')
+    .eq('receiver_hand', comicId)
+    .is('reaction', null)
+    .order('created_at', { ascending: false });
+  if (error) { list.innerHTML = '<div class="comment-empty">Could not load comments.</div>'; return; }
+  if (!comments || !comments.length) {
+    list.innerHTML = '<div class="comment-empty">No comments yet. Be first!</div>'; return;
+  }
+  list.innerHTML = comments.map(m => `
+    <div class="comment-item">
+      <div class="comment-user">@${esc(m.sender_handle)}</div>
+      <div class="comment-text">${esc(m.content)}</div>
+    </div>`).join('');
+}
+
+async function postComment() {
+  const input = document.getElementById('comment-input');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!myP.handle || myP.handle === 'guest') return showToast('Log in to comment!');
+  const { error } = await _sb.from('messages').insert([{
+    sender_handle: myP.handle,
+    receiver_hand: comicId,
+    content: text
+  }]);
+  if (error) { showToast('Error posting comment'); return; }
+  input.value = '';
+  await fetchComments();
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ── Edit ──────────────────────────────────────────────────
-function editComic(){localStorage.setItem('edit_comic_id',comicId);location.href='create.html';}
+function editComic() {
+  localStorage.setItem('edit_comic_id', comicId);
+  location.href = 'create.html';
+}
 
 // ── Fullscreen ────────────────────────────────────────────
-function toggleFS(){
-  if(!document.fullscreenElement&&!document.webkitFullscreenElement){
-    (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement);
+function toggleFS() {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)
+      .call(document.documentElement);
   } else {
-    (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
   }
 }
-document.addEventListener('fullscreenchange',()=>{
-  document.getElementById('fs-btn').innerHTML=document.fullscreenElement?'✕⛶':'⛶';
-  sizeFrame();
+document.addEventListener('fullscreenchange', () => {
+  document.getElementById('fs-btn').innerHTML = document.fullscreenElement ? '✕⛶' : '⛶';
+  renderFrame();
 });
 
 // ── UI auto-hide ──────────────────────────────────────────
-function sched(){
-  hideTimer=setTimeout(()=>{
+function sched() {
+  hideTimer = setTimeout(() => {
     document.getElementById('top-bar').classList.add('hide');
     document.getElementById('bot-bar').classList.add('hide');
-    uiOn=false;
-  },4000);
+    uiOn = false;
+  }, 4000);
 }
-function resetUI(){
+function resetUI() {
   clearTimeout(hideTimer);
   document.getElementById('top-bar').classList.remove('hide');
   document.getElementById('bot-bar').classList.remove('hide');
-  uiOn=true; sched();
+  uiOn = true; sched();
 }
-function onMidTap(){
-  uiOn ? (document.getElementById('top-bar').classList.contains('hide') ? resetUI() : hideUI()) : resetUI();
+function onMidTap() {
+  uiOn
+    ? (document.getElementById('top-bar').classList.contains('hide') ? resetUI() : hideUI())
+    : resetUI();
 }
-function hideUI(){
+function hideUI() {
   document.getElementById('top-bar').classList.add('hide');
   document.getElementById('bot-bar').classList.add('hide');
-  uiOn=false;
+  uiOn = false;
 }
 
 // ── Dots ──────────────────────────────────────────────────
-function buildDots(){
-  const c=document.getElementById('fdots');
-  if(frames.length>24){c.style.display='none';return;}
-  c.innerHTML=frames.map((_,i)=>`<div class="fd${i===0?' on':''}" onclick="event.stopPropagation();jumpTo(${i})"></div>`).join('');
+function buildDots() {
+  const c = document.getElementById('fdots');
+  if (frames.length > 24) { c.style.display = 'none'; return; }
+  c.innerHTML = frames.map((_, i) =>
+    `<div class="fd${i === 0 ? ' on' : ''}" onclick="event.stopPropagation();jumpTo(${i})"></div>`
+  ).join('');
 }
 
 // ── Back ──────────────────────────────────────────────────
-function goBack(){
-  document.referrer&&(document.referrer.includes('discover')||document.referrer.includes('my-comics')||document.referrer.includes('favorites'))
-    ? history.back()
-    : location.href='discover.html';
+function goBack() {
+  document.referrer && (
+    document.referrer.includes('discover') ||
+    document.referrer.includes('my-comics') ||
+    document.referrer.includes('favorites')
+  ) ? history.back() : location.href = 'discover.html';
 }
 
-// ═══════════════════════════════════════════════════════
-// ── SHARE SYSTEM ────────────────────────────────────────
-// ═══════════════════════════════════════════════════════
-function openShare(){
-  if(!shareUrl) buildShareUrl();
-
-  const sheet = document.getElementById('share-sheet');
-  const title = comic?.title || 'this comic';
-  const author = comic?.owner_handle ? ` by @${comic.owner_handle}` : '';
-  const frames_n = frames.length;
-
+// ── Share ─────────────────────────────────────────────────
+function openShare() {
+  if (!shareUrl) buildShareUrl();
+  const title   = comic?.title || 'this comic';
+  const author  = comic?.owner_handle ? ` by @${comic.owner_handle}` : '';
+  const framesN = frames.length;
   document.getElementById('sh-title').innerText = `Share "${title}"`;
-  document.getElementById('sh-sub').innerText =
-    `${frames_n} frame${frames_n!==1?'s':''} · Anyone with this link can read it`;
-
-  // Set the link display
+  document.getElementById('sh-sub').innerText   = `${framesN} frame${framesN !== 1 ? 's' : ''} · Anyone with this link can read it`;
   document.getElementById('sh-link-text').innerText = shareUrl;
   document.getElementById('copy-btn').textContent = 'Copy';
   document.getElementById('copy-btn').classList.remove('copied');
 
-  // Build platform links
-  const encodedUrl  = encodeURIComponent(shareUrl);
-  const shareText   = encodeURIComponent(`"${title}"${author} — a comic on ComicCore 🎨`);
+  const enc     = encodeURIComponent(shareUrl);
+  const txt     = encodeURIComponent(`"${title}"${author} — a comic on ComicCore 🎨`);
+  document.getElementById('discord-btn').onclick = e => { e.preventDefault(); copyLink(); showToast('Link copied! Paste into Discord 🎮'); };
+  document.getElementById('twitter-btn').href   = `https://twitter.com/intent/tweet?text=${txt}&url=${enc}`;
+  document.getElementById('whatsapp-btn').href  = `https://wa.me/?text=${txt}%20${enc}`;
 
-  document.getElementById('discord-btn').href =
-    `https://discord.com/channels/@me`;  // Discord doesn't have a share API; we just copy the link
-  document.getElementById('discord-btn').onclick = (e) => {
-    e.preventDefault();
-    copyLink();
-    showToast('Link copied! Paste it into Discord 🎮');
-  };
-
-  document.getElementById('twitter-btn').href =
-    `https://twitter.com/intent/tweet?text=${shareText}&url=${encodedUrl}`;
-
-  document.getElementById('whatsapp-btn').href =
-    `https://wa.me/?text=${shareText}%20${encodedUrl}`;
-
-  // Draw QR code
   drawQR(shareUrl);
-
-  sheet.classList.add('open');
-  clearTimeout(hideTimer); // Don't auto-hide UI while share sheet is open
+  document.getElementById('share-sheet').classList.add('open');
+  clearTimeout(hideTimer);
 }
 
-function closeShare(e){
-  if(e&&e.target!==document.getElementById('share-sheet')) return;
+function closeShare() {
   document.getElementById('share-sheet').classList.remove('open');
   resetUI();
 }
 
-async function copyLink(){
-  try {
-    await navigator.clipboard.writeText(shareUrl);
-  } catch {
-    // Fallback for older mobile browsers
-    const ta=document.createElement('textarea');
-    ta.value=shareUrl; ta.style.cssText='position:fixed;opacity:0;';
+async function copyLink() {
+  try { await navigator.clipboard.writeText(shareUrl); }
+  catch {
+    const ta = document.createElement('textarea');
+    ta.value = shareUrl; ta.style.cssText = 'position:fixed;opacity:0;';
     document.body.appendChild(ta); ta.select(); document.execCommand('copy');
     document.body.removeChild(ta);
   }
-  const btn=document.getElementById('copy-btn');
-  btn.textContent='✓ Copied'; btn.classList.add('copied');
-  setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2500);
+  const btn = document.getElementById('copy-btn');
+  btn.textContent = '✓ Copied'; btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2500);
   showToast('Link copied to clipboard!');
 }
 
-async function nativeShare(){
-  if(navigator.share){
+async function nativeShare() {
+  if (navigator.share) {
     try {
-      await navigator.share({
-        title: comic?.title || 'ComicCore',
-        text: `Check out "${comic?.title||'this comic'}" on ComicCore!`,
-        url: shareUrl,
-      });
-    } catch(e){
-      if(e.name!=='AbortError') copyLink();
-    }
-  } else {
-    copyLink();
-  }
+      await navigator.share({ title: comic?.title || 'ComicCore', text: `Check out "${comic?.title || 'this comic'}" on ComicCore!`, url: shareUrl });
+    } catch(e) { if (e.name !== 'AbortError') copyLink(); }
+  } else { copyLink(); }
 }
 
-function trackShare(platform){
-  // Optional: track share events in Supabase analytics
-  // _sb.from('share_events').insert([{comic_id:comicId,platform,handle:myP.handle}]);
-  console.log('Share via', platform, comicId);
-}
-
-// ── Toast ────────────────────────────────────────────────
-let toastTimer = null;
-function showToast(msg){
-  const t=document.getElementById('toast');
-  t.innerText=msg; t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
-}
-
-// ── QR Code (pure canvas, no library needed) ─────────────
-// Minimal QR encoder for URLs — uses a lightweight approach:
-// We load a tiny QR library from CDN only when the share sheet opens
-let qrLibLoaded = false;
-function drawQR(url){
+// ── QR Code ───────────────────────────────────────────────
+function drawQR(url) {
   const canvas = document.getElementById('qr-canvas');
-  if(!canvas) return;
-  if(typeof QRCode !== 'undefined'){
-    renderQR(canvas, url); return;
-  }
-  // Lazy-load qrcode-generator
+  if (!canvas) return;
+  if (typeof QRCode !== 'undefined') { renderQR(canvas, url); return; }
   const s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
   s.onload = () => renderQR(canvas, url);
   s.onerror = () => {
-    // If CDN fails, show a simple placeholder
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,80,80);
-    ctx.fillStyle = '#333'; ctx.font = '8px Inter';
-    ctx.textAlign='center'; ctx.fillText('QR unavailable', 40, 44);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 80, 80);
+    ctx.fillStyle = '#333'; ctx.font = '8px Inter'; ctx.textAlign = 'center';
+    ctx.fillText('QR unavailable', 40, 44);
   };
   document.head.appendChild(s);
 }
 
-function renderQR(canvas, url){
+function renderQR(canvas, url) {
   try {
     const qr = qrcode(0, 'M');
     qr.addData(url); qr.make();
-    const size = 80;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,size,size);
-    const moduleCount = qr.getModuleCount();
-    const cell = size / moduleCount;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0,0,size,size);
+    const size = 80, ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    const mc = qr.getModuleCount(), cell = size / mc;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = '#000000';
-    for(let row=0;row<moduleCount;row++){
-      for(let col=0;col<moduleCount;col++){
-        if(qr.isDark(row,col)){
-          ctx.fillRect(Math.floor(col*cell), Math.floor(row*cell), Math.ceil(cell), Math.ceil(cell));
-        }
-      }
-    }
-  } catch(e){
-    console.warn('QR render error:', e);
-  }
+    for (let row = 0; row < mc; row++)
+      for (let col = 0; col < mc; col++)
+        if (qr.isDark(row, col))
+          ctx.fillRect(Math.floor(col * cell), Math.floor(row * cell), Math.ceil(cell), Math.ceil(cell));
+  } catch(e) { console.warn('QR render error:', e); }
+}
+
+// ── Toast ─────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.innerText = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
 // ── Touch swipe ───────────────────────────────────────────
-const vp=document.getElementById('vp');
-vp.addEventListener('touchstart',e=>{txX=e.touches[0].clientX;txY=e.touches[0].clientY;txT=Date.now();},{passive:true});
-vp.addEventListener('touchend',e=>{
-  const dx=txX-e.changedTouches[0].clientX, dy=txY-e.changedTouches[0].clientY, dt=Date.now()-txT;
-  if(dt>700) return;
-  if(swipeDir==='vertical'){if(Math.abs(dy)>45&&Math.abs(dy)>Math.abs(dx)){dy>0?nextFrame():prevFrame();return;}}
-  else{if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)){dx>0?nextFrame():prevFrame();return;}}
-  if(Math.abs(dx)<10&&Math.abs(dy)<10&&dt<280) resetUI();
-},{passive:true});
+const vp = document.getElementById('vp');
+vp.addEventListener('touchstart', e => {
+  txX = e.touches[0].clientX; txY = e.touches[0].clientY; txT = Date.now();
+}, { passive: true });
+vp.addEventListener('touchend', e => {
+  const dx = txX - e.changedTouches[0].clientX;
+  const dy = txY - e.changedTouches[0].clientY;
+  const dt = Date.now() - txT;
+  if (dt > 700) return;
+  if (swipeDir === 'vertical') {
+    if (Math.abs(dy) > 45 && Math.abs(dy) > Math.abs(dx)) { dy > 0 ? nextFrame() : prevFrame(); return; }
+  } else {
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { dx > 0 ? nextFrame() : prevFrame(); return; }
+  }
+  if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 280) resetUI();
+}, { passive: true });
 
 // ── Keyboard ──────────────────────────────────────────────
-window.addEventListener('keydown',e=>{
-  if(document.getElementById('share-sheet').classList.contains('open')){
-    if(e.key==='Escape') document.getElementById('share-sheet').classList.remove('open');
+window.addEventListener('keydown', e => {
+  if (document.getElementById('share-sheet').classList.contains('open')) {
+    if (e.key === 'Escape') closeShare();
     return;
   }
-  const v=swipeDir==='vertical';
-  if(e.key==='ArrowRight'||(!v&&e.key==='ArrowDown')) nextFrame();
-  else if(e.key==='ArrowLeft'||(!v&&e.key==='ArrowUp')) prevFrame();
-  else if(v&&e.key==='ArrowDown') nextFrame();
-  else if(v&&e.key==='ArrowUp') prevFrame();
-  else if(e.key==='f'||e.key==='F') toggleFS();
-  else if(e.key==='s'||e.key==='S') openShare();
-  else if(e.key==='Escape'){document.getElementById('finish').style.display='none';resetUI();}
+  if (document.getElementById('comment-overlay').classList.contains('open')) {
+    if (e.key === 'Escape') closeComments();
+    return;
+  }
+  const v = swipeDir === 'vertical';
+  if (e.key === 'ArrowRight' || (!v && e.key === 'ArrowDown')) nextFrame();
+  else if (e.key === 'ArrowLeft' || (!v && e.key === 'ArrowUp')) prevFrame();
+  else if (v && e.key === 'ArrowDown') nextFrame();
+  else if (v && e.key === 'ArrowUp') prevFrame();
+  else if (e.key === 'f' || e.key === 'F') toggleFS();
+  else if (e.key === 's' || e.key === 'S') openShare();
+  else if (e.key === 'Escape') { document.getElementById('finish').style.display = 'none'; resetUI(); }
   resetUI();
 });
 
-window.addEventListener('resize',()=>sizeFrame());
-window.onload=boot;
+window.addEventListener('resize', () => renderFrame());
+window.onload = boot;
 </script>
 
 </body>
