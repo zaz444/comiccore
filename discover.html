@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ComicCore — Discover</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; padding-bottom: 80px; }
+
+/* ── Header ── */
+.header {
+  position: sticky; top: 0; z-index: 200;
+  background: linear-gradient(to bottom, rgba(0,0,0,.98) 70%, transparent);
+  padding: 16px 16px 12px; backdrop-filter: blur(20px);
+}
+.header-row { display: flex; align-items: center; gap: 10px; }
+.logo { font-size: 20px; font-weight: 900; color: var(--accent); letter-spacing: 1px; flex: 1; }
+.search-box {
+  flex: 1; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+  color: var(--text); padding: 8px 14px; border-radius: 24px;
+  font-family: inherit; font-size: 13px; outline: none; transition: .2s;
+}
+.search-box:focus { border-color: var(--accent); background: rgba(255,255,255,.1); }
+.search-box::placeholder { color: #444; }
+
+/* ── Nav tabs ── */
+.nav-tabs {
+  display: flex; gap: 4px; margin-top: 10px;
+  overflow-x: auto; padding-bottom: 2px;
+}
+.nav-tabs::-webkit-scrollbar { display: none; }
+.nav-tab {
+  flex-shrink: 0; padding: 6px 16px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  border: 1.5px solid #222; background: none; color: #555;
+  transition: .15s; white-space: nowrap;
+}
+.nav-tab.active { background: white; color: #000; border-color: white; }
+
+/* ── Sort/filter row ── */
+.filter-row {
+  display: flex; gap: 6px; padding: 10px 16px 0;
+  overflow-x: auto;
+}
+.filter-row::-webkit-scrollbar { display: none; }
+.filter-chip {
+  flex-shrink: 0; padding: 5px 14px; border-radius: 20px;
+  font-size: 11px; font-weight: 800; cursor: pointer;
+  border: 1.5px solid #1e1e1e; background: #111; color: #444;
+  transition: .15s; letter-spacing: .3px; white-space: nowrap;
+}
+.filter-chip.on { border-color: var(--accent); color: var(--accent); background: rgba(255,122,0,.08); }
+
+/* ── Creator search results ── */
+#creatorResultsSection { display: none; padding: 12px 16px 0; }
+.creators-label { font-size: 10px; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.creators-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.creators-row::-webkit-scrollbar { display: none; }
+.creator-card {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  cursor: pointer; transition: .15s;
+}
+.creator-card:hover { opacity: .8; }
+.creator-card img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--accent); object-fit: cover; background: #111; }
+.creator-card div { font-size: 10px; font-weight: 700; color: #777; }
+
+/* ── Section labels ── */
+.section-label {
+  font-size: 14px; font-weight: 900; color: var(--text);
+  padding: 16px 16px 8px; letter-spacing: .3px;
+}
+
+/* ── Netflix-style comic grid ── */
+.comics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 0 4px;
+}
+@media (min-width: 480px) { .comics-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 680px) { .comics-grid { grid-template-columns: repeat(5, 1fr); } }
+
+.comic-tile {
+  position: relative; cursor: pointer; border-radius: 6px; overflow: hidden;
+  background: #111; aspect-ratio: .67;
+  transition: transform .2s, box-shadow .2s;
+}
+.comic-tile:active { transform: scale(.96); }
+.comic-tile img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  background: #0a0a0a;
+}
+.comic-tile .no-cover {
+  width: 100%; height: 100%; display: flex; align-items: center;
+  justify-content: center; font-size: 28px; background: linear-gradient(135deg,#0f0f11,#1a1a1e);
+}
+/* Reading progress bar on tile */
+.tile-progress {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: rgba(255,255,255,.1);
+}
+.tile-progress-fill { height: 100%; background: var(--accent); transition: width .3s; }
+/* Star count chip */
+.tile-stars {
+  position: absolute; top: 5px; right: 5px;
+  background: rgba(0,0,0,.75); color: #ffd700;
+  font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 10px;
+  backdrop-filter: blur(4px);
+}
+/* My comic badge */
+.tile-mine {
+  position: absolute; top: 5px; left: 5px;
+  background: rgba(255,122,0,.85); color: #000;
+  font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 10px;
+}
+/* New badge */
+.tile-new {
+  position: absolute; top: 5px; left: 5px;
+  background: rgba(50,215,75,.85); color: #000;
+  font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 10px;
+}
+
+/* ── Netflix detail popup ── */
+.popup-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.85); backdrop-filter: blur(8px);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.popup-sheet {
+  background: #141416; border-radius: 20px 20px 0 0;
+  border-top: 1px solid #222; width: 100%; max-width: 560px;
+  max-height: 88dvh; overflow-y: auto; position: relative;
+  animation: slideUp .3s cubic-bezier(.4,0,.2,1);
+}
+.popup-sheet::-webkit-scrollbar { display: none; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.popup-cover {
+  width: 100%; aspect-ratio: 1.6; object-fit: cover; display: block;
+  background: #0a0a0a; border-radius: 20px 20px 0 0;
+}
+.popup-cover-placeholder {
+  width: 100%; aspect-ratio: 1.6; background: linear-gradient(135deg,#111,#1a1a2e);
+  display: flex; align-items: center; justify-content: center; font-size: 52px;
+  border-radius: 20px 20px 0 0;
+}
+.popup-close {
+  position: absolute; top: 12px; right: 12px;
+  background: rgba(0,0,0,.7); border: none; color: white;
+  width: 32px; height: 32px; border-radius: 50%;
+  font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px); z-index: 2;
+}
+.popup-body { padding: 16px 18px 28px; }
+.popup-title { font-size: 20px; font-weight: 900; margin: 0 0 4px; letter-spacing: -.3px; }
+.popup-creator { font-size: 12px; color: #555; margin-bottom: 12px; font-weight: 700; }
+.popup-creator a { color: var(--accent); text-decoration: none; }
+.popup-meta-row {
+  display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.popup-meta-chip {
+  background: #1e1e20; border-radius: 8px; padding: 4px 10px;
+  font-size: 11px; font-weight: 700; color: #888;
+}
+.popup-desc {
+  font-size: 13px; line-height: 1.6; color: #aaa; margin-bottom: 14px;
+}
+.popup-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.popup-tag {
+  background: #1a1a1c; border: 1px solid #2a2a2c; border-radius: 20px;
+  padding: 3px 10px; font-size: 11px; color: #666; font-weight: 700;
+}
+.popup-btns { display: flex; gap: 8px; }
+.read-btn {
+  flex: 1; background: white; color: #000; border: none;
+  padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 900;
+  cursor: pointer; transition: .15s; letter-spacing: .3px;
+}
+.read-btn:hover { background: #e8e8e8; }
+.popup-star-btn {
+  background: #1e1e20; border: 1.5px solid #2a2a2c; color: #ffd700;
+  padding: 13px 16px; border-radius: 10px; font-size: 16px; cursor: pointer;
+  transition: .15s; min-width: 56px; text-align: center;
+}
+.popup-star-btn.starred { background: rgba(255,215,0,.12); border-color: #ffd700; }
+.popup-edit-btn {
+  background: #1e1e20; border: 1.5px solid var(--teal); color: var(--teal);
+  padding: 13px 16px; border-radius: 10px; font-size: 12px; font-weight: 900;
+  cursor: pointer; white-space: nowrap;
+}
+.popup-delete-btn {
+  background: #1e1e20; border: 1.5px solid var(--danger); color: var(--danger);
+  padding: 13px 16px; border-radius: 10px; font-size: 12px; font-weight: 900;
+  cursor: pointer; white-space: nowrap;
+}
+/* Progress bar in popup */
+.popup-progress-wrap { margin: 12px 0 0; }
+.popup-progress-bar { height: 3px; background: #1e1e1e; border-radius: 2px; overflow: hidden; }
+.popup-progress-fill { height: 100%; background: var(--accent); transition: width .3s; }
+.popup-progress-label { font-size: 10px; color: #444; font-weight: 700; margin-top: 4px; }
+
+/* ── Comments overlay (unchanged from original) ── */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: flex-end; }
+.comment-sheet { background: var(--card); width: 100%; max-width: 500px; border-radius: 20px 20px 0 0; padding: 20px; max-height: 70vh; display: flex; flex-direction: column; border: 1px solid var(--border); }
+.comment-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.comment-user { font-size: 11px; font-weight: 800; color: var(--accent); margin-bottom: 3px; }
+.comment-text { font-size: 13px; color: var(--text); }
+.my-comment { cursor: pointer; }
+#commentList { flex: 1; overflow-y: auto; }
+.comment-input-row { display: flex; gap: 8px; margin-top: 12px; }
+.comment-input-row input { flex: 1; background: var(--input, #1c1c1e); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 12px; font-family: inherit; font-size: 13px; outline: none; }
+.comment-input-row input:focus { border-color: var(--accent); }
+.post-btn { background: var(--accent); border: none; color: white; padding: 10px 16px; border-radius: 12px; font-weight: 900; cursor: pointer; font-size: 13px; }
+
+.action-sheet { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: flex-end; }
+.action-sheet-inner { background: var(--card); width: 100%; max-width: 500px; border-radius: 20px 20px 0 0; padding: 20px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border); }
+.action-btn { background: #2c2c2e; border: none; color: var(--text); padding: 14px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; }
+.action-btn.delete { color: var(--danger); }
+
+/* ── Share overlay ── */
+.share-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: flex-end; }
+.share-sheet { background: var(--card); width: 100%; max-width: 500px; border-radius: 20px 20px 0 0; padding: 20px; max-height: 70vh; display: flex; flex-direction: column; border: 1px solid var(--border); }
+.friend-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.friend-pic { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #222; }
+.friend-name { font-size: 13px; font-weight: 700; }
+.friend-handle { font-size: 11px; color: #555; }
+.send-btn { background: var(--accent); border: none; color: #000; padding: 7px 16px; border-radius: 20px; font-weight: 900; cursor: pointer; font-size: 12px; }
+
+/* ── Stories + empty ── */
+.story-card { display: flex; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: .15s; }
+.story-card:hover { background: rgba(255,255,255,.03); }
+.story-cover { width: 70px; height: 90px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+.story-cover-placeholder { width: 70px; height: 90px; background: #111; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
+.story-title { font-weight: 900; font-size: 14px; margin-bottom: 3px; }
+.story-author { font-size: 11px; color: var(--accent); text-decoration: none; }
+.story-desc { font-size: 12px; color: #666; margin-top: 4px; line-height: 1.4; }
+.story-meta { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: #444; font-weight: 700; }
+.empty-feed { padding: 48px 20px; text-align: center; color: #2a2a2a; font-size: 13px; line-height: 1.8; }
+
+/* ── Bottom nav ── */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,.95); border-top: 1px solid var(--border);
+  display: flex; justify-content: space-around; padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+  z-index: 500; backdrop-filter: blur(12px);
+}
+.nav-item { font-size: 22px; cursor: pointer; opacity: .4; text-decoration: none; color: var(--text); transition: .15s; }
+.nav-item.active { opacity: 1; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-row">
+    <span class="logo">COMICCORE</span>
+    <input class="search-box" id="tagSearch" placeholder="Search comics, creators…" oninput="filterSearch()">
+  </div>
+  <div class="nav-tabs" id="nav-tabs">
+    <button class="nav-tab active" id="tab-all"      onclick="switchTab('all')">Comics</button>
+    <button class="nav-tab"        id="tab-stories"  onclick="switchTab('stories')">Stories</button>
+    <button class="nav-tab"        id="tab-projects" onclick="switchTab('projects')">Teams</button>
+  </div>
+</div>
+
+<!-- Creator search results -->
+<div id="creatorResultsSection">
+  <div class="creators-label">Creators</div>
+  <div class="creators-row" id="creatorResults"></div>
+</div>
+
+<!-- Main sections -->
+<div id="section-recents">
+  <!-- Filter chips -->
+  <div class="filter-row" id="filter-row">
+    <button class="filter-chip on" id="chip-recent"  onclick="setSort('recent')">🕐 Most Recent</button>
+    <button class="filter-chip"   id="chip-popular" onclick="setSort('popular')">🔥 Most Popular</button>
+    <button class="filter-chip"   id="chip-oldest"  onclick="setSort('oldest')">📅 Oldest First</button>
+  </div>
+  <div class="section-label" id="comics-label">Latest Comics</div>
+  <div class="comics-grid" id="recentFeed"></div>
+</div>
+
+<div id="section-stories" style="display:none;">
+  <div id="storiesFeed"></div>
+</div>
+<div id="section-projects" style="display:none;">
+  <div class="section-label">Team Projects</div>
+  <div class="comics-grid" id="projectsFeed"></div>
+</div>
+
+<!-- Netflix detail popup -->
+<div class="popup-overlay" id="popup-overlay" onclick="if(event.target===this)closePopup()">
+  <div class="popup-sheet" id="popup-sheet">
+    <button class="popup-close" onclick="closePopup()">✕</button>
+    <div id="popup-cover-wrap"></div>
+    <div class="popup-body">
+      <div class="popup-title" id="popup-title"></div>
+      <div class="popup-creator" id="popup-creator"></div>
+      <div class="popup-meta-row" id="popup-meta"></div>
+      <div class="popup-desc" id="popup-desc"></div>
+      <div class="popup-tags" id="popup-tags"></div>
+      <div id="popup-progress-wrap" class="popup-progress-wrap" style="display:none;">
+        <div class="popup-progress-bar"><div class="popup-progress-fill" id="popup-progress-fill"></div></div>
+        <div class="popup-progress-label" id="popup-progress-label"></div>
+      </div>
+      <div class="popup-btns" id="popup-btns"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Comments overlay -->
+<div class="overlay" id="commentOverlay">
+  <div class="comment-sheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <span style="font-weight:900; font-size:15px;">Comments</span>
+      <button onclick="closeComments()" style="background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="commentList" style="overflow-y:auto; flex:1;"></div>
+    <div class="comment-input-row">
+      <input id="commentInput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment()">
+      <button class="post-btn" onclick="postComment()">Post</button>
+    </div>
+  </div>
+</div>
+
+<!-- Comment action sheet -->
+<div class="action-sheet" id="actionSheet">
+  <div class="action-sheet-inner">
+    <button class="action-btn" onclick="startEdit()">✏️ Edit Comment</button>
+    <button class="action-btn delete" onclick="confirmDelete()">Delete Comment</button>
+    <button class="action-btn" onclick="closeActions()" style="color:#666;">Cancel</button>
+  </div>
+</div>
+
+<!-- Share overlay -->
+<div class="share-overlay" id="shareOverlay">
+  <div class="share-sheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <span style="font-weight:900; font-size:15px;">Share: <span id="share-comic-title" style="color:var(--accent);"></span></span>
+      <button onclick="closeShare()" style="background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="share-friends-list" style="overflow-y:auto; flex:1;"></div>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<div class="bottom-nav">
+  <a href="index.html"    class="nav-item">🏠</a>
+  <a href="discover.html" class="nav-item active">🔍</a>
+  <a href="teams.html"    class="nav-item">⚡</a>
+  <a href="messages.html" class="nav-item">💬</a>
+  <a href="profile.html"  class="nav-item">👤</a>
+</div>
+
+<script>
+const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
+
+let allComics = [];
+let activeComicId = null;
+let selectedComment = null;
+let globalStars = [];
+let activePopupComic = null;
+let activePopupStarred = false;
+let currentSort = 'recent';
+let storiesLoaded = false;
+
+// ── Helpers ──────────────────────────────────────────────
+function timeAgo(d) {
+  if (!d) return '';
+  const sec = Math.floor((Date.now() - new Date(d)) / 1000);
+  if (sec < 60) return 'Just now';
+  const min = Math.floor(sec/60); if (min < 60) return min+'m ago';
+  const hr  = Math.floor(min/60); if (hr  < 24) return hr +'h ago';
+  const day = Math.floor(hr /24); if (day <  7) return day+'d ago';
+  const wk  = Math.floor(day/7);  if (wk  <  4) return wk +'w ago';
+  const mo  = Math.floor(day/30); if (mo  < 12) return mo +'mo ago';
+  return Math.floor(day/365)+'y ago';
+}
+function exactDate(d) {
+  if (!d) return 'Unknown';
+  return new Date(d).toLocaleString('en-US',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+}
+function isNewComic(d) {
+  if (!d) return false;
+  return (Date.now() - new Date(d)) < 1000 * 60 * 60 * 48; // 48h
+}
+function getProgress(comicId, totalFrames) {
+  try {
+    const s = localStorage.getItem('cc-progress-' + comicId);
+    if (s === null || !totalFrames) return null;
+    const f = parseInt(s);
+    if (f <= 0 || f >= totalFrames - 1) return null;
+    return { frame: f + 1, total: totalFrames, pct: Math.round(((f + 1) / totalFrames) * 100) };
+  } catch(e) { return null; }
+}
+
+// ── Sort ─────────────────────────────────────────────────
+function setSort(s) {
+  currentSort = s;
+  ['recent','popular','oldest'].forEach(k => document.getElementById('chip-'+k).classList.toggle('on', k === s));
+  const labels = { recent:'Latest Comics', popular:'Most Popular', oldest:'Oldest First' };
+  document.getElementById('comics-label').innerText = labels[s];
+  renderComics(allComics, globalStars);
+}
+
+function sortedComics(comics, stars) {
+  const c = [...comics];
+  if (currentSort === 'popular') {
+    return c.sort((a,b) => (stars.filter(s=>s.receiver_hand===b.id).length) - (stars.filter(s=>s.receiver_hand===a.id).length));
+  } else if (currentSort === 'oldest') {
+    return c.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  }
+  return c.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+// ── Load ─────────────────────────────────────────────────
+async function init() {
+  await loadFeeds();
+  setupRealtime();
+}
+
+function setupRealtime() {
+  _supabase.channel('discover_realtime').on('postgres_changes', { event:'*', schema:'public', table:'messages' }, () => {
+    loadFeeds();
+    if (activeComicId) fetchComments();
+  }).subscribe();
+}
+
+async function loadFeeds() {
+  const { data: comics } = await _supabase.from('comics').select('*').order('created_at', { ascending: false });
+  const { data: stars }  = await _supabase.from('messages').select('receiver_hand, sender_handle').eq('reaction','⭐');
+  const { data: teams }  = await _supabase.from('team_tickets').select('*');
+
+  // Filter out broken comics (no title, no data) silently
+  allComics  = (comics || []).filter(c => c.title && (c.data?.length > 0 || c.cover));
+  globalStars = stars || [];
+
+  renderComics(allComics, globalStars);
+  renderTeams(teams || []);
+}
+
+// ── Render comics grid ────────────────────────────────────
+function renderComics(comics, stars) {
+  const sorted = sortedComics(comics, stars);
+  const container = document.getElementById('recentFeed');
+  if (!sorted.length) {
+    container.innerHTML = '<div class="empty-feed" style="grid-column:1/-1;">No comics yet.<br>Be the first to publish!</div>';
+    return;
+  }
+  container.innerHTML = sorted.map(c => {
+    const starCount = stars.filter(s => s.receiver_hand === c.id).length;
+    const isMine = c.owner_handle === myProfile.handle;
+    const isNew  = isNewComic(c.created_at) && !isMine;
+    const prog   = getProgress(c.id, (c.data||[]).length);
+    const coverHtml = c.cover
+      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+      : `<div class="no-cover">📖</div>`;
+    const progressHtml = prog
+      ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
+    const badgeHtml = isMine
+      ? `<div class="tile-mine">MINE</div>`
+      : (isNew ? `<div class="tile-new">NEW</div>` : '');
+    const starsHtml = starCount > 0 ? `<div class="tile-stars">⭐ ${starCount}</div>` : '';
+    return `<div class="comic-tile" onclick="openPopup('${c.id}')" data-id="${c.id}">
+      ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}
+    </div>`;
+  }).join('');
+}
+
+// ── Netflix popup ─────────────────────────────────────────
+async function openPopup(id) {
+  const c = allComics.find(c => c.id === id);
+  if (!c) return;
+  activePopupComic = c;
+
+  // Cover
+  const coverWrap = document.getElementById('popup-cover-wrap');
+  if (c.cover) {
+    coverWrap.innerHTML = `<img class="popup-cover" src="${esc(c.cover)}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📖</div>'">`;
+  } else {
+    coverWrap.innerHTML = `<div class="popup-cover-placeholder">📖</div>`;
+  }
+
+  // Title & creator
+  document.getElementById('popup-title').innerText = c.title || 'Untitled';
+  const ownerHandle = c.owner_handle || 'unknown';
+  document.getElementById('popup-creator').innerHTML = `by <a href="profile.html?u=${esc(ownerHandle)}" onclick="event.stopPropagation()">@${esc(ownerHandle)}</a> · ${timeAgo(c.created_at)}`;
+
+  // Meta chips
+  const frameCount = (c.data||[]).length;
+  const starCount  = globalStars.filter(s => s.receiver_hand === c.id).length;
+  document.getElementById('popup-meta').innerHTML = `
+    <span class="popup-meta-chip">🎞 ${frameCount} page${frameCount!==1?'s':''}</span>
+    <span class="popup-meta-chip">⭐ ${starCount}</span>
+    ${c.swipe_dir ? `<span class="popup-meta-chip">${c.swipe_dir === 'vertical' ? '↕ Vertical' : '↔ Horizontal'}</span>` : ''}
+    <span class="popup-meta-chip">📅 ${exactDate(c.created_at).split(',')[0]}</span>
+  `;
+
+  // Description
+  const descEl = document.getElementById('popup-desc');
+  descEl.innerText = c.description || '';
+  descEl.style.display = c.description ? 'block' : 'none';
+
+  // Tags
+  const tags = c.tags || [];
+  document.getElementById('popup-tags').innerHTML = tags.map(t => `<span class="popup-tag">#${esc(t)}</span>`).join('');
+
+  // Progress
+  const prog = getProgress(c.id, frameCount);
+  const progWrap = document.getElementById('popup-progress-wrap');
+  if (prog) {
+    progWrap.style.display = 'block';
+    document.getElementById('popup-progress-fill').style.width = prog.pct + '%';
+    document.getElementById('popup-progress-label').innerText = `Reading progress: page ${prog.frame} of ${prog.total} (${prog.pct}%)`;
+  } else {
+    progWrap.style.display = 'none';
+  }
+
+  // Buttons
+  const isMine = c.owner_handle === myProfile.handle;
+  activePopupStarred = false;
+  if (myProfile.handle !== 'guest' && !isMine) {
+    const { data } = await _supabase.from('favorites').select('id').eq('user_handle', myProfile.handle).eq('comic_id', c.id).single().catch(()=>({data:null}));
+    // Try messages table (existing star system)
+    const { data: msg } = await _supabase.from('messages').select('id').eq('sender_handle', myProfile.handle).eq('receiver_hand', c.id).eq('reaction','⭐').maybeSingle();
+    activePopupStarred = !!(data || msg);
+  }
+
+  const btns = document.getElementById('popup-btns');
+  btns.innerHTML = '';
+
+  // Read button
+  const readBtn = document.createElement('button');
+  readBtn.className = 'read-btn';
+  readBtn.innerHTML = prog ? `▶ Continue Reading` : `▶ Read Now`;
+  readBtn.onclick = () => { closePopup(); location.href = `reader.html?id=${c.id}`; };
+  btns.appendChild(readBtn);
+
+  // Star button (not own comic)
+  if (!isMine && myProfile.handle !== 'guest') {
+    const starBtn = document.createElement('button');
+    starBtn.className = 'popup-star-btn' + (activePopupStarred ? ' starred' : '');
+    starBtn.id = 'popup-star-btn';
+    starBtn.innerHTML = activePopupStarred ? '⭐' : '☆';
+    starBtn.title = activePopupStarred ? 'Remove star' : 'Star this comic';
+    starBtn.onclick = () => popupToggleStar(c.id);
+    btns.appendChild(starBtn);
+  }
+
+  // Share button
+  const shareBtn = document.createElement('button');
+  shareBtn.className = 'popup-edit-btn';
+  shareBtn.style.borderColor = '#444'; shareBtn.style.color = '#888';
+  shareBtn.innerHTML = '↗';
+  shareBtn.title = 'Share';
+  shareBtn.onclick = () => { closePopup(); openShare({ stopPropagation:()=>{} }, c.id, c.title); };
+  btns.appendChild(shareBtn);
+
+  // Comments
+  const commentBtn = document.createElement('button');
+  commentBtn.className = 'popup-edit-btn';
+  commentBtn.style.borderColor = '#444'; commentBtn.style.color = '#888';
+  commentBtn.innerHTML = '💬';
+  commentBtn.onclick = () => { closePopup(); openComments(c.id); };
+  btns.appendChild(commentBtn);
+
+  // Owner controls
+  if (isMine) {
+    const editBtn = document.createElement('button');
+    editBtn.className = 'popup-edit-btn';
+    editBtn.innerHTML = '✏️ Edit';
+    editBtn.onclick = () => { closePopup(); localStorage.setItem('edit_comic_id', c.id); location.href = 'create.html'; };
+    btns.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'popup-delete-btn';
+    delBtn.innerHTML = '🗑';
+    delBtn.title = 'Delete comic';
+    delBtn.onclick = () => deleteComic(c.id, c.title);
+    btns.appendChild(delBtn);
+  }
+
+  document.getElementById('popup-overlay').style.display = 'flex';
+}
+
+function closePopup() {
+  document.getElementById('popup-overlay').style.display = 'none';
+  activePopupComic = null;
+}
+
+async function popupToggleStar(comicId) {
+  const btn = document.getElementById('popup-star-btn');
+  if (!btn) return;
+  if (activePopupStarred) {
+    await _supabase.from('messages').delete().eq('sender_handle', myProfile.handle).eq('receiver_hand', comicId).eq('reaction','⭐');
+    activePopupStarred = false;
+    btn.classList.remove('starred'); btn.innerHTML = '☆';
+  } else {
+    await _supabase.from('messages').insert([{ sender_handle: myProfile.handle, receiver_hand: comicId, content:'⭐', reaction:'⭐' }]);
+    activePopupStarred = true;
+    btn.classList.add('starred'); btn.innerHTML = '⭐';
+  }
+  loadFeeds();
+}
+
+async function deleteComic(id, title) {
+  if (!confirm(`Delete "${title}"? This removes it from Discover permanently.`)) return;
+  closePopup();
+  await _supabase.from('comics').delete().eq('id', id);
+  allComics = allComics.filter(c => c.id !== id);
+  renderComics(allComics, globalStars);
+}
+
+// ── Star (from grid, kept for compatibility) ──────────────
+async function handleStar(event, id, alreadyStarred) {
+  event.stopPropagation();
+  if (myProfile.handle === 'guest') return alert('Log in to star!');
+  const comic = allComics.find(c => c.id === id);
+  if (comic && comic.owner_handle === myProfile.handle) return alert("You cannot star your own comic!");
+  if (alreadyStarred) {
+    await _supabase.from('messages').delete().eq('sender_handle', myProfile.handle).eq('receiver_hand', id).eq('reaction','⭐');
+  } else {
+    await _supabase.from('messages').insert([{ sender_handle: myProfile.handle, receiver_hand: id, content:'⭐', reaction:'⭐' }]);
+  }
+  loadFeeds();
+}
+
+// ── Comments ──────────────────────────────────────────────
+async function openComments(id) { activeComicId = id; document.getElementById('commentOverlay').style.display = 'flex'; fetchComments(); }
+async function fetchComments() {
+  const { data: comments } = await _supabase.from('messages').select('*').eq('receiver_hand', activeComicId).is('reaction', null).order('created_at', { ascending: false });
+  document.getElementById('commentList').innerHTML = comments?.length
+    ? comments.map(m => {
+        const isMine = m.sender_handle === myProfile.handle;
+        return `<div class="comment-item ${isMine?'my-comment':''}" onclick="${isMine?`openCommentActions(${JSON.stringify(m).replace(/"/g,'&quot;')})` : ''}">
+          <div class="comment-user">@${m.sender_handle}${m.edited?' <span style="font-size:10px;color:#666;">(edited)</span>':''}</div>
+          <div class="comment-text">${m.content}</div></div>`;
+      }).join('')
+    : '<div style="text-align:center;padding:20px;opacity:.5;">No comments yet.</div>';
+}
+async function postComment() {
+  const input = document.getElementById('commentInput');
+  if (!input.value.trim() || myProfile.handle === 'guest') return;
+  await _supabase.from('messages').insert([{ sender_handle: myProfile.handle, receiver_hand: activeComicId, content: input.value.trim() }]);
+  input.value = ''; fetchComments();
+}
+function openCommentActions(comment) { selectedComment = comment; document.getElementById('actionSheet').style.display = 'flex'; }
+function closeActions() { document.getElementById('actionSheet').style.display = 'none'; selectedComment = null; }
+async function confirmDelete() { if (confirm('Delete this comment?')) { await _supabase.from('messages').delete().eq('id', selectedComment.id); fetchComments(); closeActions(); } }
+async function startEdit() { const t = prompt('Edit comment:', selectedComment.content); if (t && t !== selectedComment.content) { await _supabase.from('messages').update({ content: t, edited: true }).eq('id', selectedComment.id); fetchComments(); } closeActions(); }
+function closeComments() { document.getElementById('commentOverlay').style.display = 'none'; activeComicId = null; }
+
+// ── Search ────────────────────────────────────────────────
+async function filterSearch() {
+  const q = document.getElementById('tagSearch').value.toLowerCase().trim();
+  const creatorSection = document.getElementById('creatorResultsSection');
+  if (!q) { creatorSection.style.display = 'none'; renderComics(allComics, globalStars); return; }
+  const filtered = allComics.filter(c =>
+    c.title?.toLowerCase().includes(q) ||
+    (c.tags && c.tags.some(t => t.toLowerCase().includes(q))) ||
+    c.owner_handle?.toLowerCase().includes(q)
+  );
+  renderComics(filtered, globalStars);
+  const { data: profiles } = await _supabase.from('profiles').select('*').or(`handle.ilike.%${q}%,name.ilike.%${q}%`).limit(8);
+  if (profiles?.length) {
+    creatorSection.style.display = 'block';
+    document.getElementById('creatorResults').innerHTML = profiles.map(p => `
+      <div class="creator-card" onclick="location.href='profile.html?u=${p.handle}'">
+        <img src="${p.pic||'https://via.placeholder.com/48'}" onerror="this.src='https://via.placeholder.com/48'">
+        <div>@${p.handle}</div>
+      </div>`).join('');
+  } else { creatorSection.style.display = 'none'; }
+}
+
+// ── Tabs ──────────────────────────────────────────────────
+function switchTab(type) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+type).classList.add('active');
+  document.getElementById('section-recents').style.display  = type === 'all'      ? 'block' : 'none';
+  document.getElementById('section-stories').style.display  = type === 'stories'  ? 'block' : 'none';
+  document.getElementById('section-projects').style.display = type === 'projects' ? 'block' : 'none';
+  if (type === 'stories' && !storiesLoaded) loadStories();
+}
+
+async function loadStories() {
+  const feed = document.getElementById('storiesFeed');
+  feed.innerHTML = '<div class="empty-feed">Loading stories…</div>';
+  const { data: stories, error } = await _supabase.from('stories').select('*').order('created_at', { ascending: false });
+  if (error || !stories?.length) { feed.innerHTML = '<div class="empty-feed">No stories yet. Be the first!</div>'; return; }
+  storiesLoaded = true;
+  feed.innerHTML = stories.map(s => `
+    <div class="story-card" onclick="location.href='story-reader.html?id=${s.id}'">
+      ${s.cover ? `<img src="${s.cover}" class="story-cover">` : `<div class="story-cover-placeholder">📖</div>`}
+      <div class="story-info">
+        <div class="story-title">${s.title}</div>
+        <a href="profile.html?u=${s.owner_handle}" class="story-author" onclick="event.stopPropagation()">@${s.owner_handle}</a>
+        ${s.description ? `<div class="story-desc">${s.description}</div>` : ''}
+        <div class="story-meta"><span>📄 ${s.page_count||1} pages</span><span>${timeAgo(s.created_at)}</span></div>
+      </div>
+    </div>`).join('');
+}
+
+function renderTeams(teams) {
+  document.getElementById('projectsFeed').innerHTML = teams.length
+    ? teams.map(t => `<div class="comic-tile" onclick="location.href='teams.html'" style="cursor:pointer;">
+        <img src="${t.pfp||''}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentNode.innerHTML='<div class=no-cover>⚡</div>'">
+        <div style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:10px;font-weight:900;color:white;background:rgba(0,0,0,.7);padding:3px;">${esc(t.team_name)}</div>
+      </div>`).join('')
+    : '<div class="empty-feed" style="grid-column:1/-1;">No team projects yet.</div>';
+}
+
+// ── Share ─────────────────────────────────────────────────
+let shareComicId = null, shareComicTitle = null;
+async function openShare(e, comicId, comicTitle) {
+  e.stopPropagation();
+  shareComicId = comicId; shareComicTitle = comicTitle;
+  document.getElementById('share-comic-title').innerText = comicTitle;
+  document.getElementById('shareOverlay').style.display = 'flex';
+  const list = document.getElementById('share-friends-list');
+  list.innerHTML = '<div style="padding:20px;text-align:center;color:#555;">Loading…</div>';
+  if (!myProfile.handle || myProfile.handle === 'guest') { list.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Log in to share.</div>'; return; }
+  const { data: conns } = await _supabase.from('connections').select('*').or(`sender_handle.eq.${myProfile.handle},receiver_handle.eq.${myProfile.handle}`).eq('status','accepted');
+  if (!conns?.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">No connections yet.</div>'; return; }
+  list.innerHTML = '';
+  for (const conn of conns) {
+    const friendHandle = conn.sender_handle === myProfile.handle ? conn.receiver_handle : conn.sender_handle;
+    const { data: p } = await _supabase.from('profiles').select('name, pic').eq('handle', friendHandle).single();
+    const row = document.createElement('div'); row.className = 'friend-row'; row.id = 'friend-row-' + friendHandle;
+    row.innerHTML = `<div style="display:flex;align-items:center;gap:12px;"><img src="${p?.pic||''}" class="friend-pic" onerror="this.style.display='none'"><div><div class="friend-name">${p?.name||friendHandle}</div><div class="friend-handle">@${friendHandle}</div></div></div><button class="send-btn" onclick="sendShare('${friendHandle}')">Send</button>`;
+    list.appendChild(row);
+  }
+}
+async function sendShare(toHandle) {
+  const btn = document.querySelector(`#friend-row-${toHandle} .send-btn`);
+  if (btn) { btn.disabled = true; btn.innerText = '…'; }
+  await _supabase.from('messages').insert([{ sender_handle: myProfile.handle, receiver_handle: toHandle, content: `[SHARE]: ${shareComicTitle}! (Link: link=reader.html?id=${shareComicId})` }]);
+  if (btn) { btn.innerText = 'Sent ✓'; btn.style.background = '#32d74b'; btn.style.color = '#000'; }
+}
+function closeShare() { document.getElementById('shareOverlay').style.display = 'none'; shareComicId = null; shareComicTitle = null; }
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+window.onload = init;
+</script>
+</body>
+</html>
