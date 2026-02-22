@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ComicCore — Discover</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; font-family: 'Inter', sans-serif; background: #0f0f11; color: #f5f5f7; min-height: 100dvh; padding-bottom: 80px; }
 
@@ -78,7 +78,7 @@ background: #111; aspect-ratio: .67;
 transition: transform .2s, box-shadow .2s;
 }
 .comic-tile:active { transform: scale(.96); }
-.comic-tile img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0a0a0a; }
+.comic-tile img.cover-img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0a0a0a; }
 .comic-tile .no-cover {
 width: 100%; height: 100%; display: flex; align-items: center;
 justify-content: center; font-size: 28px; background: linear-gradient(135deg,#0f0f11,#1a1a1e);
@@ -101,6 +101,36 @@ position: absolute; top: 5px; left: 5px;
 background: rgba(50,215,75,.85); color: #000;
 font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 10px;
 }
+
+/* ── Creator avatar on tile (bottom left) ── */
+.tile-creator-avatar {
+position: absolute; bottom: 26px; left: 6px;
+width: 28px; height: 28px; border-radius: 50%;
+border: 2px solid rgba(255,255,255,.25);
+object-fit: cover; background: #222;
+cursor: pointer; z-index: 10;
+transition: border-color .2s, transform .15s;
+}
+.tile-creator-avatar:hover { border-color: #ff7a00; transform: scale(1.1); }
+.tile-creator-info {
+position: absolute; bottom: 26px; left: 40px;
+display: flex; align-items: center; gap: 5px; z-index: 10;
+opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.comic-tile:hover .tile-creator-info { opacity: 1; pointer-events: auto; }
+.tile-creator-handle {
+font-size: 9px; font-weight: 900; color: white;
+background: rgba(0,0,0,.7); padding: 2px 6px; border-radius: 8px;
+backdrop-filter: blur(4px); white-space: nowrap;
+}
+.tile-follow-btn {
+font-size: 8px; font-weight: 900; color: #000;
+background: #ff7a00; border: none; padding: 2px 7px;
+border-radius: 8px; cursor: pointer; white-space: nowrap;
+transition: .15s;
+}
+.tile-follow-btn.following { background: rgba(255,255,255,.15); color: white; }
+.tile-follow-btn:hover { opacity: .85; }
 
 /* ── Popup overlay ── */
 .popup-overlay {
@@ -178,24 +208,63 @@ display: none; align-items: flex-end; justify-content: center;
 .comment-sheet {
 background: #1c1c1e; width: 100%; max-width: 500px;
 border-radius: 20px 20px 0 0; padding: 20px 18px 0;
-max-height: 70vh; display: flex; flex-direction: column;
+max-height: 75vh; display: flex; flex-direction: column;
 border: 1px solid #2c2c2e; animation: slideUp .3s cubic-bezier(.4,0,.2,1);
 }
 .comment-sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .comment-sheet-header span { font-weight: 900; font-size: 15px; }
 .comment-sheet-header button { background: none; border: none; color: #f5f5f7; font-size: 22px; cursor: pointer; }
 .comment-list { flex: 1; overflow-y: auto; }
-.comment-item { padding: 10px 0; border-bottom: 1px solid #2c2c2e; }
-.comment-user { font-size: 11px; font-weight: 800; color: #ff7a00; margin-bottom: 3px; }
+.comment-item { padding: 10px 0; border-bottom: 1px solid #2c2c2e; display: flex; gap: 10px; align-items: flex-start; }
+.comment-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #333; flex-shrink: 0; border: 1px solid #2a2a2c; cursor: pointer; }
+.comment-content { flex: 1; }
+.comment-user { font-size: 11px; font-weight: 800; color: #ff7a00; margin-bottom: 3px; cursor: pointer; }
+.comment-user:hover { text-decoration: underline; }
 .comment-text-body { font-size: 13px; color: #f5f5f7; }
+.comment-reaction-img { max-width: 120px; max-height: 120px; border-radius: 8px; margin-top: 6px; display: block; object-fit: contain; }
 .comment-empty { text-align: center; padding: 24px; color: #444; font-size: 12px; font-weight: 700; }
-.comment-input-row { display: flex; gap: 8px; padding: 12px 0 calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid #2c2c2e; margin-top: auto; }
+
+/* Comment input area */
+.comment-input-area { border-top: 1px solid #2c2c2e; margin-top: auto; }
+.comment-input-row { display: flex; gap: 8px; padding: 10px 0 calc(14px + env(safe-area-inset-bottom)); }
 .comment-input-row input {
 flex: 1; background: #1c1c1e; border: 1px solid #2c2c2e; color: #f5f5f7;
 padding: 10px 14px; border-radius: 12px; font-family: inherit; font-size: 13px; outline: none;
 }
 .comment-input-row input:focus { border-color: #ff7a00; }
 .post-btn { background: #ff7a00; border: none; color: #000; padding: 10px 16px; border-radius: 12px; font-weight: 900; cursor: pointer; font-size: 13px; }
+.reaction-toggle-btn {
+background: #1e1e20; border: 1px solid #2a2a2c; color: #aaa;
+padding: 10px 12px; border-radius: 12px; font-size: 16px; cursor: pointer;
+transition: .15s; flex-shrink: 0;
+}
+.reaction-toggle-btn.active { border-color: #ff7a00; color: #ff7a00; background: rgba(255,122,0,.1); }
+
+/* Reaction image tray */
+.reaction-tray {
+display: none; padding: 10px 0 4px;
+border-top: 1px solid #2c2c2e;
+}
+.reaction-tray.open { display: block; }
+.reaction-tray-header {
+display: flex; align-items: center; justify-content: space-between;
+margin-bottom: 8px; padding: 0 2px;
+}
+.reaction-tray-title { font-size: 10px; font-weight: 900; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+.reaction-tray-manage { font-size: 10px; font-weight: 800; color: #ff7a00; cursor: pointer; text-decoration: none; }
+.reaction-grid {
+display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+max-height: 180px; overflow-y: auto;
+}
+.reaction-grid::-webkit-scrollbar { width: 3px; }
+.reaction-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+.reaction-img-btn {
+aspect-ratio: 1; background: #111; border-radius: 8px; overflow: hidden;
+border: 1.5px solid transparent; cursor: pointer; transition: .15s; padding: 0;
+}
+.reaction-img-btn:hover { border-color: #ff7a00; transform: scale(1.05); }
+.reaction-img-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.reaction-tray-empty { color: #444; font-size: 11px; font-weight: 700; text-align: center; padding: 16px; grid-column: 1/-1; }
 
 /* ── Share sheet ── */
 .share-overlay {
@@ -322,9 +391,22 @@ z-index: 500; backdrop-filter: blur(12px);
     <div class="comment-list" id="commentList">
       <div class="comment-empty">Loading…</div>
     </div>
-    <div class="comment-input-row">
-      <input id="commentInput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment()">
-      <button class="post-btn" onclick="postComment()">Post</button>
+    <div class="comment-input-area">
+      <!-- Reaction image tray -->
+      <div class="reaction-tray" id="reaction-tray">
+        <div class="reaction-tray-header">
+          <span class="reaction-tray-title">🎭 Reaction Images</span>
+          <a href="commentimagessource.html" class="reaction-tray-manage">+ Manage</a>
+        </div>
+        <div class="reaction-grid" id="reaction-grid">
+          <div class="reaction-tray-empty">No images yet.<br><a href="commentimagessource.html" style="color:#ff7a00;font-size:10px;">Add some →</a></div>
+        </div>
+      </div>
+      <div class="comment-input-row">
+        <button class="reaction-toggle-btn" id="reaction-toggle-btn" onclick="toggleReactionTray()" title="Reaction images">🎭</button>
+        <input id="commentInput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment()">
+        <button class="post-btn" onclick="postComment()">Post</button>
+      </div>
     </div>
   </div>
 </div>
@@ -363,7 +445,7 @@ const _sb = supabase.createClient(
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
 let allComics       = [];
-let activeComicId   = null;   // for comments
+let activeComicId   = null;
 let globalStars     = [];
 let activePopupComic   = null;
 let activePopupStarred = false;
@@ -372,6 +454,31 @@ let storiesLoaded   = false;
 let shareComicId    = null;
 let shareComicTitle = null;
 let toastTimer      = null;
+
+// ── Profile cache (to avoid re-fetching same profiles) ────
+const profileCache = {};
+async function getCachedProfile(handle) {
+  if (profileCache[handle]) return profileCache[handle];
+  const { data } = await _sb.from('profiles').select('pic, name').eq('handle', handle).maybeSingle();
+  profileCache[handle] = data || { pic: '', name: handle };
+  return profileCache[handle];
+}
+
+// ── Connection/follow cache ────────────────────────────────
+const connectionCache = {};
+async function getConnectionStatus(targetHandle) {
+  if (!myProfile.handle || myProfile.handle === 'guest') return 'guest';
+  if (targetHandle === myProfile.handle) return 'self';
+  const key = targetHandle;
+  if (connectionCache[key] !== undefined) return connectionCache[key];
+  const { data } = await _sb.from('connections')
+    .select('status')
+    .or(`and(sender_handle.eq.${myProfile.handle},receiver_handle.eq.${targetHandle}),and(sender_handle.eq.${targetHandle},receiver_handle.eq.${myProfile.handle})`)
+    .maybeSingle();
+  const status = data?.status || 'none';
+  connectionCache[key] = status;
+  return status;
+}
 
 // ── Helpers ──────────────────────────────────────────────
 function esc(s) {
@@ -486,7 +593,7 @@ function renderComics(comics, stars) {
     const isNew      = isNewComic(c.created_at) && !isMine;
     const prog       = getProgress(c.id, (c.data||[]).length);
     const coverHtml  = c.cover
-      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+      ? `<img class="cover-img" src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
       : `<div class="no-cover">📖</div>`;
     const progressHtml = prog
       ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
@@ -494,14 +601,75 @@ function renderComics(comics, stars) {
       ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
     const starsHtml  = starCount > 0 ? `<div class="tile-stars">⭐ ${starCount}</div>` : '';
-    // Use data-id attribute — onclick uses this to avoid quote escaping issues
-    return `<div class="comic-tile" data-id="${esc(c.id)}">${coverHtml}${badgeHtml}${starsHtml}${progressHtml}</div>`;
+
+    // Creator avatar — use data-handle, will be hydrated async
+    const ownerHandle = esc(c.owner_handle || 'unknown');
+    const avatarHtml = `
+      <img class="tile-creator-avatar" data-handle="${ownerHandle}"
+        src="" alt="@${ownerHandle}"
+        onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
+        onerror="this.style.display='none'">
+      <div class="tile-creator-info">
+        <span class="tile-creator-handle">@${ownerHandle}</span>
+        ${!isMine && myProfile.handle !== 'guest' ? `<button class="tile-follow-btn" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : ''}
+      </div>`;
+
+    return `<div class="comic-tile" data-id="${esc(c.id)}">${coverHtml}${badgeHtml}${starsHtml}${progressHtml}${avatarHtml}</div>`;
   }).join('');
 
-  // Attach click handlers after render (avoids quote-in-onclick escaping bugs)
+  // Attach click handlers
   container.querySelectorAll('.comic-tile').forEach(tile => {
     tile.addEventListener('click', () => openPopup(tile.dataset.id));
   });
+
+  // Async-hydrate avatars
+  hydrateAvatars(container);
+  hydrateFollowButtons(container);
+}
+
+async function hydrateAvatars(container) {
+  const avatars = container.querySelectorAll('.tile-creator-avatar[data-handle]');
+  // Batch by unique handles
+  const handles = [...new Set([...avatars].map(a => a.dataset.handle))];
+  await Promise.all(handles.map(async handle => {
+    const p = await getCachedProfile(handle);
+    container.querySelectorAll(`.tile-creator-avatar[data-handle="${handle}"]`).forEach(img => {
+      if (p?.pic) { img.src = p.pic; }
+      else img.style.display = 'none';
+    });
+  }));
+}
+
+async function hydrateFollowButtons(container) {
+  if (!myProfile.handle || myProfile.handle === 'guest') return;
+  const btns = container.querySelectorAll('.tile-follow-btn[data-follow-handle]');
+  const handles = [...new Set([...btns].map(b => b.dataset.followHandle))];
+  await Promise.all(handles.map(async handle => {
+    const status = await getConnectionStatus(handle);
+    container.querySelectorAll(`.tile-follow-btn[data-follow-handle="${handle}"]`).forEach(btn => {
+      if (status === 'accepted') { btn.textContent = 'Friends'; btn.classList.add('following'); btn.disabled = true; }
+      else if (status === 'pending') { btn.textContent = 'Pending'; btn.classList.add('following'); }
+      else { btn.textContent = 'Follow'; }
+    });
+  }));
+}
+
+async function tileFollow(btn, handle) {
+  if (!myProfile.handle || myProfile.handle === 'guest') { showToast('Log in to follow!'); return; }
+  btn.disabled = true;
+  const status = connectionCache[handle];
+  if (status === 'pending' || status === 'accepted') { showToast('Already connected!'); return; }
+
+  const { error } = await _sb.from('connections').insert([{
+    sender_handle: myProfile.handle,
+    receiver_handle: handle,
+    status: 'pending'
+  }]);
+  if (error) { showToast('Error sending request'); btn.disabled = false; return; }
+  connectionCache[handle] = 'pending';
+  btn.textContent = 'Pending';
+  btn.classList.add('following');
+  showToast(`👋 Follow request sent to @${handle}`);
 }
 
 // ── Popup ─────────────────────────────────────────────────
@@ -570,7 +738,6 @@ async function openPopup(id) {
   const btns = document.getElementById('popup-btns');
   btns.innerHTML = '';
 
-  // ── READ button ── navigates directly to reader
   const readBtn = document.createElement('button');
   readBtn.className = 'read-btn';
   readBtn.innerHTML = prog ? '▶ Continue' : '▶ Read Now';
@@ -580,7 +747,6 @@ async function openPopup(id) {
   };
   btns.appendChild(readBtn);
 
-  // ── STAR button ──
   if (!isMine && myProfile.handle !== 'guest') {
     const starBtn = document.createElement('button');
     starBtn.className = 'popup-icon-btn' + (activePopupStarred ? ' starred' : '');
@@ -591,7 +757,6 @@ async function openPopup(id) {
     btns.appendChild(starBtn);
   }
 
-  // ── COMMENT button ──
   const commentBtn = document.createElement('button');
   commentBtn.className = 'popup-icon-btn';
   commentBtn.innerHTML = '💬';
@@ -599,7 +764,6 @@ async function openPopup(id) {
   commentBtn.onclick   = () => openCommentSheet(c.id);
   btns.appendChild(commentBtn);
 
-  // ── SHARE button ──
   const shareBtn = document.createElement('button');
   shareBtn.className = 'popup-icon-btn';
   shareBtn.innerHTML = '↗';
@@ -607,7 +771,6 @@ async function openPopup(id) {
   shareBtn.onclick   = () => openShareSheet(c.id, c.title);
   btns.appendChild(shareBtn);
 
-  // ── OWNER controls ──
   if (isMine) {
     const editBtn = document.createElement('button');
     editBtn.className = 'popup-edit-btn';
@@ -668,15 +831,58 @@ async function deleteComic(id, title) {
 }
 
 // ── Comments ──────────────────────────────────────────────
+let pendingReactionImg = null; // {name, src} to insert
+
 function openCommentSheet(id) {
   activeComicId = id;
+  pendingReactionImg = null;
   document.getElementById('comment-overlay').classList.add('open');
+  // Close reaction tray on open
+  document.getElementById('reaction-tray').classList.remove('open');
+  document.getElementById('reaction-toggle-btn').classList.remove('active');
   fetchComments();
+  loadReactionTray();
 }
 
 function closeCommentSheet() {
   document.getElementById('comment-overlay').classList.remove('open');
   activeComicId = null;
+  pendingReactionImg = null;
+}
+
+function toggleReactionTray() {
+  const tray = document.getElementById('reaction-tray');
+  const btn  = document.getElementById('reaction-toggle-btn');
+  const isOpen = tray.classList.toggle('open');
+  btn.classList.toggle('active', isOpen);
+}
+
+function loadReactionTray() {
+  const grid = document.getElementById('reaction-grid');
+  const images = JSON.parse(localStorage.getItem('cc-reaction-images') || '[]');
+  if (!images.length) {
+    grid.innerHTML = `<div class="reaction-tray-empty">No images yet.<br><a href="commentimagessource.html" style="color:#ff7a00;font-size:10px;">Add some →</a></div>`;
+    return;
+  }
+  grid.innerHTML = images.map((img, i) => `
+    <button class="reaction-img-btn" title="${esc(img.name)}" onclick="selectReactionImage(${i})">
+      <img src="${esc(img.src)}" alt="${esc(img.name)}" loading="lazy">
+    </button>
+  `).join('');
+}
+
+function selectReactionImage(index) {
+  const images = JSON.parse(localStorage.getItem('cc-reaction-images') || '[]');
+  const img = images[index];
+  if (!img) return;
+  pendingReactionImg = img;
+  // Show preview in input
+  document.getElementById('commentInput').placeholder = `📎 "${img.name}" selected — add text or post!`;
+  document.getElementById('commentInput').value = '';
+  // Close tray
+  document.getElementById('reaction-tray').classList.remove('open');
+  document.getElementById('reaction-toggle-btn').classList.remove('active');
+  showToast(`🎭 "${img.name}" selected`);
 }
 
 async function fetchComments() {
@@ -698,27 +904,60 @@ async function fetchComments() {
     listEl.innerHTML = '<div class="comment-empty">No comments yet. Be first!</div>';
     return;
   }
-  listEl.innerHTML = comments.map(m => `
-    <div class="comment-item">
-      <div class="comment-user">@${esc(m.sender_handle)}</div>
-      <div class="comment-text-body">${esc(m.content)}</div>
-    </div>`).join('');
+
+  listEl.innerHTML = '';
+  for (const m of comments) {
+    const p = await getCachedProfile(m.sender_handle);
+    const isImgReaction = m.content && m.content.startsWith('[IMG_REACTION]:');
+    let bodyHtml = '';
+    if (isImgReaction) {
+      const src = m.content.replace('[IMG_REACTION]:', '').trim();
+      bodyHtml = `<img src="${esc(src)}" class="comment-reaction-img" loading="lazy">`;
+      if (m.comment_text) bodyHtml += `<div style="margin-top:4px;">${esc(m.comment_text)}</div>`;
+    } else {
+      bodyHtml = `<div>${esc(m.content)}</div>`;
+    }
+
+    const item = document.createElement('div');
+    item.className = 'comment-item';
+    item.innerHTML = `
+      <img src="${esc(p?.pic || '')}" class="comment-avatar" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'" onerror="this.src=''">
+      <div class="comment-content">
+        <div class="comment-user" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'">@${esc(m.sender_handle)}</div>
+        ${bodyHtml}
+      </div>`;
+    listEl.appendChild(item);
+  }
 }
 
 async function postComment() {
   const input = document.getElementById('commentInput');
   const text  = input.value.trim();
-  if (!text) return;
+  if (!text && !pendingReactionImg) return;
   if (!myProfile.handle || myProfile.handle === 'guest') {
     showToast('Log in to comment!'); return;
   }
+
+  let content = text;
+  let extraFields = {};
+
+  if (pendingReactionImg) {
+    // Store the image src as a special comment type
+    content = `[IMG_REACTION]:${pendingReactionImg.src}`;
+    if (text) extraFields.comment_text = text;
+  }
+
   const { error } = await _sb.from('messages').insert([{
     sender_handle: myProfile.handle,
     receiver_hand: activeComicId,
-    content: text
+    content,
+    ...extraFields
   }]);
+
   if (error) { showToast('Error posting comment'); return; }
   input.value = '';
+  input.placeholder = 'Add a comment…';
+  pendingReactionImg = null;
   fetchComments();
 }
 
@@ -823,7 +1062,7 @@ async function loadShareFriends() {
   list.innerHTML = '';
   for (const conn of conns) {
     const friendHandle = conn.sender_handle === myProfile.handle ? conn.receiver_handle : conn.sender_handle;
-    const { data: p } = await _sb.from('profiles').select('name, pic').eq('handle', friendHandle).single();
+    const p = await getCachedProfile(friendHandle);
     const row = document.createElement('div');
     row.className = 'friend-row';
     row.id = 'friend-row-' + friendHandle;
