@@ -226,7 +226,7 @@
         let pfpBase64 = "";
         let bannerBase64 = "";
         let currentViewedHandle = "";
-        const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
 
         // Social URL builder
         function buildSocialUrl(key, val) {
@@ -263,15 +263,41 @@
                     </div>`;
             });
 
+            // Self-heal: if handle is missing from localStorage, re-fetch from Supabase auth
+            if (!myProfile.handle && !currentViewedHandle) {
+                const { data: { user } } = await _supabase.auth.getUser();
+                if (!user) {
+                    alert('You must be logged in to edit your profile.');
+                    location.href = 'login.html';
+                    return;
+                }
+                // Look up profile by permanent_id (Supabase auth user ID)
+                const { data: fresh } = await _supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('permanent_id', user.id)
+                    .maybeSingle();
+
+                if (fresh) {
+                    // Sync localStorage so everything works going forward
+                    myProfile = { ...myProfile, ...fresh };
+                    localStorage.setItem('user_profile', JSON.stringify(myProfile));
+                } else {
+                    // No profile row found — force fresh login
+                    alert('Profile not found. Please sign in again.');
+                    await _supabase.auth.signOut();
+                    location.href = 'login.html';
+                    return;
+                }
+            }
+
             if (currentViewedHandle) {
                 loadPublicProfile(currentViewedHandle);
             } else if (myProfile.handle) {
-                // Only open editor if we actually have a logged-in handle
                 openEditor();
             } else {
-                // No handle in localStorage and no ?u= param — not logged in
-                alert('You must be logged in to edit your profile.');
-                location.href = 'index.html';
+                alert('Could not load your profile. Please sign in again.');
+                location.href = 'login.html';
             }
         }
 
@@ -475,8 +501,9 @@
                 bio: updated.bio,
                 pic: updated.pic,
                 banner: updated.banner,
-                socials: updated.socials
-            });
+                socials: updated.socials,
+                permanent_id: myProfile.permanent_id || null
+            }, { onConflict: 'handle' });
 
             if (!error) {
                 localStorage.setItem('user_profile', JSON.stringify(updated));
