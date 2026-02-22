@@ -265,8 +265,13 @@
 
             if (currentViewedHandle) {
                 loadPublicProfile(currentViewedHandle);
-            } else {
+            } else if (myProfile.handle) {
+                // Only open editor if we actually have a logged-in handle
                 openEditor();
+            } else {
+                // No handle in localStorage and no ?u= param — not logged in
+                alert('You must be logged in to edit your profile.');
+                location.href = 'index.html';
             }
         }
 
@@ -405,6 +410,13 @@
         }
 
         function openEditor() {
+            // Safety check — never open the editor if there's no handle to save with
+            if (!myProfile.handle) {
+                alert('You must be logged in to edit your profile.');
+                location.href = 'index.html';
+                return;
+            }
+
             document.getElementById('public-view').style.display = 'none';
             document.getElementById('edit-view').style.display = 'block';
 
@@ -435,6 +447,12 @@
         }
 
         async function saveProfile() {
+            // Guard: handle is the primary key — we cannot upsert without it
+            if (!myProfile.handle) {
+                alert('Session error: your handle is missing. Please log out and log in again.');
+                return;
+            }
+
             const socials = {};
             SOCIAL_CONFIG.forEach(s => {
                 const val = document.getElementById(`social-${s.key}`).value.trim();
@@ -443,6 +461,7 @@
 
             const updated = {
                 ...myProfile,
+                handle: myProfile.handle,   // always keep handle in the local object
                 name: document.getElementById('edit-name').value,
                 bio: document.getElementById('edit-bio').value,
                 pic: pfpBase64,
