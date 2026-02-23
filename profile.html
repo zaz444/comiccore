@@ -6,11 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore - Profile</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Dynamic Open Graph tags — populated by JS after Supabase fetch -->
+    <meta property="og:title" content="ComicCore Profile">
+    <meta property="og:description" content="Check out this profile on ComicCore!">
+    <meta property="og:image" content="">
+    <meta property="og:url" content="">
+    <meta property="og:type" content="profile">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ComicCore Profile">
+    <meta name="twitter:description" content="Check out this profile on ComicCore!">
+    <meta name="twitter:image" content="">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
         /* colors now in theme.css */
         
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: white; overflow-x: hidden; padding-bottom: 50px; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: white; overflow-x: hidden; padding-bottom: 0; }
         #public-view { position: relative; }
         
         /* --- PUBLIC VIEW --- */
@@ -39,8 +49,8 @@
 
         /* Comic Grid */
         .grid-header { width: 100%; border-top: 1px solid var(--border); padding-top: 15px; margin-top: 10px; font-weight: 800; font-size: 12px; color: var(--secondary); text-transform: uppercase; letter-spacing: 1px; }
-        .comic-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; width: 100%; margin-top: 10px; }
-        .grid-item { aspect-ratio: 2/3; background: #111; overflow: hidden; cursor: pointer; }
+        .comic-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; width: 100%; margin-top: 10px; }
+        .grid-item { aspect-ratio: 2/3; background: #111; overflow: hidden; cursor: pointer; border-radius: 4px; }
         .grid-item img { width: 100%; height: 100%; object-fit: cover; }
 
         /* --- EDIT VIEW --- */
@@ -160,8 +170,34 @@
         .pfp-crop-hint { font-size: 10px; color: #555; margin-top: 10px; margin-bottom: 20px; }
         .pfp-crop-zoom { width: 200px; accent-color: var(--accent); }
 
-        .crop-overlay.active { display: flex; }
-        .crop-container { position: relative; width: 100%; max-width: 500px; overflow: hidden; border-radius: 8px; background: #000; touch-action: none; }
+        /* Share button */
+        .share-btn { background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 18px; font-size: 12px; font-weight: 700; cursor: pointer; display: none; }
+        .share-btn:hover { border-color: white; }
+
+        /* Share modal */
+        .share-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 4000; display: none; align-items: flex-end; justify-content: center; }
+        .share-overlay.active { display: flex; }
+        .share-sheet { background: #141416; border-radius: 24px 24px 0 0; border-top: 1px solid #2a2a2c; width: 100%; max-width: 500px; padding: 24px 20px calc(28px + env(safe-area-inset-bottom)); animation: slideUp .25s cubic-bezier(.4,0,.2,1); }
+        .share-title { font-size: 12px; font-weight: 900; color: #666; text-transform: uppercase; letter-spacing: 1px; text-align: center; margin-bottom: 20px; }
+
+        /* Embedded profile card */
+        .share-card { background: #1a1a1c; border: 1px solid #2a2a2c; border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
+        .share-card-banner { width: 100%; height: 80px; background: linear-gradient(135deg,#1a1a2e,#16213e); object-fit: cover; display: block; }
+        .share-card-body { padding: 0 16px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .share-card-pfp { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #141416; object-fit: cover; margin-top: -32px; background: #222; }
+        .share-card-name { font-weight: 800; font-size: 15px; margin: 8px 0 2px; }
+        .share-card-handle { font-size: 12px; color: #666; margin-bottom: 6px; }
+        .share-card-bio { font-size: 12px; color: #aaa; line-height: 1.4; max-width: 260px; }
+
+        /* Share action buttons */
+        .share-actions { display: flex; gap: 10px; margin-bottom: 10px; }
+        .share-action-btn { flex: 1; padding: 13px; border-radius: 14px; border: 1.5px solid #2a2a2c; background: #1a1a1c; color: white; font-size: 13px; font-weight: 800; cursor: pointer; text-align: center; transition: .15s; }
+        .share-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .share-action-btn span { display: block; font-size: 20px; margin-bottom: 4px; }
+        .share-cancel-btn { width: 100%; padding: 12px; border-radius: 14px; background: none; border: 1px solid #2a2a2c; color: #666; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+
+        /* Hide theme bottom nav on profile page */
+        nav[class], footer, .bottom-nav, .nav-bar, #bottom-nav, #nav-bar, .tab-bar { display: none !important; }
         .crop-source { display: block; width: 100%; user-select: none; pointer-events: none; }
         .crop-frame { position: absolute; border: 2px solid var(--accent); box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); pointer-events: none; }
         .crop-actions { display: flex; gap: 12px; margin-top: 20px; }
@@ -192,7 +228,10 @@
         <!-- Top nav overlay on banner -->
         <div style="position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; z-index:10;">
             <button onclick="history.back()" style="background:rgba(0,0,0,0.5);backdrop-filter:blur(6px); border:none; color:white; cursor:pointer; font-size:18px; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center;">✕</button>
-            <button id="edit-own-btn" onclick="openEditor()" style="display:none; background:rgba(0,0,0,0.6); backdrop-filter:blur(6px); color:white; border:1px solid rgba(255,255,255,0.2); padding:6px 16px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">Edit Profile</button>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button id="share-profile-btn" class="share-btn" onclick="openShareModal()">↗ Share</button>
+                <button id="edit-own-btn" onclick="openEditor()" style="display:none; background:rgba(0,0,0,0.6); backdrop-filter:blur(6px); color:white; border:1px solid rgba(255,255,255,0.2); padding:6px 16px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">Edit Profile</button>
+            </div>
         </div>
 
         <div class="profile-header" style="padding: 0 20px;">
@@ -291,6 +330,37 @@
                 <button class="pfp-gallery-confirm" id="pfp-gallery-confirm" onclick="confirmGalleryPfp()">Use This Avatar</button>
             </div>
             <button class="pfp-cancel-btn" onclick="closePfpPicker()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareModal()">
+        <div class="share-sheet" onclick="event.stopPropagation()">
+            <div class="share-title">Share Profile</div>
+            <!-- Embedded profile card preview -->
+            <div class="share-card" id="share-card">
+                <img id="share-card-banner" class="share-card-banner" src="" style="display:none;">
+                <div id="share-card-banner-fallback" style="width:100%;height:80px;background:linear-gradient(135deg,#1a1a2e,#16213e);"></div>
+                <div class="share-card-body">
+                    <img id="share-card-pfp" class="share-card-pfp" src="" onerror="this.src='https://via.placeholder.com/64'">
+                    <div id="share-card-name" class="share-card-name"></div>
+                    <div id="share-card-handle" class="share-card-handle"></div>
+                    <div id="share-card-bio" class="share-card-bio"></div>
+                    <div id="share-card-stats" style="display:flex;gap:20px;margin-top:10px;font-size:12px;color:#888;">
+                        <span><b id="share-card-followers" style="color:white;font-weight:800;"></b> followers</span>
+                        <span><b id="share-card-following" style="color:white;font-weight:800;"></b> following</span>
+                    </div>
+                </div>
+            </div>
+            <div class="share-actions">
+                <button class="share-action-btn" onclick="copyProfileLink()">
+                    <span>🔗</span>Copy Link
+                </button>
+                <button class="share-action-btn" id="native-share-btn" onclick="nativeShare()" style="display:none;">
+                    <span>📤</span>Share
+                </button>
+            </div>
+            <button class="share-cancel-btn" onclick="closeShareModal()">Cancel</button>
         </div>
     </div>
 
@@ -418,6 +488,14 @@
             document.getElementById('view-bio').innerText = profile.bio || '';
             document.getElementById('view-pfp').src = profile.pic || 'https://via.placeholder.com/150';
 
+            // Update Open Graph meta tags for rich link embeds when URL is shared
+            updateOgTags({
+                title: (profile.name || handle) + ' (@' + handle + ') · ComicCore',
+                description: profile.bio || 'Check out ' + (profile.name || handle) + '\'s profile on ComicCore!',
+                image: profile.pic || '',
+                url: 'https://zaz444.github.io/comiccore/profile.html?u=' + handle
+            });
+
             // Banner — always reset first to avoid stale state
             const bannerImg = document.getElementById('view-banner');
             if (profile.banner && profile.banner.length > 10) {
@@ -438,6 +516,9 @@
                     socialDiv.innerHTML += `<a href="${url}" target="_blank" class="social-link" title="${s.label}">${s.icon}</a>`;
                 }
             });
+
+            // Show share button for all public profiles
+            document.getElementById('share-profile-btn').style.display = 'block';
 
             // Own profile vs other
             const isOwn = handle === myProfile.handle;
@@ -898,6 +979,107 @@
             if (currentViewedHandle) loadPublicProfile(currentViewedHandle);
             else location.href = 'discover.html';
         }
+
+        // ── OG Meta Tags (for link previews in Discord, iMessage, etc.) ──
+        function updateOgTags({ title, description, image, url }) {
+            const set = (sel, attr, val) => {
+                const el = document.querySelector(sel);
+                if (el && val) el.setAttribute(attr, val);
+            };
+            set('meta[property="og:title"]',       'content', title);
+            set('meta[property="og:description"]', 'content', description);
+            set('meta[property="og:image"]',       'content', image);
+            set('meta[property="og:url"]',         'content', url);
+            set('meta[name="twitter:title"]',       'content', title);
+            set('meta[name="twitter:description"]', 'content', description);
+            set('meta[name="twitter:image"]',       'content', image);
+            document.title = title;
+        }
+
+        // ── Share Modal ──────────────────────────────────────
+        function openShareModal() {
+            const handle = currentViewedHandle;
+            if (!handle) return;
+
+            // Populate card from current DOM
+            const name = document.getElementById('view-name').innerText;
+            const bio = document.getElementById('view-bio').innerText;
+            const pfpSrc = document.getElementById('view-pfp').src;
+            const bannerSrc = document.getElementById('view-banner').src;
+            const hasBanner = document.getElementById('view-banner').style.display !== 'none' && bannerSrc;
+            const followers = document.getElementById('count-followers').innerText;
+            const following = document.getElementById('count-following').innerText;
+
+            document.getElementById('share-card-name').innerText = name;
+            document.getElementById('share-card-handle').innerText = '@' + handle;
+            document.getElementById('share-card-bio').innerText = (bio && bio !== '...') ? bio : '';
+            document.getElementById('share-card-pfp').src = pfpSrc;
+            document.getElementById('share-card-followers').innerText = followers;
+            document.getElementById('share-card-following').innerText = following;
+
+            const cardBanner = document.getElementById('share-card-banner');
+            const fallback = document.getElementById('share-card-banner-fallback');
+            if (hasBanner) {
+                cardBanner.src = bannerSrc;
+                cardBanner.style.display = 'block';
+                fallback.style.display = 'none';
+            } else {
+                cardBanner.style.display = 'none';
+                fallback.style.display = 'block';
+            }
+
+            // Show native share button if supported
+            if (navigator.share) {
+                document.getElementById('native-share-btn').style.display = 'block';
+            }
+
+            document.getElementById('share-overlay').classList.add('active');
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-overlay').classList.remove('active');
+        }
+
+        function getProfileUrl() {
+            return `https://zaz444.github.io/comiccore/profile.html?u=${currentViewedHandle}`;
+        }
+
+        async function copyProfileLink() {
+            const url = getProfileUrl();
+            try {
+                await navigator.clipboard.writeText(url);
+                const btn = event.currentTarget;
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<span>✓</span>Copied!';
+                btn.style.borderColor = 'var(--accent)';
+                btn.style.color = 'var(--accent)';
+                setTimeout(() => { btn.innerHTML = orig; btn.style.borderColor = ''; btn.style.color = ''; }, 2000);
+            } catch {
+                prompt('Copy this link:', url);
+            }
+        }
+
+        async function nativeShare() {
+            try {
+                await navigator.share({
+                    title: document.getElementById('share-card-name').innerText + ' on ComicCore',
+                    text: document.getElementById('share-card-bio').innerText || 'Check out this profile on ComicCore!',
+                    url: getProfileUrl()
+                });
+            } catch {}
+        }
+
+        // Hide any theme-injected bottom nav
+        window.addEventListener('load', () => {
+            document.querySelectorAll('body > *').forEach(el => {
+                const tag = el.tagName.toLowerCase();
+                const cls = (el.className || '').toLowerCase();
+                const id = (el.id || '').toLowerCase();
+                if (tag === 'nav' || cls.includes('nav') || cls.includes('tab-bar') || id.includes('nav') || id.includes('bottom')) {
+                    el.style.display = 'none';
+                }
+            });
+        });
 
         init();
     </script>
