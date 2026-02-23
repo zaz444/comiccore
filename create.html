@@ -127,11 +127,28 @@
         position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); 
         background: var(--card); padding: 20px; border-radius: 24px; 
         border: 1px solid var(--accent); display: none; flex-direction: column;
-        gap: 15px; z-index: 2200; width: 300px; box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+        gap: 15px; z-index: 3500; width: 300px; min-width: 240px; min-height: 100px;
+        box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+        resize: both; overflow: auto;
     }
-    .slider-group { display: flex; align-items: center; gap: 12px; width: 100%; }
-    .slider-group span { font-size: 10px; width: 60px; font-weight: 800; color: #8e8e93; text-transform: uppercase; }
-    input[type="range"] { flex: 1; accent-color: var(--accent); }
+    #transform-ui-header {
+        cursor: grab; user-select: none; display: flex; justify-content: space-between; align-items: center;
+    }
+    #transform-ui-header:active { cursor: grabbing; }
+    #transform-ui.minimized .transform-ui-collapsible { display: none !important; }
+    #transform-ui.minimized { gap: 8px; }
+    .slider-group { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+    .slider-group-row { display: flex; align-items: center; gap: 10px; width: 100%; }
+    .slider-group span { font-size: 10px; width: 56px; font-weight: 800; color: #8e8e93; text-transform: uppercase; flex-shrink: 0; }
+    .slider-group input[type="range"] { flex: 1; accent-color: var(--accent); }
+    .slider-num-input {
+        width: 52px; background: #111; border: 1px solid #333; color: var(--accent);
+        padding: 4px 6px; border-radius: 7px; font-size: 11px; font-weight: 800;
+        text-align: center; font-family: inherit; outline: none; flex-shrink: 0;
+    }
+    .slider-num-input:focus { border-color: var(--accent); }
+    .slider-num-input::-webkit-inner-spin-button,
+    .slider-num-input::-webkit-outer-spin-button { opacity: 1; }
 
     .text-settings-row {
         display: none; border-top: 1px solid #333; padding-top: 15px; flex-direction: column; gap: 10px;
@@ -518,15 +535,16 @@
     #sb-sprite-grid::-webkit-scrollbar { width: 3px; }
     #sb-sprite-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
     .sb-sprite-card {
-        background: #191919; border: 1.5px solid #242424; border-radius: 10px;
-        cursor: pointer; overflow: hidden; transition: 0.15s;
-        display: flex; flex-direction: column;
+        background: var(--card); border: 2px solid var(--border); border-radius: 12px;
+        cursor: pointer; overflow: hidden; transition: 0.2s;
+        display: flex; flex-direction: column; aspect-ratio: 1; position: relative;
     }
-    .sb-sprite-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-    .sb-sprite-card img { width: 100%; aspect-ratio: 1; object-fit: contain; padding: 6px; background: #111; }
+    .sb-sprite-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+    .sb-sprite-card img { width: 100%; height: 100%; object-fit: contain; padding: 10px; box-sizing: border-box; }
     .sb-sprite-card span {
-        font-size: 9px; font-weight: 800; color: #555; padding: 3px 6px 5px;
-        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+        position: absolute; bottom: 0; left: 0; right: 0;
+        font-size: 9px; font-weight: 800; color: white; padding: 4px 6px;
+        background: rgba(0,0,0,0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .sp-load-msg { text-align: center; padding: 30px 16px; color: #333; font-size: 12px; font-weight: 700; grid-column: 1/-1; }
 
@@ -787,28 +805,36 @@
     </div>
 </div>
 
-<!-- ── TRANSFORM UI (unchanged) ── -->
+<!-- ── TRANSFORM UI (draggable, resizable) ── -->
 <div id="transform-ui">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-size:12px; font-weight:900; color:var(--accent);">TRANSFORM</span>
-        <div style="display:flex; gap:6px;">
-            <button onclick="flipHorizontal()" class="nav-btn" style="padding: 4px 8px;">↔️</button>
-            <button onclick="moveLayerZ(1)" class="nav-btn" style="padding: 4px 8px;" title="Bring Forward">🔼</button>
-            <button onclick="moveLayerZ(-1)" class="nav-btn" style="padding: 4px 8px;" title="Send Backward">🔽</button>
+    <div id="transform-ui-header">
+        <span style="font-size:12px; font-weight:900; color:var(--accent); cursor:grab;">TRANSFORM</span>
+        <div style="display:flex; gap:6px; align-items:center;">
+            <button onclick="flipHorizontal()" class="nav-btn" style="padding: 4px 8px;" title="Flip H">↔️</button>
         </div>
     </div>
     
-    <div class="slider-group" id="scale-slider-group">
-        <span>SCALE</span>
-        <input type="range" id="size-slider" min="20" max="1000" value="200">
+    <div class="slider-group transform-ui-collapsible" id="scale-slider-group">
+        <div class="slider-group-row">
+            <span>SCALE</span>
+            <input type="range" id="size-slider" min="20" max="1000" value="200"
+                oninput="document.getElementById('size-num').value=this.value; applyTransform && applyTransform()">
+            <input type="number" id="size-num" class="slider-num-input" min="20" max="1000" value="200"
+                oninput="document.getElementById('size-slider').value=Math.min(1000,Math.max(20,this.value||20)); applyTransform && applyTransform()">
+        </div>
     </div>
 
-    <div class="slider-group">
-        <span>ROTATE</span>
-        <input type="range" id="rotate-slider" min="0" max="360" value="0">
+    <div class="slider-group transform-ui-collapsible">
+        <div class="slider-group-row">
+            <span>ROTATE</span>
+            <input type="range" id="rotate-slider" min="0" max="360" value="0"
+                oninput="document.getElementById('rotate-num').value=this.value; applyTransform && applyTransform()">
+            <input type="number" id="rotate-num" class="slider-num-input" min="0" max="360" value="0"
+                oninput="document.getElementById('rotate-slider').value=Math.min(360,Math.max(0,this.value||0)); applyTransform && applyTransform()">
+        </div>
     </div>
 
-    <div id="text-settings" class="text-settings-row">
+    <div id="text-settings" class="text-settings-row transform-ui-collapsible">
         <div class="slider-group">
             <span>FONT</span>
             <select id="font-family-select" class="text-input-field" onchange="updateTextProp('fontFamily', this.value)" style="flex:1;">
@@ -845,8 +871,13 @@
             </select>
         </div>
         <div class="slider-group">
-            <span>SIZE</span>
-            <input type="range" id="font-size-slider" min="10" max="120" value="28" oninput="updateTextProp('fontSize', this.value)">
+            <div class="slider-group-row">
+                <span>SIZE</span>
+                <input type="range" id="font-size-slider" min="10" max="120" value="28"
+                    oninput="document.getElementById('font-size-num').value=this.value; updateTextProp('fontSize', this.value)">
+                <input type="number" id="font-size-num" class="slider-num-input" min="10" max="120" value="28"
+                    oninput="document.getElementById('font-size-slider').value=Math.min(120,Math.max(10,this.value||10)); updateTextProp('fontSize', this.value)">
+            </div>
         </div>
         <div class="slider-group">
             <span>TEXT</span>
@@ -854,9 +885,12 @@
         </div>
     </div>
 
-    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;">
-        <span style="font-size:10px; font-weight:900; color:#666; text-transform:uppercase; letter-spacing:1px;">Position</span>
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:5px;">
+    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;" class="transform-ui-collapsible">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:10px; font-weight:900; color:#666; text-transform:uppercase; letter-spacing:1px;">Position</span>
+            <button id="position-collapse-btn" onclick="togglePositionArrows()" class="nav-btn" style="padding:2px 8px; font-size:11px;" title="Minimize arrows">⬇</button>
+        </div>
+        <div id="position-arrows-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:5px;">
             <button onclick="alignLayer('left',   null)"   class="nav-btn" title="Align Left">⬅</button>
             <button onclick="alignLayer('center', null)"   class="nav-btn" title="Center H">↔</button>
             <button onclick="alignLayer('right',  null)"   class="nav-btn" title="Align Right">➡</button>
@@ -866,15 +900,15 @@
             <button style="grid-column:span 3;" onclick="alignLayer('center','middle')" class="nav-btn" title="Center Vertically">↕ Center V</button>
         </div>
     </div>
-    <button id="edit-bg-btn" onclick="openBgPanel()">🖼️ Edit Background</button>
-    <div style="display:flex; gap:8px;">
+    <button id="edit-bg-btn" onclick="openBgPanel()" class="transform-ui-collapsible">🖼️ Edit Background</button>
+    <div style="display:flex; gap:8px;" class="transform-ui-collapsible">
         <button onclick="deleteLayer()" style="flex:1; background:var(--danger); color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer;">DELETE</button>
         <button onclick="resetTransform()" style="flex:1; background:#333; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer;">RESET</button>
         <button onclick="toggleTransform()" style="flex:2; border:none; background:var(--accent); color:white; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer;">DONE</button>
     </div>
 
     <!-- Sprite blur section (only shown for img layers) -->
-    <div id="sprite-blur-row">
+    <div id="sprite-blur-row" class="transform-ui-collapsible">
         <div style="font-size:10px; font-weight:900; color:#555; letter-spacing:1px; text-transform:uppercase;">Blur</div>
         <div class="blur-type-row">
             <button class="blur-type-btn" id="blur-none-btn" onclick="setSpriteBlur('none')">None</button>
@@ -889,7 +923,7 @@
     </div>
 
     <!-- Sprite name tag (editor-only, private) -->
-    <div id="sprite-nametag-row" style="display:none; border-top:1px solid #333; padding-top:10px; gap:8px; flex-direction:column;">
+    <div id="sprite-nametag-row" style="display:none; border-top:1px solid #333; padding-top:10px; gap:8px; flex-direction:column;" class="transform-ui-collapsible">
         <div style="font-size:10px; font-weight:900; color:#555; letter-spacing:1px; text-transform:uppercase;">Private Name Tag</div>
         <div style="display:flex; gap:8px;">
             <input type="text" id="sprite-nametag-input" placeholder="Your label (only you see this)"
@@ -966,7 +1000,7 @@
 
                 <!-- Sprites -->
                 <button class="sb-icon-btn" data-panel="sprites" onclick="toggleSidePanel('sprites')">
-                    <span class="sb-icon">🎭</span>Sprites
+                    <span class="sb-icon"><img src="https://cdn.discordapp.com/attachments/1472088820584419450/1475305408464818337/IMG_1798.png?ex=699d00bb&is=699baf3b&hm=7564f665aa8167ab0088952702c05ee4dfe9b0446813b7e59552ac07ceea1f7d&" style="width:22px;height:22px;object-fit:contain;" alt="sprites"></span>Sprites
                 </button>
 
                 <!-- Add -->
@@ -1722,6 +1756,9 @@
         if(!isOpen) {
             document.getElementById('size-slider').value = activeLayer.w;
             document.getElementById('rotate-slider').value = activeLayer.rotation || 0;
+            // Sync number inputs
+            document.getElementById('size-num').value = activeLayer.w;
+            document.getElementById('rotate-num').value = activeLayer.rotation || 0;
             
             const isTextType = (activeLayer.type === 'bubble' || activeLayer.type === 'thinking' || activeLayer.type === 'text');
             const isImgType  = activeLayer.type === 'img';
@@ -1751,6 +1788,7 @@
             if(isTextType) {
                 document.getElementById('font-family-select').value = activeLayer.fontFamily || "'Inter', sans-serif";
                 document.getElementById('font-size-slider').value = activeLayer.fontSize || 28;
+                document.getElementById('font-size-num').value = activeLayer.fontSize || 28;
                 document.getElementById('text-content-input').value = activeLayer.content || "";
             }
         }
@@ -1914,8 +1952,25 @@
         });
     }
 
-    document.getElementById('rotate-slider').oninput = function() { if(activeLayer) { activeLayer.rotation = this.value; render(); } };
-    document.getElementById('size-slider').oninput = function() { if(activeLayer) { activeLayer.w = this.value; render(); } };
+    document.getElementById('rotate-slider').oninput = function() { 
+        if(activeLayer) { activeLayer.rotation = this.value; render(); }
+        const n = document.getElementById('rotate-num'); if(n) n.value = this.value;
+    };
+    document.getElementById('size-slider').oninput = function() { 
+        if(activeLayer) { activeLayer.w = this.value; render(); }
+        const n = document.getElementById('size-num'); if(n) n.value = this.value;
+    };
+    // Number input → slider sync
+    document.getElementById('size-num').oninput = function() {
+        const v = Math.min(1000, Math.max(20, parseInt(this.value) || 20));
+        document.getElementById('size-slider').value = v;
+        if(activeLayer) { activeLayer.w = v; render(); }
+    };
+    document.getElementById('rotate-num').oninput = function() {
+        const v = Math.min(360, Math.max(0, parseInt(this.value) || 0));
+        document.getElementById('rotate-slider').value = v;
+        if(activeLayer) { activeLayer.rotation = v; render(); }
+    };
 
     // ═══════════════════════════════════════
     // CANVAS RATIO SYSTEM
