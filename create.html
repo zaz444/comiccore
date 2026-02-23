@@ -10,13 +10,6 @@
 
 <!-- GIF encoder for export -->
 <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
-<script>
-// Pre-fetch the GIF worker and convert to blob URL to bypass cross-origin restrictions
-fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
-  .then(r => r.blob())
-  .then(b => { window._gifWorkerBlobUrl = URL.createObjectURL(b); })
-  .catch(() => {}); // silently fallback to CDN URL if fetch blocked
-</script>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Mountains+of+Christmas&family=Shadows+Into+Light&family=Press+Start+2P&family=Caveat:wght@700&family=Bungee+Inline&family=Righteous&family=Fascinate&family=Pacifico&family=Abril+Fatface&family=Lilita+One&family=Audiowide&family=Russo+One&family=Black+Ops+One&family=Satisfy&family=Dancing+Script:wght@700&family=Bebas+Neue&family=Alfa+Slab+One&display=swap" rel="stylesheet">
 
 <style>
@@ -192,8 +185,6 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
     }
 
     .pub-input { width: 100%; padding: 14px; background: #111; border: 1px solid #333; color: white; border-radius: 12px; margin-bottom: 12px; box-sizing: border-box; font-family: inherit; }
-    .pub-swipe-btn { padding: 10px; border: 1.5px solid #333; border-radius: 10px; background: #111; color: #666; cursor: pointer; font-size: 13px; font-weight: 800; text-align: center; transition: 0.2s; user-select: none; }
-    .pub-swipe-btn.active { border-color: var(--accent); background: rgba(255,122,0,0.12); color: var(--accent); }
 
     /* ── Export Modal ── */
     #export-modal .modal-content { max-width: 380px; }
@@ -702,21 +693,6 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
         <input type="text" id="pub-title" class="pub-input" placeholder="Comic Title">
         <input type="text" id="pub-tags" class="pub-input" placeholder="Tags (e.g. action, comedy, scifi)">
         <textarea id="pub-desc" class="pub-input" placeholder="Brief description..." style="height: 80px;"></textarea>
-
-        <div style="margin-bottom:16px;">
-            <div style="font-size:11px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Reading Direction</div>
-            <div style="display:flex;gap:8px;">
-                <label style="flex:1;cursor:pointer;">
-                    <input type="radio" name="pub-swipe" id="pub-swipe-dir" value="horizontal" checked style="display:none;">
-                    <div class="pub-swipe-btn active" id="swipe-btn-h" onclick="setPubSwipe('horizontal')">↔ Horizontal</div>
-                </label>
-                <label style="flex:1;cursor:pointer;">
-                    <input type="radio" name="pub-swipe" value="vertical" style="display:none;">
-                    <div class="pub-swipe-btn" id="swipe-btn-v" onclick="setPubSwipe('vertical')">↕ Vertical</div>
-                </label>
-            </div>
-            <div id="pub-canvas-info" style="font-size:11px;color:#555;margin-top:8px;text-align:center;font-weight:700;"></div>
-        </div>
         <div style="display:flex; gap:12px;">
             <button onclick="closePublish()" style="flex:1; padding:14px; background:#333; color:white; border:none; border-radius:12px; font-weight:700;">Cancel</button>
             <button id="publish-btn" onclick="finalPublish()" style="flex:1; padding:14px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:900;">POST NOW</button>
@@ -1975,21 +1951,7 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
         if (frames && frames.length) saveOffline(true);
     });
 
-    function openPublishModal() {
-        document.getElementById('publish-modal').style.display = 'flex';
-        // Show canvas ratio info so creator knows what they published with
-        const r = canvasRatio || { w:1, h:1 };
-        const infoEl = document.getElementById('pub-canvas-info');
-        if (infoEl) infoEl.innerText = `Canvas: ${r.w}:${r.h} · ${frames.length} frame${frames.length !== 1 ? 's' : ''}`;
-        // Pre-select swipe based on canvas shape
-        const suggestedSwipe = (r.h > r.w) ? 'vertical' : 'horizontal';
-        setPubSwipe(suggestedSwipe);
-    }
-    function setPubSwipe(dir) {
-        document.getElementById('pub-swipe-dir').value = dir;
-        document.getElementById('swipe-btn-h').classList.toggle('active', dir==='horizontal');
-        document.getElementById('swipe-btn-v').classList.toggle('active', dir==='vertical');
-    }
+    function openPublishModal() { document.getElementById('publish-modal').style.display = 'flex'; }
 
     async function finalPublish() {
         const title = document.getElementById('pub-title').value;
@@ -2001,12 +1963,11 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
         btn.innerText = editingComicId ? "Updating..." : "Publishing...";
         btn.disabled = true;
         const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
-        const publishSwipe = document.getElementById('pub-swipe-dir')?.value || 'horizontal';
-        // canvas_ratio MUST be saved so reader renders frames at the correct aspect ratio
+        const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
+        // Note: canvas_ratio is stored inside each frame's data, not as a top-level DB column
         const payload = {
             title, description: desc, tags, cover: finalCoverBase64,
-            data: frames, swipe_dir: publishSwipe,
-            canvas_ratio: canvasRatio || { w: 1, h: 1 }
+            data: frames, swipe_dir: swipeDir
         };
         let error;
         if (editingComicId) {
@@ -2329,12 +2290,9 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
     function closeExportModal() { document.getElementById('export-modal').style.display = 'none'; }
 
     function switchExportTab(tab) {
-        document.querySelectorAll('.export-tab').forEach(t => t.classList.remove('active'));
-        const idx = ['gif','strip','png'].indexOf(tab);
-        if (idx >= 0) document.querySelectorAll('.export-tab')[idx].classList.add('active');
+        document.querySelectorAll('.export-tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'gif')));
         document.getElementById('export-gif').classList.toggle('active', tab === 'gif');
         document.getElementById('export-strip').classList.toggle('active', tab === 'strip');
-        document.getElementById('export-png').classList.toggle('active', tab === 'png');
     }
 
     // FIX 1: frameToCanvas now respects canvasRatio so exported frames are not distorted
@@ -2420,12 +2378,10 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
             ctx.fillRect(0, 0, offW, offH);
         }
 
-        // Layers — scale from BASE_SIZE editor dimensions, NOT the live DOM size
-        // The editor always uses BASE_SIZE=900 on the longest edge
-        const editorW = (canvasRatio && canvasRatio.w >= canvasRatio.h) ? BASE_SIZE : Math.round(BASE_SIZE * (canvasRatio ? canvasRatio.w / canvasRatio.h : 1));
-        const editorH = (canvasRatio && canvasRatio.h >= canvasRatio.w) ? BASE_SIZE : Math.round(BASE_SIZE * (canvasRatio ? canvasRatio.h / canvasRatio.w : 1));
-        const scaleX = offW / editorW;
-        const scaleY = offH / editorH;
+        // Layers — scale relative to the correctly-sized offscreen canvas
+        const canvasEl = document.getElementById('comic-frame');
+        const scaleX = offW / canvasEl.offsetWidth;
+        const scaleY = offH / canvasEl.offsetHeight;
 
         for (const l of f.layers) {
             if (l.type === 'img') {
@@ -2500,7 +2456,7 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
             const gif = new GIF({
                 workers: 2, quality,
                 width: gifW, height: gifH,
-                workerScript: window._gifWorkerBlobUrl || 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
+                workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
             });
 
             for (let i = 0; i < frames.length; i++) {
@@ -2615,49 +2571,6 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
             status.innerText = 'Error: ' + err.message;
             btn.disabled = false; btn.innerText = 'SAVE STRIP';
         }
-    }
-
-    // ── PNG Frame Export ──
-    async function exportPNG() {
-        const size   = parseInt(document.getElementById('png-size').value) || 1200;
-        const btn    = document.getElementById('png-export-btn');
-        const status = document.getElementById('png-status');
-        btn.disabled = true; btn.innerText = 'Building…';
-        status.innerText = 'Rendering frames…';
-
-        try {
-            // Dynamically load JSZip if not already loaded
-            if (typeof JSZip === 'undefined') {
-                await new Promise((res, rej) => {
-                    const s = document.createElement('script');
-                    s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
-                    s.onload = res; s.onerror = rej;
-                    document.head.appendChild(s);
-                });
-            }
-            const zip = new JSZip();
-            const comicTitle = (document.getElementById('pub-title')?.value || 'comic').replace(/[^a-zA-Z0-9_-]/g, '_');
-
-            for (let i = 0; i < frames.length; i++) {
-                status.innerText = 'Exporting frame ' + (i+1) + ' / ' + frames.length + '…';
-                const fc = await frameToCanvas(i, size);
-                // Convert canvas to blob
-                const blob = await new Promise(res => fc.toBlob(res, 'image/png'));
-                const padded = String(i + 1).padStart(3, '0');
-                zip.file(comicTitle + '_frame_' + padded + '.png', blob);
-            }
-
-            status.innerText = 'Zipping…';
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-            const url = URL.createObjectURL(zipBlob);
-            const a   = document.createElement('a');
-            a.href = url; a.download = comicTitle + '_frames.zip';
-            a.click(); URL.revokeObjectURL(url);
-            status.innerText = '✓ ' + frames.length + ' PNG frames saved!';
-        } catch(err) {
-            status.innerText = 'Error: ' + err.message;
-        }
-        btn.disabled = false; btn.innerText = 'SAVE FRAMES AS PNG';
     }
 
     function addSubtitle() {
@@ -3418,8 +3331,7 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
 
         <div class="export-tab-row">
             <button class="export-tab active" onclick="switchExportTab('gif')">🎞 GIF</button>
-            <button class="export-tab"        onclick="switchExportTab('strip')">🖼 Strip</button>
-            <button class="export-tab"        onclick="switchExportTab('png')">🖼 PNG</button>
+            <button class="export-tab"        onclick="switchExportTab('strip')">🖼 Comic Strip</button>
         </div>
 
         <!-- GIF section -->
@@ -3463,22 +3375,6 @@ fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
             <button id="strip-export-btn" onclick="exportStrip()" style="background:var(--teal); color:#000; border:none; padding:13px; border-radius:12px; font-weight:900; cursor:pointer; font-size:14px;">SAVE STRIP</button>
         </div>
 
-        <!-- PNG section -->
-        <div id="export-png" class="export-section">
-            <div style="font-size:12px; color:var(--secondary); line-height:1.6;">
-                Export every frame as a full-resolution PNG at your canvas aspect ratio. Files download as a zip.<br>
-                <span style="color:#ff7a00;">Size reflects your original canvas ratio.</span>
-            </div>
-            <div class="export-row">
-                <span>Export size (longest edge)</span>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <input type="range" id="png-size" min="400" max="2400" step="100" value="1200" oninput="document.getElementById('png-size-val').innerText=this.value+'px'">
-                    <span class="val" id="png-size-val">1200px</span>
-                </div>
-            </div>
-            <div class="export-status" id="png-status"></div>
-            <button id="png-export-btn" onclick="exportPNG()" style="background:var(--teal); color:#000; border:none; padding:13px; border-radius:12px; font-weight:900; cursor:pointer; font-size:14px;">SAVE FRAMES AS PNG</button>
-        </div>
         <button onclick="closeExportModal()" style="width:100%; margin-top:12px; padding:12px; background:#222; color:#aaa; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
     </div>
 </div>
