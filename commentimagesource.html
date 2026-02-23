@@ -1,234 +1,181 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ComicCore — Reaction Images</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<title>ComicCore — Reaction Images Config</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-body { margin: 0; font-family: 'Inter', sans-serif; background: #0f0f11; color: #f5f5f7; min-height: 100dvh; padding-bottom: 100px; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Inter', sans-serif; background: #0f0f11; color: #f5f5f7; min-height: 100dvh; padding-bottom: 60px; }
 
 .header {
-position: sticky; top: 0; z-index: 200;
-background: rgba(0,0,0,.95); padding: 16px 16px 14px;
-border-bottom: 1px solid #1e1e20; backdrop-filter: blur(20px);
-display: flex; align-items: center; gap: 14px;
+  position: sticky; top: 0; z-index: 200;
+  background: rgba(0,0,0,.97); padding: 16px 16px 14px;
+  border-bottom: 1px solid #1e1e20; backdrop-filter: blur(20px);
+  display: flex; align-items: center; gap: 14px;
 }
 .header h1 { font-size: 16px; font-weight: 900; margin: 0; flex: 1; }
-.header span { font-size: 11px; color: #555; font-weight: 700; }
+.badge { background: #ff7a00; color: #000; font-size: 10px; font-weight: 900; padding: 3px 10px; border-radius: 20px; }
 
-.upload-zone {
-margin: 16px; border: 2px dashed #2a2a2c; border-radius: 16px;
-padding: 28px 20px; text-align: center; cursor: pointer; transition: .2s;
-background: #111;
+.dev-note {
+  margin: 16px; background: #111; border: 1.5px solid rgba(255,122,0,.3);
+  border-radius: 16px; overflow: hidden;
 }
-.upload-zone:hover, .upload-zone.drag { border-color: #ff7a00; background: rgba(255,122,0,.05); }
-.upload-zone .icon { font-size: 32px; margin-bottom: 8px; }
-.upload-zone p { margin: 4px 0; font-size: 13px; color: #555; font-weight: 700; }
-.upload-zone p strong { color: #ff7a00; }
+.dev-note-header {
+  background: rgba(255,122,0,.12); border-bottom: 1px solid rgba(255,122,0,.2);
+  padding: 11px 16px; font-size: 12px; font-weight: 900; color: #ff7a00; text-transform: uppercase; letter-spacing: .5px;
+}
+.dev-note-body { padding: 14px 16px; font-size: 13px; color: #888; line-height: 1.8; }
+.dev-note-body code {
+  background: #1a1a1c; border: 1px solid #2a2a2c; border-radius: 6px;
+  padding: 2px 8px; font-family: 'Courier New', monospace; font-size: 12px; color: #ff7a00;
+}
 
 .section-header {
-display: flex; align-items: center; justify-content: space-between;
-padding: 14px 16px 8px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 16px 10px;
 }
 .section-title { font-size: 12px; font-weight: 900; color: #444; text-transform: uppercase; letter-spacing: 1px; }
-.count-badge { font-size: 11px; color: #333; font-weight: 800; }
+.count-pill { font-size: 11px; color: #ff7a00; font-weight: 900; background: rgba(255,122,0,.1); border: 1px solid rgba(255,122,0,.2); padding: 3px 10px; border-radius: 20px; }
 
 .images-grid {
-display: grid; grid-template-columns: repeat(3, 1fr);
-gap: 3px; padding: 0 16px;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 4px; padding: 0 16px;
 }
 @media (min-width: 480px) { .images-grid { grid-template-columns: repeat(4, 1fr); } }
 
 .image-item {
-position: relative; aspect-ratio: 1; background: #111; border-radius: 8px;
-overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: .2s;
+  position: relative; aspect-ratio: 1; background: #111; border-radius: 10px;
+  overflow: hidden; border: 1.5px solid #1a1a1c;
 }
-.image-item:hover { border-color: #ff7a00; }
 .image-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.image-item .delete-btn {
-position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
-background: rgba(255,59,48,.9); border: none; border-radius: 50%; color: white;
-font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-opacity: 0; transition: .15s; font-weight: 900;
-}
-.image-item:hover .delete-btn { opacity: 1; }
 .image-item .name-tag {
-position: absolute; bottom: 0; left: 0; right: 0;
-background: rgba(0,0,0,.75); font-size: 9px; font-weight: 800; color: #aaa;
-padding: 3px 5px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,.82); font-size: 9px; font-weight: 800; color: #aaa;
+  padding: 4px 5px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+}
+.image-item .num-tag {
+  position: absolute; top: 4px; left: 4px;
+  background: rgba(0,0,0,.7); color: #555; border-radius: 5px;
+  font-size: 9px; font-weight: 900; padding: 2px 5px;
+}
+.image-item.broken { border-color: rgba(255,59,48,.3); }
+.broken-badge {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; pointer-events: none;
 }
 
-.empty-state { padding: 48px 20px; text-align: center; color: #333; font-size: 13px; line-height: 1.8; }
-
-.toast {
-position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
-background: #1c1c1e; border: 1px solid #3a3a3c; color: #fff;
-padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 700;
-opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events: none;
+.sync-bar {
+  margin: 16px; padding: 12px 16px; background: #111; border: 1px solid #1e1e20;
+  border-radius: 12px; display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: #555;
 }
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.sync-status { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #32d74b; flex-shrink: 0; }
 
-.bottom-nav {
-position: fixed; bottom: 0; left: 0; right: 0;
-background: rgba(0,0,0,.95); border-top: 1px solid #2c2c2e;
-display: flex; justify-content: space-around; padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
-z-index: 500; backdrop-filter: blur(12px);
-}
-.nav-item { font-size: 22px; cursor: pointer; opacity: .4; text-decoration: none; color: #f5f5f7; transition: .15s; }
-.nav-item.active { opacity: 1; color: #ff7a00; }
-
-.admin-note {
-margin: 0 16px 16px; background: rgba(255,122,0,.08); border: 1px solid rgba(255,122,0,.2);
-border-radius: 12px; padding: 12px 14px; font-size: 12px; color: #888; line-height: 1.5;
-}
-.admin-note strong { color: #ff7a00; }
+.empty-state { padding: 48px 20px; text-align: center; color: #333; font-size: 13px; line-height: 1.8; grid-column: 1/-1; }
 </style>
-
 </head>
 <body>
 
 <div class="header">
   <button onclick="history.back()" style="background:none;border:none;color:#666;font-size:20px;cursor:pointer;padding:0;">←</button>
-  <h1>🎭 Reaction Images</h1>
-  <span id="img-count">0 images</span>
+  <h1>Reaction Images</h1>
+  <span class="badge">DEV ONLY</span>
 </div>
 
-<div class="admin-note">
-  <strong>How it works:</strong> Upload images here and they'll appear in the comment reaction picker on all comics — like Discord's custom emoji/GIF tray. Anyone can use them to react to comments.
+<div class="dev-note">
+  <div class="dev-note-header">✏️ How to add images</div>
+  <div class="dev-note-body">
+    Open this file in a code editor and find the <code>REACTION_IMAGES</code> array at the top of the script tag.
+    Add entries like: <code>{ name: 'label', src: 'https://…' }</code> — one per line.
+    Save and reload — images will instantly appear in the comment reaction tray for everyone.
+  </div>
 </div>
 
-<div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
-  <div class="icon">📸</div>
-  <p><strong>Tap to upload</strong> reaction images</p>
-  <p>PNG, JPG, GIF, WebP supported</p>
+<div class="sync-bar">
+  <div class="sync-status">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-label">Syncing…</span>
+  </div>
+  <span id="sync-time"></span>
 </div>
-<input type="file" id="file-input" hidden accept="image/*" multiple>
 
 <div class="section-header">
-  <div class="section-title">Your Reaction Library</div>
-  <div class="count-badge" id="grid-count"></div>
+  <div class="section-title">Live Reaction Library</div>
+  <div class="count-pill" id="count-pill">0 images</div>
 </div>
 
 <div class="images-grid" id="images-grid">
-  <div class="empty-state" style="grid-column:1/-1;">Loading...</div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<div class="bottom-nav">
-  <a href="index.html"    class="nav-item">🏠</a>
-  <a href="discover.html" class="nav-item">🔍</a>
-  <a href="teams.html"    class="nav-item">⚡</a>
-  <a href="messages.html" class="nav-item">💬</a>
-  <a href="profile.html"  class="nav-item active">👤</a>
+  <div class="empty-state">Loading…</div>
 </div>
 
 <script>
-const _sb = supabase.createClient(
-  'https://mmycqeejhguzhtzkyjaj.supabase.co',
-  'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
-);
+// ══════════════════════════════════════════════════════════
+//  ✏️  ADD YOUR IMAGE LINKS HERE — just paste URLs & labels
+// ══════════════════════════════════════════════════════════
+const REACTION_IMAGES = [
+  // { name: 'excited',  src: 'https://media.discordapp.net/…' },
+  // { name: 'lol',      src: 'https://i.imgur.com/…' },
+  // { name: 'no way',   src: 'https://cdn.discordapp.com/…' },
+  // Keep adding as many as you want below:
 
-const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
-let reactionImages = JSON.parse(localStorage.getItem('cc-reaction-images') || '[]');
-let toastTimer = null;
+];
+// ══════════════════════════════════════════════════════════
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.innerText = msg; t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function saveAndRender() {
-  localStorage.setItem('cc-reaction-images', JSON.stringify(reactionImages));
-  renderGrid();
+function syncToStorage() {
+  const valid = REACTION_IMAGES.filter(i => i && i.name && i.src);
+  localStorage.setItem('cc-reaction-images', JSON.stringify(valid));
+  return valid;
 }
 
 function renderGrid() {
-  const grid = document.getElementById('images-grid');
-  const count = reactionImages.length;
-  document.getElementById('img-count').innerText = count + ' image' + (count !== 1 ? 's' : '');
-  document.getElementById('grid-count').innerText = count + ' total';
+  const images = syncToStorage();
+  const count  = images.length;
+  const grid   = document.getElementById('images-grid');
+
+  document.getElementById('count-pill').innerText = count + ' image' + (count !== 1 ? 's' : '');
+  document.getElementById('sync-label').innerText = count
+    ? `✓ ${count} image${count !== 1 ? 's' : ''} synced to app`
+    : 'No images — add URLs to the array in the code';
+  document.getElementById('sync-time').innerText = 'Updated ' + new Date().toLocaleTimeString();
 
   if (!count) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No reaction images yet.<br>Upload some above!</div>';
+    grid.innerHTML = `<div class="empty-state">
+      No reaction images yet.<br>
+      Open this file in a code editor and paste image URLs into<br>
+      <strong style="color:#ff7a00;">REACTION_IMAGES</strong> array at the top of the script.
+    </div>`;
     return;
   }
 
-  grid.innerHTML = reactionImages.map((img, i) => `
-    <div class="image-item" title="${img.name}">
-      <img src="${img.src}" loading="lazy">
-      <div class="name-tag">${img.name}</div>
-      <button class="delete-btn" onclick="deleteImage(${i}, event)">✕</button>
+  grid.innerHTML = images.map((img, i) => `
+    <div class="image-item" id="img-item-${i}">
+      <img src="${escHtml(img.src)}" loading="lazy"
+           onerror="markBroken(${i})"
+           alt="${escHtml(img.name)}">
+      <div class="num-tag">${i + 1}</div>
+      <div class="name-tag">${escHtml(img.name)}</div>
     </div>
   `).join('');
 }
 
-function deleteImage(index, event) {
-  event.stopPropagation();
-  if (!confirm('Remove this reaction image?')) return;
-  reactionImages.splice(index, 1);
-  saveAndRender();
-  showToast('Removed');
+function markBroken(i) {
+  const el = document.getElementById('img-item-' + i);
+  if (!el) return;
+  el.classList.add('broken');
+  const b = document.createElement('div');
+  b.className = 'broken-badge';
+  b.innerText = '⚠️';
+  el.appendChild(b);
 }
-
-// File upload handler
-document.getElementById('file-input').onchange = (e) => {
-  const files = Array.from(e.target.files);
-  let loaded = 0;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      // Check for duplicate names
-      const name = file.name.replace(/\.[^.]+$/, ''); // strip extension
-      const exists = reactionImages.find(i => i.name === name);
-      if (!exists) {
-        reactionImages.push({ name, src: ev.target.result });
-      }
-      loaded++;
-      if (loaded === files.length) {
-        saveAndRender();
-        showToast(`✅ Added ${files.length} image${files.length !== 1 ? 's' : ''}`);
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-  e.target.value = '';
-};
-
-// Drag and drop
-const zone = document.getElementById('upload-zone');
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
-zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
-zone.addEventListener('drop', e => {
-  e.preventDefault(); zone.classList.remove('drag');
-  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-  if (!files.length) return;
-  let loaded = 0;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const name = file.name.replace(/\.[^.]+$/, '');
-      if (!reactionImages.find(i => i.name === name)) {
-        reactionImages.push({ name, src: ev.target.result });
-      }
-      loaded++;
-      if (loaded === files.length) {
-        saveAndRender();
-        showToast(`✅ Added ${files.length} image${files.length !== 1 ? 's' : ''}`);
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-});
 
 renderGrid();
 </script>
-
 </body>
 </html>
