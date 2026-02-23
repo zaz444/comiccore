@@ -343,18 +343,38 @@
             const actionRow = document.getElementById('action-row');
             actionRow.innerHTML = '';
             if (!isOwn && myProfile.handle) {
-                // Check if friends (accepted connection)
+                // Follow button
+                const { data: followRow } = await _supabase.from('follows')
+                    .select('id').eq('follower', myProfile.handle).eq('following', handle).maybeSingle();
+                const isFollowing = !!followRow;
+
+                const followBtn = document.createElement('button');
+                followBtn.className = 'follow-btn' + (isFollowing ? ' following' : '');
+                followBtn.innerText = isFollowing ? 'Following ✓' : 'Follow';
+                followBtn.onclick = async () => {
+                    followBtn.disabled = true;
+                    if (isFollowing) {
+                        await _supabase.from('follows').delete().eq('follower', myProfile.handle).eq('following', handle);
+                        followBtn.innerText = 'Follow';
+                        followBtn.classList.remove('following');
+                    } else {
+                        await _supabase.from('follows').insert([{ follower: myProfile.handle, following: handle }]);
+                        followBtn.innerText = 'Following ✓';
+                        followBtn.classList.add('following');
+                    }
+                    followBtn.disabled = false;
+                    loadFollowCounts(handle);
+                };
+                actionRow.appendChild(followBtn);
+
+                // Check if friends (accepted connection) for DM
                 const { data: conn } = await _supabase.from('connections')
                     .select('id')
                     .or(`and(sender_handle.eq.${myProfile.handle},receiver_handle.eq.${handle}),and(sender_handle.eq.${handle},receiver_handle.eq.${myProfile.handle})`)
-                    .eq('status', 'accepted')
-                    .maybeSingle();
-
+                    .eq('status', 'accepted').maybeSingle();
                 if (conn) {
-                    // Friends → DM button
-                    actionRow.innerHTML = `<button class="msg-btn" onclick="location.href='messages.html?to=${handle}'">💬 Message</button>`;
+                    actionRow.innerHTML += `<button class="msg-btn" onclick="location.href='messages.html?to=${handle}'">💬 Message</button>`;
                 }
-                // Not friends — no button here. Requests are sent from connections.html
             }
 
             // Follow counts — friends auto-follow each other
@@ -373,18 +393,15 @@
         }
 
         async function loadFollowCounts(handle) {
-            // Friends (accepted connections) = mutual follows
-            const { count: friends } = await _supabase.from('connections')
-                .select('*', { count: 'exact', head: true })
-                .or(`sender_handle.eq.${handle},receiver_handle.eq.${handle}`)
-                .eq('status', 'accepted');
-
-            document.getElementById('count-followers').innerText = friends || 0;
-            document.getElementById('count-following').innerText = friends || 0;
+            const [{ count: followers }, { count: following }] = await Promise.all([
+                _supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following', handle),
+                _supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower', handle),
+            ]);
+            document.getElementById('count-followers').innerText = followers || 0;
+            document.getElementById('count-following').innerText = following || 0;
         }
 
         async function openFolModal(type) {
-            // Check privacy
             const folPrivacy = localStorage.getItem('cc-privacy-followers');
             if (folPrivacy === 'false' && currentViewedHandle !== myProfile.handle) return;
 
@@ -393,29 +410,31 @@
             const list = document.getElementById('fol-list');
             list.innerHTML = '<div style="padding:20px;text-align:center;color:#555;">Loading...</div>';
 
-            // Get all accepted connections for this handle — friends = mutual followers
-            const { data: conns } = await _supabase.from('connections')
-                .select('*')
-                .or(`sender_handle.eq.${currentViewedHandle},receiver_handle.eq.${currentViewedHandle}`)
-                .eq('status', 'accepted');
+            let handles = [];
+            if (type === 'followers') {
+                const { data } = await _supabase.from('follows').select('follower').eq('following', currentViewedHandle);
+                handles = (data || []).map(r => r.follower);
+            } else {
+                const { data } = await _supabase.from('follows').select('following').eq('follower', currentViewedHandle);
+                handles = (data || []).map(r => r.following);
+            }
 
-            if (!conns || conns.length === 0) {
-                list.innerHTML = '<div style="padding:20px;text-align:center;color:#555;">No connections yet.</div>';
+            if (!handles.length) {
+                list.innerHTML = '<div style="padding:20px;text-align:center;color:#555;">Nobody here yet.</div>';
                 return;
             }
 
             list.innerHTML = '';
-            for (const c of conns) {
-                const friendHandle = c.sender_handle === currentViewedHandle ? c.receiver_handle : c.sender_handle;
-                const { data: p } = await _supabase.from('profiles').select('name, pic').eq('handle', friendHandle).single();
+            for (const h of handles) {
+                const { data: p } = await _supabase.from('profiles').select('name, pic').eq('handle', h).maybeSingle();
                 const row = document.createElement('div');
                 row.className = 'fol-row';
-                row.onclick = () => location.href = 'profile.html?u=' + friendHandle;
+                row.onclick = () => location.href = 'profile.html?u=' + h;
                 row.innerHTML = `
                     <img src="${p?.pic || ''}" class="fol-pic" onerror="this.style.display='none'">
                     <div>
-                        <div class="fol-name">${p?.name || friendHandle}</div>
-                        <div class="fol-handle">@${friendHandle}</div>
+                        <div class="fol-name">${p?.name || h}</div>
+                        <div class="fol-handle">@${h}</div>
                     </div>`;
                 list.appendChild(row);
             }

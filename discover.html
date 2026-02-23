@@ -50,15 +50,71 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 }
 .filter-chip.on { border-color: #ff7a00; color: #ff7a00; background: rgba(255,122,0,.08); }
 
-/* ── Creator search results ── */
-#creatorResultsSection { display: none; padding: 12px 16px 0; }
-.creators-label { font-size: 10px; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-.creators-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
-.creators-row::-webkit-scrollbar { display: none; }
-.creator-card { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; transition: .15s; }
-.creator-card:hover { opacity: .8; }
-.creator-card img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid #ff7a00; object-fit: cover; background: #111; }
-.creator-card div { font-size: 10px; font-weight: 700; color: #777; }
+/* ── Top Creators Section ── */
+.top-creators-section {
+  padding: 16px 16px 0;
+}
+.section-title-row {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+}
+.section-title-row h2 {
+  font-size: 13px; font-weight: 900; color: #f5f5f7; margin: 0; letter-spacing: .5px; text-transform: uppercase;
+}
+.creator-rank-tabs {
+  display: flex; gap: 4px;
+}
+.creator-rank-tab {
+  padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 800;
+  border: 1.5px solid #222; background: none; color: #444; cursor: pointer; transition: .15s;
+}
+.creator-rank-tab.active { background: #ff7a00; color: #000; border-color: #ff7a00; }
+
+.top-creators-scroll {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 14px;
+}
+.top-creators-scroll::-webkit-scrollbar { display: none; }
+
+.creator-rank-card {
+  flex-shrink: 0; width: 100px; background: #111; border: 1.5px solid #1e1e20;
+  border-radius: 16px; padding: 12px 8px; display: flex; flex-direction: column;
+  align-items: center; gap: 6px; cursor: pointer; transition: .2s; position: relative;
+  text-decoration: none;
+}
+.creator-rank-card:hover { border-color: #ff7a00; transform: translateY(-2px); }
+.creator-rank-card.gold   { border-color: #ffd700; background: rgba(255,215,0,.05); }
+.creator-rank-card.silver { border-color: #aaa;    background: rgba(170,170,170,.04); }
+.creator-rank-card.bronze { border-color: #cd7f32; background: rgba(205,127,50,.04); }
+
+.rank-badge {
+  position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+  font-size: 16px; line-height: 1;
+}
+.creator-rank-avatar {
+  width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
+  background: #222; border: 2px solid #333;
+}
+.creator-rank-name { font-size: 11px; font-weight: 800; color: #f5f5f7; text-align: center; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.creator-rank-handle { font-size: 9px; color: #555; font-weight: 700; }
+.creator-rank-stat { font-size: 11px; font-weight: 900; color: #ff7a00; }
+.creator-rank-stat-label { font-size: 8px; color: #444; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+
+/* ── Follow button improved ── */
+.tile-follow-btn {
+  font-size: 8px; font-weight: 900; color: #000;
+  background: #ff7a00; border: none; padding: 3px 8px;
+  border-radius: 8px; cursor: pointer; white-space: nowrap;
+  transition: .15s;
+}
+.tile-follow-btn.following { background: rgba(255,255,255,.12); color: #aaa; border: 1px solid #333; }
+.tile-follow-btn.loading { opacity: .5; pointer-events: none; }
+.tile-follow-btn:hover { opacity: .85; }
+
+/* ── Divider ── */
+.feed-divider {
+  height: 1px; background: linear-gradient(to right, transparent, #222, transparent);
+  margin: 14px 16px;
+}
+
 
 /* ── Section labels ── */
 .section-label { font-size: 14px; font-weight: 900; color: #f5f5f7; padding: 16px 16px 8px; letter-spacing: .3px; }
@@ -333,11 +389,26 @@ z-index: 500; backdrop-filter: blur(12px);
 </div>
 
 <!-- Creator search results -->
-
-<div id="creatorResultsSection">
-  <div class="creators-label">Creators</div>
-  <div class="creators-row" id="creatorResults"></div>
+<div id="creatorResultsSection" style="display:none; padding: 12px 16px 0;">
+  <div style="font-size: 10px; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Creators</div>
+  <div class="top-creators-scroll" id="creatorResults"></div>
 </div>
+
+<!-- Top Creators Section -->
+<div class="top-creators-section" id="top-creators-section">
+  <div class="section-title-row">
+    <h2>🏆 Top Creators</h2>
+    <div class="creator-rank-tabs">
+      <button class="creator-rank-tab active" onclick="switchRankTab('stars', this)">⭐ Stars</button>
+      <button class="creator-rank-tab" onclick="switchRankTab('follows', this)">👥 Follows</button>
+    </div>
+  </div>
+  <div class="top-creators-scroll" id="top-creators-list">
+    <div style="color:#333; font-size:12px; font-weight:700; padding:20px;">Loading creators…</div>
+  </div>
+</div>
+
+<div class="feed-divider"></div>
 
 <!-- Main sections -->
 
@@ -464,7 +535,45 @@ async function getCachedProfile(handle) {
   return profileCache[handle];
 }
 
-// ── Connection/follow cache ────────────────────────────────
+// ── Follow system (real one-way follows via `follows` table) ──
+const followCache = {}; // handle -> bool
+
+async function isFollowing(targetHandle) {
+  if (!myProfile.handle || myProfile.handle === 'guest') return false;
+  if (targetHandle === myProfile.handle) return false;
+  if (followCache[targetHandle] !== undefined) return followCache[targetHandle];
+  const { data } = await _sb.from('follows')
+    .select('id').eq('follower', myProfile.handle).eq('following', targetHandle).maybeSingle();
+  followCache[targetHandle] = !!data;
+  return !!data;
+}
+
+async function tileFollow(btn, handle) {
+  if (!myProfile.handle || myProfile.handle === 'guest') { showToast('Log in to follow!'); return; }
+  btn.classList.add('loading');
+  const already = await isFollowing(handle);
+  if (already) {
+    // Unfollow
+    await _sb.from('follows').delete().eq('follower', myProfile.handle).eq('following', handle);
+    followCache[handle] = false;
+    btn.textContent = 'Follow';
+    btn.classList.remove('following');
+    showToast(`Unfollowed @${handle}`);
+  } else {
+    // Follow
+    const { error } = await _sb.from('follows').insert([{ follower: myProfile.handle, following: handle }]);
+    if (error) { showToast('Error — try again'); btn.classList.remove('loading'); return; }
+    followCache[handle] = true;
+    btn.textContent = 'Following ✓';
+    btn.classList.add('following');
+    showToast(`✅ Now following @${handle}`);
+  }
+  btn.classList.remove('loading');
+  // Refresh top creators after follow change
+  loadTopCreators(currentRankTab);
+}
+
+// ── Connection/follow cache (legacy — keep for share sheet) ────────────────────────────────
 const connectionCache = {};
 async function getConnectionStatus(targetHandle) {
   if (!myProfile.handle || myProfile.handle === 'guest') return 'guest';
@@ -550,6 +659,78 @@ function sortedComics(comics, stars) {
   return c.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
+// ── Top Creators ──────────────────────────────────────────
+let currentRankTab = 'stars';
+let topCreatorsData = { stars: [], follows: [] };
+
+function switchRankTab(tab, el) {
+  currentRankTab = tab;
+  document.querySelectorAll('.creator-rank-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderTopCreators(topCreatorsData[tab], tab);
+}
+
+async function loadTopCreators(tab) {
+  const list = document.getElementById('top-creators-list');
+  if (!list) return;
+
+  if (tab === 'stars') {
+    // Aggregate stars (messages with reaction ⭐) by owner_handle
+    const starsByOwner = {};
+    globalStars.forEach(s => {
+      const comic = allComics.find(c => c.id === s.receiver_hand);
+      if (comic?.owner_handle) {
+        starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
+      }
+    });
+    const sorted = Object.entries(starsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
+    const withProfiles = await Promise.all(sorted.map(async ([handle, count]) => {
+      const p = await getCachedProfile(handle);
+      return { handle, count, ...p };
+    }));
+    topCreatorsData.stars = withProfiles;
+  } else if (tab === 'follows') {
+    // Count follows per handle from the follows table
+    const { data: followCounts } = await _sb.from('follows').select('following');
+    const countMap = {};
+    (followCounts || []).forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
+    const sorted = Object.entries(countMap).sort((a,b) => b[1]-a[1]).slice(0,10);
+    const withProfiles = await Promise.all(sorted.map(async ([handle, count]) => {
+      const p = await getCachedProfile(handle);
+      return { handle, count, ...p };
+    }));
+    topCreatorsData.follows = withProfiles;
+  }
+
+  renderTopCreators(topCreatorsData[tab], tab);
+}
+
+const RANK_MEDALS = ['🥇','🥈','🥉','4','5','6','7','8','9','10'];
+const RANK_CLASSES = ['gold','silver','bronze','','','','','','',''];
+
+function renderTopCreators(creators, tab) {
+  const list = document.getElementById('top-creators-list');
+  if (!list) return;
+  if (!creators.length) {
+    list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">No data yet</div>';
+    return;
+  }
+  const statLabel = tab === 'stars' ? '⭐' : '👥';
+  list.innerHTML = creators.map((c, i) => {
+    const medal = RANK_MEDALS[i] || (i+1);
+    const rankClass = RANK_CLASSES[i] || '';
+    const isMedal = i < 3;
+    return `
+      <a class="creator-rank-card ${rankClass}" href="profile.html?u=${esc(c.handle)}">
+        ${isMedal ? `<div class="rank-badge">${medal}</div>` : `<div style="position:absolute;top:6px;left:8px;font-size:9px;color:#444;font-weight:900;">#${i+1}</div>`}
+        <img class="creator-rank-avatar" src="${esc(c.pic||'')}" onerror="this.src=''" alt="${esc(c.handle)}">
+        <div class="creator-rank-name">${esc(c.name||c.handle)}</div>
+        <div class="creator-rank-handle">@${esc(c.handle)}</div>
+        <div class="creator-rank-stat">${statLabel} ${c.count}</div>
+      </a>`;
+  }).join('');
+}
+
 // ── Load ─────────────────────────────────────────────────
 async function init() {
   await loadFeeds();
@@ -577,6 +758,7 @@ async function loadFeeds() {
 
   renderComics(allComics, globalStars);
   renderTeams(teams || []);
+  loadTopCreators(currentRankTab);
 }
 
 // ── Render comics grid ────────────────────────────────────
@@ -645,31 +827,12 @@ async function hydrateFollowButtons(container) {
   const btns = container.querySelectorAll('.tile-follow-btn[data-follow-handle]');
   const handles = [...new Set([...btns].map(b => b.dataset.followHandle))];
   await Promise.all(handles.map(async handle => {
-    const status = await getConnectionStatus(handle);
+    const following = await isFollowing(handle);
     container.querySelectorAll(`.tile-follow-btn[data-follow-handle="${handle}"]`).forEach(btn => {
-      if (status === 'accepted') { btn.textContent = 'Friends'; btn.classList.add('following'); btn.disabled = true; }
-      else if (status === 'pending') { btn.textContent = 'Pending'; btn.classList.add('following'); }
+      if (following) { btn.textContent = 'Following ✓'; btn.classList.add('following'); }
       else { btn.textContent = 'Follow'; }
     });
   }));
-}
-
-async function tileFollow(btn, handle) {
-  if (!myProfile.handle || myProfile.handle === 'guest') { showToast('Log in to follow!'); return; }
-  btn.disabled = true;
-  const status = connectionCache[handle];
-  if (status === 'pending' || status === 'accepted') { showToast('Already connected!'); return; }
-
-  const { error } = await _sb.from('connections').insert([{
-    sender_handle: myProfile.handle,
-    receiver_handle: handle,
-    status: 'pending'
-  }]);
-  if (error) { showToast('Error sending request'); btn.disabled = false; return; }
-  connectionCache[handle] = 'pending';
-  btn.textContent = 'Pending';
-  btn.classList.add('following');
-  showToast(`👋 Follow request sent to @${handle}`);
 }
 
 // ── Popup ─────────────────────────────────────────────────
