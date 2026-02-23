@@ -907,12 +907,16 @@
                     placeholder="0"
                     oninput="if(activeLayer){ activeLayer.y = parseInt(this.value)||0; render(); }">
             </div>
-            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
-                <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center;">Z</span>
-                <div style="display:flex; gap:3px;">
-                    <button onclick="moveLayerZ(1)"  class="nav-btn" style="flex:1; padding:4px 0; font-size:13px;" title="Bring Forward">↑</button>
-                    <button onclick="moveLayerZ(-1)" class="nav-btn" style="flex:1; padding:4px 0; font-size:13px;" title="Send Backward">↓</button>
-                </div>
+        </div>
+
+        <!-- Layer Order row -->
+        <div style="display:flex; flex-direction:column; gap:3px;">
+            <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px;">Order</span>
+            <div style="display:flex; gap:4px;">
+                <button onclick="moveLayerToFront()"  class="nav-btn" style="flex:1; font-size:10px; padding:5px 2px; color:var(--teal); border-color:rgba(0,210,255,0.3);">⤒ Front</button>
+                <button onclick="moveLayerZ(1)"        class="nav-btn" style="flex:1; font-size:10px; padding:5px 2px;">↑ Fwd</button>
+                <button onclick="moveLayerZ(-1)"       class="nav-btn" style="flex:1; font-size:10px; padding:5px 2px;">↓ Back</button>
+                <button onclick="moveLayerToBack()"   class="nav-btn" style="flex:1; font-size:10px; padding:5px 2px; color:#ff6b6b; border-color:rgba(255,107,107,0.3);">⤓ Last</button>
             </div>
         </div>
 
@@ -992,8 +996,8 @@
         <button class="tb-btn" onclick="handleExit()">← Exit</button>
         <span class="tb-brand">COMICCORE</span>
         <div class="tb-sep"></div>
-        <button class="tb-btn icon-btn" onclick="undo()" title="Undo (Ctrl+Z)">↩</button>
-        <button class="tb-btn icon-btn" onclick="redo()" title="Redo (Ctrl+Y)">↪</button>
+        <button id="undo-btn" class="tb-btn icon-btn" onclick="undo()" title="Undo (Ctrl+Z)">↩</button>
+        <button id="redo-btn" class="tb-btn icon-btn" onclick="redo()" title="Redo (Ctrl+Y)">↪</button>
 
         <!-- Onion skin - inline -->
         <div id="onion-skin-control" style="display:none; gap:8px; align-items:center; background:rgba(255,255,255,0.04); padding:4px 10px; border-radius:8px; border:1px solid var(--border);">
@@ -1399,6 +1403,24 @@
         const idx = layers.findIndex(l => l.id === activeLayer.id);
         if(dir > 0 && idx < layers.length - 1) [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]];
         else if(dir < 0 && idx > 0) [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]];
+        render();
+    }
+
+    function moveLayerToFront() {
+        if(!activeLayer) return;
+        saveState();
+        const layers = frames[currentIdx].layers;
+        const idx = layers.findIndex(l => l.id === activeLayer.id);
+        if(idx !== -1) { layers.push(layers.splice(idx, 1)[0]); }
+        render();
+    }
+
+    function moveLayerToBack() {
+        if(!activeLayer) return;
+        saveState();
+        const layers = frames[currentIdx].layers;
+        const idx = layers.findIndex(l => l.id === activeLayer.id);
+        if(idx !== -1) { layers.unshift(layers.splice(idx, 1)[0]); }
         render();
     }
 
@@ -1839,8 +1861,52 @@
         redoStack = []; hasUnsavedChanges = true;
     }
 
-    function undo() { if (history.length > 0) { redoStack.push(JSON.stringify(frames)); frames = JSON.parse(history.pop()); render(); } }
-    function redo() { if (redoStack.length > 0) { history.push(JSON.stringify(frames)); frames = JSON.parse(redoStack.pop()); render(); } }
+    function undo() { 
+        if (history.length === 0) return;
+        redoStack.push(JSON.stringify(frames)); 
+        frames = JSON.parse(history.pop()); 
+        _restoreActiveLayer();
+        render(); 
+        _flashBtn('undo-btn');
+    }
+    function redo() { 
+        if (redoStack.length === 0) return;
+        history.push(JSON.stringify(frames)); 
+        frames = JSON.parse(redoStack.pop()); 
+        _restoreActiveLayer();
+        render(); 
+        _flashBtn('redo-btn');
+    }
+
+    // After undo/redo, frames is a fresh JSON parse so activeLayer is a stale ref.
+    // Re-find the same layer by id in the new frames so everything stays wired up.
+    function _restoreActiveLayer() {
+        if (!activeLayer) return;
+        const id = activeLayer.id;
+        const f = frames[currentIdx] || frames[0];
+        if (f) {
+            const found = f.layers.find(l => l.id === id);
+            activeLayer = found || null;
+        } else {
+            activeLayer = null;
+        }
+        // If the transform panel is open, re-sync its sliders/inputs
+        if (activeLayer && document.getElementById('transform-ui').style.display === 'flex') {
+            document.getElementById('size-slider').value = activeLayer.w || 200;
+            document.getElementById('size-num').value   = activeLayer.w || 200;
+            document.getElementById('rotate-slider').value = activeLayer.rotation || 0;
+            document.getElementById('rotate-num').value   = activeLayer.rotation || 0;
+            document.getElementById('pos-x-input').value  = Math.round(activeLayer.x) || 0;
+            document.getElementById('pos-y-input').value  = Math.round(activeLayer.y) || 0;
+        }
+    }
+
+    function _flashBtn(id) {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.style.color = 'var(--accent)';
+        setTimeout(() => btn.style.color = '', 300);
+    }
 
     function saveOffline(silent = false) {
         let drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
@@ -3047,7 +3113,9 @@
         if (!container) return;
         container.innerHTML = '';
         const layerIcons = { img: '🖼', bubble: '💬', thinking: '💭', text: '✍️', subtitle: '📋' };
-        [...frames[currentIdx].layers].reverse().forEach((l) => {
+        const allLayers = frames[currentIdx].layers;
+        [...allLayers].reverse().forEach((l, reversedIdx) => {
+            const realIdx = allLayers.length - 1 - reversedIdx;
             const item = document.createElement('div');
             item.className = 'sb-layer-item';
             const isActive = activeLayer?.id === l.id;
@@ -3056,14 +3124,27 @@
             if (isInSel) item.classList.add('multi-l');
             const icon = layerIcons[l.type] || '▫️';
             const label = l.nameTag || (l.content ? l.content.substring(0, 18) : (l.type.toUpperCase()));
-            item.innerHTML = '<span class="sb-layer-icon">' + icon + '</span>' + label;
+            item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:6px;';
+            item.innerHTML = `
+                <span class="sb-layer-icon">${icon}</span>
+                <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${label}</span>
+                <div style="display:flex; gap:2px; flex-shrink:0;">
+                    <button onclick="event.stopPropagation(); sbMoveLayer('${l.id}', 1)"
+                        style="background:#1a1a1a; border:1px solid #2a2a2a; color:#666; width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:10px; display:flex; align-items:center; justify-content:center; padding:0;"
+                        title="Move up">↑</button>
+                    <button onclick="event.stopPropagation(); sbMoveLayer('${l.id}', -1)"
+                        style="background:#1a1a1a; border:1px solid #2a2a2a; color:#666; width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:10px; display:flex; align-items:center; justify-content:center; padding:0;"
+                        title="Move down">↓</button>
+                </div>`;
             item.onclick = (e) => {
+                if (e.target.tagName === 'BUTTON') return;
                 if (e.shiftKey || e.ctrlKey || e.metaKey) {
                     const idx = selectedLayers.findIndex(s => s.id === l.id);
                     if (idx === -1) selectedLayers.push(l); else selectedLayers.splice(idx, 1);
                 } else {
                     selectedLayers = [l];
                     activeLayer = l;
+                    document.getElementById('onion-skin-control').style.display = 'flex';
                 }
                 render();
                 renderSidebarLayers();
@@ -3074,6 +3155,17 @@
         if (!container.children.length) {
             container.innerHTML = '<div style="text-align:center;padding:20px;color:#333;font-size:11px;font-weight:700;">No layers yet</div>';
         }
+    }
+
+    function sbMoveLayer(id, dir) {
+        const layers = frames[currentIdx].layers;
+        const idx = layers.findIndex(l => l.id === id);
+        if (idx === -1) return;
+        saveState();
+        if (dir > 0 && idx < layers.length - 1) [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]];
+        else if (dir < 0 && idx > 0) [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]];
+        render();
+        renderSidebarLayers();
     }
 
     // Override renderLayerList to also update sidebar
