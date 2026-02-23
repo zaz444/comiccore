@@ -892,6 +892,30 @@
             <span style="font-size:10px; font-weight:900; color:#666; text-transform:uppercase; letter-spacing:1px;">Position</span>
             <button id="position-collapse-btn" onclick="togglePositionArrows()" class="nav-btn" style="padding:2px 8px; font-size:11px;" title="Minimize arrows">⬇</button>
         </div>
+
+        <!-- X / Y coordinate inputs -->
+        <div style="display:flex; gap:6px;">
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+                <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center;">X</span>
+                <input type="number" id="pos-x-input" class="slider-num-input" style="width:100%; box-sizing:border-box;"
+                    placeholder="0"
+                    oninput="if(activeLayer){ activeLayer.x = parseInt(this.value)||0; render(); }">
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+                <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center;">Y</span>
+                <input type="number" id="pos-y-input" class="slider-num-input" style="width:100%; box-sizing:border-box;"
+                    placeholder="0"
+                    oninput="if(activeLayer){ activeLayer.y = parseInt(this.value)||0; render(); }">
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+                <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center;">Z</span>
+                <div style="display:flex; gap:3px;">
+                    <button onclick="moveLayerZ(1)"  class="nav-btn" style="flex:1; padding:4px 0; font-size:13px;" title="Bring Forward">↑</button>
+                    <button onclick="moveLayerZ(-1)" class="nav-btn" style="flex:1; padding:4px 0; font-size:13px;" title="Send Backward">↓</button>
+                </div>
+            </div>
+        </div>
+
         <div id="position-arrows-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:5px;">
             <button onclick="alignLayer('left',   null)"   class="nav-btn" title="Align Left">⬅</button>
             <button onclick="alignLayer('center', null)"   class="nav-btn" title="Center H">↔</button>
@@ -983,8 +1007,8 @@
         <div class="tb-spacer"></div>
 
         <!-- Right actions -->
-        <button class="tb-btn" onclick="saveOffline()">💾 Save</button>
-        <button class="tb-btn teal-btn" onclick="location.href='offlines.html'">📂 Drafts</button>
+        <button class="tb-btn" onclick="saveOffline(false)">💾 Save</button>
+        <button class="tb-btn teal-btn" onclick="goToDrafts()">📂 Drafts</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="openExportModal()">Export</button>
         <button class="tb-btn accent" onclick="openPublishModal()">Publish ↑</button>
@@ -1447,6 +1471,14 @@
         const f = frames[currentIdx];
         const bg = f.background || '#ffffff';
 
+        // Live-sync X/Y inputs if transform panel is open and a layer is active
+        if (activeLayer && document.getElementById('transform-ui').style.display === 'flex') {
+            const xEl = document.getElementById('pos-x-input');
+            const yEl = document.getElementById('pos-y-input');
+            if (xEl && document.activeElement !== xEl) xEl.value = Math.round(activeLayer.x) || 0;
+            if (yEl && document.activeElement !== yEl) yEl.value = Math.round(activeLayer.y) || 0;
+        }
+
         // Classify the background value
         const isImageUrl = bg.startsWith('http') || bg.startsWith('data:image');
         const isGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
@@ -1763,6 +1795,9 @@
             // Sync number inputs
             document.getElementById('size-num').value = activeLayer.w;
             document.getElementById('rotate-num').value = activeLayer.rotation || 0;
+            // Sync X/Y
+            document.getElementById('pos-x-input').value = Math.round(activeLayer.x) || 0;
+            document.getElementById('pos-y-input').value = Math.round(activeLayer.y) || 0;
             
             const isTextType = (activeLayer.type === 'bubble' || activeLayer.type === 'thinking' || activeLayer.type === 'text');
             const isImgType  = activeLayer.type === 'img';
@@ -1807,21 +1842,48 @@
     function undo() { if (history.length > 0) { redoStack.push(JSON.stringify(frames)); frames = JSON.parse(history.pop()); render(); } }
     function redo() { if (redoStack.length > 0) { history.push(JSON.stringify(frames)); frames = JSON.parse(redoStack.pop()); render(); } }
 
-    function saveOffline() {
+    function saveOffline(silent = false) {
         let drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
         if (activeDraftId) {
             const idx = drafts.findIndex(d => d.id == activeDraftId);
-            drafts[idx].data = frames;
-            drafts[idx].ratio = canvasRatio || { w: 1, h: 1 };
-            drafts[idx].lastModified = new Date().toLocaleString();
+            if (idx !== -1) {
+                drafts[idx].data = frames;
+                drafts[idx].ratio = canvasRatio || { w: 1, h: 1 };
+                drafts[idx].lastModified = new Date().toLocaleString();
+            } else {
+                // Draft was deleted elsewhere, re-add it
+                drafts.push({ id: activeDraftId, title: 'Untitled', data: frames, ratio: canvasRatio || { w: 1, h: 1 }, lastModified: new Date().toLocaleString() });
+            }
         } else {
-            let title = prompt("Draft Name:", "New Comic") || "Untitled";
+            // First save — ask for name unless silent
+            let title = silent ? 'Untitled' : (prompt("Draft Name:", "New Comic") || "Untitled");
             const newDraft = { id: Date.now(), title, data: frames, ratio: canvasRatio || { w: 1, h: 1 }, lastModified: new Date().toLocaleString() };
-            drafts.push(newDraft); activeDraftId = newDraft.id;
+            drafts.push(newDraft);
+            activeDraftId = newDraft.id;
+            localStorage.setItem('active_draft_id', activeDraftId);
         }
         localStorage.setItem('comic_drafts', JSON.stringify(drafts));
-        hasUnsavedChanges = false; alert("Draft Saved!");
+        hasUnsavedChanges = false;
+        if (!silent) {
+            const btn = document.querySelector('.tb-btn[onclick*="saveOffline"]');
+            if (btn) { const orig = btn.innerText; btn.innerText = '✓ Saved!'; setTimeout(() => btn.innerText = orig, 1500); }
+        }
     }
+
+    function goToDrafts() {
+        saveOffline(true); // silent auto-save before leaving
+        location.href = 'offlines.html';
+    }
+
+    // Auto-save every 30 seconds if there are unsaved changes
+    setInterval(() => {
+        if (hasUnsavedChanges && activeDraftId) saveOffline(true);
+    }, 30000);
+
+    // Save before page unload
+    window.addEventListener('beforeunload', () => {
+        if (frames && frames.length) saveOffline(true);
+    });
 
     function openPublishModal() { document.getElementById('publish-modal').style.display = 'flex'; }
 
@@ -1866,7 +1928,10 @@
     function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
     function closeCrop() { document.getElementById('crop-modal').style.display = 'none'; if(cropper) cropper.destroy(); }
     function toggleDrawer() { document.getElementById('frame-drawer').classList.toggle('open'); }
-    function handleExit() { if (!hasUnsavedChanges || confirm("Exit without saving?")) location.href = 'index.html'; }
+    function handleExit() { 
+        if (frames && frames.length) saveOffline(true);
+        location.href = 'index.html'; 
+    }
     function flipHorizontal() { if(activeLayer) { saveState(); activeLayer.flipped = !activeLayer.flipped; render(); } }
     function createActionOption(src, name) { const div = document.createElement('div'); div.className = 'action-option'; div.innerHTML = `<img src="${src}"><span>${name}</span>`; return div; }
     
