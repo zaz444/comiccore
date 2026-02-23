@@ -89,8 +89,77 @@
         .banner-edit-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .banner-edit-wrap .overlay-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); color: white; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
 
-        /* Banner crop modal */
-        .crop-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        /* PFP Picker modal */
+        .pfp-source-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9500;
+            display: none; align-items: flex-end; justify-content: center;
+        }
+        .pfp-source-overlay.active { display: flex; }
+        .pfp-source-sheet {
+            background: #141416; border-radius: 20px 20px 0 0;
+            border-top: 1px solid #2a2a2c; width: 100%; max-width: 500px;
+            padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+            animation: slideUp .25s cubic-bezier(.4,0,.2,1);
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .pfp-source-title {
+            font-size: 13px; font-weight: 900; color: #888; text-transform: uppercase;
+            letter-spacing: 1px; text-align: center; margin-bottom: 16px;
+        }
+        .pfp-source-btns { display: flex; gap: 10px; margin-bottom: 20px; }
+        .pfp-source-btn {
+            flex: 1; padding: 14px; border-radius: 14px; border: 1.5px solid #2a2a2c;
+            background: #1a1a1c; color: white; font-size: 13px; font-weight: 800;
+            cursor: pointer; text-align: center; transition: .15s;
+        }
+        .pfp-source-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .pfp-source-btn span { display: block; font-size: 22px; margin-bottom: 5px; }
+
+        /* Gallery grid */
+        .pfp-gallery-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+        }
+        .pfp-gallery-item {
+            aspect-ratio: 1; border-radius: 50%; overflow: hidden; cursor: pointer;
+            border: 2.5px solid transparent; transition: .15s; background: #111;
+        }
+        .pfp-gallery-item:hover { border-color: var(--accent); transform: scale(1.05); }
+        .pfp-gallery-item.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,122,0,.3); }
+        .pfp-gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        .pfp-gallery-confirm {
+            width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px;
+            background: var(--accent); border: none; color: white; font-size: 14px;
+            font-weight: 900; cursor: pointer; display: none;
+        }
+        .pfp-gallery-confirm.visible { display: block; }
+        .pfp-cancel-btn {
+            width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px;
+            background: none; border: 1px solid #2a2a2c; color: #666; font-size: 13px;
+            font-weight: 700; cursor: pointer;
+        }
+
+        /* PFP crop modal */
+        .pfp-crop-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.97); z-index: 9600;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .pfp-crop-overlay.active { display: flex; }
+        .pfp-crop-title { font-size: 11px; font-weight: 800; color: #aaa; letter-spacing: 1px; margin-bottom: 16px; }
+        .pfp-crop-wrap {
+            position: relative; width: 240px; height: 240px; border-radius: 50%;
+            overflow: hidden; border: 3px solid var(--accent); flex-shrink: 0;
+            cursor: grab; background: #111;
+        }
+        .pfp-crop-wrap:active { cursor: grabbing; }
+        .pfp-crop-img {
+            position: absolute; transform-origin: center center;
+            user-select: none; pointer-events: none;
+        }
+        .pfp-crop-hint { font-size: 10px; color: #555; margin-top: 10px; margin-bottom: 20px; }
+        .pfp-crop-zoom { width: 200px; accent-color: var(--accent); }
+
         .crop-overlay.active { display: flex; }
         .crop-container { position: relative; width: 100%; max-width: 500px; overflow: hidden; border-radius: 8px; background: #000; touch-action: none; }
         .crop-source { display: block; width: 100%; user-select: none; pointer-events: none; }
@@ -167,9 +236,9 @@
         </div>
         <input type="file" id="banner-input" hidden accept="image/*">
 
-        <!-- PFP upload -->
+        <!-- PFP upload — now opens picker -->
         <div style="text-align:center; margin: 0 0 20px;">
-            <div style="position:relative; display:inline-block; cursor:pointer;" onclick="document.getElementById('pfp-input').click()">
+            <div style="position:relative; display:inline-block; cursor:pointer;" onclick="openPfpPicker()">
                 <img id="pfp-preview" src="" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:2px solid var(--accent);">
                 <div style="position:absolute; bottom:0; right:0; background:var(--accent); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;">✎</div>
             </div>
@@ -205,7 +274,42 @@
         </div>
     </div>
 
+    <!-- PFP Source Picker -->
+    <div class="pfp-source-overlay" id="pfp-source-overlay" onclick="if(event.target===this)closePfpPicker()">
+        <div class="pfp-source-sheet" onclick="event.stopPropagation()">
+            <div class="pfp-source-title">Choose Profile Picture</div>
+            <div class="pfp-source-btns">
+                <div class="pfp-source-btn" onclick="switchPfpTab('gallery')">
+                    <span>🎨</span>Our Gallery
+                </div>
+                <div class="pfp-source-btn" onclick="document.getElementById('pfp-input').click(); closePfpPicker()">
+                    <span>📱</span>My Phone
+                </div>
+            </div>
+            <div id="pfp-gallery-section">
+                <div class="pfp-gallery-grid" id="pfp-gallery-grid"></div>
+                <button class="pfp-gallery-confirm" id="pfp-gallery-confirm" onclick="confirmGalleryPfp()">Use This Avatar</button>
+            </div>
+            <button class="pfp-cancel-btn" onclick="closePfpPicker()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- PFP Crop Modal (phone uploads only) -->
+    <div class="pfp-crop-overlay" id="pfp-crop-overlay">
+        <div class="pfp-crop-title">DRAG &amp; ZOOM TO CROP</div>
+        <div class="pfp-crop-wrap" id="pfp-crop-wrap">
+            <img id="pfp-crop-img" class="pfp-crop-img">
+        </div>
+        <div class="pfp-crop-hint">Drag to reposition · Slider to zoom</div>
+        <input type="range" class="pfp-crop-zoom" id="pfp-crop-zoom" min="1" max="3" step="0.01" value="1" oninput="pfpCropZoom(this.value)">
+        <div class="crop-actions" style="margin-top:16px;">
+            <button class="crop-btn crop-btn-cancel" onclick="closePfpCrop()">Cancel</button>
+            <button class="crop-btn crop-btn-confirm" onclick="confirmPfpCrop()">Use This</button>
+        </div>
+    </div>
+
     <script>
+
         const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
         
         const SOCIAL_CONFIG = [
@@ -455,7 +559,6 @@
         }
 
         function openEditor() {
-            // Safety check — never open the editor if there's no handle to save with
             if (!myProfile.handle) {
                 alert('You need to be logged in to edit your profile.');
                 location.href = 'index.html';
@@ -467,11 +570,17 @@
 
             document.getElementById('edit-name').value = myProfile.name || '';
             document.getElementById('edit-bio').value = myProfile.bio || '';
-            document.getElementById('pfp-preview').src = myProfile.pic || '';
-            pfpBase64 = myProfile.pic || '';
+
+            // Assign random avatar if none set
+            if (!myProfile.pic) {
+                pfpBase64 = randomAvatar();
+            } else {
+                pfpBase64 = myProfile.pic;
+            }
+            document.getElementById('pfp-preview').src = pfpBase64;
+
             bannerBase64 = myProfile.banner || '';
 
-            // Banner preview
             const bPrev = document.getElementById('banner-preview');
             const bHint = document.getElementById('banner-hint');
             if (bannerBase64) {
@@ -532,15 +641,163 @@
             }
         }
 
-        // PFP file input
+        // ── Gallery avatars ──────────────────────────────────
+        const GALLERY_AVATARS = [
+            'https://media.discordapp.net/attachments/1472088820584419450/1475329698627064050/IMG_1809.png?ex=699d175a&is=699bc5da&hm=a0f628bf48b0842d4f229b538ce66813275e5eb2d07acc60cde4cebf30b01a02&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475329698845429830/IMG_1807.png?ex=699d175a&is=699bc5da&hm=209388e97a913a657610ce73db8212b2bf7812e9bd83cad9d198938624d47a36&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475329699088564378/IMG_1806.png?ex=699d175a&is=699bc5da&hm=18c5b443e188396c5db5ddbdd661e1e242304635d36a9232cb82096532910f42&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475329699348484169/IMG_1810.png?ex=699d175a&is=699bc5da&hm=6bd10790112091791848222304562d49e08a0725146023dc1d683399239b9779&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475329699566850189/IMG_1811.png?ex=699d175a&is=699bc5da&hm=21021968c19ce66a9333378ac3969118066f44a71e2631357d94bfef46d895fb&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475329699768041645/IMG_1812.png?ex=699d175a&is=699bc5da&hm=29f5cf216fb28c0f018f481be996e5230b1cfff9b33d242a11c3a02c35891319&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475329700174762156/IMG_1813.png?ex=699d175a&is=699bc5da&hm=0515f934e4f6e865d6f53c24b35e318737e8ed12538eff8a740a5a5bba342b50&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333301995831520/IMG_1814.png?ex=699d1ab5&is=699bc935&hm=3b1c1af08f32f411ad6f6e17ea972a6333fd2da6371d822b48fd07dfaaaa620c&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333301597114511/IMG_1815.png?ex=699d1ab5&is=699bc935&hm=39a3688927f9178a27a2c55e5b75874752947ab84fb33c19b3d4827fdaf4dee9&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333301278609491/IMG_1816.png?ex=699d1ab5&is=699bc935&hm=ad2c8682d478734ed59e2a6f1b486faa1a018169fef479d879ec92fb07545a4a&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333300900991177/IMG_1817.png?ex=699d1ab5&is=699bc935&hm=fa2a36faa2ed6a3e0df92fd7c8e6a9f46b7e6b618e3e468912cdff83ed83d72f&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333300225576970/Untitled41_20260222212003.png?ex=699d1ab5&is=699bc935&hm=40983c6fca94415db337069988094e1e18c32efb532668bb8e2b017d79cfe8ff&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333299780976650/IMG_1819.png?ex=699d1ab5&is=699bc935&hm=8b46747a6663de6718209a2f9e312a16c657580eaf7d9558cad3d6ac2463e9e8&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333299349229569/Untitled43_20260222212444.png?ex=699d1ab4&is=699bc934&hm=812be03a986cbea6008f800ee44500cd3fb00be37c5c1ce1e193ab23555c6b82&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333298996773016/Untitled44_20260222212528.png?ex=699d1ab4&is=699bc934&hm=1f8867f68677001540aa632b80b9cf0df616f1cf30acb97b98598456dea36456&=&format=webp&quality=lossless',
+            'https://media.discordapp.net/attachments/1472088820584419450/1475333298720079963/Untitled44_20260222212735.png?ex=699d1ab4&is=699bc934&hm=663c026f51ab1700bf1ae00545af081a02f7779b44db6545542f1cb7fc25b9d9&=&format=webp&quality=lossless',
+        ];
+
+        function randomAvatar() {
+            return GALLERY_AVATARS[Math.floor(Math.random() * GALLERY_AVATARS.length)];
+        }
+
+        // ── PFP Picker ───────────────────────────────────────
+        let selectedGalleryUrl = null;
+
+        function openPfpPicker() {
+            selectedGalleryUrl = null;
+            // Render gallery grid
+            const grid = document.getElementById('pfp-gallery-grid');
+            grid.innerHTML = GALLERY_AVATARS.map((url, i) => `
+                <div class="pfp-gallery-item" id="gal-${i}" onclick="selectGalleryAvatar(${i}, '${url}')">
+                    <img src="${url}" loading="lazy">
+                </div>`).join('');
+            document.getElementById('pfp-gallery-confirm').classList.remove('visible');
+            document.getElementById('pfp-source-overlay').classList.add('active');
+        }
+
+        function closePfpPicker() {
+            document.getElementById('pfp-source-overlay').classList.remove('active');
+            selectedGalleryUrl = null;
+        }
+
+        function selectGalleryAvatar(idx, url) {
+            document.querySelectorAll('.pfp-gallery-item').forEach(el => el.classList.remove('selected'));
+            document.getElementById('gal-' + idx).classList.add('selected');
+            selectedGalleryUrl = url;
+            document.getElementById('pfp-gallery-confirm').classList.add('visible');
+        }
+
+        function confirmGalleryPfp() {
+            if (!selectedGalleryUrl) return;
+            pfpBase64 = selectedGalleryUrl;
+            document.getElementById('pfp-preview').src = pfpBase64;
+            closePfpPicker();
+        }
+
+        // ── PFP file input → crop modal ──────────────────────
         document.getElementById('pfp-input').onchange = (e) => {
+            if (!e.target.files[0]) return;
             const reader = new FileReader();
-            reader.onload = () => {
-                pfpBase64 = reader.result;
-                document.getElementById('pfp-preview').src = pfpBase64;
-            };
+            reader.onload = (ev) => openPfpCrop(ev.target.result);
             reader.readAsDataURL(e.target.files[0]);
+            e.target.value = '';
         };
+
+        // ── PFP Crop ─────────────────────────────────────────
+        let pfpCropSrc = null;
+        let pfpCropOffsetX = 0, pfpCropOffsetY = 0;
+        let pfpCropScale = 1;
+        let pfpCropDrag = null;
+        let pfpImgNatW = 1, pfpImgNatH = 1;
+        const PFP_SIZE = 240; // crop circle diameter in px
+
+        function openPfpCrop(src) {
+            pfpCropSrc = src;
+            pfpCropOffsetX = 0; pfpCropOffsetY = 0; pfpCropScale = 1;
+            document.getElementById('pfp-crop-zoom').value = 1;
+            const img = document.getElementById('pfp-crop-img');
+            img.src = src;
+            img.onload = () => {
+                pfpImgNatW = img.naturalWidth;
+                pfpImgNatH = img.naturalHeight;
+                updatePfpCropImg();
+            };
+            document.getElementById('pfp-crop-overlay').classList.add('active');
+        }
+
+        function closePfpCrop() {
+            document.getElementById('pfp-crop-overlay').classList.remove('active');
+        }
+
+        function updatePfpCropImg() {
+            const img = document.getElementById('pfp-crop-img');
+            // Scale to fill the circle at minimum, then apply user zoom
+            const baseScale = Math.max(PFP_SIZE / pfpImgNatW, PFP_SIZE / pfpImgNatH);
+            const scale = baseScale * pfpCropScale;
+            const w = pfpImgNatW * scale;
+            const h = pfpImgNatH * scale;
+            // Clamp offsets so image always covers the circle
+            const maxX = (w - PFP_SIZE) / 2;
+            const maxY = (h - PFP_SIZE) / 2;
+            pfpCropOffsetX = Math.max(-maxX, Math.min(maxX, pfpCropOffsetX));
+            pfpCropOffsetY = Math.max(-maxY, Math.min(maxY, pfpCropOffsetY));
+            img.style.width  = w + 'px';
+            img.style.height = h + 'px';
+            img.style.left   = (PFP_SIZE/2 - w/2 + pfpCropOffsetX) + 'px';
+            img.style.top    = (PFP_SIZE/2 - h/2 + pfpCropOffsetY) + 'px';
+        }
+
+        function pfpCropZoom(val) {
+            pfpCropScale = parseFloat(val);
+            updatePfpCropImg();
+        }
+
+        // Drag
+        const pfpWrap = document.getElementById('pfp-crop-wrap');
+        pfpWrap.addEventListener('mousedown', e => { pfpCropDrag = { x: e.clientX, y: e.clientY, ox: pfpCropOffsetX, oy: pfpCropOffsetY }; });
+        window.addEventListener('mousemove', e => {
+            if (!pfpCropDrag) return;
+            pfpCropOffsetX = pfpCropDrag.ox + (e.clientX - pfpCropDrag.x);
+            pfpCropOffsetY = pfpCropDrag.oy + (e.clientY - pfpCropDrag.y);
+            updatePfpCropImg();
+        });
+        window.addEventListener('mouseup', () => pfpCropDrag = null);
+        pfpWrap.addEventListener('touchstart', e => { const t = e.touches[0]; pfpCropDrag = { x: t.clientX, y: t.clientY, ox: pfpCropOffsetX, oy: pfpCropOffsetY }; }, {passive:true});
+        window.addEventListener('touchmove', e => {
+            if (!pfpCropDrag) return;
+            const t = e.touches[0];
+            pfpCropOffsetX = pfpCropDrag.ox + (t.clientX - pfpCropDrag.x);
+            pfpCropOffsetY = pfpCropDrag.oy + (t.clientY - pfpCropDrag.y);
+            updatePfpCropImg();
+        }, {passive:true});
+        window.addEventListener('touchend', () => pfpCropDrag = null);
+
+        function confirmPfpCrop() {
+            const img = document.getElementById('pfp-crop-img');
+            const baseScale = Math.max(PFP_SIZE / pfpImgNatW, PFP_SIZE / pfpImgNatH);
+            const scale = baseScale * pfpCropScale;
+            const w = pfpImgNatW * scale;
+            const h = pfpImgNatH * scale;
+            const left = PFP_SIZE/2 - w/2 + pfpCropOffsetX;
+            const top  = PFP_SIZE/2 - h/2 + pfpCropOffsetY;
+            // Map circle area back to natural image coords
+            const sx = (-left) / scale;
+            const sy = (-top)  / scale;
+            const sSize = PFP_SIZE / scale;
+            const canvas = document.createElement('canvas');
+            canvas.width = 400; canvas.height = 400;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, 400, 400);
+            pfpBase64 = canvas.toDataURL('image/jpeg', 0.9);
+            document.getElementById('pfp-preview').src = pfpBase64;
+            closePfpCrop();
+        }
+
 
         // Banner file input — opens crop modal
         document.getElementById('banner-input').onchange = (e) => {
