@@ -1616,6 +1616,7 @@
                     e.stopPropagation();
                     activeLayer = l;
                     document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
+                    document.getElementById('onion-skin-control').style.display = 'flex';
                     render();
                     if (['text','bubble','thinking','subtitle'].includes(l.type)) {
                         setTimeout(() => showFloatToolbar(l), 20);
@@ -1629,7 +1630,8 @@
             el.onmousedown = (e) => { 
                 e.stopPropagation(); 
                 activeLayer = l; 
-                document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none'; 
+                document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
+                document.getElementById('onion-skin-control').style.display = 'flex';
                 render();
                 // Show floating toolbar for text layers, hide for others
                 if (['text','bubble','thinking','subtitle'].includes(l.type)) {
@@ -1753,7 +1755,7 @@
 
         const isOpen = ui.style.display === 'flex';
         ui.style.display = isOpen ? 'none' : 'flex';
-        onionUi.style.display = isOpen ? 'none' : 'flex';
+        // onion skin stays visible as long as a layer is selected
 
         if(!isOpen) {
             document.getElementById('size-slider').value = activeLayer.w;
@@ -3046,6 +3048,51 @@
             if (activeSidePanel) toggleSidePanel(activeSidePanel);
         }
     });
+
+    // ── Draggable Transform UI ──
+    (function() {
+        const ui = document.getElementById('transform-ui');
+        const header = document.getElementById('transform-ui-header');
+        if (!ui || !header) return;
+
+        let dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+        header.addEventListener('mousedown', function(e) {
+            if (e.target.tagName === 'BUTTON') return;
+            e.preventDefault();
+            dragging = true;
+
+            // First time: pin to current screen position, remove centering transform
+            if (ui.style.transform !== 'none') {
+                const rect = ui.getBoundingClientRect();
+                ui.style.left = rect.left + 'px';
+                ui.style.top  = rect.top  + 'px';
+                ui.style.bottom = 'auto';
+                ui.style.transform = 'none';
+            }
+
+            startX = e.clientX;
+            startY = e.clientY;
+            origLeft = parseInt(ui.style.left) || 0;
+            origTop  = parseInt(ui.style.top)  || 0;
+
+            header.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            ui.style.left = (origLeft + dx) + 'px';
+            ui.style.top  = (origTop  + dy) + 'px';
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (!dragging) return;
+            dragging = false;
+            header.style.cursor = 'grab';
+        });
+    })();
 </script>
 
 <!-- ── iOS-style Float Toolbar ── -->
