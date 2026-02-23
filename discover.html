@@ -119,74 +119,116 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 /* ── Section labels ── */
 .section-label { font-size: 14px; font-weight: 900; color: #f5f5f7; padding: 16px 16px 8px; letter-spacing: .3px; }
 
-/* ── Comics grid ── */
-.comics-grid {
-display: grid;
-grid-template-columns: repeat(3, 1fr);
-gap: 4px; padding: 0 4px;
+/* ── Comics carousel ── */
+.comics-carousel-wrap {
+  position: relative; padding: 0 16px;
 }
-@media (min-width: 480px) { .comics-grid { grid-template-columns: repeat(4, 1fr); } }
-@media (min-width: 680px) { .comics-grid { grid-template-columns: repeat(5, 1fr); } }
+.carousel-nav-btn {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(20,20,22,.92); border: 1.5px solid #2a2a2c;
+  color: white; font-size: 16px; cursor: pointer; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  transition: .15s; backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
+.carousel-nav-btn:hover { background: #ff7a00; border-color: #ff7a00; color: #000; }
+.carousel-nav-btn.left  { left: -2px; }
+.carousel-nav-btn.right { right: -2px; }
+.carousel-nav-btn:disabled { opacity: .2; pointer-events: none; }
 
+.comics-carousel {
+  display: flex; gap: 14px; overflow-x: auto; scroll-behavior: smooth;
+  padding: 8px 0 16px; scrollbar-width: none;
+}
+.comics-carousel::-webkit-scrollbar { display: none; }
+
+.comic-card {
+  flex-shrink: 0; width: 160px; cursor: pointer;
+  transition: transform .2s; position: relative;
+}
+@media (min-width: 500px) { .comic-card { width: 180px; } }
+@media (min-width: 768px) { .comic-card { width: 200px; } }
+
+.comic-card:hover { transform: translateY(-4px); }
+.comic-card:active { transform: scale(.97); }
+
+.comic-card-cover {
+  width: 100%; aspect-ratio: 2/3; border-radius: 12px; overflow: hidden;
+  background: #111; position: relative;
+  box-shadow: 0 6px 20px rgba(0,0,0,.5);
+}
+.comic-card-cover img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.comic-card-cover .no-cover {
+  width: 100%; height: 100%; display: flex; align-items: center;
+  justify-content: center; font-size: 36px;
+  background: linear-gradient(135deg,#0f0f11,#1a1a2e);
+}
+.comic-card .tile-stars {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(0,0,0,.75); color: #ffd700;
+  font-size: 10px; font-weight: 900; padding: 3px 8px; border-radius: 10px;
+  backdrop-filter: blur(4px);
+}
+.comic-card .tile-mine {
+  position: absolute; top: 8px; left: 8px;
+  background: rgba(255,122,0,.9); color: #000;
+  font-size: 9px; font-weight: 900; padding: 3px 8px; border-radius: 10px;
+}
+.comic-card .tile-new {
+  position: absolute; top: 8px; left: 8px;
+  background: rgba(50,215,75,.9); color: #000;
+  font-size: 9px; font-weight: 900; padding: 3px 8px; border-radius: 10px;
+}
+.comic-card .tile-progress {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 3px; background: rgba(255,255,255,.1); border-radius: 0 0 12px 12px;
+}
+.comic-card .tile-progress-fill { height: 100%; background: #ff7a00; }
+
+.comic-card-info {
+  padding: 10px 2px 0;
+}
+.comic-card-title {
+  font-size: 13px; font-weight: 800; color: #f5f5f7;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.comic-card-meta {
+  display: flex; align-items: center; gap: 6px;
+}
+.comic-card-avatar {
+  width: 20px; height: 20px; border-radius: 50%; object-fit: cover;
+  background: #222; border: 1.5px solid #333; flex-shrink: 0; cursor: pointer;
+}
+.comic-card-handle {
+  font-size: 11px; color: #555; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+  cursor: pointer;
+}
+.comic-card-handle:hover { color: #ff7a00; }
+.comic-card-follow {
+  font-size: 9px; font-weight: 900; color: #000;
+  background: #ff7a00; border: none; padding: 2px 7px;
+  border-radius: 6px; cursor: pointer; white-space: nowrap;
+  transition: .15s; flex-shrink: 0;
+}
+.comic-card-follow.following { background: rgba(255,255,255,.1); color: #666; border: 1px solid #333; }
+.comic-card-follow:hover { opacity: .85; }
+
+/* Keep old .comic-tile for teams section */
 .comic-tile {
-position: relative; cursor: pointer; border-radius: 6px; overflow: hidden;
-background: #111; aspect-ratio: .67;
-transition: transform .2s, box-shadow .2s;
+  position: relative; cursor: pointer; border-radius: 10px; overflow: hidden;
+  background: #111; aspect-ratio: .67; transition: transform .2s;
 }
 .comic-tile:active { transform: scale(.96); }
-.comic-tile img.cover-img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0a0a0a; }
-.comic-tile .no-cover {
-width: 100%; height: 100%; display: flex; align-items: center;
-justify-content: center; font-size: 28px; background: linear-gradient(135deg,#0f0f11,#1a1a1e);
-}
-.tile-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,.1); }
-.tile-progress-fill { height: 100%; background: #ff7a00; transition: width .3s; }
-.tile-stars {
-position: absolute; top: 5px; right: 5px;
-background: rgba(0,0,0,.75); color: #ffd700;
-font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 10px;
-backdrop-filter: blur(4px);
-}
-.tile-mine {
-position: absolute; top: 5px; left: 5px;
-background: rgba(255,122,0,.85); color: #000;
-font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 10px;
-}
-.tile-new {
-position: absolute; top: 5px; left: 5px;
-background: rgba(50,215,75,.85); color: #000;
-font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 10px;
-}
+.comic-tile img.cover-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.comic-tile .no-cover { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 28px; background: linear-gradient(135deg,#0f0f11,#1a1a1e); }
+.comics-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; padding: 0 16px; }
+@media (min-width: 480px) { .comics-grid { grid-template-columns: repeat(4,1fr); } }
 
-/* ── Creator avatar on tile (bottom left) ── */
-.tile-creator-avatar {
-position: absolute; bottom: 26px; left: 6px;
-width: 28px; height: 28px; border-radius: 50%;
-border: 2px solid rgba(255,255,255,.25);
-object-fit: cover; background: #222;
-cursor: pointer; z-index: 10;
-transition: border-color .2s, transform .15s;
-}
-.tile-creator-avatar:hover { border-color: #ff7a00; transform: scale(1.1); }
-.tile-creator-info {
-position: absolute; bottom: 26px; left: 40px;
-display: flex; align-items: center; gap: 5px; z-index: 10;
-opacity: 0; transition: opacity .2s; pointer-events: none;
-}
-.comic-tile:hover .tile-creator-info { opacity: 1; pointer-events: auto; }
-.tile-creator-handle {
-font-size: 9px; font-weight: 900; color: white;
-background: rgba(0,0,0,.7); padding: 2px 6px; border-radius: 8px;
-backdrop-filter: blur(4px); white-space: nowrap;
-}
-.tile-follow-btn {
-font-size: 8px; font-weight: 900; color: #000;
-background: #ff7a00; border: none; padding: 2px 7px;
-border-radius: 8px; cursor: pointer; white-space: nowrap;
-transition: .15s;
-}
-.tile-follow-btn.following { background: rgba(255,255,255,.15); color: white; }
-.tile-follow-btn:hover { opacity: .85; }
 
 /* ── Popup overlay ── */
 .popup-overlay {
@@ -419,7 +461,11 @@ z-index: 500; backdrop-filter: blur(12px);
     <button class="filter-chip"   id="chip-oldest"  onclick="setSort('oldest')">📅 Oldest First</button>
   </div>
   <div class="section-label" id="comics-label">Latest Comics</div>
-  <div class="comics-grid" id="recentFeed"></div>
+  <div class="comics-carousel-wrap">
+    <button class="carousel-nav-btn left"  id="carousel-left"  onclick="scrollCarousel(-1)">‹</button>
+    <div class="comics-carousel" id="recentFeed"></div>
+    <button class="carousel-nav-btn right" id="carousel-right" onclick="scrollCarousel(1)">›</button>
+  </div>
 </div>
 
 <div id="section-stories" style="display:none;">
@@ -766,7 +812,8 @@ function renderComics(comics, stars) {
   const sorted    = sortedComics(comics, stars);
   const container = document.getElementById('recentFeed');
   if (!sorted.length) {
-    container.innerHTML = '<div class="empty-feed" style="grid-column:1/-1;">No comics yet.<br>Be the first to publish!</div>';
+    container.innerHTML = '<div class="empty-feed" style="padding:40px 20px;">No comics yet.<br>Be the first to publish!</div>';
+    updateCarouselBtns();
     return;
   }
   container.innerHTML = sorted.map(c => {
@@ -775,39 +822,75 @@ function renderComics(comics, stars) {
     const isNew      = isNewComic(c.created_at) && !isMine;
     const prog       = getProgress(c.id, (c.data||[]).length);
     const coverHtml  = c.cover
-      ? `<img class="cover-img" src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
       : `<div class="no-cover">📖</div>`;
     const progressHtml = prog
       ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
-    const badgeHtml  = isMine
-      ? `<div class="tile-mine">MINE</div>`
+    const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
     const starsHtml  = starCount > 0 ? `<div class="tile-stars">⭐ ${starCount}</div>` : '';
-
-    // Creator avatar — use data-handle, will be hydrated async
     const ownerHandle = esc(c.owner_handle || 'unknown');
-    const avatarHtml = `
-      <img class="tile-creator-avatar" data-handle="${ownerHandle}"
-        src="" alt="@${ownerHandle}"
-        onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
-        onerror="this.style.display='none'">
-      <div class="tile-creator-info">
-        <span class="tile-creator-handle">@${ownerHandle}</span>
-        ${!isMine && myProfile.handle !== 'guest' ? `<button class="tile-follow-btn" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : ''}
-      </div>`;
+    const followBtn = (!isMine && myProfile.handle !== 'guest')
+      ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
 
-    return `<div class="comic-tile" data-id="${esc(c.id)}">${coverHtml}${badgeHtml}${starsHtml}${progressHtml}${avatarHtml}</div>`;
+    return `<div class="comic-card" data-id="${esc(c.id)}">
+      <div class="comic-card-cover">
+        ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}
+      </div>
+      <div class="comic-card-info">
+        <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
+        <div class="comic-card-meta">
+          <img class="comic-card-avatar" data-handle="${ownerHandle}" src="" alt=""
+            onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
+            onerror="this.style.display='none'">
+          <span class="comic-card-handle" onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'">@${ownerHandle}</span>
+          ${followBtn}
+        </div>
+      </div>
+    </div>`;
   }).join('');
 
-  // Attach click handlers
-  container.querySelectorAll('.comic-tile').forEach(tile => {
-    tile.addEventListener('click', () => openPopup(tile.dataset.id));
+  container.querySelectorAll('.comic-card').forEach(card => {
+    card.addEventListener('click', () => openPopup(card.dataset.id));
   });
 
-  // Async-hydrate avatars
-  hydrateAvatars(container);
+  // Hydrate avatars (reuse existing function but target new class)
+  hydrateCardAvatars(container);
   hydrateFollowButtons(container);
+  updateCarouselBtns();
 }
+
+function hydrateCardAvatars(container) {
+  const avatars = container.querySelectorAll('.comic-card-avatar[data-handle]');
+  const handles = [...new Set([...avatars].map(a => a.dataset.handle))];
+  handles.forEach(async handle => {
+    const p = await getCachedProfile(handle);
+    container.querySelectorAll(`.comic-card-avatar[data-handle="${handle}"]`).forEach(img => {
+      if (p?.pic) img.src = p.pic; else img.style.display = 'none';
+    });
+  });
+}
+
+function scrollCarousel(dir) {
+  const el = document.getElementById('recentFeed');
+  el.scrollBy({ left: dir * 340, behavior: 'smooth' });
+  setTimeout(updateCarouselBtns, 350);
+}
+
+function updateCarouselBtns() {
+  const el = document.getElementById('recentFeed');
+  const lBtn = document.getElementById('carousel-left');
+  const rBtn = document.getElementById('carousel-right');
+  if (!el || !lBtn || !rBtn) return;
+  lBtn.disabled = el.scrollLeft <= 4;
+  rBtn.disabled = el.scrollLeft >= el.scrollWidth - el.clientWidth - 4;
+}
+
+// Update arrow state on manual scroll too
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('recentFeed');
+  if (el) el.addEventListener('scroll', updateCarouselBtns);
+});
 
 async function hydrateAvatars(container) {
   const avatars = container.querySelectorAll('.tile-creator-avatar[data-handle]');
@@ -824,11 +907,11 @@ async function hydrateAvatars(container) {
 
 async function hydrateFollowButtons(container) {
   if (!myProfile.handle || myProfile.handle === 'guest') return;
-  const btns = container.querySelectorAll('.tile-follow-btn[data-follow-handle]');
+  const btns = container.querySelectorAll('[data-follow-handle]');
   const handles = [...new Set([...btns].map(b => b.dataset.followHandle))];
   await Promise.all(handles.map(async handle => {
     const following = await isFollowing(handle);
-    container.querySelectorAll(`.tile-follow-btn[data-follow-handle="${handle}"]`).forEach(btn => {
+    container.querySelectorAll(`[data-follow-handle="${handle}"]`).forEach(btn => {
       if (following) { btn.textContent = 'Following ✓'; btn.classList.add('following'); }
       else { btn.textContent = 'Follow'; }
     });
