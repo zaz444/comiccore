@@ -374,7 +374,11 @@ async function boot() {
   document.title = (data.title || 'Comic') + ' — ComicCore';
   document.getElementById('top-title').innerText = data.title || 'Untitled';
   document.getElementById('top-author').innerText = 'by @' + (data.owner_handle || 'unknown');
-  swipeDir = localStorage.getItem('cc-swipe-dir') || data.swipe_dir || 'horizontal';
+  // Swipe direction: user pref='creator' means use comic creator's setting, otherwise user's choice wins
+  const userSwipePref = localStorage.getItem('cc-swipe-dir') || 'creator';
+  swipeDir = (userSwipePref === 'creator')
+    ? (data.swipe_dir || 'horizontal')
+    : userSwipePref;
   setSwipeDir(swipeDir);
 
   // Show edit button only to owner
@@ -412,31 +416,31 @@ function sizeFrame() {
   const cf = document.getElementById('comic-frame');
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const r = comic?.canvas_ratio;
+
+  // canvas_ratio can be top-level (new publish) or missing (old publish — fallback to 1:1)
+  // Never collapse to square if ratio is defined
+  let r = comic?.canvas_ratio;
+  if (!r || !r.w || !r.h) r = { w: 1, h: 1 };
+
+  const ar = r.w / r.h;
   let cw, ch;
-  if (r && r.w && r.h) {
-    const ar = r.w / r.h;
-    if (vw / vh > ar) { ch = vh; cw = ch * ar; }
-    else { cw = vw; ch = cw / ar; }
-  } else {
-    // default 1:1
-    const s = Math.min(vw, vh);
-    cw = s; ch = s;
-  }
+  if (vw / vh > ar) { ch = vh * 0.98; cw = ch * ar; }
+  else              { cw = vw * 0.98; ch = cw / ar; }
+
   cf.style.width  = Math.floor(cw) + 'px';
   cf.style.height = Math.floor(ch) + 'px';
+  cf.style.backgroundSize = 'cover';
   return { cw: Math.floor(cw), ch: Math.floor(ch) };
 }
 
 function getEditorDimensions() {
-  // create.html uses BASE_SIZE=900, same ratio logic as sizeFrame
-  const r = comic?.canvas_ratio;
-  if (r && r.w && r.h) {
-    const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
-    const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
-    return { ew, eh };
-  }
-  return { ew: EDITOR_BASE, eh: EDITOR_BASE };
+  // create.html uses BASE_SIZE=900 on the longest edge
+  // Must match setRatio() in create.html exactly
+  let r = comic?.canvas_ratio;
+  if (!r || !r.w || !r.h) r = { w: 1, h: 1 };
+  const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
+  const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
+  return { ew, eh };
 }
 
 function getSpriteFilterCSS(layer) {

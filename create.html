@@ -60,11 +60,11 @@
 
     #viewport { 
         flex: 1; display: flex; justify-content: center; align-items: center; 
-        background: #050505; position: relative; overflow: hidden; padding: 60px;
+        background: #050505; position: relative; overflow: hidden; padding: 0;
     }
     #canvas-container { position: relative; display: inline-block; }
     #comic-frame { 
-        width: 600px; height: 600px; background: #fff; position: relative; 
+        width: 900px; height: 900px; background: #fff; position: relative; 
         overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.6); 
         background-size: cover; background-position: center;
     }
@@ -595,7 +595,7 @@
     /* ── VIEWPORT ── */
     #viewport {
         flex: 1; display: flex; justify-content: center; align-items: center;
-        background: #050505; position: relative; overflow: hidden;
+        background: #050505; position: relative; overflow: hidden; padding: 0;
     }
     #canvas-container { position: relative; display: inline-block; }
     #global-frame-indicator {
@@ -656,8 +656,34 @@
     #bg-edit-panel { z-index: 3500; bottom: 100px; }
     #fx-panel { z-index: 3500; bottom: 100px; }
 
-    /* Prevent scrollbar flicker */
-    #work-area::-webkit-scrollbar { display: none; }
+    /* ── CANVAS PAN/ZOOM ── */
+    #canvas-pan-wrap {
+        position: absolute; inset: 0;
+        overflow: hidden; cursor: grab;
+    }
+    #canvas-pan-wrap.panning { cursor: grabbing; }
+    #canvas-scale-wrap {
+        position: absolute; transform-origin: 0 0;
+        /* translate and scale set via JS */
+    }
+    #zoom-controls {
+        position: absolute; bottom: 10px; right: 10px;
+        display: flex; flex-direction: column; gap: 4px; z-index: 500;
+    }
+    .zoom-btn {
+        width: 30px; height: 30px; background: rgba(28,28,30,0.85);
+        border: 1px solid #333; color: #aaa; border-radius: 7px;
+        font-size: 16px; font-weight: 700; cursor: pointer; display: flex;
+        align-items: center; justify-content: center; transition: 0.15s;
+        font-family: inherit; backdrop-filter: blur(6px);
+    }
+    .zoom-btn:hover { background: rgba(60,60,60,0.9); color: white; }
+    #zoom-level-label {
+        background: rgba(28,28,30,0.75); color: #555; font-size: 9px;
+        font-weight: 900; text-align: center; border-radius: 5px;
+        padding: 3px 4px; letter-spacing: 0.5px; backdrop-filter: blur(4px);
+        border: 1px solid #222;
+    }
 
 </style></head>
 <body>
@@ -1094,6 +1120,12 @@
                     <span class="sb-icon">🎨</span>FX
                 </button>
 
+                <!-- Swap Action button — only shown when sprite selected -->
+                <div class="sb-divider"></div>
+                <button class="sb-icon-btn" id="sb-swap-btn" onclick="editCurrentSpriteAction()" style="display:none; background:rgba(0,210,255,0.12); color:var(--teal);">
+                    <span class="sb-icon">🔄</span>Swap
+                </button>
+
             </div>
 
             <!-- SIDEBAR PANEL -->
@@ -1185,10 +1217,21 @@
 
         <!-- CANVAS VIEWPORT -->
         <div id="viewport">
-            <div id="canvas-container">
-                <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
-                <div id="comic-frame" onclick="deselectLayer(event)"></div>
-                <div id="global-frame-indicator">FRAME 1</div>
+            <div id="canvas-pan-wrap">
+                <div id="canvas-scale-wrap">
+                    <div id="canvas-container">
+                        <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
+                        <div id="comic-frame" onclick="deselectLayer(event)"></div>
+                        <div id="global-frame-indicator">FRAME 1</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Zoom controls overlay -->
+            <div id="zoom-controls">
+                <button class="zoom-btn" onclick="zoomCanvas(0.25)" title="Zoom In">+</button>
+                <div id="zoom-level-label">100%</div>
+                <button class="zoom-btn" onclick="zoomCanvas(-0.25)" title="Zoom Out">−</button>
+                <button class="zoom-btn" onclick="resetZoom()" title="Reset View" style="font-size:11px;">FIT</button>
             </div>
         </div>
 
@@ -1399,6 +1442,9 @@
 
         // Apply background chosen from backgroundsource.html
         applyPendingBg(pendingBg, pendingBgId);
+
+        // Initial fit
+        requestAnimationFrame(() => fitCanvasToViewport());
     };
 
     function deselectLayer(e) {
@@ -1406,7 +1452,7 @@
             activeLayer = null;
             closeFtbPanel();
             hideFloatToolbar();
-            document.getElementById('edit-action-btn').style.display = 'none';
+            document.getElementById('edit-action-btn').style.display = 'none'; document.getElementById('sb-swap-btn').style.display = 'none';
             document.getElementById('transform-ui').style.display = 'none';
             document.getElementById('text-settings').style.display = 'none';
             document.getElementById('onion-skin-control').style.display = 'none';
@@ -1416,24 +1462,25 @@
 
     function startDrag(e, layer) {
         saveState();
-        let startX = e.clientX - layer.x;
-        let startY = e.clientY - layer.y;
+        // Convert mouse coords to canvas-space by dividing by zoomScale
+        const canvasRect = canvas.getBoundingClientRect();
+        let startX = (e.clientX - canvasRect.left) / zoomScale - layer.x;
+        let startY = (e.clientY - canvasRect.top)  / zoomScale - layer.y;
         let moved = false;
         const move = (me) => {
             if (!moved) { moved = true; closeFtbPanel(); hideFloatToolbar(); }
-            const canvasRect = canvas.getBoundingClientRect();
+            const rect = canvas.getBoundingClientRect();
             const layerW = layer.w || 100;
             const layerH = layer.h || (layer.fontSize ? layer.fontSize * 2 : 80);
-            const rawX = me.clientX - startX;
-            const rawY = me.clientY - startY;
-            layer.x = Math.min(Math.max(rawX, 0), canvasRect.width - layerW);
-            layer.y = Math.min(Math.max(rawY, 0), canvasRect.height - layerH);
+            const rawX = (me.clientX - rect.left) / zoomScale - startX;
+            const rawY = (me.clientY - rect.top)  / zoomScale - startY;
+            layer.x = Math.min(Math.max(rawX, 0), canvas.offsetWidth  - layerW);
+            layer.y = Math.min(Math.max(rawY, 0), canvas.offsetHeight - layerH);
             render();
         };
         const up = () => { 
             window.removeEventListener('mousemove', move);
             window.removeEventListener('mouseup', up);
-            // Re-show toolbar after drag ends if it's a text layer
             if (moved && ['text','bubble','thinking','subtitle'].includes(layer.type)) {
                 setTimeout(() => showFloatToolbar(layer), 30);
             }
@@ -1502,7 +1549,31 @@
     }
 
     function handleActionSelect(img, pack, isEditing) {
-        if(isEditing) { saveState(); activeLayer.src = img; }
+        if(isEditing) { 
+            saveState(); 
+            // Preserve the current displayed height by locking in the aspect ratio
+            const oldSrc = activeLayer.src;
+            activeLayer.src = img;
+            // Keep width unchanged — height will naturally adjust to new image ratio.
+            // But to preserve visual size, we preload the new image and scale width to match old area.
+            const oldW = activeLayer.w;
+            const oldImg = new Image();
+            oldImg.src = oldSrc;
+            const newImg = new Image();
+            newImg.src = img;
+            const tryPreserve = () => {
+                if (oldImg.naturalWidth && oldImg.naturalHeight && newImg.naturalWidth && newImg.naturalHeight) {
+                    // old height in px = oldW * (oldH/oldW)
+                    const oldH = oldW * (oldImg.naturalHeight / oldImg.naturalWidth);
+                    // new width to match same height = oldH / (newH/newW)
+                    const newW = Math.round(oldH * newImg.naturalWidth / newImg.naturalHeight);
+                    activeLayer.w = newW;
+                    render();
+                }
+            };
+            if (oldImg.complete && newImg.complete) tryPreserve();
+            else { oldImg.onload = tryPreserve; newImg.onload = tryPreserve; }
+        }
         else addSpriteToCanvas(img, pack);
         closeActionModal(); render();
     }
@@ -1697,7 +1768,7 @@
                 wrapper.onmousedown = (e) => {
                     e.stopPropagation();
                     activeLayer = l;
-                    document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
+                    document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none'; document.getElementById('sb-swap-btn').style.display = l.packData ? 'flex' : 'none';
                     document.getElementById('onion-skin-control').style.display = 'flex';
                     render();
                     if (['text','bubble','thinking','subtitle'].includes(l.type)) {
@@ -1712,7 +1783,7 @@
             el.onmousedown = (e) => { 
                 e.stopPropagation(); 
                 activeLayer = l; 
-                document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
+                document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none'; document.getElementById('sb-swap-btn').style.display = l.packData ? 'flex' : 'none';
                 document.getElementById('onion-skin-control').style.display = 'flex';
                 render();
                 // Show floating toolbar for text layers, hide for others
@@ -1933,6 +2004,8 @@
         if (hasUnsavedChanges && activeDraftId) saveOffline(true);
     }, 30000);
 
+    window.addEventListener('resize', () => fitCanvasToViewport());
+
     // Save before page unload
     window.addEventListener('beforeunload', () => {
         if (frames && frames.length) saveOffline(true);
@@ -2117,7 +2190,7 @@
             frames[currentIdx].layers = frames[currentIdx].layers.filter(l => l.id !== activeLayer.id); 
             activeLayer = null; 
             document.getElementById('transform-ui').style.display = 'none';
-            document.getElementById('edit-action-btn').style.display = 'none';
+            document.getElementById('edit-action-btn').style.display = 'none'; document.getElementById('sb-swap-btn').style.display = 'none';
             document.getElementById('onion-skin-control').style.display = 'none';
             render(); 
         } 
@@ -2156,6 +2229,106 @@
     };
 
     // ═══════════════════════════════════════
+    // CANVAS PAN / ZOOM
+    // ═══════════════════════════════════════
+    let panX = 0, panY = 0, zoomScale = 1;
+
+    function applyPanZoom() {
+        const wrap = document.getElementById('canvas-scale-wrap');
+        wrap.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+        document.getElementById('zoom-level-label').innerText = Math.round(zoomScale * 100) + '%';
+    }
+
+    function fitCanvasToViewport() {
+        const vp = document.getElementById('viewport');
+        const cf = document.getElementById('comic-frame');
+        if (!cf.offsetWidth || !cf.offsetHeight) return;
+        const vpW = vp.clientWidth - 80;
+        const vpH = vp.clientHeight - 80;
+        const scaleX = vpW / cf.offsetWidth;
+        const scaleY = vpH / cf.offsetHeight;
+        zoomScale = Math.min(scaleX, scaleY, 1); // never zoom in past 100%
+        zoomScale = Math.max(0.1, parseFloat(zoomScale.toFixed(2)));
+        const scaledW = cf.offsetWidth  * zoomScale;
+        const scaledH = cf.offsetHeight * zoomScale;
+        panX = Math.round((vp.clientWidth  - scaledW) / 2);
+        panY = Math.round((vp.clientHeight - scaledH) / 2);
+        applyPanZoom();
+    }
+
+    function zoomCanvas(delta) {
+        const vp = document.getElementById('viewport');
+        const vpCX = vp.clientWidth  / 2;
+        const vpCY = vp.clientHeight / 2;
+        const oldScale = zoomScale;
+        zoomScale = Math.min(5, Math.max(0.1, parseFloat((zoomScale + delta).toFixed(2))));
+        // Zoom toward center of viewport
+        panX = vpCX - (vpCX - panX) * (zoomScale / oldScale);
+        panY = vpCY - (vpCY - panY) * (zoomScale / oldScale);
+        applyPanZoom();
+    }
+
+    function resetZoom() { fitCanvasToViewport(); }
+
+    // Mousewheel zoom
+    document.getElementById('viewport').addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const vp = document.getElementById('viewport');
+        const rect = vp.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const delta = e.deltaY < 0 ? 0.1 : -0.1;
+        const oldScale = zoomScale;
+        zoomScale = Math.min(5, Math.max(0.1, parseFloat((zoomScale + delta).toFixed(2))));
+        panX = mouseX - (mouseX - panX) * (zoomScale / oldScale);
+        panY = mouseY - (mouseY - panY) * (zoomScale / oldScale);
+        applyPanZoom();
+    }, { passive: false });
+
+    // Middle-click or right-click drag to pan
+    (function() {
+        const vp = document.getElementById('viewport');
+        let isPanning = false, startPX = 0, startPY = 0, startPanX = 0, startPanY = 0;
+
+        vp.addEventListener('mousedown', (e) => {
+            // Middle mouse or right-click to pan; also Space+drag (but not on layers)
+            if (e.button === 1 || e.button === 2 || (spaceHeld && e.button === 0)) {
+                isPanning = true;
+                startPX = e.clientX; startPY = e.clientY;
+                startPanX = panX; startPanY = panY;
+                vp.classList.add('panning');
+                e.preventDefault();
+            }
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            panX = startPanX + (e.clientX - startPX);
+            panY = startPanY + (e.clientY - startPY);
+            applyPanZoom();
+        });
+        window.addEventListener('mouseup', (e) => {
+            if (!isPanning) return;
+            isPanning = false;
+            vp.classList.remove('panning');
+        });
+        vp.addEventListener('contextmenu', (e) => {
+            if (isPanning) e.preventDefault();
+        });
+    })();
+
+    // Space-hold to pan
+    let spaceHeld = false;
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            if (!spaceHeld) { spaceHeld = true; document.getElementById('viewport').style.cursor = 'grab'; }
+            e.preventDefault();
+        }
+    });
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space') { spaceHeld = false; document.getElementById('viewport').style.cursor = ''; }
+    });
+
+    // ═══════════════════════════════════════
     // CANVAS RATIO SYSTEM
     // ═══════════════════════════════════════
     const BASE_SIZE = 900;
@@ -2173,6 +2346,8 @@
         onionCanvas.style.width  = cw + 'px';
         onionCanvas.style.height = ch + 'px';
         render();
+        // Fit to viewport after ratio changes so canvas is always fully visible
+        requestAnimationFrame(() => fitCanvasToViewport());
     }
 
     // ═══════════════════════════════════════
