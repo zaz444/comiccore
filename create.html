@@ -419,11 +419,61 @@
     /* Multi-select in layer panel */
     .layer-item-sel { background: rgba(0,210,255,0.15); border-color: var(--teal) !important; }
     #fx-selected-hint { font-size: 10px; color: #555; font-weight: 700; }
-    /* BG edit panel — add Edit BG button inside EDIT panel */
-    #edit-bg-btn {
-        display: none; width: 100%; padding: 9px; background: #0a1a2a;
-        border: 1px solid var(--accent); color: var(--accent); border-radius: 8px;
-        font-weight: 800; font-size: 11px; cursor: pointer; margin-top: 2px;
+    .sb-layer-item.locked-l { opacity: 0.45; border-color: #2a2a2a !important; }
+    .sb-layer-item .lock-btn {
+        margin-left: auto; background: none; border: none; cursor: pointer;
+        font-size: 13px; padding: 2px 4px; border-radius: 4px; color: #444; transition: 0.12s; flex-shrink: 0;
+    }
+    .sb-layer-item .lock-btn:hover { color: #aaa; }
+    .sb-layer-item.locked-l .lock-btn { color: #ff9500; }
+
+    /* Selection outline opacity control */
+    .layer.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    /* BG Edit Panel number inputs */
+    .bg-num-input {
+        width: 44px; background: #111; border: 1px solid #333; color: var(--text);
+        padding: 3px 5px; border-radius: 6px; font-size: 11px; font-weight: 700;
+        text-align: center; outline: none; font-family: inherit;
+    }
+    .bg-num-input:focus { border-color: var(--accent); }
+    .bg-slider-row { display: flex; align-items: center; gap: 7px; }
+    .bg-slider-row span:first-child { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 0.5px; width: 38px; flex-shrink: 0; }
+    .bg-slider-row input[type=range] { flex: 1; }
+
+    /* Hide UI overlay arrow button */
+    #ui-reveal-btn {
+        position: fixed; left: 0; top: 50%; transform: translateY(-50%);
+        width: 22px; height: 56px; background: var(--accent); color: #000;
+        border: none; border-radius: 0 10px 10px 0; cursor: pointer;
+        font-size: 13px; font-weight: 900; z-index: 9999;
+        display: none; align-items: center; justify-content: center;
+        box-shadow: 3px 0 12px rgba(0,0,0,0.5); transition: 0.15s;
+    }
+    #ui-reveal-btn:hover { width: 28px; }
+
+    /* Selection opacity: applied via CSS variable */
+    .layer.active { outline-color: rgba(var(--sel-r,255), var(--sel-g,122), var(--sel-b,0), var(--sel-opacity, 1)); }
+
+    /* Bg recrop button */
+    #bg-recrop-btn {
+        display: flex; align-items: center; gap: 8px; width: 100%;
+        padding: 9px 12px; background: #0a1020; border: 1px solid #00d2ff44;
+        color: var(--teal); border-radius: 8px; font-weight: 800; font-size: 11px;
+        cursor: pointer; font-family: inherit; transition: 0.15s;
+    }
+    #bg-recrop-btn:hover { background: #0a1a2a; border-color: var(--teal); }
+
+    /* Editor prefs panel */
+    #editor-prefs-panel {
+        position: fixed; right: 16px; bottom: 100px; z-index: 3000;
+        background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+        padding: 16px; width: 260px; display: none; flex-direction: column; gap: 12px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    }
+    #editor-prefs-panel .prefs-title {
+        font-size: 10px; font-weight: 900; color: var(--accent); letter-spacing: 1.5px;
+        text-transform: uppercase; display: flex; justify-content: space-between;
     }
 
     /* ──────────────────────────────────
@@ -793,10 +843,11 @@
         <span>🖼️ BACKGROUND EDIT</span>
         <span style="cursor:pointer; color:#555;" onclick="closeBgPanel()">✕</span>
     </div>
+    <button id="bg-recrop-btn" onclick="openBgRecrop()">✂️ Re-crop / Edit Crop</button>
     <div class="bg-slider-row">
         <span>Scale</span>
         <input type="range" id="bg-scale" min="50" max="300" value="100" oninput="applyBgTransform()">
-        <span class="val-label" id="bg-scale-val">100%</span>
+        <input type="number" class="bg-num-input" id="bg-scale-num" min="50" max="300" value="100" oninput="document.getElementById('bg-scale').value=this.value; applyBgTransform()">
     </div>
     <div class="bg-slider-row">
         <span>Rotate</span>
@@ -806,15 +857,19 @@
     <div class="bg-slider-row">
         <span>X Pos</span>
         <input type="range" id="bg-x" min="-100" max="100" value="0" oninput="applyBgTransform()">
-        <span class="val-label" id="bg-x-val">0</span>
+        <input type="number" class="bg-num-input" id="bg-x-num" min="-100" max="100" value="0" oninput="document.getElementById('bg-x').value=this.value; applyBgTransform()">
     </div>
     <div class="bg-slider-row">
         <span>Y Pos</span>
         <input type="range" id="bg-y" min="-100" max="100" value="0" oninput="applyBgTransform()">
-        <span class="val-label" id="bg-y-val">0</span>
+        <input type="number" class="bg-num-input" id="bg-y-num" min="-100" max="100" value="0" oninput="document.getElementById('bg-y').value=this.value; applyBgTransform()">
     </div>
     <div style="font-size:10px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; margin-top:4px;">Filter</div>
     <div class="filter-row" id="filter-row"></div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; color:#666; cursor:pointer;">
+        <input type="checkbox" id="bg-apply-all" style="accent-color:var(--accent);">
+        Apply transform to all frames
+    </label>
     <button onclick="resetBgTransform()" style="padding:8px; background:#222; color:#aaa; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-size:11px;">Reset All</button>
 </div>
 
@@ -1051,6 +1106,12 @@
         <button class="tb-btn" onclick="openExportModal()">Export</button>
         <button class="tb-btn accent" onclick="openPublishModal()">Publish ↑</button>
 
+        <!-- Editor Prefs -->
+        <button class="tb-btn icon-btn" onclick="toggleEditorPrefs()" title="Editor Preferences" style="font-size:13px;">⚙</button>
+
+        <!-- Hide UI -->
+        <button class="tb-btn icon-btn" onclick="hideEditorUI()" title="Hide Interface (press H to restore)" style="font-size:13px; border-color:rgba(255,255,255,0.15);">👁</button>
+
         <!-- Edit-action (SWAP) button — shown when sprite selected -->
         <button id="edit-action-btn" style="display:none; background:rgba(0,210,255,0.1); border:1px solid var(--teal); color:var(--teal); padding:6px 11px; border-radius:8px; cursor:pointer; font-size:11px; font-weight:800; font-family:inherit; white-space:nowrap;" onclick="editCurrentSpriteAction()">🔄 Swap</button>
     </div>
@@ -1175,6 +1236,7 @@
                     <div id="sb-layer-actions">
                         <button class="sb-lay-btn" onclick="sbCopyLayer()">📄 Copy</button>
                         <button class="sb-lay-btn" onclick="sbPasteLayer()">📋 Paste</button>
+                        <button class="sb-lay-btn" onclick="toggleSelectedLayerLock()">🔒 Lock</button>
                         <button class="sb-lay-btn danger" onclick="deleteLayer()">🗑 Del</button>
                     </div>
                     <div id="sb-layer-list"></div>
@@ -1223,6 +1285,26 @@
 
 <!-- HIDDEN LEGACY FRAME DRAWER (needed by JS) -->
 <div id="frame-drawer" style="display:none !important;"></div>
+
+<!-- UI Reveal Button (shown when UI is hidden) -->
+<button id="ui-reveal-btn" onclick="showEditorUI()" title="Show Interface">›</button>
+
+<!-- Editor Preferences Panel -->
+<div id="editor-prefs-panel">
+    <div class="prefs-title">
+        <span>⚙ Editor Preferences</span>
+        <span style="cursor:pointer;color:#444;" onclick="closeEditorPrefs()">✕</span>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:10px; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:1px;">Selection Outline Opacity</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <input type="range" id="sel-opacity-slider" min="0" max="100" value="100" style="flex:1;"
+                oninput="updateSelectionOpacity(this.value)">
+            <span id="sel-opacity-val" style="font-size:11px; font-weight:800; color:var(--accent); width:36px; text-align:right;">100%</span>
+        </div>
+        <div style="font-size:10px; color:#444; font-weight:600; line-height:1.4;">Lower this to make the orange selection box less visible. Saved automatically.</div>
+    </div>
+</div>
 
 <input type="file" id="img-input" hidden accept="image/*">
 <!-- FIX 2: cover-input now has onchange handler so the cropper fires correctly for cover uploads -->
@@ -1678,6 +1760,16 @@
             const isMultiSel = selectedLayers.some(s => s.id === l.id);
             el.className = 'layer' + (activeLayer && activeLayer.id === l.id ? ' active' : '') + (isMultiSel ? ' layer-item-sel' : '');
             Object.assign(el.style, { width: l.w + 'px', left: l.x + 'px', top: l.y + 'px', transform: `rotate(${l.rotation || 0}deg) scaleX(${l.flipped ? -1 : 1})` });
+            // Locked layer: show dim overlay and lock badge
+            if (l.locked) {
+                el.style.opacity = (l.opacity != null ? l.opacity / 100 : 1) * 0.6 + '';
+                el.style.cursor = 'default';
+                const lockBadge = document.createElement('div');
+                lockBadge.style.cssText = 'position:absolute;top:2px;right:2px;font-size:10px;background:rgba(0,0,0,0.6);border-radius:3px;padding:1px 3px;pointer-events:none;z-index:10;';
+                lockBadge.innerText = '🔒';
+                el.style.position = 'relative';
+                el.appendChild(lockBadge);
+            }
             
             // Private name tag overlay (editor-only, not in export)
             if (l.nameTag && activeLayer && activeLayer.id === l.id) {
@@ -1696,6 +1788,7 @@
                 wrapper.appendChild(tag);
                 wrapper.onmousedown = (e) => {
                     e.stopPropagation();
+                    if (l.locked) return; // Locked layers cannot be selected
                     activeLayer = l;
                     document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
                     document.getElementById('onion-skin-control').style.display = 'flex';
@@ -1710,7 +1803,8 @@
             }
 
             el.onmousedown = (e) => { 
-                e.stopPropagation(); 
+                e.stopPropagation();
+                if (l.locked) return; // Locked layers cannot be selected via canvas click
                 activeLayer = l; 
                 document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
                 document.getElementById('onion-skin-control').style.display = 'flex';
@@ -1750,7 +1844,7 @@
         render(); 
     }
 
-    function addFrame() { saveState(); frames.push({ layers: [], background: '#ffffff', _ratio: canvasRatio || { w: 1, h: 1 } }); currentIdx = frames.length - 1; render(); }
+    function addFrame() { saveState(); frames.push({ layers: [], background: '#ffffff' }); currentIdx = frames.length - 1; render(); }
     function nextFrame() { if (currentIdx < frames.length - 1) { currentIdx++; render(); } else addFrame(); }
     function prevFrame() { if (currentIdx > 0) { currentIdx--; render(); } }
     function goToFrame(idx) { currentIdx = idx; render(); }
@@ -1951,10 +2045,10 @@
         btn.disabled = true;
         const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
         const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
+        // Note: canvas_ratio is stored inside each frame's data, not as a top-level DB column
         const payload = {
             title, description: desc, tags, cover: finalCoverBase64,
-            data: frames, swipe_dir: swipeDir,
-            canvas_ratio: canvasRatio || { w: 1, h: 1 }
+            data: frames, swipe_dir: swipeDir
         };
         let error;
         if (editingComicId) {
@@ -2172,8 +2266,6 @@
         onionCanvas.setAttribute('height', ch);
         onionCanvas.style.width  = cw + 'px';
         onionCanvas.style.height = ch + 'px';
-        // Stamp ratio onto every frame so it travels with published/draft data
-        frames.forEach(f => { f._ratio = { w, h }; });
         render();
     }
 
@@ -2716,10 +2808,13 @@
         document.getElementById('bg-rotate').value = s.rotate ?? 0;
         document.getElementById('bg-x').value      = s.x      ?? 0;
         document.getElementById('bg-y').value      = s.y      ?? 0;
-        document.getElementById('bg-scale-val').innerText  = (s.scale  ?? 100) + '%';
-        document.getElementById('bg-rotate-val').innerText = (s.rotate ?? 0)   + '°';
-        document.getElementById('bg-x-val').innerText      = (s.x      ?? 0);
-        document.getElementById('bg-y-val').innerText      = (s.y      ?? 0);
+        document.getElementById('bg-scale-num').value  = s.scale  ?? 100;
+        document.getElementById('bg-x-num').value      = s.x      ?? 0;
+        document.getElementById('bg-y-num').value      = s.y      ?? 0;
+        document.getElementById('bg-rotate-val').innerText = (s.rotate ?? 0) + '°';
+        // Show re-crop only for image backgrounds
+        const isBgImage = f.background && (f.background.startsWith('http') || f.background.startsWith('data:image'));
+        document.getElementById('bg-recrop-btn').style.display = isBgImage ? 'flex' : 'none';
         // Highlight current filter chip
         const currentFilter = s.filter || 'none';
         document.querySelectorAll('.filter-chip').forEach(c => {
@@ -2738,10 +2833,18 @@
         s.x      = parseInt(document.getElementById('bg-x').value);
         s.y      = parseInt(document.getElementById('bg-y').value);
         if (!s.filter) s.filter = 'none';
-        document.getElementById('bg-scale-val').innerText  = s.scale  + '%';
+        // Sync number inputs
+        document.getElementById('bg-scale-num').value  = s.scale;
+        document.getElementById('bg-x-num').value      = s.x;
+        document.getElementById('bg-y-num').value      = s.y;
         document.getElementById('bg-rotate-val').innerText = s.rotate + '°';
-        document.getElementById('bg-x-val').innerText      = s.x;
-        document.getElementById('bg-y-val').innerText      = s.y;
+        // Apply to all frames if checkbox checked
+        if (document.getElementById('bg-apply-all').checked) {
+            frames.forEach(f => {
+                if (!f.bgSettings) f.bgSettings = {};
+                Object.assign(f.bgSettings, { scale: s.scale, rotate: s.rotate, x: s.x, y: s.y });
+            });
+        }
         renderBgStyles();
     }
 
@@ -2773,6 +2876,9 @@
         document.getElementById('bg-rotate').value = 0;
         document.getElementById('bg-x').value      = 0;
         document.getElementById('bg-y').value      = 0;
+        document.getElementById('bg-scale-num').value = 100;
+        document.getElementById('bg-x-num').value = 0;
+        document.getElementById('bg-y-num').value = 0;
         document.querySelectorAll('.filter-chip').forEach((c,i) => c.classList.toggle('active', i === 0));
         applyBgTransform();
     }
@@ -3170,10 +3276,21 @@
             const isInSel = selectedLayers.some(s => s.id === l.id);
             if (isActive) item.classList.add('active-l');
             if (isInSel) item.classList.add('multi-l');
+            if (l.locked) item.classList.add('locked-l');
             const icon = layerIcons[l.type] || '▫️';
             const label = l.nameTag || (l.content ? l.content.substring(0, 18) : (l.type.toUpperCase()));
-            item.innerHTML = '<span class="sb-layer-icon">' + icon + '</span>' + label;
+            // Lock button
+            const lockBtn = document.createElement('button');
+            lockBtn.className = 'lock-btn';
+            lockBtn.title = l.locked ? 'Unlock layer' : 'Lock layer';
+            lockBtn.innerText = l.locked ? '🔒' : '🔓';
+            lockBtn.onclick = (e) => { e.stopPropagation(); toggleLayerLock(l.id); };
+
+            item.innerHTML = '<span class="sb-layer-icon">' + icon + '</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + label + '</span>';
+            item.appendChild(lockBtn);
             item.onclick = (e) => {
+                if (e.target === lockBtn) return;
+                if (l.locked) return; // Don't select locked layers
                 if (e.shiftKey || e.ctrlKey || e.metaKey) {
                     const idx = selectedLayers.findIndex(s => s.id === l.id);
                     if (idx === -1) selectedLayers.push(l); else selectedLayers.splice(idx, 1);
@@ -3228,7 +3345,118 @@
         if (e.key === 'Escape') {
             if (activeSidePanel) toggleSidePanel(activeSidePanel);
         }
+        // H = toggle UI visibility
+        if (e.key === 'h' || e.key === 'H') {
+            const app = document.getElementById('cc-app');
+            if (app.style.visibility === 'hidden') showEditorUI(); else hideEditorUI();
+        }
     });
+
+    // ══════════════════════════════════════
+    // HIDE / SHOW EDITOR UI
+    // ══════════════════════════════════════
+    function hideEditorUI() {
+        const app = document.getElementById('cc-app');
+        app.style.visibility = 'hidden';
+        // Keep only the canvas visible — viewport is inside cc-app so we need a different approach
+        // Instead: hide top-bar, sidebars, frame-strip; show viewport but hide chrome
+        app.querySelectorAll('#top-bar, #left-sidebar, #frame-strip').forEach(el => {
+            el.style.display = 'none';
+        });
+        // Expand work-area to fill screen
+        const wa = document.getElementById('work-area');
+        if (wa) wa.style.height = '100vh';
+        app.style.visibility = 'visible';
+        document.getElementById('ui-reveal-btn').style.display = 'flex';
+    }
+
+    function showEditorUI() {
+        const app = document.getElementById('cc-app');
+        app.querySelectorAll('#top-bar, #left-sidebar, #frame-strip').forEach(el => {
+            el.style.display = '';
+        });
+        const wa = document.getElementById('work-area');
+        if (wa) wa.style.height = '';
+        document.getElementById('ui-reveal-btn').style.display = 'none';
+    }
+
+    // ══════════════════════════════════════
+    // LAYER LOCK SYSTEM
+    // ══════════════════════════════════════
+    function toggleLayerLock(layerId) {
+        const layer = frames[currentIdx].layers.find(l => l.id === layerId);
+        if (!layer) return;
+        layer.locked = !layer.locked;
+        // If we just locked the active layer, deselect it
+        if (layer.locked && activeLayer && activeLayer.id === layerId) {
+            activeLayer = null;
+        }
+        render();
+        renderSidebarLayers();
+    }
+
+    function toggleSelectedLayerLock() {
+        if (!activeLayer) return;
+        toggleLayerLock(activeLayer.id);
+    }
+
+    // ══════════════════════════════════════
+    // SELECTION OUTLINE OPACITY
+    // ══════════════════════════════════════
+    function updateSelectionOpacity(val) {
+        const opacity = parseInt(val) / 100;
+        document.getElementById('sel-opacity-val').innerText = val + '%';
+        // Apply via CSS: we override the active layer outline using injected style
+        let styleEl = document.getElementById('sel-opacity-style');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'sel-opacity-style';
+            document.head.appendChild(styleEl);
+        }
+        const hex = Math.round(opacity * 255).toString(16).padStart(2, '0');
+        styleEl.textContent = `.layer.active { outline: 2px solid #ff7a00${hex} !important; outline-offset: 1px; }`;
+        localStorage.setItem('cc-sel-opacity', val);
+    }
+
+    function toggleEditorPrefs() {
+        const panel = document.getElementById('editor-prefs-panel');
+        panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+    }
+    function closeEditorPrefs() {
+        document.getElementById('editor-prefs-panel').style.display = 'none';
+    }
+
+    // ══════════════════════════════════════
+    // BG RECROP
+    // ══════════════════════════════════════
+    function openBgRecrop() {
+        const f = frames[currentIdx];
+        if (!f.background || (!f.background.startsWith('http') && !f.background.startsWith('data:image'))) return;
+        currentImportType = 'bg';
+        pendingBgImageSrc = f.background;
+        const target = document.getElementById('crop-target');
+        const ratio = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
+        const initCropper = () => {
+            if (cropper) cropper.destroy();
+            cropper = new Cropper(target, { aspectRatio: ratio, viewMode: 1 });
+        };
+        document.getElementById('bg-edit-panel').style.display = 'none';
+        document.getElementById('crop-modal').style.display = 'flex';
+        target.onload = initCropper;
+        if (target.src === f.background && target.complete) initCropper();
+        else target.src = f.background;
+    }
+
+    // ══════════════════════════════════════
+    // INIT SAVED PREFERENCES
+    // ══════════════════════════════════════
+    (function initEditorPrefs() {
+        const savedOpacity = localStorage.getItem('cc-sel-opacity');
+        if (savedOpacity !== null) {
+            document.getElementById('sel-opacity-slider').value = savedOpacity;
+            updateSelectionOpacity(savedOpacity);
+        }
+    })();
 
     // ── Draggable Transform UI ──
     (function() {
