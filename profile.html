@@ -221,9 +221,39 @@
         .crop-btn { padding: 12px 30px; border-radius: 20px; border: none; font-weight: 800; cursor: pointer; font-size: 14px; }
         .crop-btn-confirm { background: var(--accent); color: #000; }
         .crop-btn-cancel { background: #222; color: white; border: 1px solid var(--border); }
+
+        /* ── Loading Screen ── */
+        #loading-screen {
+            position: fixed; inset: 0; z-index: 99999;
+            background: #0f0f11;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 20px;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        #loading-screen.hidden {
+            opacity: 0; visibility: hidden; pointer-events: none;
+        }
+        #loading-screen img {
+            width: 120px; height: 120px; object-fit: contain;
+        }
+        #loading-screen .loading-text {
+            font-size: 13px; font-weight: 800; color: #444;
+            letter-spacing: 2px; text-transform: uppercase;
+            animation: loadingPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes loadingPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
+
+<div id="loading-screen">
+    <img src="https://media.discordapp.net/attachments/1472088820584419450/1475696543628656782/IMG_1899.gif?ex=699e6d01&is=699d1b81&hm=67222fde490cea1621bf751f5755e6d4188fbf1ea2db7be8292bef5258252ee5&=" alt="Loading...">
+    <div class="loading-text">Loading ComicCore…</div>
+</div>
 
     <!-- Followers/Following modal -->
     <div class="fol-overlay" id="fol-overlay" onclick="closeFolModal()">
@@ -500,13 +530,16 @@
             }
 
             if (currentViewedHandle) {
-                loadPublicProfile(currentViewedHandle);
+                await loadPublicProfile(currentViewedHandle);
             } else if (myProfile.handle) {
                 openEditor();
             } else {
                 alert('Could not load your profile. Please sign in again.');
                 location.href = 'login.html';
             }
+            // Hide loading screen once profile data is ready
+            const loader = document.getElementById('loading-screen');
+            if (loader) loader.classList.add('hidden');
         }
 
         async function loadPublicProfile(handle) {
