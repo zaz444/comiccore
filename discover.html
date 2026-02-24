@@ -109,6 +109,22 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 .tile-follow-btn.loading { opacity: .5; pointer-events: none; }
 .tile-follow-btn:hover { opacity: .85; }
 
+/* ── Creator search result cards ── */
+.creator-card {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 5px; cursor: pointer; transition: .2s;
+  padding: 6px 4px; border-radius: 12px;
+}
+.creator-card:hover { background: rgba(255,255,255,.05); }
+.creator-card img {
+  width: 46px; height: 46px; border-radius: 50%; object-fit: cover;
+  background: #222; border: 2px solid #2a2a2a;
+}
+.creator-card div {
+  font-size: 10px; font-weight: 800; color: #aaa;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 72px; text-align: center;
+}
+
 /* ── Divider ── */
 .feed-divider {
   height: 1px; background: linear-gradient(to right, transparent, #222, transparent);
@@ -1232,11 +1248,15 @@ async function filterSearch() {
     .limit(8);
   if (profiles?.length) {
     creatorSection.style.display = 'block';
-    document.getElementById('creatorResults').innerHTML = profiles.map(p => `
-      <div class="creator-card" onclick="location.href='profile.html?u=${esc(p.handle)}'">
-        <img src="${esc(p.pic||'')}" onerror="this.src=''">
+    document.getElementById('creatorResults').innerHTML = profiles.map(p => {
+      const picHtml = p.pic
+        ? `<img src="${esc(p.pic)}" onerror="this.style.display='none'">`
+        : `<div style="width:46px;height:46px;border-radius:50%;background:#222;border:2px solid #333;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">👤</div>`;
+      return `<div class="creator-card" onclick="location.href='profile.html?u=${esc(p.handle)}'">
+        ${picHtml}
         <div>@${esc(p.handle)}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } else {
     creatorSection.style.display = 'none';
   }
