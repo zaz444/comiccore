@@ -192,8 +192,16 @@
         if (name === 'library') loadLibrary();
     }
 
-    function applyBg(css) {
-        localStorage.setItem('pending_background', css);
+    function applyBg(css, bgId) {
+        if (bgId !== undefined) {
+            // Library image: store only the ID to avoid localStorage size limits (base64 can be huge)
+            localStorage.setItem('pending_bg_id', bgId);
+            localStorage.removeItem('pending_background');
+        } else {
+            // Color or gradient: small enough to store directly
+            localStorage.setItem('pending_background', css);
+            localStorage.removeItem('pending_bg_id');
+        }
         goBack();
     }
 
@@ -289,15 +297,21 @@
 
             const card = document.createElement('div');
             card.className = 'bg-card' + (!isMatch ? ' mismatch' : '');
+            // Use innerHTML for structure but NOT for inline base64 onclick (breaks with large data)
             card.innerHTML = `
-                <img src="${bg.image_data}" onclick="applyBg('${bg.image_data}')">
+                <img src="${bg.image_data}" style="cursor:pointer;">
                 <div class="bg-info">
                     <div style="overflow:hidden;">
                         <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(bg.name || 'BG').toUpperCase()}</div>
                         <span class="ratio-badge ${badgeClass}">${badgeText}</span>
                     </div>
-                    <span class="bg-delete" onclick="deleteBG(${bg.id}, event)">✕</span>
+                    <span class="bg-delete">✕</span>
                 </div>`;
+            // Safe event listeners — avoid embedding base64 in inline onclick attributes
+            const bgId = bg.id;
+            const imageData = bg.image_data;
+            card.querySelector('img').addEventListener('click', () => applyBg(imageData, bgId));
+            card.querySelector('.bg-delete').addEventListener('click', (e) => deleteBG(bgId, e));
             container.appendChild(card);
         });
     }

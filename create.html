@@ -708,6 +708,44 @@
     </div>
 </div>
 
+<!-- ── Background Import Choice Modal ── -->
+<div id="bg-import-choice-modal" class="overlay-full" style="display:none;">
+    <div style="background:var(--card); border-radius:24px; padding:28px; width:90%; max-width:400px; border:1px solid var(--border); display:flex; flex-direction:column; gap:18px; box-shadow:0 20px 60px rgba(0,0,0,0.7);">
+        <div style="text-align:center;">
+            <div style="font-size:13px; font-weight:900; color:var(--accent); letter-spacing:2px; text-transform:uppercase; margin-bottom:6px;">Import Background</div>
+            <div style="font-size:11px; color:#555; font-weight:600;">How would you like to import this image?</div>
+        </div>
+        <div style="width:100%; height:140px; background:#000; border-radius:12px; overflow:hidden;">
+            <img id="bg-choice-preview" style="width:100%; height:100%; object-fit:cover;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <button onclick="bgChoiceCrop()" style="
+                display:flex; align-items:center; gap:14px; padding:16px 18px;
+                background:#1a1a1a; border:2px solid #2c2c2e; border-radius:14px;
+                cursor:pointer; text-align:left; transition:0.2s; width:100%; font-family:inherit;
+                color:white;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='#2c2c2e'">
+                <span style="font-size:26px;">✂️</span>
+                <div>
+                    <div style="font-size:13px; font-weight:900; color:white;">Crop Import</div>
+                    <div style="font-size:11px; color:#666; margin-top:2px;">Manually adjust the crop to fit your canvas ratio.</div>
+                </div>
+            </button>
+            <button onclick="bgChoiceFixed()" style="
+                display:flex; align-items:center; gap:14px; padding:16px 18px;
+                background:#1a1a1a; border:2px solid #2c2c2e; border-radius:14px;
+                cursor:pointer; text-align:left; transition:0.2s; width:100%; font-family:inherit;
+                color:white;" onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='#2c2c2e'">
+                <span style="font-size:26px;">⚡</span>
+                <div>
+                    <div style="font-size:13px; font-weight:900; color:var(--teal);">Fixed Import</div>
+                    <div style="font-size:11px; color:#666; margin-top:2px;">Auto-center crop to canvas ratio. No extra steps.</div>
+                </div>
+            </button>
+        </div>
+        <button onclick="closeBgChoiceModal()" style="padding:11px; background:#111; color:#555; border:none; border-radius:12px; font-weight:700; cursor:pointer; font-size:12px; font-family:inherit;">Cancel</button>
+    </div>
+</div>
+
 <!-- ── FX Panel (layer-level blur + filters, multi-select) ── -->
 
 <!-- ── FLOATING PANELS (unchanged) ── -->
@@ -1242,6 +1280,31 @@
         location.href = 'backgroundsource.html';
     }
 
+        // ── Helper: apply a pending background after any load path ──
+        function applyPendingBg(pendingBg, pendingBgId) {
+            // pending_bg_id: library image referenced by ID (avoids localStorage size limits)
+            if (pendingBgId) {
+                localStorage.removeItem('pending_bg_id');
+                currentImportType = 'bg';
+                _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single().then(({ data }) => {
+                    if (data && data.image_data) showBgImportChoice(data.image_data);
+                });
+                return;
+            }
+            if (!pendingBg) return;
+            localStorage.removeItem('pending_background');
+            const isImageData = pendingBg.startsWith('http') || pendingBg.startsWith('data:image');
+            if (isImageData) {
+                // Show Crop / Fixed Import choice instead of going straight to cropper
+                currentImportType = 'bg';
+                showBgImportChoice(pendingBg);
+            } else {
+                // Solid color or CSS gradient — apply directly
+                frames[currentIdx].background = pendingBg;
+                render();
+            }
+        }
+
         window.onload = function() {
         // FPS counter
         if (localStorage.getItem('cc-show-fps') === 'true') {
@@ -1259,6 +1322,10 @@
             requestAnimationFrame(tick);
         }
 
+        // Grab pending bg keys EARLY — before any early returns wipe them
+        const pendingBg    = localStorage.getItem('pending_background');
+        const pendingBgId  = localStorage.getItem('pending_bg_id');
+
         const resumeId = localStorage.getItem('active_draft_id');
         if (resumeId) {
             const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
@@ -1268,6 +1335,8 @@
                 activeDraftId = resumeId;
                 const savedRatio = found.ratio || { w: 1, h: 1 };
                 setRatio(savedRatio.w, savedRatio.h);
+                // ✅ FIX: process pending background even when resuming a draft
+                applyPendingBg(pendingBg, pendingBgId);
                 return;
             }
         }
@@ -1297,12 +1366,13 @@
                     img.src = data.cover; img.style.display = 'block';
                     document.getElementById('cover-label').style.display = 'none';
                 }
+                // ✅ FIX: process pending background even when loading a comic for editing
+                applyPendingBg(pendingBg, pendingBgId);
             });
             return;
         }
 
         // ── Returning from backgroundsource.html ──
-        const pendingBg     = localStorage.getItem('pending_background');
         const pendingFrames = localStorage.getItem('cc-pending-frames');
 
         if (pendingFrames) {
@@ -1328,27 +1398,7 @@
         }
 
         // Apply background chosen from backgroundsource.html
-        if (pendingBg) {
-            localStorage.removeItem('pending_background');
-            const isImageData = pendingBg.startsWith('http') || pendingBg.startsWith('data:image');
-            if (isImageData) {
-                // Run through cropper locked to the CORRECT canvas ratio
-                currentImportType = 'bg';
-                const cropModal = document.getElementById('crop-modal');
-                const target    = document.getElementById('crop-target');
-                cropModal.style.display = 'flex';
-                target.onload = () => {
-                    if (cropper) cropper.destroy();
-                    const ratio = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
-                    cropper = new Cropper(target, { aspectRatio: ratio, viewMode: 1 });
-                };
-                target.src = pendingBg;
-            } else {
-                // Solid color or CSS gradient — apply directly, no cropper needed
-                frames[currentIdx].background = pendingBg;
-                render();
-            }
-        }
+        applyPendingBg(pendingBg, pendingBgId);
     };
 
     function deselectLayer(e) {
@@ -1713,16 +1763,19 @@
         if(!file) return;
         const reader = new FileReader();
         reader.onload = (ev) => {
-            document.getElementById('crop-modal').style.display = 'flex';
-            const target = document.getElementById('crop-target');
-            target.src = ev.target.result;
-            if(cropper) cropper.destroy();
-            const bgRatio = (currentImportType === 'bg' && canvasRatio)
-                ? (canvasRatio.w / canvasRatio.h)
-                : NaN;
-            cropper = new Cropper(target, { aspectRatio: bgRatio, viewMode: 1 });
+            if (currentImportType === 'bg') {
+                // Show Crop / Fixed Import choice for background uploads
+                showBgImportChoice(ev.target.result);
+            } else {
+                document.getElementById('crop-modal').style.display = 'flex';
+                const target = document.getElementById('crop-target');
+                target.src = ev.target.result;
+                if(cropper) cropper.destroy();
+                cropper = new Cropper(target, { aspectRatio: NaN, viewMode: 1 });
+            }
         };
         reader.readAsDataURL(file);
+        e.target.value = '';
     };
 
     document.getElementById('apply-crop-btn').onclick = () => {
@@ -1926,7 +1979,68 @@
     function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
     function closeActionModal() { document.getElementById('action-modal').style.display = 'none'; }
     function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
-    function closeCrop() { document.getElementById('crop-modal').style.display = 'none'; if(cropper) cropper.destroy(); }
+    function closeCrop() { document.getElementById('crop-modal').style.display = 'none'; if(cropper) { cropper.destroy(); cropper = null; } }
+
+    // Bg Import Choice Modal
+    let pendingBgImageSrc = null;
+
+    function showBgImportChoice(src) {
+        pendingBgImageSrc = src;
+        document.getElementById('bg-choice-preview').src = src;
+        document.getElementById('bg-import-choice-modal').style.display = 'flex';
+    }
+
+    function closeBgChoiceModal() {
+        document.getElementById('bg-import-choice-modal').style.display = 'none';
+        pendingBgImageSrc = null;
+    }
+
+    function bgChoiceCrop() {
+        document.getElementById('bg-import-choice-modal').style.display = 'none';
+        const target = document.getElementById('crop-target');
+        const initCropper = () => {
+            if (cropper) cropper.destroy();
+            const ratio = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
+            cropper = new Cropper(target, { aspectRatio: ratio, viewMode: 1 });
+        };
+        document.getElementById('crop-modal').style.display = 'flex';
+        target.onload = initCropper;
+        if (target.src === pendingBgImageSrc && target.complete) {
+            initCropper();
+        } else {
+            target.src = pendingBgImageSrc;
+        }
+    }
+
+    function bgChoiceFixed() {
+        document.getElementById('bg-import-choice-modal').style.display = 'none';
+        const src = pendingBgImageSrc;
+        pendingBgImageSrc = null;
+        const img = new Image();
+        img.onload = () => {
+            const targetRatio = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
+            const imgRatio = img.width / img.height;
+            let sx, sy, sw, sh;
+            if (imgRatio > targetRatio) {
+                sh = img.height; sw = img.height * targetRatio;
+                sy = 0; sx = (img.width - sw) / 2;
+            } else {
+                sw = img.width; sh = img.width / targetRatio;
+                sx = 0; sy = (img.height - sh) / 2;
+            }
+            const offscreen = document.createElement('canvas');
+            offscreen.width  = 1200;
+            offscreen.height = Math.round(1200 / targetRatio);
+            const ctx = offscreen.getContext('2d');
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, offscreen.width, offscreen.height);
+            const b64 = offscreen.toDataURL('image/jpeg', 0.9);
+            saveState();
+            frames[currentIdx].background = b64;
+            render();
+        };
+        img.crossOrigin = 'anonymous';
+        img.src = src;
+    }
     function toggleDrawer() { document.getElementById('frame-drawer').classList.toggle('open'); }
     function handleExit() { 
         if (frames && frames.length) saveOffline(true);
