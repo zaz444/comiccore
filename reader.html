@@ -412,16 +412,24 @@ function buildShareUrl() {
 // Mirrors create.html's render() logic exactly so what you
 // see in the editor is what readers see.
 // ═══════════════════════════════════════════════════════════
+function getCanvasRatio() {
+  // 1. Top-level DB column (set by new publishes after the fix)
+  if (comic?.canvas_ratio?.w && comic?.canvas_ratio?.h) return comic.canvas_ratio;
+  // 2. Stored on individual frames (legacy path — some older publishes stored it here)
+  for (const f of frames) {
+    if (f?.ratio?.w && f?.ratio?.h) return f.ratio;
+    if (f?.canvas_ratio?.w && f?.canvas_ratio?.h) return f.canvas_ratio;
+  }
+  // 3. Default
+  return { w: 1, h: 1 };
+}
+
 function sizeFrame() {
   const cf = document.getElementById('comic-frame');
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  // canvas_ratio can be top-level (new publish) or missing (old publish — fallback to 1:1)
-  // Never collapse to square if ratio is defined
-  let r = comic?.canvas_ratio;
-  if (!r || !r.w || !r.h) r = { w: 1, h: 1 };
-
+  const r = getCanvasRatio();
   const ar = r.w / r.h;
   let cw, ch;
   if (vw / vh > ar) { ch = vh * 0.98; cw = ch * ar; }
@@ -436,8 +444,7 @@ function sizeFrame() {
 function getEditorDimensions() {
   // create.html uses BASE_SIZE=900 on the longest edge
   // Must match setRatio() in create.html exactly
-  let r = comic?.canvas_ratio;
-  if (!r || !r.w || !r.h) r = { w: 1, h: 1 };
+  const r = getCanvasRatio();
   const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
   const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
   return { ew, eh };
