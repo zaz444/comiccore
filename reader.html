@@ -413,14 +413,26 @@ function buildShareUrl() {
 // see in the editor is what readers see.
 // ═══════════════════════════════════════════════════════════
 function getCanvasRatio() {
-  // 1. Top-level DB column (set by new publishes after the fix)
+  // 1. Top-level DB column (set by publishes after the fix)
   if (comic?.canvas_ratio?.w && comic?.canvas_ratio?.h) return comic.canvas_ratio;
-  // 2. Stored on individual frames (legacy path — some older publishes stored it here)
+  // 2. Per-frame _ratio stamped by editor (most reliable for older comics re-saved as draft)
   for (const f of frames) {
-    if (f?.ratio?.w && f?.ratio?.h) return f.ratio;
+    if (f?._ratio?.w && f?._ratio?.h) return f._ratio;
+    if (f?.ratio?.w  && f?.ratio?.h)  return f.ratio;
     if (f?.canvas_ratio?.w && f?.canvas_ratio?.h) return f.canvas_ratio;
   }
-  // 3. Default
+  // 3. URL param ?ratio=4:3 (passed by discover.html as a hint for comics with known ratio)
+  const urlRatio = new URLSearchParams(location.search).get('ratio');
+  if (urlRatio) {
+    const parts = urlRatio.split(':').map(Number);
+    if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) return { w: parts[0], h: parts[1] };
+  }
+  // 4. localStorage cc-active-ratio (valid if reader opened immediately after editing)
+  try {
+    const stored = JSON.parse(localStorage.getItem('cc-active-ratio') || 'null');
+    if (stored?.w && stored?.h) return stored;
+  } catch(e) {}
+  // 5. Default: 1:1
   return { w: 1, h: 1 };
 }
 
@@ -442,8 +454,7 @@ function sizeFrame() {
 }
 
 function getEditorDimensions() {
-  // create.html uses BASE_SIZE=900 on the longest edge
-  // Must match setRatio() in create.html exactly
+  // create.html uses BASE_SIZE=900 on the longest edge — must match setRatio() exactly
   const r = getCanvasRatio();
   const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
   const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
