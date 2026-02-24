@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComicCore | Squad Chat</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* ── Header ── */
+        .header {
+            padding: 12px 16px; border-bottom: 1px solid #1a1a1a;
+            background: rgba(0,0,0,0.92); backdrop-filter: blur(16px);
+            display: flex; align-items: center; gap: 12px; flex-shrink: 0; z-index: 10;
+        }
+        .back-btn {
+            width: 34px; height: 34px; border-radius: 10px; background: #111;
+            border: 1px solid #1e1e1e; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; flex-shrink: 0; transition: .15s;
+            color: #888; font-size: 16px; text-decoration: none;
+        }
+        .back-btn:hover { border-color: #444; color: white; }
+
+        #chatPic {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: #1a1a1a; background-size: cover; background-position: center;
+            border: 1px solid #1e1e1e; flex-shrink: 0;
+        }
+        .header-info { flex: 1; min-width: 0; }
+        .header-name { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .header-sub { font-size: 11px; color: #444; font-weight: 600; margin-top: 1px; }
+
+        /* ── Chat container ── */
+        #chatContainer {
+            flex: 1; overflow-y: auto; padding: 16px;
+            display: flex; flex-direction: column; gap: 14px;
+            scroll-behavior: smooth;
+        }
+        #chatContainer::-webkit-scrollbar { width: 0; }
+
+        /* ── Message rows ── */
+        .msg-row { display: flex; align-items: flex-end; gap: 8px; width: 100%; }
+        .mine { justify-content: flex-end; }
+        .theirs { justify-content: flex-start; }
+
+        .msg-wrapper { display: flex; flex-direction: column; max-width: 78%; }
+        .sender-name { font-size: 10px; color: #444; font-weight: 800; margin-bottom: 3px; margin-left: 2px; }
+        .mine .sender-name { display: none; }
+
+        .bubble {
+            padding: 10px 14px; border-radius: 18px;
+            font-size: 14px; line-height: 1.45; word-wrap: break-word;
+        }
+        .mine .bubble {
+            background: var(--accent); color: #000;
+            border-bottom-right-radius: 4px;
+        }
+        .theirs .bubble {
+            background: #1a1a1a; color: #f0f0f0;
+            border-bottom-left-radius: 4px; border: 1px solid #222;
+        }
+
+        .reaction-badge {
+            position: absolute; bottom: -8px; right: 8px;
+            background: #111; border: 1px solid #222;
+            border-radius: 10px; padding: 2px 6px; font-size: 11px; z-index: 2;
+        }
+        .msg-wrapper { position: relative; }
+
+        /* ── Input area ── */
+        .input-area {
+            padding: 12px 16px 28px; background: #000;
+            border-top: 1px solid #111;
+            display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+        }
+        .msg-input {
+            flex: 1; background: #0f0f0f; border: 1px solid #1e1e1e;
+            border-radius: 22px; padding: 11px 16px; color: white;
+            font-size: 14px; font-family: inherit; outline: none; transition: .15s;
+            line-height: 1.4;
+        }
+        .msg-input:focus { border-color: #2a2a2a; }
+        .msg-input::placeholder { color: #2a2a2a; }
+
+        /* ── Send button ── */
+        .send-btn {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: var(--accent); border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; flex-shrink: 0; transition: .15s;
+            box-shadow: 0 2px 10px rgba(255,122,0,0.3);
+        }
+        .send-btn:hover { opacity: .88; transform: scale(1.05); }
+        .send-btn:active { transform: scale(0.95); }
+        .send-btn svg {
+            width: 18px; height: 18px; fill: #000;
+            transform: translateX(1px); /* optical center */
+        }
+
+        /* ── Error screen ── */
+        .error-screen {
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100dvh; text-align: center; gap: 10px; padding: 30px;
+        }
+        .error-screen h2 { margin: 0; font-size: 20px; }
+        .error-screen p { color: #555; font-size: 13px; margin: 0; }
+        .error-btn {
+            margin-top: 10px; padding: 11px 24px; border-radius: 20px;
+            background: var(--accent); color: #000; border: none;
+            font-weight: 800; cursor: pointer; font-size: 13px; font-family: inherit;
+        }
+
+        /* ── Date divider ── */
+        .date-divider {
+            text-align: center; font-size: 10px; font-weight: 800;
+            color: #2a2a2a; letter-spacing: 1px; text-transform: uppercase;
+            padding: 4px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="error-screen" id="errorScreen">
+    <div style="font-size:40px;">🔒</div>
+    <h2>Access Denied</h2>
+    <p>You must be a member of this squad to view the chat.</p>
+    <button class="error-btn" onclick="location.href='squads.html'">Back to Squads</button>
+</div>
+
+<div id="mainUI" style="display:flex; flex-direction:column; height:100dvh;">
+    <div class="header">
+        <a class="back-btn" onclick="location.href='squads.html'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+        </a>
+        <div id="chatPic"></div>
+        <div class="header-info">
+            <div class="header-name" id="headerTitle">…</div>
+            <div class="header-sub">Squad Chat</div>
+        </div>
+    </div>
+
+    <div id="chatContainer"></div>
+
+    <div class="input-area">
+        <input class="msg-input" type="text" id="msgInput" placeholder="Message the squad…" autocomplete="off">
+        <button class="send-btn" onclick="sendMessage()" id="sendBtn">
+            <!-- Paper plane / send icon -->
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script>
+    const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+
+    const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const myHandle  = myProfile.handle;
+    const activeSquadId = new URLSearchParams(window.location.search).get('id');
+
+    async function init() {
+        if (!activeSquadId || !myHandle) return showError();
+
+        const { data: squad } = await _sb.from('team_tickets').select('*').eq('id', activeSquadId).single();
+        if (!squad) return showError();
+
+        const isOwner = squad.owner_handle === myHandle;
+        if (!isOwner) {
+            const { data: req } = await _sb.from('team_requests')
+                .select('status')
+                .eq('ticket_id', activeSquadId)
+                .eq('sender_handle', myHandle)
+                .single();
+            if (!req || req.status !== 'accepted') return showError();
+        }
+
+        document.getElementById('headerTitle').innerText = squad.team_name;
+        if (squad.pfp) document.getElementById('chatPic').style.backgroundImage = `url(${squad.pfp})`;
+
+        await loadMessages();
+        setupRealtime();
+    }
+
+    function showError() {
+        document.getElementById('mainUI').style.display = 'none';
+        document.getElementById('errorScreen').style.display = 'flex';
+    }
+
+    function setupRealtime() {
+        _sb.channel(`squad_chat_${activeSquadId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, payload => {
+                const m = payload.new;
+                if (String(m.ticket_id) === String(activeSquadId)) appendMessage(m);
+            })
+            .subscribe();
+    }
+
+    function isImg(text) {
+        if (!text) return false;
+        if (text.startsWith('data:image')) return true;
+        return /\.(jpeg|jpg|gif|png|webp|svg)/i.test(text) && text.startsWith('http');
+    }
+
+    function buildBubble(m) {
+        if (isImg(m.content)) {
+            return `<div class="bubble" style="padding:4px;"><img src="${m.content}" style="width:100%;border-radius:14px;display:block;" loading="lazy"></div>`;
+        }
+        return `<div class="bubble">${esc(m.content)}</div>`;
+    }
+
+    async function loadMessages() {
+        const { data } = await _sb.from('team_messages')
+            .select('*')
+            .eq('ticket_id', activeSquadId)
+            .order('created_at', { ascending: true });
+
+        const container = document.getElementById('chatContainer');
+        container.innerHTML = '';
+
+        let lastDate = null;
+        data?.forEach(m => {
+            const msgDate = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+            if (msgDate !== lastDate) {
+                const div = document.createElement('div');
+                div.className = 'date-divider';
+                div.innerText = msgDate;
+                container.appendChild(div);
+                lastDate = msgDate;
+            }
+            appendMessage(m);
+        });
+    }
+
+    function appendMessage(m) {
+        if (document.getElementById(`row-${m.id}`)) return;
+        const isMine = m.sender_handle === myHandle;
+        const container = document.getElementById('chatContainer');
+
+        const row = document.createElement('div');
+        row.className = `msg-row ${isMine ? 'mine' : 'theirs'}`;
+        row.id = `row-${m.id}`;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'msg-wrapper';
+        wrapper.innerHTML = `
+            <div class="sender-name">@${esc(m.sender_handle)}</div>
+            ${buildBubble(m)}
+            ${m.reaction ? `<div class="reaction-badge">${m.reaction}</div>` : ''}
+        `;
+
+        row.appendChild(wrapper);
+        container.appendChild(row);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    async function sendMessage() {
+        const input  = document.getElementById('msgInput');
+        const val    = input.value.trim();
+        if (!val) return;
+        input.value  = '';
+        input.focus();
+
+        await _sb.from('team_messages').insert([{
+            ticket_id:      activeSquadId,
+            sender_handle:  myHandle,
+            content:        val
+        }]);
+    }
+
+    function esc(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    window.onload = init;
+    document.getElementById('msgInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+</script>
+</body>
+</html>

@@ -259,8 +259,7 @@
         <button class="card large" onclick="openRatioModal()">Create Comic</button>
         <button class="card large" onclick="location.href='settings.html'">Settings</button>
         
-        <button id="teams-btn" class="card large" onclick="location.href='teams.html'">Teams</button>
-        <button id="conn-btn" class="card large" onclick="location.href='connections.html'">Connections</button>
+        <button id="teams-btn" class="card large" onclick="location.href='squads.html'">Squads</button>
         <button class="card large" onclick="location.href='sprite-editor.html'" style="border-color: var(--teal); color: var(--teal); background: rgba(255,255,255,0.05); border: 2px solid var(--teal);">🎨 Sprite Editor</button>
     </div>
 
@@ -310,42 +309,13 @@
 
                 if (localStorage.getItem('cc-privacy-team') === 'false')
                     document.getElementById('teams-btn').style.display = 'none';
-                if (localStorage.getItem('cc-privacy-friends') === 'false')
-                    document.getElementById('conn-btn').style.display = 'none';
 
-                checkNotifications(user.id);
                 checkTeamNotifications(user.id);
             } else {
                 window.location.href = "login.html";
             }
         }
 
-        async function checkNotifications(userId) {
-            const connBtn = document.getElementById('conn-btn');
-
-            const { count: reqCount } = await supabaseClient
-                .from('friend_requests')
-                .select('*', { count: 'exact', head: true })
-                .eq('receiver_id', userId)
-                .eq('status', 'pending');
-
-            if (reqCount > 0) {
-                connBtn.classList.add('has-request');
-                connBtn.innerText = "Connections (New Request!)";
-                return;
-            }
-
-            const { count: msgCount } = await supabaseClient
-                .from('messages')
-                .select('*', { count: 'exact', head: true })
-                .eq('receiver_id', userId)
-                .eq('is_read', false);
-
-            if (msgCount > 0) {
-                connBtn.classList.add('has-message');
-                connBtn.innerText = "Connections (New Message!)";
-            }
-        }
 
         async function checkTeamNotifications(userId) {
             const teamsBtn = document.getElementById('teams-btn');
@@ -365,7 +335,7 @@
 
                 if (incomingCount > 0) {
                     teamsBtn.classList.add('has-request');
-                    teamsBtn.innerText = "Teams (Join Request!)";
+                    teamsBtn.innerText = "Squads (Join Request!)";
                     return;
                 }
             }
@@ -378,7 +348,7 @@
 
             if (acceptedCount > 0) {
                 teamsBtn.classList.add('has-message');
-                teamsBtn.innerText = "Teams (Request Accepted!)";
+                teamsBtn.innerText = "Squads (Request Accepted!)";
             }
         }
 
