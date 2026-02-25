@@ -76,7 +76,20 @@
 
     /* ── LAYERS ── */
     .layer { position: absolute; cursor: move; user-select: none; transform-origin: center; touch-action: none; z-index: 10; }
-    .layer.active { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 99 !important; }
+    .layer.active { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 99 !important; }
+
+    /* ── RESIZE HANDLES ── */
+    .resize-handle {
+        position: absolute; width: 26px; height: 26px; z-index: 200;
+        background: var(--accent); border: 2px solid #000; border-radius: 5px;
+        touch-action: none; cursor: nwse-resize;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9px; font-weight: 900; color: #000;
+    }
+    .resize-handle.tl { top: -13px; left: -13px; }
+    .resize-handle.tr { top: -13px; right: -13px; cursor: nesw-resize; }
+    .resize-handle.bl { bottom: -13px; left: -13px; cursor: nesw-resize; }
+    .resize-handle.br { bottom: -13px; right: -13px; }
 
     /* ── BUBBLE STYLES (same as PC) ── */
     .speech-bubble { padding: 12px 16px; background: #fff; color: #000; font-weight: 800; text-align: center; min-width: 50px; position: relative; word-wrap: break-word; line-height: 1.35; }
@@ -315,7 +328,7 @@
     .ts-label { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; width: 52px; flex-shrink: 0; letter-spacing: 0.5px; }
     .ts-row input[type=range] { flex: 1; accent-color: var(--accent); }
     .ts-num { width: 50px; background: #111; border: 1px solid #333; color: var(--accent); padding: 5px; border-radius: 7px; font-size: 11px; font-weight: 800; text-align: center; font-family: inherit; outline: none; }
-    .ts-actions { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 16px; }
+    .ts-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
     .ts-act-btn {
         padding: 10px 4px; background: #222; border: 1.5px solid #333;
         color: var(--text); border-radius: 10px; font-size: 11px; font-weight: 800;
@@ -324,6 +337,7 @@
     .ts-act-btn:active { opacity: 0.7; }
     .ts-act-btn.danger { background: rgba(255,59,48,0.1); border-color: rgba(255,59,48,0.3); color: var(--danger); }
     .ts-act-btn.done { background: var(--accent); border-color: var(--accent); color: #000; }
+    #ts-swap-btn { background: rgba(0,210,255,0.12); border-color: rgba(0,210,255,0.4) !important; color: var(--teal) !important; }
 
     /* Text editing row in transform sheet */
     .ts-text-section { border-top: 1px solid #2c2c2e; padding-top: 14px; margin-top: 4px; }
@@ -821,6 +835,7 @@
         </div>
 
         <div class="ts-actions">
+            <button class="ts-act-btn" id="ts-swap-btn" onclick="editCurrentSpriteAction()" style="display:none;">🔄 Swap</button>
             <button class="ts-act-btn" onclick="flipHorizontal()">↔ Flip</button>
             <button class="ts-act-btn" onclick="resetTransform()">↺ Reset</button>
             <button class="ts-act-btn danger" onclick="deleteLayer()">🗑 Del</button>
@@ -844,7 +859,12 @@
     <span id="frame-counter">1 / 1</span>
     <div class="tb-spacer"></div>
     <button class="tb-btn" onclick="saveOffline(false)">💾</button>
+    <button class="tb-btn" onclick="toggleHideUI()" title="Hide UI">👁</button>
     <button class="tb-btn accent" onclick="openPublishModal()">Publish</button>
+</div>
+<!-- Tap-to-show bar when UI is hidden -->
+<div id="hidden-ui-bar" style="display:none; position:fixed; top:0; left:0; right:0; height:38px; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+    <button onclick="toggleHideUI()" style="background:var(--accent);color:#000;border:none;padding:5px 24px;border-radius:20px;font-weight:900;font-size:12px;font-family:inherit;cursor:pointer;">TAP TO SHOW UI</button>
 </div>
 
 <!-- CANVAS VIEWPORT -->
@@ -1008,6 +1028,10 @@ function syncTransformSheet() {
     document.getElementById('bubble-style-change-row').style.display = isBubble ? 'block' : 'none';
     if (isBubble) renderBubbleMiniGrid();
 
+    // Show Swap button only for sprite layers that have packData (i.e. from the sprite library)
+    const swapBtn = document.getElementById('ts-swap-btn');
+    if (swapBtn) swapBtn.style.display = (activeLayer.type === 'img' && activeLayer.packData) ? 'inline-flex' : 'none';
+
     if (activeLayer.type === 'img' && activeLayer.packData) {
         document.getElementById('sprite-nametag-input').value = activeLayer.nameTag || '';
     }
@@ -1120,19 +1144,59 @@ function render() {
         el.style.top = (layer.y || 0) + 'px';
         el.style.position = 'absolute';
 
-        // Touch drag
-        el.addEventListener('touchstart', (e) => { e.preventDefault(); selectLayer(layer); startTouchDrag(e, layer); }, { passive: false });
+        // Tap selects, drag moves — touchstart must stop propagation so viewport pinch isn't triggered
+        el.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) return; // let 2-finger pinch go to viewport
+            e.preventDefault();
+            e.stopPropagation();
+            selectLayer(layer);
+            startTouchDrag(e, layer);
+        }, { passive: false });
         el.addEventListener('mousedown', (e) => { e.preventDefault(); selectLayer(layer); startDrag(e, layer); });
-        // Double-tap opens transform
+
+        // Double-tap: open transform sheet
         let lastTap = 0;
         el.addEventListener('touchend', (e) => {
-            const now = Date.now();
-            if (now - lastTap < 300) {
-                e.preventDefault(); // prevent zoom on double-tap
-                openTransformSheet();
+            if (e.changedTouches.length === 1) {
+                const now = Date.now();
+                if (now - lastTap < 300) { e.preventDefault(); openTransformSheet(); }
+                lastTap = now;
             }
-            lastTap = now;
         }, { passive: false });
+
+        // Resize handles on active sprite layer
+        if (layer === activeLayer && layer.type === 'img') {
+            ['tl','tr','bl','br'].forEach(corner => {
+                const h = document.createElement('div');
+                h.className = 'resize-handle ' + corner;
+                h.textContent = corner === 'br' ? '⤡' : '';
+                h.addEventListener('touchstart', (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    const t0 = ev.touches[0];
+                    const origW = layer.w, origX = layer.x;
+                    const startClientX = t0.clientX;
+                    const isLeft = (corner === 'tl' || corner === 'bl');
+                    const onMove = (mv) => {
+                        mv.preventDefault();
+                        const dx = (mv.touches[0].clientX - startClientX) / vpScale;
+                        const newW = Math.max(30, Math.round(isLeft ? origW - dx : origW + dx));
+                        layer.w = newW;
+                        if (isLeft) layer.x = origX + (origW - newW);
+                        // sync slider if transform sheet is open
+                        const sl = document.getElementById('size-slider');
+                        if (sl) { sl.value = newW; document.getElementById('size-num').value = newW; }
+                        render();
+                    };
+                    const onUp = () => {
+                        document.removeEventListener('touchmove', onMove);
+                        document.removeEventListener('touchend', onUp);
+                    };
+                    document.addEventListener('touchmove', onMove, { passive: false });
+                    document.addEventListener('touchend', onUp);
+                }, { passive: false });
+                el.appendChild(h);
+            });
+        }
 
         canvas.appendChild(el);
     });
@@ -1156,23 +1220,25 @@ function selectLayer(layer) {
 
 // ── TOUCH DRAG ──
 function startTouchDrag(e, layer) {
+    if (e.touches.length > 1) return; // ignore if pinching
     saveState();
     const touch = e.touches[0];
     const canvasRect = canvas.getBoundingClientRect();
-    // Offset from touch point to layer origin, in canvas-local coordinates
-    let startX = touch.clientX - canvasRect.left - layer.x;
-    let startY = touch.clientY - canvasRect.top - layer.y;
-    let moved = false;
+    // getBoundingClientRect is in CSS screen pixels (already scaled by vpScale).
+    // layer.x/y are in logical canvas pixels, so divide screen delta by vpScale.
+    const startX = (touch.clientX - canvasRect.left) / vpScale - layer.x;
+    const startY = (touch.clientY - canvasRect.top) / vpScale - layer.y;
 
     const move = (me) => {
+        if (me.touches.length > 1) return; // ignore mid-drag pinch
         me.preventDefault();
-        moved = true;
         const t = me.touches[0];
         const cRect = canvas.getBoundingClientRect();
         const layerW = layer.w || 100;
         const layerH = layer.h || (layer.fontSize ? layer.fontSize * 2 : 80);
-        layer.x = Math.min(Math.max(t.clientX - cRect.left - startX, 0), cRect.width - layerW);
-        layer.y = Math.min(Math.max(t.clientY - cRect.top - startY, 0), cRect.height - layerH);
+        const cW = canvas.offsetWidth, cH = canvas.offsetHeight;
+        layer.x = Math.min(Math.max((t.clientX - cRect.left) / vpScale - startX, 0), cW - layerW);
+        layer.y = Math.min(Math.max((t.clientY - cRect.top) / vpScale - startY, 0), cH - layerH);
         render();
     };
     const up = () => {
@@ -1403,8 +1469,16 @@ function createActionOption(src, name) {
     return div;
 }
 function handleActionSelect(img, pack, isEditing) {
-    if (isEditing) { saveState(); activeLayer.src = img; }
-    else addSpriteToCanvas(img, pack);
+    if (isEditing && activeLayer) {
+        saveState();
+        // Preserve all transform so sprite stays same size/position/rotation
+        const { w, rotation, x, y, flipped } = activeLayer;
+        activeLayer.src = img;
+        activeLayer.w = w; activeLayer.rotation = rotation;
+        activeLayer.x = x; activeLayer.y = y; activeLayer.flipped = flipped;
+    } else {
+        addSpriteToCanvas(img, pack);
+    }
     closeActionModal(); render();
 }
 function addSpriteToCanvas(src, pack) {
@@ -1822,8 +1896,16 @@ function toggleFtbPanel() {}
 function showFloatToolbar() {}
 function hideFloatToolbar() {}
 function closeFtbPanel() {}
-function hideEditorUI() {}
-function showEditorUI() {}
+function hideEditorUI() { if (document.getElementById('top-bar').style.display !== 'none') toggleHideUI(); }
+function showEditorUI() { if (document.getElementById('top-bar').style.display === 'none') toggleHideUI(); }
+function toggleHideUI() {
+    const isHidden = document.getElementById('top-bar').style.display === 'none';
+    document.getElementById('top-bar').style.display = isHidden ? '' : 'none';
+    document.getElementById('bottom-bar').style.display = isHidden ? '' : 'none';
+    document.getElementById('zoom-controls').style.display = isHidden ? '' : 'none';
+    document.getElementById('hidden-ui-bar').style.display = isHidden ? 'none' : 'flex';
+    if (!isHidden) { closeAllSheets(); closeTransformSheet(); }
+}
 function toggleEditorPrefs() {}
 function closeEditorPrefs() {}
 function toggleOnionSkin() { toggleOnionMobile(); }
@@ -1904,6 +1986,7 @@ let _vpIsPinching = false;
 _vpViewport.addEventListener('touchstart', (e) => {
     _vpTouches = Array.from(e.touches);
     if (_vpTouches.length === 2) {
+        e.preventDefault(); // MUST block browser zoom — requires passive:false
         _vpIsPinching = true;
         const dx = _vpTouches[1].clientX - _vpTouches[0].clientX;
         const dy = _vpTouches[1].clientY - _vpTouches[0].clientY;
@@ -1914,7 +1997,7 @@ _vpViewport.addEventListener('touchstart', (e) => {
     } else {
         _vpIsPinching = false;
     }
-}, { passive: true });
+}, { passive: false });
 
 _vpViewport.addEventListener('touchmove', (e) => {
     _vpTouches = Array.from(e.touches);
@@ -1959,24 +2042,6 @@ _vpViewport.addEventListener('touchend', (e) => {
     _vpTouches = Array.from(e.touches);
 }, { passive: true });
 
-// ══════════════════════════════════════
-// FIX: Sprite action swap keeps size/position
-// ══════════════════════════════════════
-const _origHandleActionSelect = handleActionSelect;
-handleActionSelect = function(img, pack, isEditing) {
-    if (isEditing && activeLayer) {
-        saveState();
-        const { w, rotation, x, y, flipped } = activeLayer;
-        activeLayer.src = img;
-        activeLayer.w = w; activeLayer.rotation = rotation;
-        activeLayer.x = x; activeLayer.y = y; activeLayer.flipped = flipped;
-        closeActionModal();
-        render();
-    } else {
-        _origHandleActionSelect(img, pack, isEditing);
-    }
-};
-
 // Init
 _applyVpTransform();
 </script>
@@ -1990,7 +2055,7 @@ _applyVpTransform();
 
 <!-- ── ONION OPACITY POPUP ── -->
 <div id="onion-opacity-popup">
-    <span>🧅 Onion</span>
+    <span>🧅 Ghost</span>
     <input type="range" id="onion-opacity" min="0.1" max="0.7" step="0.1" value="0.3"
         style="width:100px; accent-color:var(--teal);" oninput="render()">
     <button onclick="document.getElementById('onion-opacity-popup').classList.remove('visible')"
