@@ -220,9 +220,16 @@
     window.onload = () => {
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         myHandle = user.handle || null;
-        if (user.permanent_id === ADMIN_ID || (user.handle && user.handle.includes(ADMIN_ID))) {
+        
+        // --- AUTHORIZATION FIX FOR @jeffyplays ---
+        const isAuthorized = user.permanent_id === ADMIN_ID || 
+                             (user.handle && (user.handle.includes(ADMIN_ID) || 
+                             user.handle.toLowerCase() === '@jeffyplays'));
+
+        if (isAuthorized) {
             document.getElementById('admin-panel').style.display = 'block';
         }
+        
         fetchLibrary();
         if (myHandle) fetchMySprites();
 
@@ -739,7 +746,13 @@
         const adminContainer = document.getElementById('admin-action-container');
         adminContainer.innerHTML = '';
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
-        if (!isPersonal && (user.permanent_id === ADMIN_ID || (user.handle && user.handle.includes(ADMIN_ID)))) {
+        
+        // --- AUTHORIZATION CHECK FOR ADMIN ACTIONS ---
+        const isAdmin = user.permanent_id === ADMIN_ID || 
+                        (user.handle && (user.handle.includes(ADMIN_ID) || 
+                        user.handle.toLowerCase() === '@jeffyplays'));
+
+        if (!isPersonal && isAdmin) {
             const delBtn = document.createElement('button');
             delBtn.className = 'admin-btn-delete';
             delBtn.innerText = 'DELETE ASSET PACK';
