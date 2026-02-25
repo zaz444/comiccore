@@ -160,7 +160,7 @@
             <div class="preview-box" id="main-preview">MAIN</div>
             <div style="flex:1">
                 <input type="text" id="sprite-name" placeholder="Character Name" style="width:100%; padding:12px; background:#000; border:1px solid #333; color:white; border-radius:6px; margin-bottom:10px;">
-                <input type="text" id="sprite-tags" placeholder="Tags (e.g. warrior, female, fantasy)" style="width:100%; padding:12px; background:#000; border:1px solid #333; color:#aaa; border-radius:6px; margin-bottom:10px; font-size:12px;">
+                <input type="text" id="sprite-tags" placeholder="🏷 Tags (comma-separated: warrior, female, fantasy)" style="width:100%; padding:12px; background:#111; border:1px solid var(--teal); color:white; border-radius:6px; margin-bottom:10px; font-size:12px; outline:none;">
                 <input type="file" id="main-file-input" accept="image/*" onchange="previewMain(this)">
             </div>
         </div>
@@ -209,9 +209,16 @@
     const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
     const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // RESTORED ID PER YOUR INPUT
     const ADMIN_ID = "de0b7378-e779-4e0d-9e3d-b33bf643df3e";
-    
+
+    // Check all possible field names Supabase / localStorage might use for the UUID
+    function checkIsAdmin(user) {
+        const uid = user.permanent_id || user.id || user.user_id || user.uid || '';
+        if (uid === ADMIN_ID) return true;
+        const handle = (user.handle || user.username || '').toLowerCase().replace('@', '');
+        return handle === 'jeffyplays';
+    }
+
     let mainBase64 = "";
     let allSprites = [];
     let allTags = new Set();
@@ -219,13 +226,19 @@
     let activeTagFilter = null;
     let myHandle = null;
 
-    window.onload = () => {
+    window.onload = async () => {
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         myHandle = user.handle || null;
-        
-        // CHECK: Match the Admin ID or the specific jeffyplays handle
-        const isAdmin = user.permanent_id === ADMIN_ID || 
-                        (myHandle && myHandle.toLowerCase().replace('@','') === 'jeffyplays');
+
+        // Check localStorage profile first
+        let isAdmin = checkIsAdmin(user);
+        // Also try the live Supabase session in case user_profile is stale or missing
+        if (!isAdmin) {
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (session && session.user) isAdmin = checkIsAdmin(session.user);
+            } catch(e) {}
+        }
 
         if (isAdmin) {
             document.getElementById('admin-panel').style.display = 'block';
@@ -585,10 +598,7 @@
         const adminContainer = document.getElementById('admin-action-container');
         adminContainer.innerHTML = '';
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
-        
-        // RESTORED AUTHORIZATION CHECK
-        const isAdmin = user.permanent_id === ADMIN_ID || 
-                        (myHandle && myHandle.toLowerCase().replace('@','') === 'jeffyplays');
+        const isAdmin = checkIsAdmin(user);
 
         if (!isPersonal && isAdmin) {
             const delBtn = document.createElement('button');
