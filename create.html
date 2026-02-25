@@ -77,25 +77,170 @@
     .layer { position: absolute; cursor: move; user-select: none; transform-origin: center; touch-action: none; z-index: 10; }
     .layer.active { outline: 3px solid var(--accent); outline-offset: 2px; z-index: 99 !important; }
     
-    /* Bubble Styles */
-    .speech-bubble { 
-        padding: 14px; border: 3px solid #000; border-radius: 24px; 
-        background: #fff; color: #000; font-weight: 800; text-align: center; 
-        min-width: 60px; position: relative; box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
-        word-wrap: break-word;
+    /* ── Bubble System ── */
+    .speech-bubble {
+        padding: 14px 18px; background: #fff; color: #000; font-weight: 800;
+        text-align: center; min-width: 60px; position: relative;
+        word-wrap: break-word; line-height: 1.35;
     }
-    .bubble-tail { 
-        position: absolute; bottom: -14px; left: 24px; width: 0; height: 0; 
-        border-left: 10px solid transparent; border-right: 10px solid transparent; 
-        border-top: 14px solid #000;
+
+    /* ── Style 1: Classic Round (default speech) ── */
+    .bubble-style-round {
+        border: 3.5px solid #000; border-radius: 999px;
+        box-shadow: 3px 3px 0 #000;
     }
-    /* Thinking Bubble Extras */
-    .thinking .bubble-tail { display: none; }
-    .thought-dot-1, .thought-dot-2 {
+    .bubble-style-round .bubble-tail {
+        position: absolute; bottom: -20px; left: 28px;
+        width: 0; height: 0;
+        border-left: 12px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 20px solid #000;
+    }
+    .bubble-style-round .bubble-tail::after {
+        content: ''; position: absolute; top: -19px; left: -9px;
+        width: 0; height: 0;
+        border-left: 8px solid transparent;
+        border-right: 2px solid transparent;
+        border-top: 16px solid #fff;
+    }
+
+    /* ── Style 2: Rounded Rect (modern chat) ── */
+    .bubble-style-chat {
+        border: 3px solid #000; border-radius: 18px;
+        box-shadow: 3px 3px 0 #000;
+    }
+    .bubble-style-chat .bubble-tail {
+        position: absolute; bottom: -18px; right: 24px;
+        width: 0; height: 0;
+        border-left: 14px solid transparent;
+        border-right: 0px solid transparent;
+        border-top: 18px solid #000;
+    }
+    .bubble-style-chat .bubble-tail::after {
+        content: ''; position: absolute; top: -17px; left: -11px;
+        width: 0; height: 0;
+        border-left: 10px solid transparent;
+        border-top: 14px solid #fff;
+    }
+
+    /* ── Style 3: Sharp Rectangle ── */
+    .bubble-style-rect {
+        border: 3px solid #000; border-radius: 4px;
+        box-shadow: 4px 4px 0 #000;
+    }
+    .bubble-style-rect .bubble-tail {
+        position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%);
+        width: 0; height: 0;
+        border-left: 12px solid transparent;
+        border-right: 12px solid transparent;
+        border-top: 18px solid #000;
+    }
+    .bubble-style-rect .bubble-tail::after {
+        content: ''; position: absolute; top: -17px; left: -9px;
+        width: 0; height: 0;
+        border-left: 9px solid transparent;
+        border-right: 9px solid transparent;
+        border-top: 14px solid #fff;
+    }
+
+    /* ── Style 4: Explosion / Spiky ── */
+    .bubble-style-spiky {
+        border: 3px solid #000;
+        clip-path: polygon(
+            50% 0%, 61% 6%, 74% 2%, 79% 13%, 93% 12%,
+            91% 25%, 100% 33%, 90% 41%, 98% 52%,
+            86% 56%, 90% 70%, 76% 70%, 75% 84%,
+            62% 79%, 54% 92%, 43% 83%, 30% 88%,
+            28% 74%, 15% 76%, 17% 61%, 4% 56%,
+            13% 45%, 3% 35%, 14% 27%, 8% 14%,
+            22% 14%, 25% 2%, 38% 7%
+        );
+        padding: 22px 28px;
+        box-shadow: none;
+    }
+    .bubble-style-spiky .bubble-tail { display: none; }
+
+    /* ── Style 5: Cloud (thinking) ── */
+    .bubble-style-cloud {
+        border: 3px solid #000; border-radius: 50px;
+        box-shadow: 3px 3px 0 #000;
+        position: relative;
+    }
+    .bubble-style-cloud::before,
+    .bubble-style-cloud::after {
+        content: ''; position: absolute;
+        background: #fff; border: 3px solid #000; border-radius: 50%;
+    }
+    .bubble-style-cloud::before { width: 40%; height: 55%; top: -28%; left: 15%; }
+    .bubble-style-cloud::after  { width: 30%; height: 45%; top: -22%; right: 18%; }
+    .bubble-style-cloud .bubble-tail { display: none; }
+    .thought-dot-1, .thought-dot-2, .thought-dot-3 {
         position: absolute; background: #fff; border: 3px solid #000; border-radius: 50%;
     }
-    .thought-dot-1 { width: 12px; height: 12px; bottom: -18px; left: 30px; }
-    .thought-dot-2 { width: 8px; height: 8px; bottom: -28px; left: 35px; }
+    .thought-dot-1 { width: 14px; height: 14px; bottom: -22px; left: 28px; }
+    .thought-dot-2 { width: 9px;  height: 9px;  bottom: -34px; left: 22px; }
+    .thought-dot-3 { width: 5px;  height: 5px;  bottom: -42px; left: 17px; }
+
+    /* ── Style 6: Jagged / Shout ── */
+    .bubble-style-shout {
+        background: #ffeb3b; border: 3.5px solid #000;
+        clip-path: polygon(
+            5% 10%, 20% 0%, 35% 10%, 50% 0%, 65% 10%, 80% 0%, 95% 10%,
+            100% 30%, 95% 50%, 100% 70%, 95% 90%,
+            80% 100%, 65% 90%, 50% 100%, 35% 90%, 20% 100%, 5% 90%,
+            0% 70%, 5% 50%, 0% 30%
+        );
+        padding: 20px 24px;
+        box-shadow: none;
+    }
+    .bubble-style-shout .bubble-tail { display: none; }
+
+    /* ── Style 7: Whisper (dashed oval) ── */
+    .bubble-style-whisper {
+        border: 3px dashed #000; border-radius: 999px;
+        background: rgba(255,255,255,0.92);
+        box-shadow: none; font-style: italic;
+    }
+    .bubble-style-whisper .bubble-tail {
+        position: absolute; bottom: -16px; left: 36px;
+        width: 0; height: 0;
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 16px solid #000;
+    }
+    .bubble-style-whisper .bubble-tail::after {
+        content: ''; position: absolute; top: -15px; left: -5px;
+        width: 0; height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 12px solid #fff;
+    }
+
+    /* ── Style 8: Electric / Scream ── */
+    .bubble-style-electric {
+        border: 3.5px solid #000;
+        background: #fff;
+        clip-path: polygon(
+            8% 0%, 92% 0%, 100% 8%, 100% 92%, 92% 100%,
+            65% 100%, 60% 115%, 52% 100%,
+            8% 100%, 0% 92%, 0% 8%
+        );
+        padding: 14px 18px 24px;
+        box-shadow: none;
+    }
+    .bubble-style-electric .bubble-tail { display: none; }
+
+    /* ── Style 9: Square with Side Tail (narrator box) ── */
+    .bubble-style-narrator {
+        border: 3px solid #000; border-radius: 6px;
+        background: #fffde7;
+        box-shadow: 5px 5px 0 #000;
+        border-left: 6px solid #000;
+    }
+    .bubble-style-narrator .bubble-tail { display: none; }
+
+    /* ── Legacy/fallback (old thinking style) ── */
+    .thinking .bubble-tail { display: none; }
 
     .toolbar-bottom { 
         height: 85px; background: var(--card); border-top: 1px solid var(--border); 
@@ -158,10 +303,11 @@
     }
 
     .overlay-full { 
-        position: fixed; inset: 0; background: rgba(0,0,0,0.9); 
+        position: absolute; inset: 0; background: rgba(0,0,0,0.9); 
         z-index: 3000; display: none; flex-direction: column; 
         align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(5px);
     }
+    body { position: relative; }
     .modal-content { 
         background: var(--card); width: 100%; max-width: 500px; 
         border-radius: 24px; padding: 30px; box-sizing: border-box; 
@@ -990,6 +1136,16 @@
             <span>TEXT</span>
             <input type="text" id="text-content-input" class="text-input-field" style="flex:1;" placeholder="Edit text..." oninput="updateTextProp('content', this.value)">
         </div>
+        <div id="bubble-style-change-row" style="display:none; flex-direction:column; gap:8px; border-top:1px solid #222; padding-top:10px;">
+            <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">Bubble Style</span>
+            <div id="bubble-style-mini-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;">BG</span>
+                <input type="color" id="bubble-bg-color" value="#ffffff" oninput="if(activeLayer){activeLayer.bubbleBg=this.value;render();}" style="flex:1;height:28px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
+                <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;">BORDER</span>
+                <input type="color" id="bubble-border-color" value="#000000" oninput="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" style="flex:1;height:28px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
+            </div>
+        </div>
     </div>
 
     <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;" class="transform-ui-collapsible">
@@ -1074,8 +1230,8 @@
     <button class="menu-item" onclick="triggerImport('bg')">📷 Local Background</button>
     <button class="menu-item" onclick="openMultiImport()">🗂️ Multi-Frame Import</button>
     <hr style="width:100%; border:0; border-top:1px solid #333;">
-    <button class="menu-item" onclick="addText('standard')">💬 Speech Bubble</button>
-    <button class="menu-item" onclick="addText('thinking')">💭 Thinking Bubble</button>
+    <button class="menu-item" onclick="openBubblePicker('speech')">💬 Speech Bubble</button>
+    <button class="menu-item" onclick="openBubblePicker('thinking')">💭 Thinking Bubble</button>
     <button class="menu-item" onclick="addText('plain')">✍️ Plain Text</button>
 </div>
 
@@ -1192,10 +1348,10 @@
                     </div>
                     <div class="sp-add-scroll">
                         <div class="sp-section-label">Text</div>
-                        <button class="sp-action-btn" onclick="addText('standard'); toggleSidePanel('add')">
+                        <button class="sp-action-btn" onclick="openBubblePicker('speech'); toggleSidePanel('add')">
                             <span class="sp-action-icon">💬</span> Speech Bubble
                         </button>
-                        <button class="sp-action-btn" onclick="addText('thinking'); toggleSidePanel('add')">
+                        <button class="sp-action-btn" onclick="openBubblePicker('thinking'); toggleSidePanel('add')">
                             <span class="sp-action-icon">💭</span> Thinking Bubble
                         </button>
                         <button class="sp-action-btn" onclick="addText('plain'); toggleSidePanel('add')">
@@ -1761,11 +1917,20 @@
                     const italicS = l.italic ? 'italic' : 'normal';
                     const alignS = l.align || 'center';
                     const decoB = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+                    // Determine style class
+                    const bStyle = l.bubbleStyle || (isThinking ? 'cloud' : 'round');
+                    const isCloud = bStyle === 'cloud';
+                    const thoughtDots = isCloud ? '<div class="thought-dot-1"></div><div class="thought-dot-2"></div><div class="thought-dot-3"></div>' : '';
+                    const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
+                    // Border/bg overrides stored on layer
+                    const bubBorder = l.bubbleBorderColor || '#000';
+                    const bubBg     = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
+                    const inlineStyle = `--bubble-border:${bubBorder}; --bubble-bg:${bubBg}; border-color:${bubBorder}; background:${bubBg};`;
                     el.innerHTML = `
-                        <div class="speech-bubble ${isThinking ? 'thinking' : ''}" style="font-size:${fs}px; font-family:${ff}; color:${textColor}; font-weight:${boldW}; font-style:${italicS}; text-align:${alignS}; text-decoration:${decoB};">
+                        <div class="speech-bubble bubble-style-${bStyle}" style="${inlineStyle} font-size:${fs}px; font-family:${ff}; color:${textColor}; font-weight:${boldW}; font-style:${italicS}; text-align:${alignS}; text-decoration:${decoB};">
                             ${l.content}
-                            <div class="bubble-tail"></div>
-                            ${isThinking ? '<div class="thought-dot-1"></div><div class="thought-dot-2"></div>' : ''}
+                            ${showTail ? '<div class="bubble-tail"></div>' : ''}
+                            ${thoughtDots}
                         </div>`;
                 } else if (l.type === 'subtitle') {
                     const nameColor   = l.nameColor  || '#ff9500';
@@ -2026,6 +2191,15 @@
                 document.getElementById('font-size-slider').value = activeLayer.fontSize || 28;
                 document.getElementById('font-size-num').value = activeLayer.fontSize || 28;
                 document.getElementById('text-content-input').value = activeLayer.content || "";
+
+                const isBubble = activeLayer.type === 'bubble' || activeLayer.type === 'thinking';
+                const bsRow = document.getElementById('bubble-style-change-row');
+                bsRow.style.display = isBubble ? 'flex' : 'none';
+                if (isBubble) {
+                    document.getElementById('bubble-bg-color').value = activeLayer.bubbleBg || '#ffffff';
+                    document.getElementById('bubble-border-color').value = activeLayer.bubbleBorderColor || '#000000';
+                    populateBubbleMiniGrid();
+                }
             }
         }
     }
@@ -2207,12 +2381,98 @@
     function flipHorizontal() { if(activeLayer) { saveState(); activeLayer.flipped = !activeLayer.flipped; render(); } }
     function createActionOption(src, name) { const div = document.createElement('div'); div.className = 'action-option'; div.innerHTML = `<img src="${src}"><span>${name}</span>`; return div; }
     
+    // ── Bubble Picker ──
+    const BUBBLE_STYLES = [
+        { id: 'round',    label: '💬 Classic',   types: ['speech'],   svg: `<svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="40" rx="42" ry="32" fill="white" stroke="black" stroke-width="4"/><polygon points="22,68 36,70 28,84" fill="black"/><polygon points="24,68 36,68 30,80" fill="white"/></svg>` },
+        { id: 'chat',     label: '💬 Modern',    types: ['speech'],   svg: `<svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="10" width="84" height="58" rx="16" fill="white" stroke="black" stroke-width="4"/><polygon points="68,68 82,68 82,82" fill="black"/><polygon points="70,66 82,66 82,80" fill="white"/></svg>` },
+        { id: 'rect',     label: '▭ Sharp',      types: ['speech'],   svg: `<svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="8" width="88" height="58" rx="3" fill="white" stroke="black" stroke-width="4"/><polygon points="38,66 62,66 50,82" fill="black"/><polygon points="40,64 60,64 50,78" fill="white"/></svg>` },
+        { id: 'whisper',  label: '🤫 Whisper',   types: ['speech'],   svg: `<svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="38" rx="42" ry="30" fill="rgba(255,255,255,0.9)" stroke="black" stroke-width="3.5" stroke-dasharray="6,4"/><polygon points="20,65 34,66 26,80" fill="black"/><polygon points="22,64 34,64 28,77" fill="rgba(255,255,255,0.9)"/></svg>` },
+        { id: 'shout',    label: '📢 Shout',     types: ['speech'],   svg: `<svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg"><polygon points="50,4 62,12 76,6 80,20 94,22 88,36 100,46 86,52 92,66 76,66 74,80 60,74 50,86 40,74 26,80 24,66 8,66 14,52 0,46 12,36 6,22 20,20 24,6 38,12" fill="#ffeb3b" stroke="black" stroke-width="3"/></svg>` },
+        { id: 'spiky',    label: '💥 Burst',     types: ['speech'],   svg: `<svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg"><polygon points="50,2 58,16 72,8 73,24 87,18 84,34 99,33 90,46 100,56 84,58 90,72 74,70 73,85 59,77 50,90 41,77 27,85 26,70 10,72 16,58 0,56 10,46 1,33 16,34 13,18 27,24 28,8 42,16" fill="white" stroke="black" stroke-width="3"/></svg>` },
+        { id: 'electric', label: '⚡ Electric',  types: ['speech'],   svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="8,4 92,4 100,12 100,88 92,96 60,96 54,108 46,96 8,96 0,88 0,12" fill="white" stroke="black" stroke-width="4"/></svg>` },
+        { id: 'narrator', label: '📋 Narrator',  types: ['speech'],   svg: `<svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="8" width="88" height="64" rx="4" fill="#fffde7" stroke="black" stroke-width="4"/><rect x="6" y="8" width="8" height="64" rx="0" fill="black"/></svg>` },
+        { id: 'cloud',    label: '☁️ Cloud',     types: ['thinking'], svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="46" rx="38" ry="28" fill="white" stroke="black" stroke-width="4"/><ellipse cx="30" cy="30" rx="18" ry="14" fill="white" stroke="black" stroke-width="4"/><ellipse cx="64" cy="28" rx="16" ry="12" fill="white" stroke="black" stroke-width="4"/><circle cx="30" cy="80" r="6" fill="white" stroke="black" stroke-width="3"/><circle cx="20" cy="90" r="4" fill="white" stroke="black" stroke-width="2.5"/><circle cx="12" cy="97" r="2.5" fill="white" stroke="black" stroke-width="2"/></svg>` },
+    ];
+
+    let _bubblePickerMode = 'speech';
+    let _bubblePickerSelected = 'round';
+
+    function populateBubbleMiniGrid() {
+        if (!activeLayer) return;
+        const miniGrid = document.getElementById('bubble-style-mini-grid');
+        if (!miniGrid) return;
+        miniGrid.innerHTML = '';
+        BUBBLE_STYLES.forEach(s => {
+            const card = document.createElement('div');
+            const isActive = (activeLayer.bubbleStyle || (activeLayer.type==='thinking'?'cloud':'round')) === s.id;
+            card.style.cssText = `background:#111;border:2px solid ${isActive?'var(--accent)':'#333'};border-radius:10px;padding:6px 4px;cursor:pointer;text-align:center;transition:0.15s;`;
+            card.innerHTML = `<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;">${s.svg}</div><div style="font-size:9px;color:#aaa;font-weight:800;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.label}</div>`;
+            card.onclick = () => { activeLayer.bubbleStyle = s.id; render(); populateBubbleMiniGrid(); };
+            miniGrid.appendChild(card);
+        });
+    }
+
+    function openBubblePicker(mode) {
+        _bubblePickerMode = mode;
+        _bubblePickerSelected = (mode === 'thinking') ? 'cloud' : 'round';
+        document.getElementById('bubble-picker-title').textContent = mode === 'thinking' ? '💭 Choose Thinking Style' : '💬 Choose Speech Style';
+        document.getElementById('bubble-picker-text').value = '';
+
+        const grid = document.getElementById('bubble-style-grid');
+        grid.innerHTML = '';
+        BUBBLE_STYLES.forEach(s => {
+            const card = document.createElement('div');
+            card.style.cssText = `background:#111;border:2px solid ${_bubblePickerSelected===s.id?'var(--accent)':'#333'};border-radius:14px;padding:10px 6px;cursor:pointer;text-align:center;transition:0.15s;`;
+            card.innerHTML = `<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;">${s.svg}</div><div style="font-size:10px;color:#aaa;font-weight:800;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.label}</div>`;
+            card.onclick = () => {
+                _bubblePickerSelected = s.id;
+                openBubblePicker(mode); // re-render to update selection
+                document.getElementById('bubble-picker-modal').style.display = 'flex'; // keep open
+            };
+            grid.appendChild(card);
+        });
+
+        const modal = document.getElementById('bubble-picker-modal');
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('bubble-picker-text').focus(), 100);
+    }
+
+    function closeBubblePicker() {
+        document.getElementById('bubble-picker-modal').style.display = 'none';
+    }
+
+    function confirmBubblePicker() {
+        const txt = document.getElementById('bubble-picker-text').value.trim();
+        if (!txt) { document.getElementById('bubble-picker-text').focus(); return; }
+        closeBubblePicker();
+        saveState();
+        const type = _bubblePickerMode === 'thinking' ? 'thinking' : 'bubble';
+        const nl = {
+            type, content: txt,
+            bubbleStyle: _bubblePickerSelected,
+            x: Math.round((canvas.getBoundingClientRect().width - 180) / 2),
+            y: Math.round(canvas.getBoundingClientRect().height / 2 - 60),
+            w: 180, fontSize: 22, fontFamily: "'Inter', sans-serif", id: Date.now()
+        };
+        frames[currentIdx].layers.push(nl);
+        activeLayer = nl;
+        render();
+    }
+
+    // Enter key on bubble picker text
+    document.addEventListener('DOMContentLoaded', () => {
+        const inp = document.getElementById('bubble-picker-text');
+        if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') confirmBubblePicker(); });
+    });
+
     function addText(mode) { 
+        if (mode === 'standard') { openBubblePicker('speech'); return; }
+        if (mode === 'thinking') { openBubblePicker('thinking'); return; }
         const txt = prompt("Enter text:"); 
         if(txt) { 
             saveState(); 
             const nl = { 
-                type: (mode === 'standard') ? 'bubble' : (mode === 'thinking') ? 'thinking' : 'text', 
+                type: 'text', 
                 content: txt, x: Math.round((canvas.getBoundingClientRect().width - 180) / 2), y: Math.round(canvas.getBoundingClientRect().height / 2 - 60), w: 180, 
                 fontSize: 28, fontFamily: "'Inter', sans-serif", id: Date.now() 
             };
@@ -2220,6 +2480,7 @@
             activeLayer = nl; render(); 
         } 
     }
+    
     
     // ── Copy / Paste / Center layer ──
     let layerClipboard = null;
@@ -3901,8 +4162,18 @@
     </div>
 </div>
 
-<!-- ── Export Modal ── -->
-<div id="export-modal" class="overlay-full">
+<!-- ── Bubble Picker Modal ── -->
+<div id="bubble-picker-modal" class="overlay-full" style="z-index:4000;">
+    <div class="modal-content" style="max-width:440px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h2 style="margin:0;font-size:18px;" id="bubble-picker-title">Choose Bubble Style</h2>
+            <button onclick="closeBubblePicker()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;line-height:1;">✕</button>
+        </div>
+        <div id="bubble-style-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;"></div>
+        <input id="bubble-picker-text" class="pub-input" placeholder="Enter text..." style="margin-bottom:12px;">
+        <button onclick="confirmBubblePicker()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;">Add Bubble ↵</button>
+    </div>
+</div>
     <div class="modal-content">
         <h2 style="margin-top:0; color:var(--teal);">Export Comic</h2>
 

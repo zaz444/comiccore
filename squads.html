@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore — Squads</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -134,7 +135,22 @@
 
         .sq-skeleton { background: linear-gradient(90deg,#0d0d0d 25%,#141414 50%,#0d0d0d 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 12px; }
         @keyframes shimmer { 0%{background-position:200% 0}100%{background-position:-200% 0} }
+
+        /* ── Crop Modal ── */
+        .crop-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.96);
+            z-index: 2000; display: none; flex-direction: column;
+            align-items: center; justify-content: center; gap: 16px; padding: 20px;
+        }
+        .crop-overlay.open { display: flex; }
+        .crop-box { width: min(80vw, 360px); height: min(80vw, 360px); background: #000; border-radius: 16px; overflow: hidden; }
+        .crop-box img { max-width: 100%; display: block; }
+        .crop-actions { display: flex; gap: 10px; }
+        .crop-btn { padding: 11px 28px; border-radius: 20px; font-weight: 800; font-size: 13px; cursor: pointer; font-family: inherit; border: none; }
+        .crop-btn-cancel { background: #222; color: #888; }
+        .crop-btn-apply { background: #ff7a00; color: #000; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 </head>
 <body>
 
@@ -240,6 +256,17 @@
     </div>
 </div>
 
+<!-- Crop Modal -->
+<div class="crop-overlay" id="pfp-crop-overlay">
+    <div class="crop-box">
+        <img id="pfp-crop-target" src="">
+    </div>
+    <div class="crop-actions">
+        <button class="crop-btn crop-btn-cancel" onclick="cancelCrop()">Cancel</button>
+        <button class="crop-btn crop-btn-apply" onclick="applyCrop()">Use Photo</button>
+    </div>
+</div>
+
 <script>
     const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
     const TOPICS = ['Manga','Comics','Anime','Sprites','Art','Story','Sci-Fi','Horror','Fantasy','Action','Collab','Beginners'];
@@ -284,15 +311,19 @@
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    let allAccepted = []; // all accepted team_requests across all squads (for member counts)
+
     async function loadSquads() {
         const feed = document.getElementById('sq-feed');
         feed.innerHTML = `<div style="padding:20px 16px;display:flex;flex-direction:column;gap:10px;">${[1,2,3].map(()=>`<div class="sq-skeleton" style="height:90px;"></div>`).join('')}</div>`;
-        const [{ data: squads }, { data: reqs }] = await Promise.all([
+        const [{ data: squads }, { data: reqs }, { data: accepted }] = await Promise.all([
             _sb.from('team_tickets').select('*').order('created_at', { ascending: false }),
-            _sb.from('team_requests').select('*').eq('sender_handle', myHandle)
+            _sb.from('team_requests').select('*').eq('sender_handle', myHandle),
+            _sb.from('team_requests').select('ticket_id').eq('status', 'accepted')
         ]);
         allSquads = squads || [];
         myRequests = reqs || [];
+        allAccepted = accepted || [];
         renderFeed();
     }
 
@@ -396,7 +427,7 @@
                 <div class="sq-card-owner">by @${esc(s.owner_handle)}</div>
                 ${s.description ? `<div class="sq-card-desc">${esc(s.description)}</div>` : ''}
                 ${topicsHtml}
-                <div class="sq-card-meta">👥 ${s.member_count||0} member${(s.member_count||0)!==1?'s':''}</div>
+                <div class="sq-card-meta">👥 ${allAccepted.filter(r=>String(r.ticket_id)===String(s.id)).length} member${allAccepted.filter(r=>String(r.ticket_id)===String(s.id)).length!==1?'s':''}</div>
             </div>
             <div class="sq-card-right">${actions}</div>`;
 
@@ -409,10 +440,8 @@
         const status = isPrivate ? 'pending' : 'accepted';
         const { error } = await _sb.from('team_requests').insert([{ ticket_id: String(id), sender_handle: myHandle, status }]);
         if (error) { if (btn) { btn.innerText = isPrivate?'Request to Join':'Join'; btn.disabled=false; } return; }
-        if (!isPrivate) await _sb.from('team_tickets').update({ member_count: (allSquads.find(s=>String(s.id)===String(id))?.member_count||0)+1 }).eq('id', id);
+        if (!isPrivate) allAccepted.push({ ticket_id: String(id) });
         myRequests.push({ ticket_id: String(id), sender_handle: myHandle, status });
-        const sq = allSquads.find(s=>String(s.id)===String(id));
-        if (sq && !isPrivate) sq.member_count = (sq.member_count||0)+1;
         await updateStats();
         renderFeed();
     }
@@ -421,8 +450,7 @@
         if (!confirm('Leave this squad?')) return;
         await _sb.from('team_requests').delete().eq('ticket_id', String(id)).eq('sender_handle', myHandle);
         myRequests = myRequests.filter(r => r.ticket_id !== String(id));
-        const sq = allSquads.find(s=>String(s.id)===String(id));
-        if (sq && sq.member_count > 0) { sq.member_count--; await _sb.from('team_tickets').update({ member_count: sq.member_count }).eq('id', id); }
+        allAccepted = allAccepted.filter(r => !(String(r.ticket_id) === String(id) && r.sender_handle === myHandle));
         await updateStats();
         renderFeed();
     }
@@ -440,22 +468,46 @@
         pp.style.backgroundImage=''; pp.innerText='🖼'; pp.classList.remove('has-img');
     }
 
+    // ── PFP Crop flow (same pattern as create.html) ──
+    let pfpCropper = null;
+    let pfpCropTarget = null; // 'new' or 'edit'
+
     function handlePfp(input, isEdit) {
         if (!input.files[0]) return;
+        pfpCropTarget = isEdit ? 'edit' : 'new';
         const reader = new FileReader();
         reader.onload = e => {
-            const data = e.target.result;
-            if (isEdit) {
-                editPfp = data;
-                const el = document.getElementById('edit-pfp-pick');
-                el.style.backgroundImage=`url(${data})`; el.innerText=''; el.classList.add('has-img');
-            } else {
-                newPfp = data;
-                const el = document.getElementById('pfp-pick');
-                el.style.backgroundImage=`url(${data})`; el.innerText=''; el.classList.add('has-img');
-            }
+            const img = document.getElementById('pfp-crop-target');
+            // Destroy old cropper before setting new src
+            if (pfpCropper) { pfpCropper.destroy(); pfpCropper = null; }
+            img.src = e.target.result;
+            img.onload = () => {
+                pfpCropper = new Cropper(img, { aspectRatio: 1, viewMode: 1, autoCropArea: 0.9 });
+            };
+            document.getElementById('pfp-crop-overlay').classList.add('open');
         };
         reader.readAsDataURL(input.files[0]);
+        input.value = ''; // reset so same file can be re-selected
+    }
+
+    function applyCrop() {
+        if (!pfpCropper) return;
+        const b64 = pfpCropper.getCroppedCanvas({ width: 400, height: 400 }).toDataURL('image/jpeg', 0.88);
+        if (pfpCropTarget === 'edit') {
+            editPfp = b64;
+            const el = document.getElementById('edit-pfp-pick');
+            el.style.backgroundImage = `url(${b64})`; el.innerText = ''; el.classList.add('has-img');
+        } else {
+            newPfp = b64;
+            const el = document.getElementById('pfp-pick');
+            el.style.backgroundImage = `url(${b64})`; el.innerText = ''; el.classList.add('has-img');
+        }
+        cancelCrop();
+    }
+
+    function cancelCrop() {
+        document.getElementById('pfp-crop-overlay').classList.remove('open');
+        if (pfpCropper) { pfpCropper.destroy(); pfpCropper = null; }
     }
 
     async function createSquad() {
@@ -469,8 +521,7 @@
             description: document.getElementById('sq-desc').value.trim(),
             pfp: newPfp || null,
             is_private: document.getElementById('sq-private').checked,
-            topics: getTopics(),
-            member_count: 0
+            topics: getTopics()
         }]);
         btn.innerText='Create Squad'; btn.disabled=false;
         if (error) { alert('Error: ' + error.message); return; }
