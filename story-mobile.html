@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ComicCore - Story Editor</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+        --bg: #0f0f11; --card: #1c1c1e; --text: #f5f5f7;
+        --accent: #ff7a00; --border: #2c2c2e; --teal: #00d2ff;
+        --sheet-bg: #161618;
+    }
+
+    body {
+        margin: 0; font-family: 'Inter', sans-serif;
+        background: var(--bg); color: var(--text);
+        display: flex; flex-direction: column;
+        height: 100vh; height: 100dvh;
+        overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    #top-bar {
+        height: 52px; background: var(--card); border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; padding: 0 10px; gap: 6px;
+        z-index: 200; flex-shrink: 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+    .tb-btn {
+        background: rgba(255,255,255,0.07); border: 1px solid var(--border);
+        color: var(--text); padding: 7px 11px; border-radius: 8px;
+        cursor: pointer; font-size: 12px; font-weight: 700;
+        font-family: inherit; white-space: nowrap; transition: 0.15s;
+    }
+    .tb-btn:active { opacity: 0.7; }
+    .tb-btn.accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 900; }
+    .tb-btn.teal { background: rgba(0,210,255,0.1); border-color: var(--teal); color: var(--teal); }
+    .tb-spacer { flex: 1; }
+    #top-title {
+        font-size: 12px; font-weight: 900; color: var(--accent);
+        letter-spacing: 1px; white-space: nowrap;
+    }
+
+    /* ── FORMAT BAR (shown above keyboard) ── */
+    #format-bar {
+        background: var(--card); border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; gap: 4px; padding: 6px 10px;
+        overflow-x: auto; flex-shrink: 0;
+        -webkit-overflow-scrolling: touch;
+    }
+    #format-bar::-webkit-scrollbar { display: none; }
+    .fmt-btn {
+        background: #2a2a2a; border: 1px solid #3a3a3a; color: var(--text);
+        border-radius: 7px; padding: 6px 11px; cursor: pointer;
+        font-size: 13px; font-weight: 700; transition: 0.15s;
+        white-space: nowrap; flex-shrink: 0; font-family: inherit;
+    }
+    .fmt-btn:active { background: #444; }
+    .fmt-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .fmt-divider { width: 1px; height: 22px; background: #3a3a3a; margin: 0 2px; flex-shrink: 0; }
+    .fmt-select {
+        background: #2a2a2a; border: 1px solid #3a3a3a; color: var(--text);
+        border-radius: 7px; padding: 6px 8px; font-size: 12px; outline: none;
+        cursor: pointer; flex-shrink: 0; font-family: inherit;
+    }
+    .fmt-size-group { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+    .fmt-size-num {
+        background: #1a1a1a; border: 1px solid #3a3a3a; color: var(--text);
+        border-radius: 6px; width: 32px; text-align: center; padding: 5px 2px;
+        font-size: 12px; font-weight: 700;
+    }
+
+    /* ── WRITING AREA ── */
+    #writing-area-wrap {
+        flex: 1; overflow-y: auto; background: #0a0a0a;
+        display: flex; flex-direction: column; align-items: center;
+        padding: 20px 10px 0;
+        -webkit-overflow-scrolling: touch;
+    }
+    #pages-container {
+        width: 100%; max-width: 680px;
+        display: flex; flex-direction: column;
+    }
+    .story-page {
+        width: 100%; background: #fff; color: #111;
+        padding: 28px 22px;
+        box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+        outline: none; font-size: 18px; line-height: 1.8;
+        font-family: 'Merriweather', Georgia, serif;
+        caret-color: var(--accent);
+        word-wrap: break-word; overflow-wrap: break-word;
+        white-space: pre-wrap; overflow: hidden;
+        min-height: 420px; position: relative;
+        box-sizing: border-box;
+        /* Slightly smaller page look for mobile */
+        border-radius: 2px;
+    }
+    .story-page:not(:last-child) { border-bottom: 2px dashed #ddd; }
+    .story-page:empty::before { content: attr(data-placeholder); color: #bbb; pointer-events: none; }
+    .page-label {
+        position: absolute; bottom: 10px; right: 14px;
+        font-size: 10px; color: #ccc; font-family: 'Inter', sans-serif;
+        pointer-events: none; user-select: none;
+    }
+    .page-delete-btn {
+        position: absolute; top: 10px; right: 10px;
+        background: rgba(0,0,0,0.08); border: none; color: #bbb;
+        font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+        transition: 0.2s;
+    }
+    .page-delete-btn:active { background: #ffe0e0; color: #cc0000; }
+
+    /* Add page button */
+    #add-page-btn {
+        display: flex; justify-content: center; padding: 16px 0 32px;
+    }
+    #add-page-btn button {
+        background: #1a1a1a; border: 2px dashed #444; color: #666;
+        padding: 11px 32px; border-radius: 12px; cursor: pointer;
+        font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
+        transition: 0.2s;
+    }
+    #add-page-btn button:active { border-color: var(--accent); color: var(--accent); }
+
+    /* ── STATUS BAR ── */
+    #status-bar {
+        height: 28px; background: var(--card); border-top: 1px solid var(--border);
+        display: flex; align-items: center; padding: 0 12px; gap: 14px;
+        font-size: 10px; color: #666; font-weight: 600; flex-shrink: 0;
+        overflow-x: auto;
+    }
+    #status-bar::-webkit-scrollbar { display: none; }
+    #status-bar span { color: var(--text); font-weight: 800; }
+    #save-status { margin-left: auto; color: #555; white-space: nowrap; }
+
+    /* ── SHEET OVERLAY ── */
+    .sheet-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+        z-index: 300; display: none; backdrop-filter: blur(4px);
+    }
+    .sheet-overlay.open { display: block; }
+
+    /* ── BOTTOM SHEET ── */
+    .bottom-sheet {
+        position: fixed; bottom: -100%; left: 0; right: 0;
+        background: var(--sheet-bg); border-radius: 20px 20px 0 0;
+        z-index: 400; transition: bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        max-height: 70vh; display: flex; flex-direction: column;
+        border-top: 1px solid var(--border);
+    }
+    .bottom-sheet.open { bottom: 0; }
+    .sheet-handle { width: 36px; height: 4px; background: #444; border-radius: 2px; margin: 10px auto 0; flex-shrink: 0; }
+    .sheet-title {
+        font-size: 13px; font-weight: 900; color: var(--accent); letter-spacing: 1.5px;
+        text-transform: uppercase; padding: 12px 16px 8px;
+        border-bottom: 1px solid var(--border); flex-shrink: 0;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .sheet-close { background: none; border: none; color: #555; font-size: 18px; cursor: pointer; padding: 4px; }
+    .sheet-body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+
+    /* Sheet action buttons */
+    .sheet-action-btn {
+        width: 100%; padding: 14px 16px; background: #222; border: 1.5px solid #2c2c2e;
+        color: var(--text); border-radius: 12px; font-size: 14px; font-weight: 700;
+        cursor: pointer; font-family: inherit; text-align: left; display: flex;
+        align-items: center; gap: 12px; margin-bottom: 10px; transition: 0.15s;
+    }
+    .sheet-action-btn:active { border-color: var(--accent); background: rgba(255,122,0,0.08); }
+    .sheet-action-btn .sico { font-size: 22px; }
+
+    /* Font sheet grid */
+    .font-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .font-card {
+        background: #222; border: 2px solid #2c2c2e; border-radius: 12px;
+        padding: 14px 12px; cursor: pointer; text-align: center; transition: 0.15s;
+    }
+    .font-card:active { border-color: var(--accent); }
+    .font-card.active { border-color: var(--accent); background: rgba(255,122,0,0.1); }
+    .font-card .font-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .font-card .font-preview { font-size: 15px; color: #888; line-height: 1.4; }
+
+    /* Spacing options */
+    .spacing-row { display: flex; gap: 8px; }
+    .spacing-btn {
+        flex: 1; padding: 12px 6px; background: #222; border: 1.5px solid #2c2c2e;
+        color: #888; border-radius: 10px; font-size: 12px; font-weight: 800;
+        cursor: pointer; font-family: inherit; text-align: center; transition: 0.15s;
+    }
+    .spacing-btn:active { border-color: var(--teal); }
+    .spacing-btn.active { border-color: var(--teal); background: rgba(0,210,255,0.1); color: var(--teal); }
+
+    /* ── OVERLAYS ── */
+    .overlay-full {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+        z-index: 600; display: none; align-items: center; justify-content: center;
+        padding: 16px; backdrop-filter: blur(8px);
+    }
+    .modal-content {
+        background: var(--card); padding: 22px; border-radius: 20px;
+        width: 100%; max-width: 420px; border: 1px solid var(--border);
+        max-height: 88vh; overflow-y: auto;
+    }
+    .pub-input {
+        width: 100%; padding: 12px; background: #111; border: 1px solid #333;
+        color: white; border-radius: 10px; margin-bottom: 12px;
+        font-family: inherit; font-size: 14px; outline: none;
+    }
+    .pub-input:focus { border-color: var(--accent); }
+
+    /* Export tabs */
+    .export-tab-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .export-tab { flex: 1; padding: 10px; background: #222; border: 1.5px solid #333; color: #888; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer; font-family: inherit; transition: 0.15s; }
+    .export-tab.active { background: var(--teal); border-color: var(--teal); color: #000; }
+    .export-section { display: none; }
+    .export-section.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ── OVERLAYS ── -->
+
+<!-- Publish -->
+<div id="publish-modal" class="overlay-full">
+    <div class="modal-content">
+        <h2 style="margin-top:0;color:var(--accent);font-size:18px;">Publish Story</h2>
+        <div id="cover-box" style="width:100%;aspect-ratio:2/3;max-height:200px;background:#111;border:2px dashed #444;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;margin-bottom:14px;" onclick="document.getElementById('cover-input').click()">
+            <img id="cover-img" style="width:100%;height:100%;object-fit:cover;display:none;">
+            <span id="cover-label" style="color:#555;font-size:13px;">Tap to upload cover</span>
+        </div>
+        <input type="file" id="cover-input" accept="image/*" style="display:none;" onchange="handleCover(this)">
+        <input type="text" id="pub-title" class="pub-input" placeholder="Story Title">
+        <input type="text" id="pub-tags" class="pub-input" placeholder="Tags (e.g. romance, fantasy)">
+        <textarea id="pub-desc" class="pub-input" placeholder="Brief description..." style="height:70px;resize:none;"></textarea>
+        <div style="display:flex;gap:10px;">
+            <button onclick="closePublish()" style="flex:1;padding:13px;background:#333;color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Cancel</button>
+            <button id="pub-btn" onclick="finalPublish()" style="flex:2;padding:13px;background:var(--accent);color:white;border:none;border-radius:12px;font-weight:900;cursor:pointer;">PUBLISH</button>
+        </div>
+    </div>
+</div>
+
+<!-- Export -->
+<div id="export-modal" class="overlay-full">
+    <div class="modal-content">
+        <h2 style="margin-top:0;color:var(--teal);font-size:17px;">Export Story</h2>
+        <div class="export-tab-row">
+            <button class="export-tab active" onclick="switchExportTab('txt')">📄 TXT</button>
+            <button class="export-tab" onclick="switchExportTab('pdf')">📑 PDF</button>
+        </div>
+        <div id="export-txt" class="export-section active">
+            <p style="font-size:13px;color:#888;margin:0 0 14px;">Exports your story as a plain .txt file.</p>
+            <button onclick="doExportTxt()" style="width:100%;padding:13px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">SAVE AS TXT</button>
+        </div>
+        <div id="export-pdf" class="export-section">
+            <p style="font-size:13px;color:#888;margin:0 0 14px;">Opens a print-ready page with your title and font preserved.</p>
+            <button onclick="doExportPdf()" style="width:100%;padding:13px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">OPEN PDF VIEW</button>
+        </div>
+        <button onclick="document.getElementById('export-modal').style.display='none'" style="width:100%;margin-top:10px;padding:11px;background:#222;color:#aaa;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Cancel</button>
+    </div>
+</div>
+
+<!-- ── SHEET OVERLAY ── -->
+<div id="sheet-overlay" class="sheet-overlay" onclick="closeAllSheets()"></div>
+
+<!-- ── FONT SHEET ── -->
+<div id="sheet-font" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Font <button class="sheet-close" onclick="closeSheet('font')">✕</button></div>
+    <div class="sheet-body">
+        <div class="font-grid" id="font-grid"></div>
+    </div>
+</div>
+
+<!-- ── SPACING SHEET ── -->
+<div id="sheet-spacing" class="bottom-sheet" style="max-height:40vh;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Line Spacing <button class="sheet-close" onclick="closeSheet('spacing')">✕</button></div>
+    <div class="sheet-body">
+        <div class="spacing-row">
+            <button class="spacing-btn" onclick="applySpacing('1.4',this)">Tight<br><small>1.4×</small></button>
+            <button class="spacing-btn active" onclick="applySpacing('1.8',this)">Normal<br><small>1.8×</small></button>
+            <button class="spacing-btn" onclick="applySpacing('2.2',this)">Relaxed<br><small>2.2×</small></button>
+            <button class="spacing-btn" onclick="applySpacing('2.8',this)">Double<br><small>2.8×</small></button>
+        </div>
+    </div>
+</div>
+
+<!-- ── MORE SHEET (heading, pages) ── -->
+<div id="sheet-more" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">More Options <button class="sheet-close" onclick="closeSheet('more')">✕</button></div>
+    <div class="sheet-body">
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Heading Style</div>
+        <div style="display:flex;gap:8px;margin-bottom:20px;">
+            <button class="spacing-btn" onclick="applyHeading('p')">Body</button>
+            <button class="spacing-btn" onclick="applyHeading('h1')">H1</button>
+            <button class="spacing-btn" onclick="applyHeading('h2')">H2</button>
+            <button class="spacing-btn" onclick="applyHeading('h3')">H3</button>
+        </div>
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Alignment</div>
+        <div style="display:flex;gap:8px;margin-bottom:20px;">
+            <button class="spacing-btn" onclick="fmt('justifyLeft')">≡L</button>
+            <button class="spacing-btn" onclick="fmt('justifyCenter')">≡C</button>
+            <button class="spacing-btn" onclick="fmt('justifyRight')">≡R</button>
+            <button class="spacing-btn" onclick="fmt('justifyFull')">≡J</button>
+        </div>
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Pages</div>
+        <button class="sheet-action-btn" onclick="addPage();closeSheet('more')"><span class="sico">📄</span>Add New Page</button>
+        <button class="sheet-action-btn" onclick="saveDraft();closeSheet('more')"><span class="sico">💾</span>Save Draft</button>
+        <button class="sheet-action-btn" onclick="document.getElementById('export-modal').style.display='flex';closeSheet('more')"><span class="sico">📤</span>Export Story</button>
+    </div>
+</div>
+
+<!-- ── TOP BAR ── -->
+<div id="top-bar">
+    <button class="tb-btn" onclick="handleExit()">← Exit</button>
+    <button class="tb-btn" onclick="undo()">↩</button>
+    <button class="tb-btn" onclick="redo()">↪</button>
+    <div class="tb-spacer"></div>
+    <span id="top-title">STORY</span>
+    <div class="tb-spacer"></div>
+    <button class="tb-btn teal" onclick="saveDraft()">💾</button>
+    <button class="tb-btn accent" onclick="openPublish()">Publish</button>
+</div>
+
+<!-- ── FORMAT BAR ── -->
+<div id="format-bar">
+    <!-- Bold / Italic / Underline -->
+    <button class="fmt-btn" id="btn-bold" onclick="fmt('bold')"><b>B</b></button>
+    <button class="fmt-btn" id="btn-italic" onclick="fmt('italic')"><i>I</i></button>
+    <button class="fmt-btn" id="btn-underline" onclick="fmt('underline')"><u>U</u></button>
+
+    <div class="fmt-divider"></div>
+
+    <!-- Font size -->
+    <div class="fmt-size-group">
+        <button class="fmt-btn" onclick="changeFontSize(-2)">−</button>
+        <div class="fmt-size-num" id="size-display">18</div>
+        <button class="fmt-btn" onclick="changeFontSize(+2)">+</button>
+    </div>
+
+    <div class="fmt-divider"></div>
+
+    <!-- Font picker (opens sheet) -->
+    <button class="fmt-btn" onclick="openSheet('font')" id="font-label-btn">Aa Font</button>
+
+    <!-- Spacing (opens sheet) -->
+    <button class="fmt-btn" onclick="openSheet('spacing')">↕ Spacing</button>
+
+    <!-- More options -->
+    <button class="fmt-btn" onclick="openSheet('more')">••• More</button>
+</div>
+
+<!-- ── WRITING AREA ── -->
+<div id="writing-area-wrap">
+    <div id="pages-container"></div>
+    <div id="add-page-btn">
+        <button onclick="addPage()">+ Add Page</button>
+    </div>
+</div>
+
+<!-- ── STATUS BAR ── -->
+<div id="status-bar">
+    <div>Words: <span id="word-count">0</span></div>
+    <div>Chars: <span id="char-count">0</span></div>
+    <div>Pages: <span id="page-count">1</span></div>
+    <div>Read: <span id="read-time">0 min</span></div>
+    <div id="save-status">Unsaved</div>
+</div>
+
+<script>
+const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+
+let activeDraftId = null;
+let hasUnsaved = false;
+let coverBase64 = null;
+let currentFontSize = 18;
+let currentFont = "'Merriweather', Georgia, serif";
+let currentSpacing = '1.8';
+let activePage = null;
+
+// ── FONTS ──
+const FONTS = [
+    { label: 'Merriweather', value: "'Merriweather', Georgia, serif", preview: 'Classic serif' },
+    { label: 'Lora', value: "'Lora', Georgia, serif", preview: 'Elegant story' },
+    { label: 'Playfair', value: "'Playfair Display', Georgia, serif", preview: 'Literary feel' },
+    { label: 'Crimson', value: "'Crimson Text', Georgia, serif", preview: 'Old-style serif' },
+    { label: 'Garamond', value: "'EB Garamond', Georgia, serif", preview: 'Classic novel' },
+    { label: 'Baskerville', value: "'Libre Baskerville', Georgia, serif", preview: 'Sharp & clean' },
+    { label: 'Nunito', value: "'Nunito', sans-serif", preview: 'Modern round' },
+    { label: 'Inter', value: "'Inter', sans-serif", preview: 'Clean sans' },
+    { label: 'Monospace', value: 'monospace', preview: 'Code / draft' },
+];
+
+function buildFontGrid() {
+    const grid = document.getElementById('font-grid');
+    grid.innerHTML = '';
+    FONTS.forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'font-card' + (f.value === currentFont ? ' active' : '');
+        card.innerHTML = `<div class="font-name">${f.label}</div><div class="font-preview" style="font-family:${f.value}">${f.preview}</div>`;
+        card.onclick = () => {
+            applyFont(f.value);
+            document.getElementById('font-label-btn').innerText = 'Aa ' + f.label;
+            grid.querySelectorAll('.font-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            closeSheet('font');
+        };
+        grid.appendChild(card);
+    });
+}
+
+// ── SHEETS ──
+function openSheet(name) {
+    closeAllSheets();
+    document.getElementById('sheet-overlay').classList.add('open');
+    document.getElementById('sheet-' + name).classList.add('open');
+    if (name === 'font') buildFontGrid();
+}
+function closeSheet(name) {
+    document.getElementById('sheet-overlay').classList.remove('open');
+    document.getElementById('sheet-' + name).classList.remove('open');
+}
+function closeAllSheets() {
+    document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('open'));
+    document.getElementById('sheet-overlay').classList.remove('open');
+}
+
+// ── PAGES ──
+function createPage(content, pageNum) {
+    const page = document.createElement('div');
+    page.className = 'story-page';
+    page.contentEditable = 'true';
+    page.spellcheck = true;
+    page.setAttribute('data-placeholder', pageNum === 1 ? 'Start writing your story...' : 'Continue your story...');
+    page.innerHTML = content || '';
+    page.style.fontFamily = currentFont;
+    page.style.fontSize = currentFontSize + 'px';
+    page.style.lineHeight = currentSpacing;
+
+    const label = document.createElement('div');
+    label.className = 'page-label';
+    label.innerText = 'Page ' + pageNum;
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'page-delete-btn';
+    delBtn.innerHTML = '✕';
+    delBtn.title = 'Delete page';
+    delBtn.onclick = () => deletePage(page);
+
+    page.appendChild(label);
+    page.appendChild(delBtn);
+
+    page.addEventListener('focus', () => { activePage = page; updateToolbarState(); });
+    page.addEventListener('keyup', () => { updateStats(); hasUnsaved = true; updatePageNumbers(); document.getElementById('save-status').innerText = 'Unsaved'; });
+    page.addEventListener('mouseup', () => updateToolbarState());
+    page.addEventListener('touchend', () => updateToolbarState());
+    page.addEventListener('keydown', handleKeyDown);
+
+    return page;
+}
+
+function addPage(content) {
+    const container = document.getElementById('pages-container');
+    const pageNum = container.children.length + 1;
+    const page = createPage(content || '', pageNum);
+    container.appendChild(page);
+    updatePageNumbers();
+    updateStats();
+    setTimeout(() => { page.focus(); page.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+    return page;
+}
+
+function deletePage(page) {
+    const container = document.getElementById('pages-container');
+    if (container.children.length <= 1) return;
+    if (!confirm('Delete this page?')) return;
+    page.remove();
+    updatePageNumbers();
+    updateStats();
+}
+
+function updatePageNumbers() {
+    document.querySelectorAll('.story-page').forEach((p, i) => {
+        const label = p.querySelector('.page-label');
+        if (label) label.innerText = 'Page ' + (i + 1);
+    });
+}
+
+function getAllPages() { return Array.from(document.querySelectorAll('.story-page')); }
+function getAllText() { return getAllPages().map(p => p.innerText).join('\n\n'); }
+function getAllHTML() {
+    return getAllPages().map(p => {
+        const clone = p.cloneNode(true);
+        clone.querySelectorAll('.page-label,.page-delete-btn').forEach(el => el.remove());
+        return clone.innerHTML;
+    }).join('<hr class="page-break">');
+}
+
+// ── FORMATTING ──
+function fmt(cmd) {
+    document.execCommand(cmd, false, null);
+    if (activePage) activePage.focus();
+    updateToolbarState();
+}
+
+function changeFontSize(delta) {
+    currentFontSize = Math.min(Math.max(currentFontSize + delta, 10), 72);
+    document.getElementById('size-display').innerText = currentFontSize;
+    getAllPages().forEach(p => p.style.fontSize = currentFontSize + 'px');
+    hasUnsaved = true;
+    if (activePage) activePage.focus();
+}
+
+function applyFont(font) {
+    currentFont = font;
+    getAllPages().forEach(p => p.style.fontFamily = font);
+    hasUnsaved = true;
+    if (activePage) activePage.focus();
+}
+
+function applySpacing(val, btn) {
+    currentSpacing = val;
+    getAllPages().forEach(p => p.style.lineHeight = val);
+    // Update active state on buttons
+    if (btn) {
+        btn.closest('.spacing-row')?.querySelectorAll('.spacing-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+    if (activePage) activePage.focus();
+}
+
+function applyHeading(tag) {
+    document.execCommand('formatBlock', false, tag);
+    if (activePage) activePage.focus();
+    closeAllSheets();
+}
+
+function updateToolbarState() {
+    document.getElementById('btn-bold').classList.toggle('active', document.queryCommandState('bold'));
+    document.getElementById('btn-italic').classList.toggle('active', document.queryCommandState('italic'));
+    document.getElementById('btn-underline').classList.toggle('active', document.queryCommandState('underline'));
+}
+
+function handleKeyDown(e) {
+    hasUnsaved = true;
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        document.execCommand('insertHTML', false, '&emsp;&emsp;');
+    }
+}
+
+// ── STATS ──
+function updateStats() {
+    const text = getAllText();
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const chars = text.length;
+    const mins = Math.max(1, Math.ceil(words / 200));
+    const pages = getAllPages().length;
+    document.getElementById('word-count').innerText = words.toLocaleString();
+    document.getElementById('char-count').innerText = chars.toLocaleString();
+    document.getElementById('read-time').innerText = mins + ' min';
+    document.getElementById('page-count').innerText = pages;
+}
+
+// ── UNDO / REDO ──
+function undo() { document.execCommand('undo'); }
+function redo() { document.execCommand('redo'); }
+
+// ── SAVE DRAFT ──
+function saveDraft() {
+    let drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
+    let title = document.getElementById('pub-title').value;
+    if (!title) {
+        title = prompt('Story name:', 'My Story') || 'Untitled Story';
+        document.getElementById('pub-title').value = title;
+    }
+    const draftData = {
+        pages: getAllPages().map(p => { const clone = p.cloneNode(true); clone.querySelectorAll('.page-label,.page-delete-btn').forEach(el => el.remove()); return clone.innerHTML; }),
+        title,
+        fontSize: currentFontSize,
+        font: currentFont,
+        spacing: currentSpacing,
+        lastModified: new Date().toLocaleString()
+    };
+    if (activeDraftId) {
+        const idx = drafts.findIndex(d => d.id == activeDraftId);
+        if (idx !== -1) Object.assign(drafts[idx], draftData);
+        else { draftData.id = activeDraftId; drafts.push(draftData); }
+    } else {
+        draftData.id = Date.now();
+        activeDraftId = draftData.id;
+        drafts.push(draftData);
+    }
+    localStorage.setItem('story_drafts', JSON.stringify(drafts));
+    localStorage.setItem('active_story_draft_id', activeDraftId);
+    hasUnsaved = false;
+    document.getElementById('save-status').innerText = 'Saved ✓';
+
+    // Toast
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;pointer-events:none;';
+    t.innerText = '✓ Draft saved';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1800);
+}
+
+// ── PUBLISH ──
+function openPublish() { document.getElementById('publish-modal').style.display = 'flex'; }
+function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
+
+function handleCover(input) {
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        coverBase64 = e.target.result;
+        document.getElementById('cover-img').src = coverBase64;
+        document.getElementById('cover-img').style.display = 'block';
+        document.getElementById('cover-label').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+}
+
+async function finalPublish() {
+    const title = document.getElementById('pub-title').value.trim();
+    const tags = document.getElementById('pub-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+    const desc = document.getElementById('pub-desc').value.trim();
+    if (!title) return alert('Please add a title!');
+
+    const btn = document.getElementById('pub-btn');
+    btn.innerText = 'Publishing...'; btn.disabled = true;
+
+    const plainText = getAllText();
+    const htmlContent = getAllHTML();
+    const pageCount = getAllPages().length;
+
+    const { error } = await _supabase.from('stories').insert([{
+        title, description: desc, tags,
+        cover: coverBase64 || null,
+        content_html: htmlContent,
+        content_text: plainText,
+        word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
+        page_count: pageCount,
+        owner_name: myProfile.name || 'Author',
+        owner_handle: myProfile.handle || 'user',
+        font: currentFont,
+        font_size: currentFontSize,
+    }]);
+
+    if (error) {
+        alert('Error: ' + error.message);
+        btn.innerText = 'PUBLISH'; btn.disabled = false;
+    } else {
+        hasUnsaved = false;
+        alert('Story published!');
+        location.href = 'discover.html';
+    }
+}
+
+// ── EXPORT ──
+function switchExportTab(tab) {
+    document.querySelectorAll('.export-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.export-section').forEach(s => s.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('export-' + tab).classList.add('active');
+}
+
+function doExportTxt() {
+    const title = document.getElementById('pub-title').value || 'My Story';
+    const text = getAllText();
+    const blob = new Blob([title + '\n' + '='.repeat(title.length) + '\n\n' + text], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = title.replace(/\s+/g, '-').toLowerCase() + '.txt';
+    a.click();
+}
+
+function doExportPdf() {
+    const title = document.getElementById('pub-title').value || 'My Story';
+    const win = window.open('', '_blank');
+    const pdfHtml = [
+        '<!DOCTYPE html><html><head>',
+        '<title>' + title + '</title>',
+        '<link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">',
+        '<style>',
+        'body{font-family:' + currentFont + ';font-size:' + currentFontSize + 'px;line-height:' + currentSpacing + ';max-width:700px;margin:60px auto;padding:0 40px;color:#111;}',
+        'h1{font-size:2em;margin-bottom:8px;}',
+        '.meta{color:#888;font-size:13px;margin-bottom:40px;border-bottom:1px solid #ddd;padding-bottom:16px;}',
+        'hr.page-break{border:none;page-break-after:always;margin:40px 0;}',
+        '@media print{body{margin:0;}hr.page-break{page-break-after:always;}}',
+        '</style></head><body>',
+        '<h1>' + title + '</h1>',
+        '<div class="meta">by ' + (myProfile.name || 'Author') + ' · ComicCore</div>',
+        getAllHTML(),
+        '<scr' + 'ipt>window.onload=function(){window.print();}</scr' + 'ipt>',
+        '</body></html>'
+    ].join('\n');
+    win.document.write(pdfHtml);
+    win.document.close();
+}
+
+// ── EXIT ──
+function handleExit() {
+    if (hasUnsaved && !confirm('Exit without saving?')) return;
+    localStorage.removeItem('active_story_draft_id');
+    location.href = 'index.html';
+}
+
+// ── AUTO SAVE ──
+setInterval(() => { if (hasUnsaved) saveDraft(); }, 60000);
+
+// ── INIT ──
+window.onload = function() {
+    // Consume ratio from index (story doesn't use it for canvas but clears it like PC does)
+    const newRatio = localStorage.getItem('cc-new-comic-ratio');
+    if (newRatio) localStorage.removeItem('cc-new-comic-ratio');
+
+    const resumeId = localStorage.getItem('active_story_draft_id');
+    if (resumeId) {
+        const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
+        const found = drafts.find(d => d.id == resumeId);
+        if (found) {
+            activeDraftId = resumeId;
+            document.getElementById('pub-title').value = found.title || '';
+            if (found.fontSize) { currentFontSize = found.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
+            if (found.font) {
+                currentFont = found.font;
+                const match = FONTS.find(f => f.value === currentFont);
+                if (match) document.getElementById('font-label-btn').innerText = 'Aa ' + match.label;
+            }
+            if (found.spacing) currentSpacing = found.spacing;
+            const pages = found.pages || [found.content || ''];
+            pages.forEach(html => addPage(html));
+            document.getElementById('save-status').innerText = 'Draft loaded';
+            updateStats();
+            return;
+        }
+    }
+    // New story
+    addPage('');
+};
+</script>
+</body>
+</html>

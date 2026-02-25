@@ -55,6 +55,21 @@
 </div>
 
 <div class="container">
+    <div class="section-label">Device Mode</div>
+    <div class="settings-group">
+        <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div class="item-info">
+                <span>How are you using ComicCore?</span>
+                <small>This controls which editor layout you get. Your choice is saved permanently across visits.</small>
+            </div>
+            <div class="device-btn-group" style="display:flex; gap:10px; width:100%;">
+                <button class="t-btn" id="btn-device-pc" onclick="setDeviceMode('pc')" style="flex:1; padding:14px; font-size:13px;">🖥️ PC / Desktop</button>
+                <button class="t-btn" id="btn-device-mobile" onclick="setDeviceMode('mobile')" style="flex:1; padding:14px; font-size:13px;">📱 Mobile</button>
+            </div>
+            <small id="device-mode-hint" style="color: var(--accent); font-size: 12px; font-weight: 600;"></small>
+        </div>
+    </div>
+
     <div class="section-label">Community</div>
     <div class="settings-group">
         <div class="setting-item" onclick="location.href='discover.html'" style="cursor:pointer;">
@@ -161,6 +176,18 @@
         localStorage.setItem(key, value);
     }
 
+    function setDeviceMode(mode) {
+        localStorage.setItem('cc-device-mode', mode);
+        document.getElementById('btn-device-pc').classList.toggle('active', mode === 'pc');
+        document.getElementById('btn-device-mobile').classList.toggle('active', mode === 'mobile');
+        const hint = document.getElementById('device-mode-hint');
+        if (mode === 'mobile') {
+            hint.innerText = '✓ Mobile editor will be used for Create & Story.';
+        } else {
+            hint.innerText = '✓ Full PC editor will be used for Create & Story.';
+        }
+    }
+
     function setTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         saveSetting('cc-theme', theme);
@@ -195,6 +222,13 @@
 
     function loadAllSettings() {
         loadAccount();
+        const savedDevice = localStorage.getItem('cc-device-mode');
+        if (savedDevice) setDeviceMode(savedDevice);
+        else {
+            // Auto-detect on first visit
+            const autoMode = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc';
+            setDeviceMode(autoMode);
+        }
         setTheme(localStorage.getItem('cc-theme') || 'dark');
         document.getElementById('privacy-team').checked = localStorage.getItem('cc-privacy-team') !== 'false';
         document.getElementById('privacy-squad-invites').checked = localStorage.getItem('cc-privacy-squad-invites') !== 'false';

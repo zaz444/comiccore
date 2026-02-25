@@ -260,7 +260,7 @@
         <button class="card large" onclick="location.href='settings.html'">Settings</button>
         
         <button id="teams-btn" class="card large" onclick="location.href='squads.html'">Squads</button>
-        <button class="card large" onclick="location.href='sprite-editor.html'" style="border-color: var(--teal); color: var(--teal); background: rgba(255,255,255,0.05); border: 2px solid var(--teal);">🎨 Sprite Editor</button>
+        <button id="sprite-editor-btn" class="card large" onclick="location.href='sprite-editor.html'" style="border-color: var(--teal); color: var(--teal); background: rgba(255,255,255,0.05); border: 2px solid var(--teal);">🎨 Sprite Editor</button>
     </div>
 
     <button class="logout-btn" onclick="logout()">Sign Out</button>
@@ -382,12 +382,25 @@
         }
 
         function goToMode(mode) {
+            const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
             if (mode === 'comic') {
-                window.location.href = 'create.html';
+                window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
             } else {
-                window.location.href = 'story.html';
+                window.location.href = deviceMode === 'mobile' ? 'story-mobile.html' : 'story.html';
             }
         }
+
+        function applyDeviceMode() {
+            const deviceMode = localStorage.getItem('cc-device-mode');
+            // Auto-detect on first visit if not set
+            const mode = deviceMode || (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc');
+            if (!deviceMode) localStorage.setItem('cc-device-mode', mode);
+            if (mode === 'mobile') {
+                const spriteBtn = document.getElementById('sprite-editor-btn');
+                if (spriteBtn) spriteBtn.style.display = 'none';
+            }
+        }
+        applyDeviceMode();
         checkUser();
     </script>
 
