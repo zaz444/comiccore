@@ -1146,7 +1146,18 @@ function render() {
 
         // Tap selects, drag moves — touchstart must stop propagation so viewport pinch isn't triggered
         el.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 1) return; // let 2-finger pinch go to viewport
+            // 2-finger on active img layer → pinch-to-resize (NOT viewport zoom)
+            if (e.touches.length === 2 && layer === activeLayer && layer.type === 'img') {
+                e.preventDefault();
+                e.stopPropagation();
+                startTouchPinchResize(e, layer);
+                return;
+            }
+            // For any multi-touch on an active layer, block viewport from stealing the gesture
+            if (e.touches.length > 1) {
+                if (layer === activeLayer) { e.preventDefault(); e.stopPropagation(); }
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             selectLayer(layer);
@@ -1169,22 +1180,30 @@ function render() {
             ['tl','tr','bl','br'].forEach(corner => {
                 const h = document.createElement('div');
                 h.className = 'resize-handle ' + corner;
-                h.textContent = corner === 'br' ? '⤡' : '';
+                h.textContent = corner === 'br' ? '⤡' : corner === 'tl' ? '⤡' : '';
                 h.addEventListener('touchstart', (ev) => {
                     ev.preventDefault(); ev.stopPropagation();
                     const t0 = ev.touches[0];
-                    const origW = layer.w, origX = layer.x;
+                    const origW = layer.w, origX = layer.x, origY = layer.y;
                     const startClientX = t0.clientX;
+                    const startClientY = t0.clientY;
                     const isLeft = (corner === 'tl' || corner === 'bl');
+                    const isTop  = (corner === 'tl' || corner === 'tr');
                     const onMove = (mv) => {
                         mv.preventDefault();
-                        const dx = (mv.touches[0].clientX - startClientX) / vpScale;
-                        const newW = Math.max(30, Math.round(isLeft ? origW - dx : origW + dx));
+                        // Use the larger of horizontal or vertical delta for more responsive feel
+                        const rawDx = (mv.touches[0].clientX - startClientX) / vpScale;
+                        const rawDy = (mv.touches[0].clientY - startClientY) / vpScale;
+                        // For corners: use horizontal delta primarily, with diagonal boost
+                        const dx = isLeft
+                            ? -(Math.abs(rawDx) > Math.abs(rawDy) ? rawDx : -rawDy)
+                            :  (Math.abs(rawDx) > Math.abs(rawDy) ? rawDx :  rawDy);
+                        const newW = Math.max(30, Math.round(origW + (isLeft ? -dx : dx)));
                         layer.w = newW;
                         if (isLeft) layer.x = origX + (origW - newW);
                         // sync slider if transform sheet is open
                         const sl = document.getElementById('size-slider');
-                        if (sl) { sl.value = newW; document.getElementById('size-num').value = newW; }
+                        if (sl) { sl.value = newW; const sn = document.getElementById('size-num'); if (sn) sn.value = newW; }
                         render();
                     };
                     const onUp = () => {
@@ -1230,7 +1249,13 @@ function startTouchDrag(e, layer) {
     const startY = (touch.clientY - canvasRect.top) / vpScale - layer.y;
 
     const move = (me) => {
-        if (me.touches.length > 1) return; // ignore mid-drag pinch
+        if (me.touches.length > 1) {
+            // Second finger added mid-drag — cancel drag so pinch-resize can take over
+            document.removeEventListener('touchmove', move);
+            document.removeEventListener('touchend', up);
+            // Trigger pinch resize from the new 2-finger touchstart (fires automatically)
+            return;
+        }
         me.preventDefault();
         const t = me.touches[0];
         const cRect = canvas.getBoundingClientRect();
@@ -1249,7 +1274,36 @@ function startTouchDrag(e, layer) {
     document.addEventListener('touchend', up);
 }
 
-// ── MOUSE DRAG (kept for compat) ──
+// ── TOUCH PINCH RESIZE (2-finger spread/pinch on active sprite) ──
+function startTouchPinchResize(e, layer) {
+    saveState();
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const startDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    if (startDist < 5) return;
+    const origW = layer.w;
+
+    const onMove = (mv) => {
+        if (mv.touches.length < 2) return;
+        mv.preventDefault();
+        mv.stopPropagation();
+        const a = mv.touches[0], b = mv.touches[1];
+        const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+        const scale = dist / startDist;
+        layer.w = Math.max(30, Math.round(origW * scale));
+        // Sync transform sheet slider if open
+        const sl = document.getElementById('size-slider');
+        if (sl) { sl.value = layer.w; const sn = document.getElementById('size-num'); if (sn) sn.value = layer.w; }
+        render();
+    };
+    const onUp = (ev) => {
+        if (ev.touches.length < 2) {
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+        }
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+}
 function startDrag(e, layer) {
     saveState();
     const cR0 = canvas.getBoundingClientRect();
