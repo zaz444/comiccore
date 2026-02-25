@@ -31,6 +31,13 @@
     .success { background: #e6fffa; color: #276749; border: 1px solid #b2f5ea; }
     .error   { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
 
+    .verified-banner {
+      background: #e6fffa; color: #276749; border: 1px solid #b2f5ea;
+      border-radius: 16px; padding: 16px 20px; margin-bottom: 22px;
+      text-align: center; font-weight: 700; font-size: 14px; line-height: 1.5;
+    }
+    .verified-banner .check-icon { font-size: 28px; display: block; margin-bottom: 6px; }
+
     .form-content { display: none; }
     .form-content.active { display: block; }
 
@@ -76,6 +83,12 @@
 <div class="brand-header">ComicCore</div>
 
 <div class="container">
+  <div id="verified-banner" class="verified-banner" style="display:none;">
+    <span class="check-icon">✅</span>
+    Email verified! You're all set.<br>
+    <span style="font-weight:600;color:#555;font-size:13px;">Log in below to start creating.</span>
+  </div>
+
   <div id="status-banner" class="status-banner"></div>
 
   <div class="header-tabs">
@@ -152,6 +165,23 @@
     'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
   );
 
+  // ── On page load: check if user just verified their email ──
+  window.addEventListener('load', async () => {
+    const hash = window.location.hash;
+    const params = new URLSearchParams(hash.replace('#', '?'));
+    const type = params.get('type');
+
+    if (type === 'signup') {
+      // Supabase puts the session in the URL hash after email confirmation
+      // Let the SDK pick it up, then show the success banner
+      await _sb.auth.getSession(); // triggers session exchange from hash
+      document.getElementById('verified-banner').style.display = 'block';
+      toggle('login');
+      // Clean the URL so it doesn't look weird
+      history.replaceState(null, '', window.location.pathname);
+    }
+  });
+
   // Eye toggle
   function toggleEye(inputId, iconId) {
     const inp  = document.getElementById(inputId);
@@ -169,7 +199,6 @@
   let handleTimer = null;
   async function checkHandle(val) {
     const status = document.getElementById('handle-status');
-    // Force lowercase, strip invalid chars
     val = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
     document.getElementById('reg-handle').value = val;
 
@@ -178,16 +207,16 @@
       status.className = 'handle-status check';
       return;
     }
-    status.textContent = 'Checking\u2026';
+    status.textContent = 'Checking…';
     status.className = 'handle-status check';
     clearTimeout(handleTimer);
     handleTimer = setTimeout(async () => {
       const { data } = await _sb.from('profiles').select('handle').eq('handle', val).maybeSingle();
       if (data) {
-        status.textContent = '\u2715 @' + val + ' is already taken';
+        status.textContent = '✕ @' + val + ' is already taken';
         status.className = 'handle-status taken';
       } else {
-        status.textContent = '\u2713 @' + val + ' is available';
+        status.textContent = '✓ @' + val + ' is available';
         status.className = 'handle-status ok';
       }
     }, 500);
@@ -217,22 +246,25 @@
     if (!isOldEnough(dob))             return showStatus('You must be 13 or older to join.', 'error');
     if (pass.length < 6)               return showStatus('Password must be at least 6 characters.', 'error');
 
-    // Final server-side handle check
     const { data: existing } = await _sb.from('profiles').select('handle').eq('handle', handle).maybeSingle();
     if (existing) return showStatus('That username is already taken. Choose another.', 'error');
 
     btn.disabled = true;
-    btn.textContent = 'Creating account\u2026';
+    btn.textContent = 'Creating account…';
 
     try {
-      // Step 1: Create Supabase auth user
-      const { data: signUpData, error: signUpError } = await _sb.auth.signUp({ email, password: pass });
+      const { data: signUpData, error: signUpError } = await _sb.auth.signUp({
+        email,
+        password: pass,
+        options: {
+          // After clicking the verification link, user lands back on login.html
+          emailRedirectTo: window.location.href.split('?')[0].split('#')[0]
+        }
+      });
       if (signUpError) throw signUpError;
 
       const user = signUpData.user;
 
-      // Step 2: Insert the profile row — this is the fix for the NOT NULL constraint.
-      // The old code never did this, so handle was always null.
       const { error: profileError } = await _sb.from('profiles').insert({
         handle:       handle,
         permanent_id: user.id,
@@ -242,21 +274,13 @@
       });
       if (profileError) throw profileError;
 
-      // Step 3: Save to localStorage so index.html and profile.html work immediately
       localStorage.setItem('user_profile', JSON.stringify({
-        handle,
-        permanent_id: user.id,
-        name:         handle,
-        email,
-        pic:          '',
-        banner:       '',
-        bio:          '',
-        socials:      {},
-        settings:     {}
+        handle, permanent_id: user.id, name: handle,
+        email, pic: '', banner: '', bio: '', socials: {}, settings: {}
       }));
 
-      showStatus('Account created! Check your email to verify, then log in.', 'success');
-      btn.textContent = '\u2713 Account Created';
+      showStatus('✅ Account created! Check your email to verify, then log in.', 'success');
+      btn.textContent = '✓ Check Your Email';
 
     } catch (err) {
       showStatus(err.message, 'error');
@@ -278,7 +302,6 @@
 
       const user = signInData.user;
 
-      // Fetch the full profile — handle, name, pic, bio, everything
       const { data: profile } = await _sb
         .from('profiles')
         .select('*')
@@ -288,14 +311,10 @@
       if (profile) {
         localStorage.setItem('user_profile', JSON.stringify(profile));
       } else {
-        // Profile row missing — save bare minimum, index.html will try to recover
-        localStorage.setItem('user_profile', JSON.stringify({
-          permanent_id: user.id,
-          email:        user.email
-        }));
+        localStorage.setItem('user_profile', JSON.stringify({ permanent_id: user.id, email: user.email }));
       }
 
-      showStatus('Welcome back! Redirecting\u2026', 'success');
+      showStatus('Welcome back! Redirecting…', 'success');
       setTimeout(() => { window.location.href = 'index.html'; }, 800);
 
     } catch (err) {
