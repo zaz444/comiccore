@@ -230,18 +230,25 @@
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         myHandle = user.handle || null;
 
-        // Check localStorage profile first
-        let isAdmin = checkIsAdmin(user);
-        // Also try the live Supabase session in case user_profile is stale or missing
-        if (!isAdmin) {
-            try {
-                const { data: { session } } = await _supabase.auth.getSession();
-                if (session && session.user) isAdmin = checkIsAdmin(session.user);
-            } catch(e) {}
-        }
+        // Primary check: ask Supabase auth server directly for the real user UUID
+        let isAdmin = false;
+        try {
+            const { data: { user: authUser }, error } = await _supabase.auth.getUser();
+            if (authUser) {
+                console.log('[SpriteSource] Auth user ID:', authUser.id);
+                isAdmin = checkIsAdmin(authUser);
+            }
+        } catch(e) { console.warn('[SpriteSource] getUser failed:', e); }
+
+        // Fallback: check localStorage profile
+        if (!isAdmin) isAdmin = checkIsAdmin(user);
+
+        console.log('[SpriteSource] isAdmin:', isAdmin);
 
         if (isAdmin) {
             document.getElementById('admin-panel').style.display = 'block';
+            document.getElementById('status-badge').innerText = 'ADMIN MODE 🔑';
+            document.getElementById('status-badge').style.color = 'var(--accent)';
         }
         
         fetchLibrary();
