@@ -1239,31 +1239,29 @@ function selectLayer(layer) {
 
 // ── TOUCH DRAG ──
 function startTouchDrag(e, layer) {
-    if (e.touches.length > 1) return; // ignore if pinching
+    if (e.touches.length > 1) return;
     saveState();
     const touch = e.touches[0];
-    const canvasRect = canvas.getBoundingClientRect();
-    // getBoundingClientRect is in CSS screen pixels (already scaled by vpScale).
-    // layer.x/y are in logical canvas pixels, so divide screen delta by vpScale.
-    const startX = (touch.clientX - canvasRect.left) / vpScale - layer.x;
-    const startY = (touch.clientY - canvasRect.top) / vpScale - layer.y;
+    // Capture finger start + layer start ONCE — never recalculate rect mid-drag
+    const fingerStartX = touch.clientX;
+    const fingerStartY = touch.clientY;
+    const layerStartX = layer.x;
+    const layerStartY = layer.y;
 
     const move = (me) => {
         if (me.touches.length > 1) {
-            // Second finger added mid-drag — cancel drag so pinch-resize can take over
+            // Second finger added — cancel drag so pinch-resize can take over
             document.removeEventListener('touchmove', move);
             document.removeEventListener('touchend', up);
-            // Trigger pinch resize from the new 2-finger touchstart (fires automatically)
             return;
         }
         me.preventDefault();
         const t = me.touches[0];
-        const cRect = canvas.getBoundingClientRect();
-        const layerW = layer.w || 100;
-        const layerH = layer.h || (layer.fontSize ? layer.fontSize * 2 : 80);
-        const cW = canvas.offsetWidth, cH = canvas.offsetHeight;
-        layer.x = Math.min(Math.max((t.clientX - cRect.left) / vpScale - startX, 0), cW - layerW);
-        layer.y = Math.min(Math.max((t.clientY - cRect.top) / vpScale - startY, 0), cH - layerH);
+        // Delta in screen pixels → convert to logical canvas pixels via vpScale
+        const dx = (t.clientX - fingerStartX) / vpScale;
+        const dy = (t.clientY - fingerStartY) / vpScale;
+        layer.x = layerStartX + dx;
+        layer.y = layerStartY + dy;
         render();
     };
     const up = () => {
@@ -2109,7 +2107,7 @@ _applyVpTransform();
 
 <!-- ── ONION OPACITY POPUP ── -->
 <div id="onion-opacity-popup">
-    <span>🧅 Ghost</span>
+    <span>🧅 Onion</span>
     <input type="range" id="onion-opacity" min="0.1" max="0.7" step="0.1" value="0.3"
         style="width:100px; accent-color:var(--teal);" oninput="render()">
     <button onclick="document.getElementById('onion-opacity-popup').classList.remove('visible')"
