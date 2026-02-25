@@ -592,7 +592,18 @@
         height: 100px;
     }
     .sb-sprite-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
-    .sb-sprite-card img { width: 100%; flex: 1; object-fit: contain; padding: 8px; box-sizing: border-box; min-height: 0; }
+    .sb-sprite-card img { width: 100%; flex: 1; object-fit: contain; padding: 8px; box-sizing: border-box; min-height: 0; opacity: 0; transition: opacity 0.2s; }
+    .sb-sprite-card img.sb-loaded { opacity: 1; }
+    .sb-skeleton {
+        flex: 1; border-radius: 6px; margin: 8px 8px 4px;
+        background: linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%);
+        background-size: 200% 100%;
+        animation: sb-shimmer 1.4s infinite;
+    }
+    @keyframes sb-shimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
     .sb-sprite-card span {
         font-size: 9px; font-weight: 800; color: #888; padding: 3px 6px 5px;
         text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1550,16 +1561,54 @@
 
     async function openLibrary() {
         const grid = document.getElementById('library-grid');
-        grid.innerHTML = "<p style='color:white; font-size:12px;'>Loading...</p>";
         document.getElementById('library-modal').style.display = 'flex';
-        toggleMenu('plus-menu'); 
-        const { data } = await _supabase.from('sprites_library').select('*');
-        grid.innerHTML = "";
-        data?.forEach(pack => {
+        toggleMenu('plus-menu');
+
+        // Use already-loaded sidebar metadata if available, otherwise fetch metadata only
+        const meta = sidebarSprites || sbLoadMetaCache();
+        if (meta && meta.length) {
+            renderLibraryGrid(grid, meta);
+        } else {
+            grid.innerHTML = "<p style='color:white; font-size:12px;'>Loading...</p>";
+            const { data } = await _supabase.from('sprites_library')
+                .select('id, name, tags, creator, created_at')
+                .order('created_at', { ascending: false });
+            sidebarSprites = data || [];
+            sbSaveMetaCache(sidebarSprites);
+            renderLibraryGrid(grid, sidebarSprites);
+        }
+    }
+
+    function renderLibraryGrid(grid, sprites) {
+        grid.innerHTML = '';
+        sprites.forEach(pack => {
             const div = document.createElement('div');
             div.className = 'action-option';
-            div.innerHTML = `<img src="${pack.image_data}"><strong>${pack.name}</strong>`;
-            div.onclick = () => { closeLibrary(); openActionModal(pack); };
+            const cachedSrc = pack.image_data || sbGetImg(pack.id);
+            div.innerHTML = cachedSrc
+                ? `<img src="${cachedSrc}"><strong>${pack.name}</strong>`
+                : `<div style="width:100%;aspect-ratio:1;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:sb-shimmer 1.4s infinite;border-radius:6px;"></div><strong>${pack.name}</strong>`;
+            div.onclick = async () => {
+                const hasFull = pack.image_data && pack.actions !== undefined;
+                if (hasFull) { closeLibrary(); openActionModal(pack); return; }
+                div.style.opacity = '0.5';
+                const full = await sbFetchFull(pack.id);
+                div.style.opacity = '';
+                if (full) { closeLibrary(); openActionModal({ ...pack, ...full }); }
+            };
+            // Lazy-load image if not cached
+            if (!cachedSrc) {
+                const observer = new IntersectionObserver(entries => {
+                    if (!entries[0].isIntersecting) return;
+                    observer.disconnect();
+                    sbFetchFull(pack.id).then(full => {
+                        if (!full) return;
+                        const img = div.querySelector('div');
+                        if (img) { const el = document.createElement('img'); el.src = full.image_data; img.replaceWith(el); }
+                    });
+                }, { root: grid });
+                observer.observe(div);
+            }
             grid.appendChild(div);
         });
     }
@@ -2159,6 +2208,7 @@
     
     // ── Copy / Paste / Center layer ──
     let layerClipboard = null;
+    let bgClipboard = null;
 
     function copyLayer() {
         if (!activeLayer) return alert("Select a layer first!");
@@ -2177,6 +2227,37 @@
         frames[currentIdx].layers.push(pasted);
         activeLayer = pasted;
         render();
+    }
+
+    // ── Background copy/paste ──
+    function copyBackground() {
+        const f = frames[currentIdx];
+        bgClipboard = { background: f.background, bgSettings: f.bgSettings ? JSON.parse(JSON.stringify(f.bgSettings)) : null };
+        showKbFlash('📷 Background copied!');
+    }
+
+    function pasteBackground() {
+        if (!bgClipboard) return showKbFlash('Nothing in background clipboard');
+        saveState();
+        frames[currentIdx].background = bgClipboard.background;
+        if (bgClipboard.bgSettings) frames[currentIdx].bgSettings = JSON.parse(JSON.stringify(bgClipboard.bgSettings));
+        render();
+        showKbFlash('📷 Background pasted!');
+    }
+
+    // ── Keyboard shortcut flash message ──
+    function showKbFlash(msg) {
+        let el = document.getElementById('kb-flash');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'kb-flash';
+            el.style.cssText = 'position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.95);color:#fff;padding:8px 18px;border-radius:10px;font-weight:800;font-size:12px;z-index:9999;pointer-events:none;border:1px solid #333;letter-spacing:0.5px;transition:opacity 0.3s;';
+            document.body.appendChild(el);
+        }
+        el.innerText = msg;
+        el.style.opacity = '1';
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.style.opacity = '0', 1800);
     }
 
     function centerLayer() {
@@ -3227,15 +3308,125 @@
         if (name === 'layers') renderSidebarLayers();
     }
 
+    // ── Sprite Sidebar: metadata cache (localStorage, 10min TTL) ──
+    const SB_META_KEY = 'cc_sprites_meta_v2';
+    const SB_META_TTL = 10 * 60 * 1000;
+
+    function sbSaveMetaCache(data) {
+        try { localStorage.setItem(SB_META_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+    }
+    function sbLoadMetaCache() {
+        try {
+            const raw = localStorage.getItem(SB_META_KEY);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - p.ts > SB_META_TTL) { localStorage.removeItem(SB_META_KEY); return null; }
+            return p.data;
+        } catch(e) { return null; }
+    }
+
+    // Per-session image cache (sessionStorage) keyed by sprite id
+    function sbGetImg(id) { try { return sessionStorage.getItem('cc_simg_' + id); } catch(e) { return null; } }
+    function sbSetImg(id, b64) { try { sessionStorage.setItem('cc_simg_' + id, b64); } catch(e) {} }
+
+    // Full data cache (image_data + actions) — only populated when card is clicked
+    const sbFullCache = new Map();
+
+    async function sbFetchFull(id) {
+        if (sbFullCache.has(id)) return sbFullCache.get(id);
+        const { data } = await _supabase.from('sprites_library')
+            .select('id, image_data, actions').eq('id', id).single();
+        if (data) {
+            sbFullCache.set(id, data);
+            // Also update sidebarSprites reference and session image cache
+            const sp = (sidebarSprites || []).find(s => s.id === id);
+            if (sp) { sp.image_data = data.image_data; sp.actions = data.actions; }
+            sbSetImg(id, data.image_data);
+        }
+        return data;
+    }
+
+    // Lazy-load batch queue for the sidebar grid
+    let sbLazyQueue = [];
+    let sbLazyTimer = null;
+
+    const sbObserver = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            sbObserver.unobserve(entry.target);
+            const id = entry.target.dataset.sid;
+            if (!id) return;
+            const cached = sbGetImg(id);
+            if (cached) {
+                sbApplyImg(entry.target, cached);
+            } else {
+                sbLazyQueue.push(id);
+                sbScheduleBatch();
+            }
+        });
+    }, { root: document.getElementById('sb-sprite-grid'), rootMargin: '200px 0px' });
+
+    function sbScheduleBatch() {
+        if (sbLazyTimer) return;
+        sbLazyTimer = setTimeout(sbFlushBatch, 40);
+    }
+
+    async function sbFlushBatch() {
+        sbLazyTimer = null;
+        if (!sbLazyQueue.length) return;
+        const batch = [...new Set(sbLazyQueue.splice(0, 20))];
+        const { data } = await _supabase.from('sprites_library')
+            .select('id, image_data').in('id', batch);
+        if (!data) return;
+        data.forEach(row => {
+            sbSetImg(row.id, row.image_data);
+            const sp = (sidebarSprites || []).find(s => s.id === row.id);
+            if (sp) sp.image_data = row.image_data;
+            const card = document.querySelector(`.sb-sprite-card[data-sid="${row.id}"]`);
+            if (card) sbApplyImg(card, row.image_data);
+        });
+        if (sbLazyQueue.length) sbScheduleBatch();
+    }
+
+    function sbApplyImg(card, src) {
+        const skeleton = card.querySelector('.sb-skeleton');
+        if (!skeleton) return;
+        const img = document.createElement('img');
+        img.className = 'sb-loaded';
+        img.onload = () => skeleton.replaceWith(img);
+        img.onerror = () => skeleton.style.background = '#1a1a1a';
+        img.src = src;
+    }
+
     async function loadSidebarSprites() {
         const grid = document.getElementById('sb-sprite-grid');
-        grid.innerHTML = '<div class="sp-load-msg">Loading sprites...</div>';
-        try {
-            const { data } = await _supabase.from('sprites_library').select('*').order('created_at', { ascending: false });
-            sidebarSprites = data || [];
+
+        // 1. Serve from cache instantly
+        const cached = sbLoadMetaCache();
+        if (cached) {
+            sidebarSprites = cached;
             renderSidebarSprites(sidebarSprites);
+        } else {
+            grid.innerHTML = '<div class="sp-load-msg">Loading sprites...</div>';
+        }
+
+        // 2. Refresh metadata from DB in background
+        try {
+            const { data } = await _supabase.from('sprites_library')
+                .select('id, name, tags, creator, created_at')
+                .order('created_at', { ascending: false });
+            const fresh = data || [];
+
+            // Only re-render if data changed
+            const cachedIds = (sidebarSprites || []).map(s => s.id).join(',');
+            const freshIds  = fresh.map(s => s.id).join(',');
+            if (freshIds !== cachedIds || !cached) {
+                sidebarSprites = fresh;
+                sbSaveMetaCache(fresh);
+                renderSidebarSprites(sidebarSprites);
+            }
         } catch(e) {
-            grid.innerHTML = '<div class="sp-load-msg">Error loading sprites</div>';
+            if (!cached) grid.innerHTML = '<div class="sp-load-msg">Error loading sprites</div>';
         }
     }
 
@@ -3246,15 +3437,39 @@
             s.name.toLowerCase().includes(q) ||
             (s.tags || []).some(t => t.includes(q))
         ) : sprites;
+
         if (!filtered.length) {
             grid.innerHTML = '<div class="sp-load-msg">No sprites found</div>'; return;
         }
+
         grid.innerHTML = '';
         filtered.forEach(pack => {
             const div = document.createElement('div');
             div.className = 'sb-sprite-card';
-            div.innerHTML = '<img src="' + pack.image_data + '"><span>' + pack.name + '</span>';
-            div.onclick = () => { openActionModal(pack); };
+            div.dataset.sid = pack.id;
+
+            const cachedSrc = pack.image_data || sbGetImg(pack.id);
+            if (cachedSrc) {
+                div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${pack.name}</span>`;
+            } else {
+                div.innerHTML = `<div class="sb-skeleton"></div><span>${pack.name}</span>`;
+                sbObserver.observe(div);
+            }
+
+            div.onclick = async () => {
+                // Need full data (image_data + actions) before opening modal
+                const hasFull = pack.image_data && pack.actions !== undefined;
+                if (hasFull) {
+                    openActionModal(pack);
+                } else {
+                    // Show quick loading state on the card
+                    div.style.opacity = '0.5';
+                    const full = await sbFetchFull(pack.id);
+                    div.style.opacity = '';
+                    if (full) openActionModal({ ...pack, ...full });
+                }
+            };
+
             grid.appendChild(div);
         });
     }
@@ -3337,18 +3552,113 @@
         if (activeSidePanel === 'layers') renderSidebarLayers();
     };
 
-    // Keyboard shortcuts
+    // ══════════════════════════════════════
+    // KEYBOARD SHORTCUTS
+    // ══════════════════════════════════════
     document.addEventListener('keydown', e => {
+        // Never intercept when typing in an input/textarea/select
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); }
+        // Don't intercept when an overlay modal is open (export, publish, etc.)
+        const anyModalOpen = ['library-modal','action-modal','publish-modal','crop-modal','bg-import-choice-modal','export-modal','multi-import-modal']
+            .some(id => { const el = document.getElementById(id); return el && (el.style.display === 'flex' || el.style.display === 'block'); });
+        if (anyModalOpen) return;
+
+        const ctrl = e.ctrlKey || e.metaKey;
+
+        // ── Undo / Redo ──
+        if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); showKbFlash('↩ Undo'); return; }
+        if (ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); showKbFlash('↪ Redo'); return; }
+
+        // ── Copy  (Ctrl+C) ──
+        if (ctrl && e.key === 'c') {
+            e.preventDefault();
+            if (activeLayer) {
+                layerClipboard = JSON.parse(JSON.stringify(activeLayer));
+                showKbFlash('📄 Layer copied!');
+            } else {
+                copyBackground();
+            }
+            return;
+        }
+
+        // ── Paste  (Ctrl+V) ──
+        if (ctrl && e.key === 'v') {
+            e.preventDefault();
+            if (layerClipboard) {
+                pasteLayer();
+                showKbFlash('📋 Layer pasted!');
+            } else if (bgClipboard) {
+                pasteBackground();
+            } else {
+                showKbFlash('Clipboard is empty');
+            }
+            return;
+        }
+
+        // ── Duplicate  (Ctrl+D) — works for layers AND backgrounds/frames ──
+        if (ctrl && e.key === 'd') {
+            e.preventDefault();
+            if (activeLayer) {
+                // Duplicate the selected layer
+                saveState();
+                const copy = JSON.parse(JSON.stringify(activeLayer));
+                copy.id = Date.now();
+                copy.x = Math.min((copy.x || 0) + 15, canvas.getBoundingClientRect().width  - (copy.w || 100));
+                copy.y = Math.min((copy.y || 0) + 15, canvas.getBoundingClientRect().height - (copy.w || 100));
+                frames[currentIdx].layers.push(copy);
+                activeLayer = copy;
+                render();
+                if (['text','bubble','thinking','subtitle'].includes(copy.type)) showFloatToolbar(copy);
+                showKbFlash('⧉ Layer duplicated!');
+            } else {
+                // Duplicate the entire frame (background + layers)
+                duplicateFrame();
+                showKbFlash('⧉ Frame duplicated!');
+            }
+            return;
+        }
+
+        // ── Delete layer or background  (Delete / Backspace) ──
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (activeLayer) {
+                e.preventDefault();
+                deleteLayer();
+                showKbFlash('🗑 Layer deleted');
+            }
+            // (Don't auto-delete background on plain Delete — too destructive)
+            return;
+        }
+
+        // ── Arrow keys: navigate frames ──
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            const wasAtEnd = currentIdx >= frames.length - 1;
+            nextFrame(); // already creates new frame if at end
+            if (wasAtEnd && frames.length > 1) {
+                showKbFlash(`✨ New frame created (${frames.length})`);
+            } else {
+                showKbFlash(`▶ Frame ${currentIdx + 1} / ${frames.length}`);
+            }
+            return;
+        }
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            prevFrame();
+            showKbFlash(`◀ Frame ${currentIdx + 1} / ${frames.length}`);
+            return;
+        }
+
+        // ── Escape: close panels ──
         if (e.key === 'Escape') {
             if (activeSidePanel) toggleSidePanel(activeSidePanel);
+            return;
         }
-        // H = toggle UI visibility
+
+        // ── H: toggle UI visibility ──
         if (e.key === 'h' || e.key === 'H') {
             const app = document.getElementById('cc-app');
             if (app.style.visibility === 'hidden') showEditorUI(); else hideEditorUI();
+            return;
         }
     });
 

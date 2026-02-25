@@ -108,6 +108,20 @@
         .sprite-action-btn { background: rgba(0,0,0,0.8); border: 1px solid #333; color: white; border-radius: 5px; padding: 3px 7px; font-size: 10px; font-weight: 800; cursor: pointer; }
         .sprite-action-btn.danger { color: #ff453a; border-color: #552222; }
 
+        /* ── Skeleton / lazy-load ── */
+        .sprite-skeleton {
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, #1a1a1a 25%, #242424 50%, #1a1a1a 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+        }
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .sprite-card img { opacity: 0; transition: opacity 0.25s ease; }
+        .sprite-card img.loaded { opacity: 1; }
+
         /* Admin Delete Styles */
         .admin-btn-delete {
             width: 100%; padding: 12px; background: #331111; color: #ff5555; 
@@ -288,33 +302,143 @@
             btn.disabled = false;
             btn.innerText = "PUBLISH ASSET PACK";
         } else {
+            localStorage.removeItem(META_CACHE_KEY); // bust cache so new sprite appears
             alert("Success! Pack Published.");
             location.reload();
         }
     }
 
-    async function fetchLibrary() {
-        const { data } = await _supabase.from('sprites_library').select('*').order('created_at', { ascending: false });
-        allSprites = data || [];
+    // ── Cache helpers ─────────────────────────────────────
+    const META_CACHE_KEY = 'cc_sprites_meta_v2';
+    const META_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-        // Build tag set and calculate frequencies
-        allTags = new Set();
-        tagCounts = {};
-        allSprites.forEach(s => {
-            (s.tags || []).forEach(t => {
-                allTags.add(t);
-                tagCounts[t] = (tagCounts[t] || 0) + 1;
-            });
+    function saveMetaCache(data) {
+        try {
+            localStorage.setItem(META_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+        } catch(e) { /* storage full — skip cache */ }
+    }
+
+    function loadMetaCache() {
+        try {
+            const raw = localStorage.getItem(META_CACHE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (Date.now() - parsed.ts > META_CACHE_TTL) { localStorage.removeItem(META_CACHE_KEY); return null; }
+            return parsed.data;
+        } catch(e) { return null; }
+    }
+
+    // Per-session image cache (sessionStorage) keyed by sprite id
+    function getCachedImage(id) {
+        try { return sessionStorage.getItem('cc_simg_' + id); } catch(e) { return null; }
+    }
+    function setCachedImage(id, b64) {
+        try { sessionStorage.setItem('cc_simg_' + id, b64); } catch(e) { /* quota */ }
+    }
+
+    // ── Batch lazy-load queue ─────────────────────────────
+    let lazyQueue = [];      // sprite ids waiting for their image
+    let lazyTimer = null;
+
+    const lazyObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            lazyObserver.unobserve(entry.target);
+            const id = entry.target.dataset.id;
+            if (!id) return;
+            const cached = getCachedImage(id);
+            if (cached) {
+                applyImageToCard(entry.target, cached);
+            } else {
+                lazyQueue.push(id);
+                scheduleBatchFetch();
+            }
         });
-        
-        renderTagChips();
-        renderPublicGrid(allSprites);
-        document.getElementById('sprite-count').innerText = allSprites.length + ' packs';
+    }, { rootMargin: '300px 0px' }); // pre-load 300px before entering viewport
+
+    function scheduleBatchFetch() {
+        if (lazyTimer) return;
+        lazyTimer = setTimeout(flushBatch, 40); // wait 40ms to batch nearby cards
+    }
+
+    async function flushBatch() {
+        lazyTimer = null;
+        if (!lazyQueue.length) return;
+        const batch = [...new Set(lazyQueue.splice(0, 20))]; // up to 20 at a time, deduplicated
+        const { data } = await _supabase
+            .from('sprites_library')
+            .select('id, image_data')
+            .in('id', batch);
+        if (!data) return;
+        data.forEach(row => {
+            setCachedImage(row.id, row.image_data);
+            // Update the allSprites reference so openPreview can use it
+            const sprite = allSprites.find(s => s.id === row.id);
+            if (sprite) sprite.image_data = row.image_data;
+            // Find the card in the DOM and populate it
+            const card = document.querySelector(`.sprite-card[data-id="${row.id}"]`);
+            if (card) applyImageToCard(card, row.image_data);
+        });
+        // If more items were queued while we were fetching, flush again
+        if (lazyQueue.length) scheduleBatchFetch();
+    }
+
+    function applyImageToCard(card, src) {
+        const skeleton = card.querySelector('.sprite-skeleton');
+        if (!skeleton) return; // already loaded
+        const img = document.createElement('img');
+        img.onload = () => { skeleton.replaceWith(img); img.classList.add('loaded'); };
+        img.onerror = () => skeleton.remove();
+        img.src = src;
+    }
+
+    // ── Full-data cache (actions + image_data, only loaded on preview open) ──
+    const fullDataCache = new Map(); // id -> { image_data, actions }
+
+    async function fetchFullSprite(id) {
+        if (fullDataCache.has(id)) return fullDataCache.get(id);
+        // Check if we already have image from lazy load
+        const sprite = allSprites.find(s => s.id === id);
+        const hasImage = !!(sprite && sprite.image_data);
+        const fields = hasImage ? 'id, actions' : 'id, image_data, actions';
+        const { data } = await _supabase.from('sprites_library').select(fields).eq('id', id).single();
+        if (!data) return null;
+        if (sprite && data.image_data) sprite.image_data = data.image_data;
+        fullDataCache.set(id, data);
+        return data;
+    }
+
+    // ── fetchLibrary: metadata only, fast! ───────────────
+    async function fetchLibrary() {
+        // 1. Try metadata cache for instant render
+        const cached = loadMetaCache();
+        if (cached) {
+            allSprites = cached;
+            initAfterMetaFetch(false);
+        }
+
+        // 2. Always refresh from DB in background (shows fresh data)
+        const { data } = await _supabase
+            .from('sprites_library')
+            .select('id, name, tags, creator, created_at')   // NO image_data, NO actions
+            .order('created_at', { ascending: false });
+
+        const fresh = data || [];
+
+        // Only re-render if data changed (compare ids)
+        const cachedIds = (allSprites || []).map(s => s.id).join(',');
+        const freshIds  = fresh.map(s => s.id).join(',');
+        if (freshIds !== cachedIds || !cached) {
+            allSprites = fresh;
+            saveMetaCache(fresh);
+            initAfterMetaFetch(true);
+        }
     }
 
     async function fetchMySprites() {
         const { data } = await _supabase.from('user_sprites')
-            .select('*').eq('owner_handle', myHandle).order('created_at', { ascending: false });
+            .select('id, name, actions, image_data, created_at')
+            .eq('owner_handle', myHandle).order('created_at', { ascending: false });
         if (!data || data.length === 0) return;
         document.getElementById('your-sprites-section').style.display = 'block';
         const grid = document.getElementById('your-sprites-grid');
@@ -322,8 +446,10 @@
         data.forEach(sprite => {
             const card = document.createElement('div');
             card.className = 'your-sprite-card';
+            card.dataset.id = 'us_' + sprite.id; // prefix to avoid collision with library ids
+            // Personal sprites are smaller so load them directly (no lazy needed)
             card.innerHTML = `
-                <img src="${sprite.image_data}">
+                <img src="${sprite.image_data}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:10px;">
                 <div class="your-sprite-nametag">${sprite.name}</div>
                 <div class="your-sprite-actions">
                     <button class="sprite-action-btn" onclick="useMySprite(event, ${JSON.stringify(sprite).replace(/"/g, '&quot;')})">USE</button>
@@ -519,6 +645,27 @@
     }
 
 
+    function initAfterMetaFetch(rerender) {
+        // Build tag index
+        allTags = new Set();
+        tagCounts = {};
+        allSprites.forEach(s => {
+            (s.tags || []).forEach(t => {
+                allTags.add(t);
+                tagCounts[t] = (tagCounts[t] || 0) + 1;
+            });
+        });
+        renderTagChips();
+        if (rerender) {
+            renderPublicGrid(allSprites);
+            document.getElementById('sprite-count').innerText = allSprites.length + ' packs';
+        } else {
+            // First paint from cache — render immediately, don't wait for network
+            renderPublicGrid(allSprites);
+            document.getElementById('sprite-count').innerText = allSprites.length + ' packs';
+        }
+    }
+
     function renderPublicGrid(sprites) {
         const grid = document.getElementById('main-grid');
         grid.innerHTML = '';
@@ -529,10 +676,23 @@
         sprites.forEach(item => {
             const card = document.createElement('div');
             card.className = 'sprite-card';
-            card.innerHTML = `
-                <img src="${item.image_data}">
-                <div class="sprite-card-label">${item.name}</div>
-            `;
+            card.dataset.id = item.id;
+
+            // If image already in memory (e.g. from prior lazy load this session)
+            const cachedSrc = item.image_data || getCachedImage(item.id);
+            if (cachedSrc) {
+                card.innerHTML = `
+                    <img src="${cachedSrc}" class="loaded">
+                    <div class="sprite-card-label">${item.name}</div>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="sprite-skeleton"></div>
+                    <div class="sprite-card-label">${item.name}</div>
+                `;
+                lazyObserver.observe(card); // will load image when scrolled into view
+            }
+
             card.onclick = () => openPreview(item);
             grid.appendChild(card);
         });
@@ -544,74 +704,100 @@
         if (error) {
             alert("Delete Failed: " + error.message);
         } else {
+            localStorage.removeItem(META_CACHE_KEY); // bust cache
             alert("Asset pack deleted successfully.");
             closePreview();
             fetchLibrary();
         }
     }
 
-    function openPreview(item, isPersonal = false) {
-        document.getElementById('v-img').src = item.image_data;
+    async function openPreview(item, isPersonal = false) {
+        // Show overlay immediately with what we have (name, creator, tags)
+        // so it feels instant, then fill in image + actions when ready
+        document.getElementById('v-img').src = '';
+        document.getElementById('v-img').style.opacity = '0';
         document.getElementById('v-name').innerText = item.name.toUpperCase();
+        document.getElementById('v-actions').innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;padding:8px;">Loading actions...</div>';
+        document.getElementById('preview-overlay').classList.add('active');
 
         const creatorLink = document.getElementById('v-creator-link');
         if (isPersonal) {
             creatorLink.innerText = '🔒 YOUR PERSONAL SPRITE';
             creatorLink.onclick = null;
         } else {
-            creatorLink.innerText = `CREATED BY ${item.creator}`;
+            creatorLink.innerText = item.creator ? `CREATED BY ${item.creator}` : '';
             creatorLink.onclick = () => { location.href = `profile.html?id=${item.creator}`; };
         }
 
-        // Show tags in preview
+        // Show tags
         const tagsHtml = (item.tags || []).map(t => `<span style="background:#222;color:#aaa;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;">${t}</span>`).join('');
-        document.getElementById('v-creator-link').insertAdjacentHTML('afterend',
-            `<div id="v-tags" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:16px;">${tagsHtml}</div>`
-        );
-        // Remove old tags div if exists
+        creatorLink.insertAdjacentHTML('afterend', `<div id="v-tags" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:16px;">${tagsHtml}</div>`);
         const oldTags = document.querySelectorAll('#v-tags');
         if (oldTags.length > 1) oldTags[0].remove();
 
-        const actGrid = document.getElementById('v-actions');
-        actGrid.innerHTML = "";
-        let actions = item.actions;
-        if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) { actions = {}; }
-        if (actions) {
-            Object.entries(actions).forEach(([key, val]) => {
-                const chip = document.createElement('div');
-                chip.className = 'view-chip';
-                chip.innerHTML = `<img src="${val}"><span>${key}</span>`;
-                actGrid.appendChild(chip);
-            });
-        }
-
+        // Admin / save buttons
         const adminContainer = document.getElementById('admin-action-container');
-        adminContainer.innerHTML = "";
+        adminContainer.innerHTML = '';
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         if (!isPersonal && (user.permanent_id === ADMIN_ID || (user.handle && user.handle.includes(ADMIN_ID)))) {
             const delBtn = document.createElement('button');
             delBtn.className = 'admin-btn-delete';
-            delBtn.innerText = "DELETE ASSET PACK";
+            delBtn.innerText = 'DELETE ASSET PACK';
             delBtn.onclick = () => deleteAsset(item.id);
             adminContainer.appendChild(delBtn);
         }
-
-        // Save to personal option (if logged in and not already personal)
         if (myHandle && !isPersonal) {
             const saveBtn = document.createElement('button');
             saveBtn.className = 'btn-publish';
             saveBtn.style.cssText = 'background:#1c1c2e; border:1px solid var(--teal); color:var(--teal); margin-top:10px;';
             saveBtn.innerText = '💾 SAVE TO YOUR SPRITES';
-            saveBtn.onclick = () => { saveToPersonal(item); saveBtn.innerText = '✅ Saved!'; saveBtn.disabled = true; };
+            saveBtn.onclick = async () => {
+                saveBtn.innerText = 'Loading...'; saveBtn.disabled = true;
+                // Make sure we have full data before saving
+                const full = await fetchFullSprite(item.id);
+                const merged = { ...item, ...(full || {}) };
+                saveToPersonal(merged);
+                saveBtn.innerText = '✅ Saved!';
+            };
             adminContainer.appendChild(saveBtn);
         }
 
-        document.getElementById('v-use-btn').onclick = () => {
-            localStorage.setItem('incoming_sprite_pack', JSON.stringify(item));
+        // Use button — needs full data before navigating
+        document.getElementById('v-use-btn').onclick = async () => {
+            const btn = document.getElementById('v-use-btn');
+            btn.innerText = 'Loading...'; btn.disabled = true;
+            const full = await fetchFullSprite(item.id);
+            const merged = { ...item, ...(full || {}) };
+            localStorage.setItem('incoming_sprite_pack', JSON.stringify(merged));
             location.href = 'create.html';
         };
 
-        document.getElementById('preview-overlay').classList.add('active');
+        // Fetch full data (image + actions) — may already be cached
+        const full = await fetchFullSprite(item.id);
+        const merged = { ...item, ...(full || {}) };
+
+        // Populate image
+        const vImg = document.getElementById('v-img');
+        if (merged.image_data) {
+            vImg.src = merged.image_data;
+            vImg.onload = () => { vImg.style.opacity = '1'; vImg.style.transition = 'opacity 0.2s'; };
+        }
+
+        // Populate actions grid
+        const actGrid = document.getElementById('v-actions');
+        actGrid.innerHTML = '';
+        let actions = merged.actions;
+        if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) { actions = {}; }
+        if (actions && Object.keys(actions).length) {
+            Object.entries(actions).forEach(([key, val]) => {
+                const chip = document.createElement('div');
+                chip.className = 'view-chip';
+                chip.innerHTML = `<img src="${val}" loading="lazy"><span>${key}</span>`;
+                actGrid.appendChild(chip);
+            });
+        } else {
+            actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;padding:8px;grid-column:1/-1;">No actions</div>';
+        }
     }
 
     function closePreview() { document.getElementById('preview-overlay').classList.remove('active'); }
