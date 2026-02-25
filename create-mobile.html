@@ -556,14 +556,36 @@
     <div class="modal-content">
         <h2 style="margin-top:0;color:var(--teal);font-size:17px;">Export Comic</h2>
         <div class="export-tab-row">
-            <button class="export-tab active" onclick="switchExportTab('gif')">🎞 GIF</button>
-            <button class="export-tab" onclick="switchExportTab('strip')">🖼 Strip</button>
+            <button class="export-tab active" onclick="switchExportTab('frames')">🖼 Frames</button>
+            <button class="export-tab" onclick="switchExportTab('strip')">📜 Strip</button>
+            <button class="export-tab" onclick="switchExportTab('gif')">🎞 GIF</button>
         </div>
-        <div id="export-gif" class="export-section active">
+        <div id="export-frames" class="export-section active">
+            <div style="font-size:11px;color:#666;margin-bottom:12px;font-weight:700;">Tap a frame to download. On iOS long-press the image to save.</div>
+            <div id="export-frames-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:55vh;overflow-y:auto;"></div>
+        </div>
+        <div id="export-strip" class="export-section">
+            <div class="export-row">
+                <span>Frames per row</span>
+                <select id="strip-cols" style="background:#1a1a1a;border:1px solid #333;color:white;padding:7px;border-radius:8px;font-size:12px;">
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+            <div id="strip-preview-wrap" style="margin:12px 0;text-align:center;display:none;">
+                <img id="strip-preview-img" style="max-width:100%;border-radius:8px;border:1px solid #333;">
+                <div style="font-size:10px;color:#555;margin-top:6px;">Long-press image to save on iOS</div>
+            </div>
+            <div id="strip-status" style="font-size:11px;color:#888;margin-bottom:10px;"></div>
+            <button onclick="exportStrip()" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">GENERATE STRIP</button>
+        </div>
+        <div id="export-gif" class="export-section">
+            <div style="font-size:11px;color:#888;margin-bottom:10px;font-weight:700;">GIF works best on desktop. On mobile, long-press the preview to save.</div>
             <div class="export-row">
                 <span>Frame Speed</span>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <input type="range" id="gif-fps" min="1" max="24" value="6" oninput="document.getElementById('gif-fps-val').innerText=this.value+'fps'" style="width:100px;">
+                    <input type="range" id="gif-fps" min="1" max="24" value="6" oninput="document.getElementById('gif-fps-val').innerText=this.value+'fps'" style="width:100px;accent-color:var(--teal);">
                     <span id="gif-fps-val" style="color:var(--teal);font-weight:800;font-size:12px;">6fps</span>
                 </div>
             </div>
@@ -575,23 +597,16 @@
                     <option value="1">Best</option>
                 </select>
             </div>
-            <div id="gif-progress-bar"><div id="gif-progress-fill"></div></div>
-            <div id="gif-status"></div>
-            <button onclick="exportGIF()" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">GENERATE GIF</button>
-        </div>
-        <div id="export-strip" class="export-section">
-            <div class="export-row">
-                <span>Frames per row</span>
-                <select id="strip-cols" style="background:#1a1a1a;border:1px solid #333;color:white;padding:7px;border-radius:8px;font-size:12px;">
-                    <option value="3">3</option>
-                    <option value="6" selected>6</option>
-                    <option value="9">9</option>
-                </select>
+            <div id="gif-progress-bar" style="display:none;"><div id="gif-progress-fill"></div></div>
+            <div id="gif-status" style="font-size:11px;color:var(--teal);margin-bottom:10px;font-weight:800;"></div>
+            <div id="gif-result-wrap" style="display:none;text-align:center;margin-bottom:10px;">
+                <img id="gif-result-img" style="max-width:100%;border-radius:8px;border:1px solid #333;">
+                <div style="font-size:10px;color:#555;margin-top:6px;">Long-press to save on iOS</div>
+                <a id="gif-download-link" style="display:inline-block;margin-top:8px;padding:10px 20px;background:var(--teal);color:#000;border-radius:10px;font-weight:900;font-size:12px;text-decoration:none;">Download GIF</a>
             </div>
-            <div id="strip-status" style="font-size:11px;color:#888;margin-bottom:10px;"></div>
-            <button onclick="exportStrip()" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">SAVE STRIP</button>
+            <button onclick="exportGIF()" id="gif-generate-btn" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">GENERATE GIF</button>
         </div>
-        <button onclick="closeExportModal()" style="width:100%;margin-top:10px;padding:11px;background:#222;color:#aaa;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button onclick="closeExportModal()" style="width:100%;margin-top:10px;padding:11px;background:#222;color:#aaa;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Close</button>
     </div>
 </div>
 
@@ -1160,7 +1175,7 @@ function render() {
             }
             e.preventDefault();
             e.stopPropagation();
-            selectLayer(layer);
+            selectLayerLight(layer);
             startTouchDrag(e, layer);
         }, { passive: false });
         el.addEventListener('mousedown', (e) => { e.preventDefault(); selectLayer(layer); startDrag(e, layer); });
@@ -1237,38 +1252,44 @@ function selectLayer(layer) {
     render();
 }
 
+function selectLayerLight(layer) {
+    activeLayer = layer;
+    selectedLayers = [layer];
+    document.querySelectorAll('.layer').forEach(function(el) {
+        el.classList.toggle('active', el.dataset.layerId == layer.id);
+    });
+}
+
 // ── TOUCH DRAG ──
 function startTouchDrag(e, layer) {
-    if (e.touches.length > 1) return; // ignore if pinching
+    if (e.touches.length > 1) return;
     saveState();
-    const touch = e.touches[0];
-    const canvasRect = canvas.getBoundingClientRect();
-    // getBoundingClientRect is in CSS screen pixels (already scaled by vpScale).
-    // layer.x/y are in logical canvas pixels, so divide screen delta by vpScale.
-    const startX = (touch.clientX - canvasRect.left) / vpScale - layer.x;
-    const startY = (touch.clientY - canvasRect.top) / vpScale - layer.y;
-
-    const move = (me) => {
+    var touch = e.touches[0];
+    var fingerStartX = touch.clientX;
+    var fingerStartY = touch.clientY;
+    var layerStartX = layer.x;
+    var layerStartY = layer.y;
+    var hasMoved = false;
+    var move = function(me) {
         if (me.touches.length > 1) {
-            // Second finger added mid-drag — cancel drag so pinch-resize can take over
             document.removeEventListener('touchmove', move);
             document.removeEventListener('touchend', up);
-            // Trigger pinch resize from the new 2-finger touchstart (fires automatically)
             return;
         }
         me.preventDefault();
-        const t = me.touches[0];
-        const cRect = canvas.getBoundingClientRect();
-        const layerW = layer.w || 100;
-        const layerH = layer.h || (layer.fontSize ? layer.fontSize * 2 : 80);
-        const cW = canvas.offsetWidth, cH = canvas.offsetHeight;
-        layer.x = Math.min(Math.max((t.clientX - cRect.left) / vpScale - startX, 0), cW - layerW);
-        layer.y = Math.min(Math.max((t.clientY - cRect.top) / vpScale - startY, 0), cH - layerH);
-        render();
+        hasMoved = true;
+        var t = me.touches[0];
+        var dx = (t.clientX - fingerStartX) / vpScale;
+        var dy = (t.clientY - fingerStartY) / vpScale;
+        layer.x = layerStartX + dx;
+        layer.y = layerStartY + dy;
+        var el = document.querySelector('.layer[data-layerId="' + layer.id + '"]');
+        if (el) { el.style.left = layer.x + 'px'; el.style.top = layer.y + 'px'; }
     };
-    const up = () => {
+    var up = function() {
         document.removeEventListener('touchmove', move);
         document.removeEventListener('touchend', up);
+        if (hasMoved) render();
     };
     document.addEventListener('touchmove', move, { passive: false });
     document.addEventListener('touchend', up);
@@ -1808,7 +1829,7 @@ async function finalPublish() {
     const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
     let error;
     if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
-    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
+    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, author_id: user.id, created_at: new Date().toISOString() }])); }
     if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
     alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
@@ -1816,57 +1837,184 @@ async function finalPublish() {
 }
 
 // ── EXPORT ──
-function openExportModal() { document.getElementById('export-modal').style.display='flex'; }
+function openExportModal() { document.getElementById('export-modal').style.display='flex'; openExportFramesTab(); }
 function closeExportModal() { document.getElementById('export-modal').style.display='none'; }
 function switchExportTab(tab) {
     document.querySelectorAll('.export-tab').forEach(t=>t.classList.remove('active'));
     document.querySelectorAll('.export-section').forEach(s=>s.classList.remove('active'));
     event.target.classList.add('active');
     document.getElementById('export-'+tab).classList.add('active');
+    if (tab === 'frames') openExportFramesTab();
 }
-function exportGIF() {
-    const statusEl = document.getElementById('gif-status');
-    const fillEl = document.getElementById('gif-progress-fill');
-    const barEl = document.getElementById('gif-progress-bar');
-    statusEl.innerText = 'Rendering frames...';
-    barEl.style.display='block'; fillEl.style.width='0%';
-    const fps = parseInt(document.getElementById('gif-fps').value);
-    const quality = parseInt(document.getElementById('gif-quality').value);
-    const cw = canvas.offsetWidth || 400, ch = canvas.offsetHeight || 400;
-    const gif = new GIF({ workers:2, quality, width:cw, height:ch, workerScript:'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js' });
-    let done=0;
-    frames.forEach((f, i) => {
-        const tmpCanvas = document.createElement('canvas'); tmpCanvas.width=cw; tmpCanvas.height=ch;
-        const ctx2 = tmpCanvas.getContext('2d');
-        const bg = f.background||'#fff';
-        if (bg.startsWith('http')||bg.startsWith('data:image')) {
-            const img=new Image(); img.src=bg;
-            ctx2.drawImage(img,0,0,cw,ch);
-        } else { ctx2.fillStyle=bg; ctx2.fillRect(0,0,cw,ch); }
-        gif.addFrame(tmpCanvas, { delay: Math.round(1000/fps), copy:true });
-        done++; fillEl.style.width = (done/frames.length*50)+'%';
+async function renderFrameToCanvas(frame, cw, ch) {
+    var tmp = document.createElement('canvas');
+    tmp.width = cw; tmp.height = ch;
+    var ctx = tmp.getContext('2d');
+    var bg = frame.background || '#ffffff';
+    var s = frame.bgSettings || {};
+    var scale = s.scale != null ? s.scale : 100;
+    var xOff = s.x != null ? s.x : 0;
+    var yOff = s.y != null ? s.y : 0;
+    var rot = s.rotate != null ? s.rotate : 0;
+    var isImg = bg.indexOf('http') === 0 || bg.indexOf('data:image') === 0;
+    await new Promise(function(res) {
+        if (isImg) {
+            var img = new Image(); img.crossOrigin = 'anonymous'; img.src = bg;
+            var draw = function() {
+                ctx.save();
+                ctx.translate(cw/2 + xOff*cw/100, ch/2 + yOff*ch/100);
+                ctx.rotate(rot * Math.PI / 180);
+                var sc = scale / 100;
+                var iw = img.naturalWidth || cw, ih = img.naturalHeight || ch;
+                var ar = iw/ih, cr = cw/ch;
+                var dw, dh;
+                if (ar > cr) { dh = ch*sc*1.1; dw = dh*ar; } else { dw = cw*sc*1.1; dh = dw/ar; }
+                ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+                ctx.restore(); res();
+            };
+            if (img.complete && img.naturalWidth) draw();
+            else { img.onload = draw; img.onerror = function() { ctx.fillStyle='#fff'; ctx.fillRect(0,0,cw,ch); res(); }; }
+        } else { ctx.fillStyle = bg; ctx.fillRect(0,0,cw,ch); res(); }
     });
-    gif.on('progress', p => { fillEl.style.width = (50+p*50)+'%'; statusEl.innerText=Math.round(50+p*50)+'%'; });
-    gif.on('finished', blob => { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='comic.gif'; a.click(); statusEl.innerText='Done!'; barEl.style.display='none'; });
-    gif.render();
+    for (var li = 0; li < frame.layers.length; li++) {
+        var layer = frame.layers[li];
+        if (layer.type === 'img') {
+            await (function(lyr) {
+                return new Promise(function(res) {
+                    var img = new Image(); img.crossOrigin = 'anonymous'; img.src = lyr.src;
+                    var draw = function() {
+                        var iw = img.naturalWidth||1, ih = img.naturalHeight||1;
+                        var lw = lyr.w||100, lh = lw*(ih/iw);
+                        var cx = (lyr.x||0)+lw/2, cy = (lyr.y||0)+lh/2;
+                        ctx.save();
+                        ctx.globalAlpha = lyr.fxOpacity != null ? lyr.fxOpacity/100 : 1;
+                        ctx.translate(cx, cy);
+                        ctx.rotate((lyr.rotation||0)*Math.PI/180);
+                        if (lyr.flipped) ctx.scale(-1,1);
+                        ctx.drawImage(img,-lw/2,-lh/2,lw,lh);
+                        ctx.restore(); res();
+                    };
+                    if (img.complete && img.naturalWidth) draw();
+                    else { img.onload=draw; img.onerror=res; }
+                });
+            })(layer);
+        } else if (layer.type==='text'||layer.type==='bubble'||layer.type==='thinking'||layer.type==='subtitle') {
+            ctx.save();
+            ctx.globalAlpha = layer.fxOpacity != null ? layer.fxOpacity/100 : 1;
+            var lx=layer.x||0, ly=layer.y||0, fw=layer.w||160;
+            var fs=layer.fontSize||(layer.type==='subtitle'?16:22);
+            var ff=(layer.fontFamily||'Inter, sans-serif').replace(/['"]/g,'');
+            ctx.font=(layer.bold?'900':'700')+' '+fs+'px '+ff;
+            if (layer.type==='subtitle') {
+                ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(lx,ly,fw,fs+20); ctx.fillStyle='#fff';
+            } else if (layer.type==='bubble'||layer.type==='thinking') {
+                ctx.fillStyle=layer.bubbleBg||'#fff';
+                ctx.strokeStyle=layer.bubbleBorderColor||'#000'; ctx.lineWidth=3;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(lx,ly,fw,fs+28,12); else ctx.rect(lx,ly,fw,fs+28);
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle=layer.color||'#000';
+            } else { ctx.fillStyle=layer.color||'#000'; }
+            ctx.textAlign=layer.align||'left';
+            var textContent = layer.content || '';
+            var textLines = textContent.split('\n');
+            for (var tli=0; tli<textLines.length; tli++) {
+                ctx.fillText(textLines[tli], lx+8, ly+fs+14+tli*(fs+4));
+            }
+            ctx.restore();
+        }
+    }
+    return tmp;
 }
-function exportStrip() {
-    const cols = parseInt(document.getElementById('strip-cols').value);
-    const cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
-    const rows=Math.ceil(frames.length/cols), pad=10, wm=80;
-    const sw=(cw+pad)*cols+pad+wm, sh=(ch+pad)*rows+pad;
-    const stripCanvas=document.createElement('canvas'); stripCanvas.width=sw; stripCanvas.height=sh;
-    const ctx2=stripCanvas.getContext('2d'); ctx2.fillStyle='#111'; ctx2.fillRect(0,0,sw,sh);
-    frames.forEach((f,i)=>{
-        const row=Math.floor(i/cols), col=i%cols;
-        const x=pad+col*(cw+pad), y=pad+row*(ch+pad);
-        const bg=f.background||'#fff';
-        if(bg.startsWith('http')||bg.startsWith('data:image')){const img=new Image();img.src=bg;ctx2.drawImage(img,x,y,cw,ch);}
-        else{ctx2.fillStyle=bg;ctx2.fillRect(x,y,cw,ch);}
-    });
-    ctx2.fillStyle='rgba(255,122,0,0.9)'; ctx2.fillRect(sw-wm,0,wm,sh);
-    ctx2.fillStyle='#000'; ctx2.font='bold 10px Inter'; ctx2.textAlign='center'; ctx2.fillText('COMIC',sw-wm/2,sh/2);
-    const a=document.createElement('a'); a.href=stripCanvas.toDataURL('image/png'); a.download='comic-strip.png'; a.click();
+
+function mobileDownload(dataUrl, filename) {
+    try {
+        var a = document.createElement('a');
+        a.href=dataUrl; a.download=filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } catch(e) { window.open(dataUrl,'_blank'); }
+}
+
+async function exportGIF() {
+    var statusEl=document.getElementById('gif-status');
+    var fillEl=document.getElementById('gif-progress-fill');
+    var barEl=document.getElementById('gif-progress-bar');
+    var resultWrap=document.getElementById('gif-result-wrap');
+    var btn=document.getElementById('gif-generate-btn');
+    resultWrap.style.display='none'; barEl.style.display='block'; fillEl.style.width='0%';
+    statusEl.innerText='Rendering frames...'; btn.disabled=true; btn.innerText='GENERATING...';
+    var fps=parseInt(document.getElementById('gif-fps').value);
+    var quality=parseInt(document.getElementById('gif-quality').value);
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+    try {
+        var renderedFrames=[];
+        for (var i=0;i<frames.length;i++) {
+            statusEl.innerText='Rendering frame '+(i+1)+' / '+frames.length;
+            fillEl.style.width=(i/frames.length*40)+'%';
+            renderedFrames.push(await renderFrameToCanvas(frames[i],cw,ch));
+        }
+        var gif=new GIF({workers:2,quality:quality,width:cw,height:ch,workerScript:'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'});
+        for (var ri=0;ri<renderedFrames.length;ri++) gif.addFrame(renderedFrames[ri],{delay:Math.round(1000/fps),copy:true});
+        fillEl.style.width='50%'; statusEl.innerText='Encoding GIF...';
+        gif.on('progress',function(p){fillEl.style.width=(50+p*50)+'%';statusEl.innerText='Encoding: '+Math.round(50+p*50)+'%';});
+        gif.on('finished',function(blob){
+            var url=URL.createObjectURL(blob);
+            document.getElementById('gif-result-img').src=url;
+            var dl=document.getElementById('gif-download-link'); dl.href=url; dl.download='comic.gif';
+            resultWrap.style.display='block'; barEl.style.display='none';
+            statusEl.innerText='Done! Long-press image to save on iOS.';
+            btn.disabled=false; btn.innerText='REGENERATE';
+        });
+        gif.on('error',function(err){statusEl.innerText='GIF failed: '+err;barEl.style.display='none';btn.disabled=false;btn.innerText='GENERATE GIF';});
+        gif.render();
+    } catch(err) { statusEl.innerText='Error: '+err.message; barEl.style.display='none'; btn.disabled=false; btn.innerText='GENERATE GIF'; }
+}
+
+async function exportStrip() {
+    var cols=parseInt(document.getElementById('strip-cols').value);
+    var statusEl=document.getElementById('strip-status');
+    var previewWrap=document.getElementById('strip-preview-wrap');
+    statusEl.innerText='Rendering...';
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+    var rows=Math.ceil(frames.length/cols), pad=10;
+    var sw=(cw+pad)*cols+pad, sh=(ch+pad)*rows+pad;
+    var sc=document.createElement('canvas'); sc.width=sw; sc.height=sh;
+    var ctx2=sc.getContext('2d'); ctx2.fillStyle='#111'; ctx2.fillRect(0,0,sw,sh);
+    for (var i=0;i<frames.length;i++) {
+        statusEl.innerText='Frame '+(i+1)+' / '+frames.length;
+        var fc=await renderFrameToCanvas(frames[i],cw,ch);
+        var row=Math.floor(i/cols), col=i%cols;
+        ctx2.drawImage(fc,pad+col*(cw+pad),pad+row*(ch+pad));
+        ctx2.fillStyle='rgba(255,122,0,0.9)'; ctx2.fillRect(pad+col*(cw+pad),pad+row*(ch+pad),22,18);
+        ctx2.fillStyle='#000'; ctx2.font='bold 10px Inter'; ctx2.textAlign='center';
+        ctx2.fillText(i+1,pad+col*(cw+pad)+11,pad+row*(ch+pad)+13);
+    }
+    var dataUrl=sc.toDataURL('image/png');
+    document.getElementById('strip-preview-img').src=dataUrl;
+    previewWrap.style.display='block';
+    statusEl.innerText='Done! Long-press image to save on iOS.';
+    mobileDownload(dataUrl,'comic-strip.png');
+}
+
+async function openExportFramesTab() {
+    var grid=document.getElementById('export-frames-grid');
+    grid.innerHTML='<div style="color:#555;font-size:12px;padding:10px;">Rendering...</div>';
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+    grid.innerHTML='';
+    for (var i=0;i<frames.length;i++) {
+        var fc=await renderFrameToCanvas(frames[i],cw,ch);
+        var dataUrl=fc.toDataURL('image/png');
+        var wrap=document.createElement('div');
+        wrap.style.cssText='position:relative;border-radius:10px;overflow:hidden;border:2px solid #333;cursor:pointer;';
+        var img=document.createElement('img');
+        img.src=dataUrl; img.style.cssText='width:100%;display:block;';
+        var label=document.createElement('div');
+        label.style.cssText='position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:var(--accent);font-size:10px;font-weight:900;padding:5px 8px;text-align:center;';
+        label.innerText='FRAME '+(i+1)+' - TAP TO SAVE';
+        wrap.appendChild(img); wrap.appendChild(label);
+        (function(url,idx){ wrap.onclick=function(){mobileDownload(url,'frame-'+idx+'.png');}; })(dataUrl,i+1);
+        grid.appendChild(wrap);
+    }
 }
 
 // ── SAVE SPRITE TO PERSONAL ──
