@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ComicCore - Mobile Creator</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
@@ -31,6 +31,7 @@
         display: flex; align-items: center; padding: 0 10px; gap: 6px;
         z-index: 200; flex-shrink: 0;
         box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        touch-action: manipulation;
     }
     .tb-btn {
         background: rgba(255,255,255,0.07); border: 1px solid var(--border);
@@ -51,7 +52,7 @@
     #viewport {
         flex: 1; display: flex; justify-content: center; align-items: center;
         background: #050505; position: relative; overflow: hidden;
-        touch-action: manipulation;
+        touch-action: none;
     }
     #canvas-container {
         position: relative; display: inline-block;
@@ -128,6 +129,7 @@
         overflow-x: auto; overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none; /* hide scrollbar on Firefox */
+        touch-action: pan-x; /* allow horizontal scroll, block pinch zoom */
     }
     #bottom-bar::-webkit-scrollbar { display: none; }
     .bot-btn {
@@ -197,6 +199,7 @@
         z-index: 400; transition: bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         max-height: 75vh; display: flex; flex-direction: column;
         border-top: 1px solid var(--border);
+        touch-action: pan-y; /* allow scroll inside sheets, block pinch zoom */
     }
     .bottom-sheet.open { bottom: 0; }
     .sheet-handle {
@@ -475,6 +478,7 @@
         display: none; position: fixed; inset: 0; z-index: 9999;
         background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
         align-items: flex-end; justify-content: center;
+        touch-action: pan-y;
     }
     #drafts-modal.open { display: flex; }
     #drafts-panel {
@@ -494,6 +498,7 @@
     #drafts-list {
         flex: 1; overflow-y: auto; padding: 10px 14px;
         display: flex; flex-direction: column; gap: 8px;
+        -webkit-overflow-scrolling: touch;
     }
     .draft-item {
         display: flex; align-items: center; gap: 12px;
@@ -504,7 +509,7 @@
     .draft-item:active { background: rgba(255,255,255,0.12); }
     .draft-thumb {
         width: 48px; height: 48px; border-radius: 8px;
-        background: #2c2c2e; object-fit: cover; flex-shrink: 0;
+        background: #2c2c2e; flex-shrink: 0;
         border: 1px solid rgba(255,255,255,0.1);
     }
     .draft-info { flex: 1; min-width: 0; }
@@ -1247,7 +1252,7 @@ function render() {
         el.addEventListener('touchend', (e) => {
             if (e.changedTouches.length === 1) {
                 const now = Date.now();
-                if (now - lastTap < 300) { e.preventDefault(); openTransformSheet(); }
+                if (!_isDragging && now - lastTap < 300) { e.preventDefault(); openTransformSheet(); }
                 lastTap = now;
             }
         }, { passive: false });
@@ -1323,23 +1328,30 @@ function selectLayerLight(layer) {
 }
 
 // ── TOUCH DRAG ──
+var _isDragging = false; // blocks double-tap-to-transform during a drag
 function startTouchDrag(e, layer) {
     if (e.touches.length > 1) return;
     saveState();
+    _isDragging = false;
     var touch = e.touches[0];
     var fingerStartX = touch.clientX;
     var fingerStartY = touch.clientY;
     var layerStartX = layer.x;
     var layerStartY = layer.y;
-    var hasMoved = false;
+
+    var cleanup = function() {
+        document.removeEventListener('touchmove', move);
+        document.removeEventListener('touchend', up);
+        document.removeEventListener('touchcancel', up);
+        // Always commit — layer.x/y may have changed even if render() wasn't called yet
+        render();
+        // Brief delay so the element's touchend doesn't fire the transform sheet
+        setTimeout(function() { _isDragging = false; }, 80);
+    };
     var move = function(me) {
-        if (me.touches.length > 1) {
-            document.removeEventListener('touchmove', move);
-            document.removeEventListener('touchend', up);
-            return;
-        }
+        if (me.touches.length > 1) { cleanup(); return; }
         me.preventDefault();
-        hasMoved = true;
+        _isDragging = true;
         var t = me.touches[0];
         var dx = (t.clientX - fingerStartX) / vpScale;
         var dy = (t.clientY - fingerStartY) / vpScale;
@@ -1348,13 +1360,10 @@ function startTouchDrag(e, layer) {
         var el = document.querySelector('.layer[data-layerId="' + layer.id + '"]');
         if (el) { el.style.left = layer.x + 'px'; el.style.top = layer.y + 'px'; }
     };
-    var up = function() {
-        document.removeEventListener('touchmove', move);
-        document.removeEventListener('touchend', up);
-        if (hasMoved) render();
-    };
+    var up = function() { cleanup(); };
     document.addEventListener('touchmove', move, { passive: false });
-    document.addEventListener('touchend', up);
+    document.addEventListener('touchend', up, { once: true });
+    document.addEventListener('touchcancel', up, { once: true });
 }
 
 // ── TOUCH PINCH RESIZE (2-finger spread/pinch on active sprite) ──
@@ -1884,19 +1893,17 @@ async function finalPublish() {
     if (!title) { alert('Please enter a title.'); return; }
     if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
     btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
+    const { data: { user } } = await _supabase.auth.getUser();
+    if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
     const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
-    const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
-    const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
-    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, swipe_dir: swipeDir };
+    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
     let error;
-    if (editingComicId) {
-        ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId));
-    } else {
-        ({ error } = await _supabase.from('comics').insert([{ ...payload, owner_name: profile.name, owner_handle: profile.handle, stars: 0, starred_by: [] }]));
-    }
+    if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
+    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
     if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
+    alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
     location.href = 'discover.html';
 }
 
@@ -2417,6 +2424,26 @@ _vpViewport.addEventListener('touchend', (e) => {
 
 // Init
 _applyVpTransform();
+
+// ── Block native browser zoom on all UI chrome (everywhere EXCEPT the #viewport) ──
+// The viewport handles its own pinch via our custom JS above.
+document.addEventListener('touchstart', function(e) {
+    if (e.touches.length > 1 && !_vpViewport.contains(e.target)) {
+        e.preventDefault();
+    }
+}, { passive: false });
+document.addEventListener('touchmove', function(e) {
+    if (e.touches.length > 1 && !_vpViewport.contains(e.target)) {
+        e.preventDefault();
+    }
+}, { passive: false });
+// Block iOS gesturestart (Safari's proprietary pinch event) on UI chrome
+document.addEventListener('gesturestart', function(e) {
+    if (!_vpViewport.contains(e.target)) e.preventDefault();
+}, { passive: false });
+document.addEventListener('gesturechange', function(e) {
+    if (!_vpViewport.contains(e.target)) e.preventDefault();
+}, { passive: false });
 </script>
 <!-- ── ZOOM CONTROLS ── -->
 <div id="zoom-controls">

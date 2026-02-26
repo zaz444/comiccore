@@ -70,8 +70,6 @@
             caret-color: var(--accent);
             word-wrap: break-word;
             overflow-wrap: break-word;
-            white-space: pre-wrap;
-            overflow: hidden;
             min-height: 900px;
             position: relative;
             box-sizing: border-box;
@@ -139,6 +137,56 @@
         .export-tab.active { background: var(--teal); color: #000; }
         .export-section { display: none; flex-direction: column; gap: 12px; }
         .export-section.active { display: flex; }
+
+        /* ── Drafts Modal ── */
+        #drafts-modal {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+            align-items: flex-end; justify-content: center;
+        }
+        #drafts-modal.open { display: flex; }
+        #drafts-panel {
+            background: #1a1a1a; border: 1px solid #2c2c2e;
+            border-radius: 20px 20px 0 0;
+            width: 100%; max-width: 600px; max-height: 75dvh;
+            display: flex; flex-direction: column;
+            animation: draftsUp .3s cubic-bezier(.4,0,.2,1);
+            overflow: hidden;
+        }
+        @keyframes draftsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        #drafts-panel-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 20px 14px; border-bottom: 1px solid #2c2c2e; flex-shrink: 0;
+        }
+        #drafts-panel-head h2 { margin: 0; font-size: 16px; font-weight: 900; color: #fff; }
+        #drafts-panel-head button { background: none; border: none; color: #555; font-size: 22px; cursor: pointer; padding: 0; }
+        #drafts-list {
+            flex: 1; overflow-y: auto; padding: 10px 16px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .sdraft-item {
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: background 0.15s;
+        }
+        .sdraft-item:hover, .sdraft-item:active { background: rgba(255,255,255,0.1); }
+        .sdraft-icon { font-size: 28px; flex-shrink: 0; }
+        .sdraft-info { flex: 1; min-width: 0; }
+        .sdraft-title { font-size: 14px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sdraft-meta { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 3px; font-weight: 600; }
+        .sdraft-del {
+            background: none; border: none; color: rgba(255,255,255,0.25);
+            font-size: 18px; cursor: pointer; padding: 4px 6px; flex-shrink: 0;
+            transition: color 0.15s; line-height: 1;
+        }
+        .sdraft-del:hover { color: #ff453a; }
+        .sdraft-new {
+            width: 100%; padding: 13px; background: rgba(255,255,255,0.06);
+            border: 1px dashed rgba(255,255,255,0.18); border-radius: 12px;
+            color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 700;
+            cursor: pointer; font-family: inherit; transition: background 0.15s;
+        }
+        .sdraft-new:hover { background: rgba(255,255,255,0.11); }
     </style>
 </head>
 <body>
@@ -192,6 +240,7 @@
     <div style="font-size:13px; font-weight:900; color:var(--accent); letter-spacing:1px;">STORY EDITOR</div>
     <div style="display:flex; gap:8px;">
         <button class="nav-btn" onclick="saveDraft()" style="color:var(--teal); border-color:var(--teal);">💾 SAVE</button>
+        <button class="nav-btn" onclick="openDraftsModal()" style="color:var(--teal); border-color:var(--teal);">📂 DRAFTS</button>
         <button class="nav-btn" onclick="document.getElementById('export-modal').style.display='flex'" style="color:var(--teal); border-color:var(--teal);">EXPORT</button>
         <button onclick="openPublish()" style="color:var(--accent); background:none; border:none; font-weight:900; cursor:pointer; font-size:14px;">PUBLISH</button>
     </div>
@@ -271,6 +320,20 @@
     <div>Pages: <span id="page-count">1</span></div>
     <div>Read time: <span id="read-time">0 min</span></div>
     <div style="margin-left:auto; color:var(--secondary);" id="save-status">Unsaved</div>
+</div>
+
+<!-- ── Drafts Modal ── -->
+<div id="drafts-modal" onclick="if(event.target===this)closeDraftsModal()">
+    <div id="drafts-panel">
+        <div id="drafts-panel-head">
+            <h2>📂 Story Drafts</h2>
+            <button onclick="closeDraftsModal()">✕</button>
+        </div>
+        <div id="drafts-list"></div>
+        <div style="padding:0 16px 14px;">
+            <button class="sdraft-new" onclick="startNewStory()">+ New Story</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -510,6 +573,7 @@
             title,
             fontSize: currentFontSize,
             font: currentFont,
+            updated: Date.now(),
             lastModified: new Date().toLocaleString()
         };
 
@@ -622,6 +686,99 @@
         ].join('\n');
         win.document.write(pdfHtml);
         win.document.close();
+    }
+
+    // ── Drafts Modal ──
+    function openDraftsModal() {
+        let drafts = [];
+        try { drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]'); } catch(e) {}
+        drafts.sort((a, b) => (b.updated || b.lastModified || 0) - (a.updated || a.lastModified || 0));
+        const list = document.getElementById('drafts-list');
+
+        if (!drafts.length) {
+            list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
+        } else {
+            list.innerHTML = '';
+            drafts.forEach(draft => {
+                const item = document.createElement('div');
+                item.className = 'sdraft-item';
+                const isCurrent = String(draft.id) === String(activeDraftId);
+                const pageCount = (draft.pages || [draft.content]).filter(Boolean).length || 1;
+                const wordEst = draft.pages
+                    ? draft.pages.map(p => { const tmp = document.createElement('div'); tmp.innerHTML = p; return tmp.innerText; }).join(' ').trim().split(/\s+/).filter(Boolean).length
+                    : 0;
+                const dateStr = draft.lastModified || (draft.updated ? new Date(draft.updated).toLocaleDateString() : '');
+                item.innerHTML = `
+                    <div class="sdraft-icon">📄</div>
+                    <div class="sdraft-info">
+                        <div class="sdraft-title">${isCurrent ? '▶ ' : ''}${draft.title || 'Untitled Story'}</div>
+                        <div class="sdraft-meta">${pageCount} page${pageCount !== 1 ? 's' : ''} · ~${wordEst} words · ${dateStr}</div>
+                    </div>
+                    <button class="sdraft-del" title="Delete draft" onclick="event.stopPropagation(); deleteDraft('${draft.id}')">🗑</button>
+                `;
+                item.addEventListener('click', () => loadDraft(draft.id));
+                list.appendChild(item);
+            });
+        }
+        document.getElementById('drafts-modal').classList.add('open');
+    }
+
+    function closeDraftsModal() {
+        document.getElementById('drafts-modal').classList.remove('open');
+    }
+
+    function deleteDraft(id) {
+        if (!confirm('Delete this draft?')) return;
+        let drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
+        drafts = drafts.filter(d => String(d.id) !== String(id));
+        localStorage.setItem('story_drafts', JSON.stringify(drafts));
+        if (String(id) === String(activeDraftId)) {
+            activeDraftId = null;
+            localStorage.removeItem('active_story_draft_id');
+        }
+        openDraftsModal(); // refresh
+    }
+
+    function loadDraft(id) {
+        if (String(id) === String(activeDraftId)) { closeDraftsModal(); return; }
+        if (hasUnsaved && !confirm('You have unsaved changes. Switch drafts anyway?')) return;
+        const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
+        const draft = drafts.find(d => String(d.id) === String(id));
+        if (!draft) return;
+        // Clear pages
+        const container = document.getElementById('pages-container');
+        container.innerHTML = '';
+        // Restore state
+        activeDraftId = draft.id;
+        localStorage.setItem('active_story_draft_id', String(draft.id));
+        document.getElementById('pub-title').value = draft.title || '';
+        if (draft.fontSize) { currentFontSize = draft.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
+        if (draft.font) { currentFont = draft.font; document.getElementById('font-select').value = currentFont; }
+        const pages = draft.pages || [draft.content || ''];
+        pages.forEach(html => addPage(html));
+        hasUnsaved = false;
+        document.getElementById('save-status').innerText = 'Draft loaded';
+        updateStats();
+        closeDraftsModal();
+        // Focus first page
+        const first = container.querySelector('.story-page');
+        if (first) setTimeout(() => first.focus(), 100);
+    }
+
+    function startNewStory() {
+        if (hasUnsaved && !confirm('You have unsaved changes. Start new story anyway?')) return;
+        activeDraftId = null;
+        localStorage.removeItem('active_story_draft_id');
+        const container = document.getElementById('pages-container');
+        container.innerHTML = '';
+        document.getElementById('pub-title').value = '';
+        currentFontSize = 18; document.getElementById('size-display').innerText = 18;
+        currentFont = "'Merriweather', Georgia, serif";
+        document.getElementById('font-select').value = currentFont;
+        hasUnsaved = false;
+        addPage('');
+        document.getElementById('save-status').innerText = 'New story';
+        closeDraftsModal();
     }
 
     // ── Exit ──

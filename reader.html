@@ -119,6 +119,11 @@ background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
 color:white;padding:11px 22px;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;
 }
 .finish-back:hover{background:rgba(255,255,255,.2);}
+.finish-reread{
+background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.18);
+color:rgba(255,255,255,.8);padding:11px 22px;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;
+}
+.finish-reread:hover{background:rgba(255,255,255,.16);color:#fff;}
 
 /* ── Share sheet ── */
 .share-sheet{
@@ -272,6 +277,7 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
     <div class="finish-sub">Loved the story? Show the creator some love.</div>
     <button class="finish-star-btn" id="fin-star" onclick="finishStar()">⭐ Give a Star</button>
     <button class="finish-back" onclick="openShare()" style="border-color:rgba(255,122,0,.4);color:#ff7a00;">↗ Share this comic</button>
+    <button class="finish-reread" onclick="rereadComic()">↺ Re-read from beginning</button>
     <button class="finish-back" onclick="goBack()">← Back to Discover</button>
   </div>
 </div>
@@ -394,7 +400,7 @@ async function boot() {
 
   // Restore reading progress
   const sv = localStorage.getItem('cc-progress-' + comicId);
-  if (sv !== null) { const i = parseInt(sv); if (i > 0 && i < frames.length) idx = i; }
+  if (sv !== null && sv !== '__done__') { const i = parseInt(sv); if (i > 0 && i < frames.length) idx = i; }
 
   buildDots();
   renderFrame();
@@ -685,9 +691,16 @@ function setSwipeDir(d) {
 // ── Progress ──────────────────────────────────────────────
 function saveProg() {
   if (!comicId) return;
-  idx >= frames.length - 1
-    ? localStorage.removeItem('cc-progress-' + comicId)
-    : localStorage.setItem('cc-progress-' + comicId, idx);
+  if (idx >= frames.length - 1) {
+    // Mark as finished but keep progress key so re-read can resume correctly
+    localStorage.setItem('cc-progress-' + comicId, '__done__');
+  } else {
+    localStorage.setItem('cc-progress-' + comicId, idx);
+  }
+}
+
+function isFinished() {
+  return localStorage.getItem('cc-progress-' + comicId) === '__done__';
 }
 
 // ── Star ──────────────────────────────────────────────────
@@ -738,12 +751,23 @@ async function toggleStar() {
 
 // ── Finish ────────────────────────────────────────────────
 function showFinish() {
+  saveProg(); // mark as __done__
   const fc = document.getElementById('finish');
   fc.style.display = 'flex';
   document.getElementById('fin-title').innerText = comic?.title ? `Finished "${comic.title}"!` : 'You finished it!';
   const sb = document.getElementById('fin-star');
   if (isStarred) { sb.textContent = '⭐ Already Starred'; sb.classList.add('done'); }
   else if (myP.handle === comic?.owner_handle) sb.style.display = 'none';
+}
+
+function rereadComic() {
+  // Clear finished flag and go back to frame 0
+  localStorage.removeItem('cc-progress-' + comicId);
+  idx = 0;
+  document.getElementById('finish').style.display = 'none';
+  renderFrame(true);
+  resetUI();
+  buildDots();
 }
 
 async function finishStar() {
