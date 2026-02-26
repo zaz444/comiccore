@@ -3,24 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ComicCore - Story Editor</title>
+    <title>ComicCore - Mobile Creator</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Shadows+Into+Light&family=Caveat:wght@700&family=Pacifico&family=Bebas+Neue&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
 
+<style>
     :root {
         --bg: #0f0f11; --card: #1c1c1e; --text: #f5f5f7;
         --accent: #ff7a00; --border: #2c2c2e; --teal: #00d2ff;
-        --sheet-bg: #161618;
+        --danger: #ff3b30; --sheet-bg: #161618;
     }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
     body {
         margin: 0; font-family: 'Inter', sans-serif;
         background: var(--bg); color: var(--text);
-        display: flex; flex-direction: column;
-        height: 100vh; height: 100dvh;
-        overflow: hidden;
+        overflow: hidden; display: flex; flex-direction: column;
+        height: 100vh; height: 100dvh; /* dynamic viewport for mobile */
     }
 
     /* ── TOP BAR ── */
@@ -29,130 +31,180 @@
         display: flex; align-items: center; padding: 0 10px; gap: 6px;
         z-index: 200; flex-shrink: 0;
         box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        touch-action: manipulation;
     }
     .tb-btn {
         background: rgba(255,255,255,0.07); border: 1px solid var(--border);
         color: var(--text); padding: 7px 11px; border-radius: 8px;
         cursor: pointer; font-size: 12px; font-weight: 700;
-        font-family: inherit; white-space: nowrap; transition: 0.15s;
+        font-family: inherit; display: flex; align-items: center; gap: 4px;
+        white-space: nowrap; transition: 0.15s;
     }
     .tb-btn:active { opacity: 0.7; }
     .tb-btn.accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 900; }
-    .tb-btn.teal { background: rgba(0,210,255,0.1); border-color: var(--teal); color: var(--teal); }
     .tb-spacer { flex: 1; }
-    #top-title {
+    #frame-counter {
         font-size: 12px; font-weight: 900; color: var(--accent);
-        letter-spacing: 1px; white-space: nowrap;
+        letter-spacing: 0.5px; padding: 0 4px;
     }
 
-    /* ── FORMAT BAR (shown above keyboard) ── */
-    #format-bar {
-        background: var(--card); border-bottom: 1px solid var(--border);
-        display: flex; align-items: center; gap: 4px; padding: 6px 10px;
-        overflow-x: auto; flex-shrink: 0;
+    /* ── CANVAS AREA ── */
+    #viewport {
+        flex: 1; display: flex; justify-content: center; align-items: center;
+        background: #050505; position: relative; overflow: hidden;
+        touch-action: none;
+        transition: flex 0.25s ease, min-height 0.25s ease;
+    }
+    /* Mini preview mode: shown above bottom sheets */
+    body.sheet-open #viewport {
+        flex: 0 0 160px;
+        min-height: 160px;
+    }
+    body.sheet-open #canvas-container {
+        transform-origin: center center;
+    }
+    #canvas-container {
+        position: relative; display: inline-block;
+        will-change: transform; transform-origin: center center;
+    }
+    #comic-frame {
+        background: #fff; position: relative; overflow: hidden;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+        background-size: cover; background-position: center;
+        touch-action: none;
+    }
+    canvas#onion-skin-canvas {
+        position: absolute; inset: 0; pointer-events: none; z-index: 5; display: none;
+    }
+    #global-frame-indicator {
+        position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.65); color: var(--accent);
+        font-size: 9px; font-weight: 900; padding: 3px 9px; border-radius: 6px;
+        letter-spacing: 1px; pointer-events: none; z-index: 20;
+        display: none;
+    }
+
+    /* ── LAYERS ── */
+    .layer { position: absolute; cursor: move; user-select: none; transform-origin: center; touch-action: none; z-index: 10; }
+    .layer.active { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 99 !important; }
+
+    /* ── RESIZE HANDLES — hidden, using transform sheet sliders instead ── */
+    .resize-handle { display: none !important; }
+
+    /* ── BUBBLE STYLES (same as PC) ── */
+    .speech-bubble { padding: 12px 16px; background: #fff; color: #000; font-weight: 800; text-align: center; min-width: 50px; position: relative; word-wrap: break-word; line-height: 1.35; }
+    .bubble-style-round { border: 3.5px solid #000; border-radius: 999px; box-shadow: 3px 3px 0 #000; }
+    .bubble-style-round .bubble-tail { position: absolute; bottom: -20px; left: 28px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 4px solid transparent; border-top: 20px solid #000; }
+    .bubble-style-round .bubble-tail::after { content: ''; position: absolute; top: -19px; left: -9px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 2px solid transparent; border-top: 16px solid #fff; }
+    .bubble-style-chat { border: 3px solid #000; border-radius: 18px; box-shadow: 3px 3px 0 #000; }
+    .bubble-style-chat .bubble-tail { position: absolute; bottom: -18px; right: 24px; width: 0; height: 0; border-left: 14px solid transparent; border-top: 18px solid #000; }
+    .bubble-style-chat .bubble-tail::after { content: ''; position: absolute; top: -17px; left: -11px; width: 0; height: 0; border-left: 10px solid transparent; border-top: 14px solid #fff; }
+    .bubble-style-rect { border: 3px solid #000; border-radius: 4px; box-shadow: 4px 4px 0 #000; }
+    .bubble-style-rect .bubble-tail { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 18px solid #000; }
+    .bubble-style-rect .bubble-tail::after { content: ''; position: absolute; top: -17px; left: -9px; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 14px solid #fff; }
+    .bubble-style-spiky { border: 3px solid #000; clip-path: polygon(50% 0%, 61% 6%, 74% 2%, 79% 13%, 93% 12%, 91% 25%, 100% 33%, 90% 41%, 98% 52%, 86% 56%, 90% 70%, 76% 70%, 75% 84%, 62% 79%, 54% 92%, 43% 83%, 30% 88%, 28% 74%, 15% 76%, 17% 61%, 4% 56%, 13% 45%, 3% 35%, 14% 27%, 8% 14%, 22% 14%, 25% 2%, 38% 7%); padding: 22px 28px; }
+    .bubble-style-spiky .bubble-tail { display: none; }
+    .bubble-style-cloud { border: 3px solid #000; border-radius: 50px; box-shadow: 3px 3px 0 #000; }
+    .bubble-style-cloud::before, .bubble-style-cloud::after { content: ''; position: absolute; background: #fff; border: 3px solid #000; border-radius: 50%; }
+    .bubble-style-cloud::before { width: 40%; height: 55%; top: -28%; left: 15%; }
+    .bubble-style-cloud::after { width: 30%; height: 45%; top: -22%; right: 18%; }
+    .bubble-style-cloud .bubble-tail { display: none; }
+    .thought-dot-1, .thought-dot-2, .thought-dot-3 { position: absolute; background: #fff; border: 3px solid #000; border-radius: 50%; }
+    .thought-dot-1 { width: 14px; height: 14px; bottom: -22px; left: 28px; }
+    .thought-dot-2 { width: 9px; height: 9px; bottom: -34px; left: 22px; }
+    .thought-dot-3 { width: 5px; height: 5px; bottom: -42px; left: 17px; }
+    .bubble-style-shout { background: #ffeb3b; border: 3.5px solid #000; clip-path: polygon(5% 10%, 20% 0%, 35% 10%, 50% 0%, 65% 10%, 80% 0%, 95% 10%, 100% 30%, 95% 50%, 100% 70%, 95% 90%, 80% 100%, 65% 90%, 50% 100%, 35% 90%, 20% 100%, 5% 90%, 0% 70%, 5% 50%, 0% 30%); padding: 20px 24px; }
+    .bubble-style-shout .bubble-tail { display: none; }
+    .bubble-style-whisper { border: 3px dashed #000; border-radius: 999px; background: rgba(255,255,255,0.92); font-style: italic; }
+    .bubble-style-whisper .bubble-tail { position: absolute; bottom: -16px; left: 36px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #000; }
+    .bubble-style-narrator { border: 3px solid #000; border-radius: 6px; background: #fffde7; box-shadow: 5px 5px 0 #000; border-left: 6px solid #000; }
+    .bubble-style-narrator .bubble-tail { display: none; }
+
+    /* ── BOTTOM TOOLBAR ── */
+    #bottom-bar {
+        height: 62px; background: var(--card); border-top: 1px solid var(--border);
+        display: flex; align-items: center;
+        z-index: 200; flex-shrink: 0; padding: 0 4px;
+        overflow-x: auto; overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* hide scrollbar on Firefox */
+        touch-action: pan-x; /* allow horizontal scroll, block pinch zoom */
     }
-    #format-bar::-webkit-scrollbar { display: none; }
-    .fmt-btn {
-        background: #2a2a2a; border: 1px solid #3a3a3a; color: var(--text);
-        border-radius: 7px; padding: 6px 11px; cursor: pointer;
-        font-size: 13px; font-weight: 700; transition: 0.15s;
-        white-space: nowrap; flex-shrink: 0; font-family: inherit;
+    #bottom-bar::-webkit-scrollbar { display: none; }
+    .bot-btn {
+        display: flex; flex-direction: column; align-items: center; gap: 3px;
+        background: none; border: none; color: #888; cursor: pointer;
+        font-size: 9px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.5px; padding: 6px 10px; border-radius: 10px;
+        transition: 0.15s; font-family: inherit; min-width: 54px; flex-shrink: 0;
     }
-    .fmt-btn:active { background: #444; }
-    .fmt-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .fmt-divider { width: 1px; height: 22px; background: #3a3a3a; margin: 0 2px; flex-shrink: 0; }
-    .fmt-select {
-        background: #2a2a2a; border: 1px solid #3a3a3a; color: var(--text);
-        border-radius: 7px; padding: 6px 8px; font-size: 12px; outline: none;
-        cursor: pointer; flex-shrink: 0; font-family: inherit;
-    }
-    .fmt-size-group { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
-    .fmt-size-num {
-        background: #1a1a1a; border: 1px solid #3a3a3a; color: var(--text);
-        border-radius: 6px; width: 32px; text-align: center; padding: 5px 2px;
-        font-size: 12px; font-weight: 700;
-    }
+    .bot-btn:active { background: rgba(255,255,255,0.06); }
+    .bot-btn.active { color: var(--accent); }
+    .bot-btn .bico { font-size: 22px; line-height: 1; }
+    .bot-custom-icon { width: 26px; height: 26px; object-fit: contain; display: block; filter: brightness(0.6); transition: filter 0.15s; }
+    .bot-btn:active .bot-custom-icon { filter: brightness(1) sepia(1) saturate(10) hue-rotate(0deg); }
+    .bot-btn.onion-on { color: var(--teal); }
+    .bot-btn.onion-on .bico { filter: drop-shadow(0 0 4px var(--teal)); }
 
-    /* ── WRITING AREA ── */
-    #writing-area-wrap {
-        flex: 1; overflow-y: auto; background: #0a0a0a;
-        display: flex; flex-direction: column; align-items: center;
-        padding: 20px 10px 0;
-        -webkit-overflow-scrolling: touch;
+    /* ── ZOOM / PAN OVERLAY ── */
+    #zoom-controls {
+        position: fixed; right: 12px; bottom: 80px; z-index: 500;
+        display: flex; flex-direction: column; gap: 4px;
     }
-    #pages-container {
-        width: 100%; max-width: 680px;
-        display: flex; flex-direction: column;
+    .zoom-ctrl-btn {
+        width: 36px; height: 36px; background: rgba(28,28,30,0.92);
+        border: 1px solid #333; color: #fff; border-radius: 10px;
+        font-size: 18px; font-weight: 900; display: flex; align-items: center;
+        justify-content: center; cursor: pointer; font-family: inherit;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.5); transition: 0.15s;
+        -webkit-tap-highlight-color: transparent;
     }
-    .story-page {
-        width: 100%; background: #fff; color: #111;
-        padding: 28px 22px;
-        box-shadow: 0 4px 30px rgba(0,0,0,0.5);
-        outline: none; font-size: 18px; line-height: 1.8;
-        font-family: 'Merriweather', Georgia, serif;
-        caret-color: var(--accent);
-        word-wrap: break-word; overflow-wrap: break-word;
-        min-height: 420px; position: relative;
-        box-sizing: border-box;
-        /* Slightly smaller page look for mobile */
-        border-radius: 2px;
+    .zoom-ctrl-btn:active { opacity: 0.6; }
+    #zoom-reset-btn { font-size: 9px; font-weight: 900; letter-spacing: 0.3px; }
+    #zoom-indicator {
+        position: fixed; bottom: 80px; left: 12px; z-index: 500;
+        background: rgba(0,0,0,0.7); color: #fff; font-size: 11px; font-weight: 800;
+        padding: 4px 10px; border-radius: 8px; pointer-events: none;
+        opacity: 0; transition: opacity 0.3s; letter-spacing: 0.5px;
     }
-    .story-page:not(:last-child) { border-bottom: 2px dashed #ddd; }
-    .story-page:empty::before { content: attr(data-placeholder); color: #bbb; pointer-events: none; }
-    .page-label {
-        position: absolute; bottom: 10px; right: 14px;
-        font-size: 10px; color: #ccc; font-family: 'Inter', sans-serif;
-        pointer-events: none; user-select: none;
-    }
-    .page-delete-btn {
-        position: absolute; top: 10px; right: 10px;
-        background: rgba(0,0,0,0.08); border: none; color: #bbb;
-        font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 6px;
-        transition: 0.2s;
-    }
-    .page-delete-btn:active { background: #ffe0e0; color: #cc0000; }
+    #zoom-indicator.visible { opacity: 1; }
 
-    /* Add page button */
-    #add-page-btn {
-        display: flex; justify-content: center; padding: 16px 0 32px;
+    /* ── ONION OPACITY POPUP ── */
+    #onion-opacity-popup {
+        position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+        background: rgba(28,28,30,0.96); border: 1px solid var(--teal);
+        border-radius: 14px; padding: 12px 16px; z-index: 600;
+        display: none; align-items: center; gap: 10px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
-    #add-page-btn button {
-        background: #1a1a1a; border: 2px dashed #444; color: #666;
-        padding: 11px 32px; border-radius: 12px; cursor: pointer;
-        font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
-        transition: 0.2s;
-    }
-    #add-page-btn button:active { border-color: var(--accent); color: var(--accent); }
+    #onion-opacity-popup.visible { display: flex; }
+    #onion-opacity-popup span { font-size: 10px; font-weight: 900; color: var(--teal); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
 
-    /* ── STATUS BAR ── */
-    #status-bar {
-        height: 28px; background: var(--card); border-top: 1px solid var(--border);
-        display: flex; align-items: center; padding: 0 12px; gap: 14px;
-        font-size: 10px; color: #666; font-weight: 600; flex-shrink: 0;
-        overflow-x: auto;
-    }
-    #status-bar::-webkit-scrollbar { display: none; }
-    #status-bar span { color: var(--text); font-weight: 800; }
-    #save-status { margin-left: auto; color: #555; white-space: nowrap; }
-
-    /* ── SHEET OVERLAY ── */
+    /* ── BOTTOM SHEET ── */
     .sheet-overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,0.5);
         z-index: 300; display: none; backdrop-filter: blur(4px);
     }
     .sheet-overlay.open { display: block; }
+    /* Transparent backdrop for transform sheet so tapping outside closes it */
+    #transform-sheet-backdrop {
+        position: fixed; inset: 0; z-index: 499; display: none;
+    }
+    #transform-sheet-backdrop.open { display: block; }
 
-    /* ── BOTTOM SHEET ── */
     .bottom-sheet {
         position: fixed; bottom: -100%; left: 0; right: 0;
         background: var(--sheet-bg); border-radius: 20px 20px 0 0;
         z-index: 400; transition: bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        max-height: 70vh; display: flex; flex-direction: column;
+        max-height: 75vh; display: flex; flex-direction: column;
         border-top: 1px solid var(--border);
+        touch-action: pan-y; /* allow scroll inside sheets, block pinch zoom */
     }
     .bottom-sheet.open { bottom: 0; }
-    .sheet-handle { width: 36px; height: 4px; background: #444; border-radius: 2px; margin: 10px auto 0; flex-shrink: 0; }
+    .sheet-handle {
+        width: 36px; height: 4px; background: #444; border-radius: 2px;
+        margin: 10px auto 0; flex-shrink: 0;
+    }
     .sheet-title {
         font-size: 13px; font-weight: 900; color: var(--accent); letter-spacing: 1.5px;
         text-transform: uppercase; padding: 12px 16px 8px;
@@ -160,648 +212,2064 @@
         display: flex; justify-content: space-between; align-items: center;
     }
     .sheet-close { background: none; border: none; color: #555; font-size: 18px; cursor: pointer; padding: 4px; }
-    .sheet-body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+    .sheet-body { flex: 1; overflow-y: auto; padding: 12px; -webkit-overflow-scrolling: touch; }
 
-    /* Sheet action buttons */
-    .sheet-action-btn {
-        width: 100%; padding: 14px 16px; background: #222; border: 1.5px solid #2c2c2e;
+    /* ── ADD SHEET ── */
+    .add-section-label {
+        font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase;
+        letter-spacing: 1.5px; margin: 14px 0 8px; padding: 0 2px;
+    }
+    .add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+    .add-btn {
+        background: #222; border: 1.5px solid #2c2c2e; border-radius: 14px;
+        color: var(--text); padding: 14px 10px; text-align: center;
+        font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+        transition: 0.15s;
+    }
+    .add-btn:active { border-color: var(--accent); background: #2a1500; }
+    .add-btn .add-ico { font-size: 24px; }
+
+    /* ── SPRITES SHEET ── */
+    #mob-sprite-search {
+        width: 100%; padding: 10px 14px; background: #1a1a1a;
+        border: 1px solid #252525; color: white; border-radius: 10px;
+        font-size: 13px; font-weight: 600; outline: none; font-family: inherit;
+        margin-bottom: 10px;
+    }
+    #mob-sprite-search:focus { border-color: var(--accent); }
+    #mob-sprite-grid {
+        display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    }
+    .mob-sprite-card {
+        background: var(--card); border: 2px solid var(--border); border-radius: 12px;
+        cursor: pointer; overflow: hidden; aspect-ratio: 1; position: relative;
+        display: flex; align-items: center; justify-content: center;
+        transition: 0.15s;
+    }
+    .mob-sprite-card:active { border-color: var(--accent); transform: scale(0.96); }
+    .mob-sprite-card img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+    .mob-sprite-name {
+        position: absolute; bottom: 0; left: 0; right: 0;
+        background: rgba(0,0,0,0.7); color: #fff;
+        font-size: 8px; font-weight: 800; text-align: center;
+        padding: 3px 2px; text-transform: uppercase; letter-spacing: 0.3px;
+    }
+
+    /* ── LAYERS SHEET ── */
+    .mob-layer-actions {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;
+    }
+    .mob-lay-btn {
+        background: #222; border: 1px solid #333; color: #aaa;
+        padding: 10px 4px; border-radius: 10px; font-size: 10px;
+        font-weight: 800; text-align: center; cursor: pointer; font-family: inherit;
+        transition: 0.15s;
+    }
+    .mob-lay-btn:active { background: #333; }
+    .mob-lay-btn.danger { color: var(--danger); border-color: rgba(255,59,48,0.3); }
+    #mob-layer-list { display: flex; flex-direction: column; gap: 6px; }
+    .mob-layer-item {
+        display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+        background: #222; border: 1.5px solid #2c2c2e; border-radius: 10px;
+        cursor: pointer; transition: 0.15s;
+    }
+    .mob-layer-item.active-l { border-color: var(--accent); background: rgba(255,122,0,0.1); }
+    .mob-layer-item .l-thumb {
+        width: 32px; height: 32px; border-radius: 6px; background: #333;
+        object-fit: contain; flex-shrink: 0;
+    }
+    .mob-layer-item .l-info { flex: 1; min-width: 0; }
+    .mob-layer-item .l-name { font-size: 12px; font-weight: 700; color: var(--text); }
+    .mob-layer-item .l-type { font-size: 10px; color: #666; margin-top: 1px; }
+    .mob-layer-item .l-del { background: none; border: none; color: #444; cursor: pointer; font-size: 16px; padding: 4px; }
+    .mob-layer-item .l-del:active { color: var(--danger); }
+
+    /* ── FRAMES SHEET ── */
+    .frames-top { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .frames-top-btn {
+        flex: 1; min-width: 100px; padding: 11px; background: #222; border: 1.5px solid #2c2c2e;
+        color: var(--text); border-radius: 10px; font-size: 12px; font-weight: 800;
+        cursor: pointer; font-family: inherit; text-align: center; transition: 0.15s;
+    }
+    .frames-top-btn:active { border-color: var(--accent); }
+    .frames-top-btn.accent-btn { background: rgba(255,122,0,0.15); border-color: var(--accent); color: var(--accent); }
+    #mob-frame-scroll {
+        display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px;
+        -webkit-overflow-scrolling: touch;
+    }
+    #mob-frame-scroll::-webkit-scrollbar { height: 3px; }
+    #mob-frame-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .mob-frame-thumb {
+        flex-shrink: 0; width: 80px; height: 80px; background: #222;
+        border: 2px solid transparent; border-radius: 10px; cursor: pointer;
+        background-size: cover; background-position: center; position: relative;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 900; color: #555; transition: 0.15s;
+        overflow: hidden;
+    }
+    .mob-frame-thumb.active { border-color: var(--accent); }
+    .mob-frame-del {
+        position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,0.7);
+        border: none; color: var(--danger); font-size: 12px; border-radius: 4px;
+        cursor: pointer; padding: 2px 5px; line-height: 1;
+    }
+
+    /* ── TRANSFORM SHEET (appears from bottom when layer tapped) ── */
+    #transform-sheet {
+        position: fixed; bottom: -100%; left: 0; right: 0;
+        background: var(--sheet-bg); border-radius: 20px 20px 0 0;
+        z-index: 500; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        max-height: 60vh; overflow-y: auto;
+        border-top: 1px solid var(--border); padding: 0 16px 24px;
+    }
+    #transform-sheet.open { bottom: 62px; /* above bottom bar */ }
+    .ts-handle { width: 36px; height: 4px; background: #444; border-radius: 2px; margin: 10px auto 14px; }
+    .ts-title { font-size: 11px; font-weight: 900; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 14px; display: flex; justify-content: space-between; }
+    .ts-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .ts-label { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; width: 52px; flex-shrink: 0; letter-spacing: 0.5px; }
+    .ts-row input[type=range] { flex: 1; accent-color: var(--accent); }
+    .ts-num { width: 50px; background: #111; border: 1px solid #333; color: var(--accent); padding: 5px; border-radius: 7px; font-size: 11px; font-weight: 800; text-align: center; font-family: inherit; outline: none; }
+    .ts-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .ts-act-btn {
+        padding: 10px 4px; background: #222; border: 1.5px solid #333;
+        color: var(--text); border-radius: 10px; font-size: 11px; font-weight: 800;
+        cursor: pointer; font-family: inherit; text-align: center; transition: 0.15s;
+    }
+    .ts-act-btn:active { opacity: 0.7; }
+    .ts-act-btn.danger { background: rgba(255,59,48,0.1); border-color: rgba(255,59,48,0.3); color: var(--danger); }
+    .ts-act-btn.done { background: var(--accent); border-color: var(--accent); color: #000; }
+    #ts-swap-btn { background: rgba(0,210,255,0.12); border-color: rgba(0,210,255,0.4) !important; color: var(--teal) !important; }
+
+    /* Text editing row in transform sheet */
+    .ts-text-section { border-top: 1px solid #2c2c2e; padding-top: 14px; margin-top: 4px; }
+    .ts-text-section input[type=text], .ts-text-section select {
+        width: 100%; padding: 10px 12px; background: #1a1a1a; border: 1px solid #333;
+        color: white; border-radius: 10px; font-size: 13px; font-family: inherit;
+        outline: none; margin-bottom: 8px;
+    }
+    .ts-text-section input:focus, .ts-text-section select:focus { border-color: var(--accent); }
+    .ts-text-format { display: flex; gap: 8px; margin-bottom: 8px; }
+    .ts-fmt-btn {
+        flex: 1; padding: 8px; background: #222; border: 1.5px solid #333;
+        color: #aaa; border-radius: 8px; font-size: 13px; cursor: pointer;
+        font-family: inherit; transition: 0.15s;
+    }
+    .ts-fmt-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+
+    /* BG sheet */
+    .bg-action-btn {
+        width: 100%; padding: 14px; background: #222; border: 1.5px solid #2c2c2e;
         color: var(--text); border-radius: 12px; font-size: 14px; font-weight: 700;
         cursor: pointer; font-family: inherit; text-align: left; display: flex;
         align-items: center; gap: 12px; margin-bottom: 10px; transition: 0.15s;
     }
-    .sheet-action-btn:active { border-color: var(--accent); background: rgba(255,122,0,0.08); }
-    .sheet-action-btn .sico { font-size: 22px; }
+    .bg-action-btn:active { border-color: var(--accent); }
 
-    /* Font sheet grid */
-    .font-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .font-card {
-        background: #222; border: 2px solid #2c2c2e; border-radius: 12px;
-        padding: 14px 12px; cursor: pointer; text-align: center; transition: 0.15s;
-    }
-    .font-card:active { border-color: var(--accent); }
-    .font-card.active { border-color: var(--accent); background: rgba(255,122,0,0.1); }
-    .font-card .font-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .font-card .font-preview { font-size: 15px; color: #888; line-height: 1.4; }
+    /* BG adjust sliders */
+    .bg-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .bg-slider-row span { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; width: 48px; flex-shrink: 0; }
+    .bg-slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+    .bg-val { font-size: 10px; font-weight: 800; color: var(--teal); min-width: 32px; text-align: right; }
+    .filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; }
+    .filter-chip { flex-shrink: 0; padding: 6px 13px; border-radius: 20px; background: #2c2c2e; border: 1.5px solid #3a3a3c; color: #aaa; font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.15s; white-space: nowrap; }
+    .filter-chip.active { background: var(--accent); color: #000; border-color: var(--accent); }
 
-    /* Spacing options */
-    .spacing-row { display: flex; gap: 8px; }
-    .spacing-btn {
-        flex: 1; padding: 12px 6px; background: #222; border: 1.5px solid #2c2c2e;
-        color: #888; border-radius: 10px; font-size: 12px; font-weight: 800;
-        cursor: pointer; font-family: inherit; text-align: center; transition: 0.15s;
-    }
-    .spacing-btn:active { border-color: var(--teal); }
-    .spacing-btn.active { border-color: var(--teal); background: rgba(0,210,255,0.1); color: var(--teal); }
-
-    /* ── OVERLAYS ── */
+    /* ── OVERLAYS (same as PC) ── */
     .overlay-full {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.92);
-        z-index: 600; display: none; align-items: center; justify-content: center;
-        padding: 16px; backdrop-filter: blur(8px);
+        position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+        z-index: 600; display: none; flex-direction: column;
+        align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(5px);
+        /* Allow tap-off to close by listening on the backdrop itself */
+        cursor: pointer;
     }
+    /* But not on the modal content card */
     .modal-content {
-        background: var(--card); padding: 22px; border-radius: 20px;
-        width: 100%; max-width: 420px; border: 1px solid var(--border);
-        max-height: 88vh; overflow-y: auto;
+        background: var(--card); width: 100%; max-width: 460px;
+        border-radius: 20px; padding: 22px; box-sizing: border-box;
+        max-height: 88vh; overflow-y: auto; border: 1px solid var(--border);
+        cursor: default;
     }
     .pub-input {
         width: 100%; padding: 12px; background: #111; border: 1px solid #333;
-        color: white; border-radius: 10px; margin-bottom: 12px;
-        font-family: inherit; font-size: 14px; outline: none;
+        color: white; border-radius: 10px; font-size: 14px; font-family: inherit;
+        outline: none; margin-bottom: 12px;
     }
     .pub-input:focus { border-color: var(--accent); }
 
-    /* Export tabs */
+    /* Bubble picker */
+    #bubble-style-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+    .bubble-preview-btn {
+        background: #111; border: 2px solid #333; border-radius: 12px;
+        padding: 12px 6px; cursor: pointer; text-align: center;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+        transition: 0.15s;
+    }
+    .bubble-preview-btn:active, .bubble-preview-btn.selected { border-color: var(--accent); background: rgba(255,122,0,0.1); }
+    .bubble-preview-btn .bpico { font-size: 22px; }
+    .bubble-preview-btn span { font-size: 9px; font-weight: 800; color: #888; text-transform: uppercase; }
+
+    /* Sprite action modal */
+    .action-selector-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 12px; }
+    .action-option { background: #111; border: 2px solid #333; padding: 8px; border-radius: 12px; cursor: pointer; text-align: center; transition: 0.2s; }
+    .action-option:active { border-color: var(--teal); }
+    .action-option img { width: 100%; aspect-ratio: 1; object-fit: contain; }
+    .action-option strong { display: block; font-size: 10px; margin-top: 4px; color: #aaa; }
+
+    /* Export sheet */
+    .export-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-size: 13px; }
     .export-tab-row { display: flex; gap: 8px; margin-bottom: 16px; }
     .export-tab { flex: 1; padding: 10px; background: #222; border: 1.5px solid #333; color: #888; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer; font-family: inherit; transition: 0.15s; }
     .export-tab.active { background: var(--teal); border-color: var(--teal); color: #000; }
     .export-section { display: none; }
     .export-section.active { display: block; }
+    #gif-progress-bar { height: 4px; background: #222; border-radius: 4px; margin-bottom: 10px; display: none; }
+    #gif-progress-fill { height: 100%; background: var(--teal); border-radius: 4px; width: 0%; transition: 0.3s; }
+    #gif-status { font-size: 11px; color: #888; margin-bottom: 10px; }
+
+    /* Crop modal */
+    #crop-modal { z-index: 700; }
+
+    /* ── FX Panel as sheet ── */
+    .fx-sheet-section { margin-bottom: 14px; }
+    .fx-sheet-label { font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+    .fx-chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+    .fx-chip { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; background: #2c2c2e; border: 1.5px solid #3a3a3c; color: #aaa; font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.15s; white-space: nowrap; }
+    .fx-chip.active { background: var(--teal); color: #000; border-color: var(--teal); }
+
+    /* Multi-import */
+    .multi-drop-zone { border: 2px dashed #444; border-radius: 12px; padding: 24px 16px; text-align: center; cursor: pointer; transition: 0.2s; background: #111; }
+    .multi-drop-zone.dragover { border-color: var(--accent); background: #1a1a1a; }
+    #multi-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 8px; max-height: 180px; overflow-y: auto; margin-top: 10px; }
+    .multi-thumb { aspect-ratio: 1; border-radius: 8px; background-size: cover; background-position: center; border: 2px solid #333; position: relative; overflow: hidden; }
+    .multi-thumb .order-badge { position: absolute; top: 3px; left: 3px; background: var(--accent); color: #000; font-size: 8px; font-weight: 900; padding: 1px 4px; border-radius: 3px; }
+
+    /* Sprite nametag */
+    .sprite-nametag { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: var(--accent); font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 4px; white-space: nowrap; pointer-events: none; border: 1px solid rgba(255,122,0,0.3); }
+
+    /* Shimmer loading animation for sprite cards */
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* BG import choice */
+    #bg-import-choice-modal { z-index: 600; }
+
+    /* Modal close spans - make them tap-friendly */
+    .modal-content [onclick*="close"], .overlay-full [onclick*="close"] {
+        min-width: 44px; min-height: 44px; display: inline-flex;
+        align-items: center; justify-content: center;
+    }
+
+    /* Selections outline */
+    .layer.active { outline-color: rgba(var(--sel-r,255),var(--sel-g,122),var(--sel-b,0),var(--sel-opacity,1)); }
+
+    /* ── FRAME COUNTER PILL ── */
+    #frame-counter {
+        font-size: 11px; font-weight: 900; color: #000;
+        background: var(--accent); border-radius: 8px;
+        padding: 4px 10px; letter-spacing: 0.5px; flex-shrink: 0;
+    }
 
     /* ── DRAFTS MODAL ── */
     #drafts-modal {
         display: none; position: fixed; inset: 0; z-index: 9999;
         background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
         align-items: flex-end; justify-content: center;
+        touch-action: pan-y;
     }
     #drafts-modal.open { display: flex; }
     #drafts-panel {
         background: #1a1a1a; border: 1px solid #2c2c2e;
         border-radius: 20px 20px 0 0;
-        width: 100%; max-height: 75dvh;
+        width: 100%; max-width: 480px; max-height: 75dvh;
         display: flex; flex-direction: column;
-        animation: draftsUp .3s cubic-bezier(.4,0,.2,1);
+        animation: draftsSlideUp .3s cubic-bezier(.4,0,.2,1);
         overflow: hidden;
     }
-    @keyframes draftsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes draftsSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     #drafts-panel-head {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 16px 18px 12px; border-bottom: 1px solid #2c2c2e; flex-shrink: 0;
+        padding: 18px 18px 12px; border-bottom: 1px solid #2c2c2e; flex-shrink: 0;
     }
-    #drafts-panel-head h2 { margin: 0; font-size: 15px; font-weight: 900; color: #fff; }
-    #drafts-panel-head button { background: none; border: none; color: #555; font-size: 22px; cursor: pointer; padding: 0; }
+    #drafts-panel-head h2 { margin: 0; font-size: 16px; font-weight: 900; color: #fff; }
     #drafts-list {
         flex: 1; overflow-y: auto; padding: 10px 14px;
         display: flex; flex-direction: column; gap: 8px;
         -webkit-overflow-scrolling: touch;
     }
-    .sdraft-item {
+    .draft-item {
         display: flex; align-items: center; gap: 12px;
         background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: background 0.15s;
+        border-radius: 12px; padding: 10px 12px; cursor: pointer;
+        transition: background 0.15s;
     }
-    .sdraft-item:active { background: rgba(255,255,255,0.12); }
-    .sdraft-icon { font-size: 26px; flex-shrink: 0; }
-    .sdraft-info { flex: 1; min-width: 0; }
-    .sdraft-title { font-size: 14px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sdraft-meta { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 3px; font-weight: 600; }
-    .sdraft-del {
-        background: none; border: none; color: rgba(255,255,255,0.25);
-        font-size: 18px; cursor: pointer; padding: 6px; flex-shrink: 0; line-height: 1;
+    .draft-item:active { background: rgba(255,255,255,0.12); }
+    .draft-thumb {
+        width: 48px; height: 48px; border-radius: 8px;
+        background: #2c2c2e; flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.1);
     }
-    .sdraft-del:active { color: #ff453a; }
-    .sdraft-new {
-        width: 100%; padding: 13px; background: rgba(255,255,255,0.06);
-        border: 1px dashed rgba(255,255,255,0.18); border-radius: 12px;
-        color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 700;
-        cursor: pointer; font-family: inherit;
+    .draft-info { flex: 1; min-width: 0; }
+    .draft-title { font-size: 13px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .draft-meta { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 3px; font-weight: 600; }
+    .draft-del {
+        background: none; border: none; color: rgba(255,255,255,0.3);
+        font-size: 18px; cursor: pointer; padding: 4px 6px; flex-shrink: 0;
+        transition: color 0.15s; line-height: 1;
     }
-    .sdraft-new:active { background: rgba(255,255,255,0.11); }
+    .draft-del:active { color: #ff453a; }
+    .draft-new {
+        width: 100%; padding: 13px; background: rgba(255,255,255,0.07);
+        border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px;
+        color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 700;
+        cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .draft-new:active { background: rgba(255,255,255,0.12); }
 </style>
 </head>
 <body>
 
-<!-- ── OVERLAYS ── -->
+<!-- ───────── OVERLAY MODALS ───────── -->
+
+<!-- Library / sprite chooser -->
+<div id="library-modal" class="overlay-full">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h2 style="margin:0;color:var(--teal);font-size:17px;">SPRITE LIBRARY</h2>
+            <span onclick="closeLibrary()" style="cursor:pointer;font-size:22px;">✕</span>
+        </div>
+        <div id="library-grid" class="action-selector-grid"></div>
+    </div>
+</div>
+
+<!-- Action/pose picker -->
+<div id="action-modal" class="overlay-full">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h2 style="margin:0;color:var(--teal);font-size:17px;" id="pack-title">Character Pack</h2>
+            <span onclick="closeActionModal()" style="cursor:pointer;font-size:22px;">✕</span>
+        </div>
+        <div id="action-selector-list" class="action-selector-grid"></div>
+    </div>
+</div>
 
 <!-- Publish -->
 <div id="publish-modal" class="overlay-full">
     <div class="modal-content">
-        <h2 style="margin-top:0;color:var(--accent);font-size:18px;">Publish Story</h2>
-        <div id="cover-box" style="width:100%;aspect-ratio:2/3;max-height:200px;background:#111;border:2px dashed #444;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;margin-bottom:14px;" onclick="document.getElementById('cover-input').click()">
-            <img id="cover-img" style="width:100%;height:100%;object-fit:cover;display:none;">
-            <span id="cover-label" style="color:#555;font-size:13px;">Tap to upload cover</span>
+        <h2 style="margin-top:0;color:var(--accent);font-size:18px;">Publish Comic</h2>
+        <div id="cover-preview-box" style="width:100%;aspect-ratio:1;background:#111;border:2px dashed #444;margin-bottom:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;border-radius:12px;" onclick="document.getElementById('cover-input').click()">
+            <img id="final-cover-img" style="width:100%;height:100%;object-fit:cover;display:none;">
+            <span id="cover-label" style="color:#555;font-size:13px;">Tap to upload 1:1 Cover</span>
         </div>
-        <input type="file" id="cover-input" accept="image/*" style="display:none;" onchange="handleCover(this)">
-        <input type="text" id="pub-title" class="pub-input" placeholder="Story Title">
-        <input type="text" id="pub-tags" class="pub-input" placeholder="Tags (e.g. romance, fantasy)">
+        <input type="text" id="pub-title" class="pub-input" placeholder="Comic Title">
+        <input type="text" id="pub-tags" class="pub-input" placeholder="Tags (e.g. action, comedy)">
         <textarea id="pub-desc" class="pub-input" placeholder="Brief description..." style="height:70px;resize:none;"></textarea>
         <div style="display:flex;gap:10px;">
             <button onclick="closePublish()" style="flex:1;padding:13px;background:#333;color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Cancel</button>
-            <button id="pub-btn" onclick="finalPublish()" style="flex:2;padding:13px;background:var(--accent);color:white;border:none;border-radius:12px;font-weight:900;cursor:pointer;">PUBLISH</button>
+            <button id="publish-btn" onclick="finalPublish()" style="flex:1;padding:13px;background:var(--accent);color:white;border:none;border-radius:12px;font-weight:900;cursor:pointer;">POST NOW</button>
         </div>
+    </div>
+</div>
+
+<!-- Crop -->
+<div id="crop-modal" class="overlay-full">
+    <div style="width:90vw;max-width:460px;height:55vh;background:#000;border-radius:12px;overflow:hidden;">
+        <img id="crop-target" style="max-width:100%;">
+    </div>
+    <div style="margin-top:16px;display:flex;gap:14px;">
+        <button class="tb-btn" onclick="closeCrop()">Cancel</button>
+        <button class="tb-btn" style="background:var(--accent);border:none;" id="apply-crop-btn">Apply</button>
+    </div>
+</div>
+
+<!-- BG import choice -->
+<div id="bg-import-choice-modal" class="overlay-full" style="display:none;">
+    <div style="background:var(--card);border-radius:20px;padding:22px;width:92%;max-width:380px;border:1px solid var(--border);display:flex;flex-direction:column;gap:14px;">
+        <div style="font-size:13px;font-weight:900;color:var(--accent);text-align:center;letter-spacing:2px;text-transform:uppercase;">Import Background</div>
+        <div style="width:100%;height:120px;background:#000;border-radius:10px;overflow:hidden;">
+            <img id="bg-choice-preview" style="width:100%;height:100%;object-fit:cover;">
+        </div>
+        <button onclick="bgChoiceCrop()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
+            <span style="font-size:22px;">✂️</span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;">Crop Import</div><div style="font-size:11px;color:#666;margin-top:2px;">Manually adjust crop</div></div>
+        </button>
+        <button onclick="bgChoiceFixed()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
+            <span style="font-size:22px;">⚡</span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--teal);">Fixed Import</div><div style="font-size:11px;color:#666;margin-top:2px;">Auto-center crop</div></div>
+        </button>
+        <button onclick="closeBgChoiceModal()" style="padding:11px;background:#111;color:#555;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+    </div>
+</div>
+
+<!-- Bubble Picker -->
+<div id="bubble-picker-modal" class="overlay-full">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h2 style="margin:0;font-size:16px;" id="bubble-picker-title">Choose Bubble Style</h2>
+            <button onclick="closeBubblePicker()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;">✕</button>
+        </div>
+        <div id="bubble-style-grid"></div>
+        <input id="bubble-picker-text" class="pub-input" placeholder="Enter text...">
+        <button onclick="confirmBubblePicker()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;">Add Bubble</button>
     </div>
 </div>
 
 <!-- Export -->
 <div id="export-modal" class="overlay-full">
     <div class="modal-content">
-        <h2 style="margin-top:0;color:var(--teal);font-size:17px;">Export Story</h2>
+        <h2 style="margin-top:0;color:var(--teal);font-size:17px;">Export Comic</h2>
         <div class="export-tab-row">
-            <button class="export-tab active" onclick="switchExportTab('txt')">📄 TXT</button>
-            <button class="export-tab" onclick="switchExportTab('pdf')">📑 PDF</button>
+            <button class="export-tab active" onclick="switchExportTab('frames')">🖼 Frames</button>
+            <button class="export-tab" onclick="switchExportTab('strip')">📜 Strip</button>
+            <button class="export-tab" onclick="switchExportTab('gif')">🎞 GIF</button>
         </div>
-        <div id="export-txt" class="export-section active">
-            <p style="font-size:13px;color:#888;margin:0 0 14px;">Exports your story as a plain .txt file.</p>
-            <button onclick="doExportTxt()" style="width:100%;padding:13px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">SAVE AS TXT</button>
+        <div id="export-frames" class="export-section active">
+            <div style="font-size:11px;color:#666;margin-bottom:12px;font-weight:700;">Tap a frame to download. On iOS long-press the image to save.</div>
+            <div id="export-frames-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:55vh;overflow-y:auto;"></div>
         </div>
-        <div id="export-pdf" class="export-section">
-            <p style="font-size:13px;color:#888;margin:0 0 14px;">Opens a print-ready page with your title and font preserved.</p>
-            <button onclick="doExportPdf()" style="width:100%;padding:13px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">OPEN PDF VIEW</button>
+        <div id="export-strip" class="export-section">
+            <div class="export-row">
+                <span>Frames per row</span>
+                <select id="strip-cols" style="background:#1a1a1a;border:1px solid #333;color:white;padding:7px;border-radius:8px;font-size:12px;">
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+            <div id="strip-preview-wrap" style="margin:12px 0;text-align:center;display:none;">
+                <img id="strip-preview-img" style="max-width:100%;border-radius:8px;border:1px solid #333;">
+                <div style="font-size:10px;color:#555;margin-top:6px;">Long-press image to save on iOS</div>
+            </div>
+            <div id="strip-status" style="font-size:11px;color:#888;margin-bottom:10px;"></div>
+            <button onclick="exportStrip()" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">GENERATE STRIP</button>
         </div>
-        <button onclick="document.getElementById('export-modal').style.display='none'" style="width:100%;margin-top:10px;padding:11px;background:#222;color:#aaa;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Cancel</button>
+        <div id="export-gif" class="export-section">
+            <div style="font-size:11px;color:#888;margin-bottom:10px;font-weight:700;">GIF works best on desktop. On mobile, long-press the preview to save.</div>
+            <div class="export-row">
+                <span>Frame Speed</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="range" id="gif-fps" min="1" max="24" value="6" oninput="document.getElementById('gif-fps-val').innerText=this.value+'fps'" style="width:100px;accent-color:var(--teal);">
+                    <span id="gif-fps-val" style="color:var(--teal);font-weight:800;font-size:12px;">6fps</span>
+                </div>
+            </div>
+            <div class="export-row">
+                <span>Quality</span>
+                <select id="gif-quality" style="background:#1a1a1a;border:1px solid #333;color:white;padding:7px;border-radius:8px;font-size:12px;">
+                    <option value="10">Fast</option>
+                    <option value="5" selected>Balanced</option>
+                    <option value="1">Best</option>
+                </select>
+            </div>
+            <div id="gif-progress-bar" style="display:none;"><div id="gif-progress-fill"></div></div>
+            <div id="gif-status" style="font-size:11px;color:var(--teal);margin-bottom:10px;font-weight:800;"></div>
+            <div id="gif-result-wrap" style="display:none;text-align:center;margin-bottom:10px;">
+                <img id="gif-result-img" style="max-width:100%;border-radius:8px;border:1px solid #333;">
+                <div style="font-size:10px;color:#555;margin-top:6px;">Long-press to save on iOS</div>
+                <a id="gif-download-link" style="display:inline-block;margin-top:8px;padding:10px 20px;background:var(--teal);color:#000;border-radius:10px;font-weight:900;font-size:12px;text-decoration:none;">Download GIF</a>
+            </div>
+            <button onclick="exportGIF()" id="gif-generate-btn" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">GENERATE GIF</button>
+        </div>
+        <button onclick="closeExportModal()" style="width:100%;margin-top:10px;padding:11px;background:#222;color:#aaa;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Close</button>
+    </div>
+</div>
+
+<!-- Multi-import -->
+<div id="multi-import-modal" class="overlay-full">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h2 style="margin:0;font-size:16px;color:var(--teal);">Multi-Frame Import</h2>
+            <span onclick="closeMultiImport()" style="cursor:pointer;font-size:22px;">✕</span>
+        </div>
+        <div class="multi-drop-zone" id="multi-drop-zone" onclick="document.getElementById('multi-file-input').click()">
+            <div style="font-size:28px;margin-bottom:8px;">🗂️</div>
+            <div style="font-weight:700;color:#aaa;font-size:13px;">Tap to choose images</div>
+            <p>Each image = one frame</p>
+        </div>
+        <div id="multi-preview-grid"></div>
+        <div id="multi-ratio-warning" class="multi-ratio-warning" style="display:none;font-size:11px;color:var(--danger);text-align:center;margin-top:6px;"></div>
+        <div style="display:flex;gap:10px;margin-top:14px;">
+            <select id="multi-insert-mode" style="flex:1;padding:10px;background:#111;border:1px solid #333;color:white;border-radius:10px;font-size:12px;font-weight:700;">
+                <option value="replace">Replace all frames</option>
+                <option value="append">Append after current</option>
+                <option value="from-current">From current frame</option>
+            </select>
+            <button id="multi-confirm-btn" onclick="confirmMultiImport()" style="flex:1;padding:10px;background:var(--accent);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;" disabled>Import</button>
+        </div>
+        <input type="file" id="multi-file-input" multiple accept="image/*" hidden>
     </div>
 </div>
 
 <!-- ── SHEET OVERLAY ── -->
 <div id="sheet-overlay" class="sheet-overlay" onclick="closeAllSheets()"></div>
 
-<!-- ── FONT SHEET ── -->
-<div id="sheet-font" class="bottom-sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">Font <button class="sheet-close" onclick="closeSheet('font')">✕</button></div>
-    <div class="sheet-body">
-        <div class="font-grid" id="font-grid"></div>
-    </div>
-</div>
+<!-- ── BOTTOM SHEETS ── -->
 
-<!-- ── SPACING SHEET ── -->
-<div id="sheet-spacing" class="bottom-sheet" style="max-height:40vh;">
+<!-- ADD SHEET -->
+<div id="sheet-add" class="bottom-sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Line Spacing <button class="sheet-close" onclick="closeSheet('spacing')">✕</button></div>
+    <div class="sheet-title">Add Element <button class="sheet-close" onclick="closeSheet('add')">✕</button></div>
     <div class="sheet-body">
-        <div class="spacing-row">
-            <button class="spacing-btn" onclick="applySpacing('1.4',this)">Tight<br><small>1.4×</small></button>
-            <button class="spacing-btn active" onclick="applySpacing('1.8',this)">Normal<br><small>1.8×</small></button>
-            <button class="spacing-btn" onclick="applySpacing('2.2',this)">Relaxed<br><small>2.2×</small></button>
-            <button class="spacing-btn" onclick="applySpacing('2.8',this)">Double<br><small>2.8×</small></button>
+        <div class="add-section-label">Text & Bubbles</div>
+        <div class="add-grid">
+            <button class="add-btn" onclick="openBubblePicker('speech');closeSheet('add')"><span class="add-ico">💬</span>Speech</button>
+            <button class="add-btn" onclick="openBubblePicker('thinking');closeSheet('add')"><span class="add-ico">💭</span>Thinking</button>
+            <button class="add-btn" onclick="addText('plain');closeSheet('add')"><span class="add-ico">✍️</span>Plain Text</button>
+            <button class="add-btn" onclick="addSubtitle();closeSheet('add')"><span class="add-ico">📋</span>Subtitle Bar</button>
+        </div>
+        <div class="add-section-label">Media</div>
+        <div class="add-grid">
+            <button class="add-btn" onclick="closeSheet('add');openSheet('sprites')"><span class="add-ico">🎭</span>Sprites</button>
+            <button class="add-btn" onclick="triggerImport('object');closeSheet('add')"><span class="add-ico">📦</span>Upload Image</button>
+            <button class="add-btn" onclick="openMultiImport();closeSheet('add')"><span class="add-ico">🗂</span>Multi-Frame</button>
         </div>
     </div>
 </div>
 
-<!-- ── MORE SHEET (heading, pages) ── -->
-<div id="sheet-more" class="bottom-sheet">
+<!-- SPRITES SHEET -->
+<div id="sheet-sprites" class="bottom-sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">More Options <button class="sheet-close" onclick="closeSheet('more')">✕</button></div>
+    <div class="sheet-title">Sprites <button class="sheet-close" onclick="closeSheet('sprites')">✕</button></div>
     <div class="sheet-body">
-        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Heading Style</div>
-        <div style="display:flex;gap:8px;margin-bottom:20px;">
-            <button class="spacing-btn" onclick="applyHeading('p')">Body</button>
-            <button class="spacing-btn" onclick="applyHeading('h1')">H1</button>
-            <button class="spacing-btn" onclick="applyHeading('h2')">H2</button>
-            <button class="spacing-btn" onclick="applyHeading('h3')">H3</button>
+        <input class="pub-input" id="mob-sprite-search" placeholder="Search sprites..." oninput="filterMobSprites()" style="margin-bottom:10px;">
+        <div id="mob-sprite-grid">
+            <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load sprites...</div>
         </div>
-        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Alignment</div>
-        <div style="display:flex;gap:8px;margin-bottom:20px;">
-            <button class="spacing-btn" onclick="fmt('justifyLeft')">≡L</button>
-            <button class="spacing-btn" onclick="fmt('justifyCenter')">≡C</button>
-            <button class="spacing-btn" onclick="fmt('justifyRight')">≡R</button>
-            <button class="spacing-btn" onclick="fmt('justifyFull')">≡J</button>
-        </div>
-        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Pages</div>
-        <button class="sheet-action-btn" onclick="addPage();closeSheet('more')"><span class="sico">📄</span>Add New Page</button>
-        <button class="sheet-action-btn" onclick="saveDraft();closeSheet('more')"><span class="sico">💾</span>Save Draft</button>
-        <button class="sheet-action-btn" onclick="document.getElementById('export-modal').style.display='flex';closeSheet('more')"><span class="sico">📤</span>Export Story</button>
     </div>
 </div>
 
-<!-- ── TOP BAR ── -->
+<!-- BACKGROUND SHEET -->
+<div id="sheet-bg" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Background <button class="sheet-close" onclick="closeSheet('bg')">✕</button></div>
+    <div class="sheet-body">
+        <button class="bg-action-btn" onclick="openBackgroundSource();closeSheet('bg')"><span style="font-size:22px;">🖼</span>Background Library</button>
+        <button class="bg-action-btn" onclick="triggerImport('bg');closeSheet('bg')"><span style="font-size:22px;">📷</span>Upload Local Image</button>
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 10px;">Adjust</div>
+        <div class="bg-slider-row">
+            <span>Scale</span>
+            <input type="range" id="mob-bg-scale" min="10" max="200" value="100" oninput="updateMobBg()">
+            <span class="bg-val" id="mob-bg-scale-v">100%</span>
+        </div>
+        <div class="bg-slider-row">
+            <span>Rotate</span>
+            <input type="range" id="mob-bg-rotate" min="0" max="360" value="0" oninput="updateMobBg()">
+            <span class="bg-val" id="mob-bg-rotate-v">0°</span>
+        </div>
+        <div class="bg-slider-row">
+            <span>X Offset</span>
+            <input type="range" id="mob-bg-x" min="-50" max="50" value="0" oninput="updateMobBg()">
+            <span class="bg-val" id="mob-bg-x-v">0</span>
+        </div>
+        <div class="bg-slider-row">
+            <span>Y Offset</span>
+            <input type="range" id="mob-bg-y" min="-50" max="50" value="0" oninput="updateMobBg()">
+            <span class="bg-val" id="mob-bg-y-v">0</span>
+        </div>
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 8px;">Filter</div>
+        <div class="filter-row" id="mob-bg-filter-row"></div>
+        <button onclick="resetBgSettings();closeSheet('bg')" style="width:100%;padding:11px;background:#222;border:1px solid #333;color:#aaa;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;">Reset Background</button>
+    </div>
+</div>
+
+<!-- LAYERS SHEET -->
+<div id="sheet-layers" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Layers <button class="sheet-close" onclick="closeSheet('layers')">✕</button></div>
+    <div class="sheet-body">
+        <div class="mob-layer-actions">
+            <button class="mob-lay-btn" onclick="sbCopyLayer()">📄 Copy</button>
+            <button class="mob-lay-btn" onclick="sbPasteLayer()">📋 Paste</button>
+            <button class="mob-lay-btn" onclick="moveLayerZ(1)">⬆ Up</button>
+            <button class="mob-lay-btn" onclick="moveLayerZ(-1)">⬇ Down</button>
+        </div>
+        <div id="mob-layer-list"></div>
+    </div>
+</div>
+
+<!-- FRAMES SHEET -->
+<div id="sheet-frames" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Frames <span id="mob-frame-label" style="font-size:12px;color:#888;font-weight:700;">1 / 1</span><button class="sheet-close" onclick="closeSheet('frames')">✕</button></div>
+    <div class="sheet-body">
+        <div class="frames-top">
+            <button class="frames-top-btn accent-btn" onclick="addFrame()">+ New Frame</button>
+            <button class="frames-top-btn" onclick="duplicateFrame()">⧉ Duplicate</button>
+            <button class="frames-top-btn" onclick="deleteFrameIfSafe()">🗑 Delete</button>
+        </div>
+        <div id="mob-frame-scroll"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="frames-top-btn" onclick="copyCurrentFrame()">🎞 Copy Frame</button>
+            <button class="frames-top-btn" onclick="pasteCurrentFrame()">📋 Paste Frame</button>
+        </div>
+    </div>
+</div>
+
+<!-- FX SHEET -->
+<div id="sheet-fx" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🎨 FX <button class="sheet-close" onclick="closeSheet('fx')">✕</button></div>
+    <div class="sheet-body">
+        <div style="font-size:11px;color:#555;font-weight:700;margin-bottom:12px;" id="fx-selected-hint">Select a layer first</div>
+        <div class="fx-sheet-section">
+            <div class="fx-sheet-label">Blur</div>
+            <div class="fx-chip-row">
+                <button class="fx-chip active" id="fx-blur-none" onclick="setFxBlur('none')">None</button>
+                <button class="fx-chip" id="fx-blur-soft" onclick="setFxBlur('soft')">Soft</button>
+                <button class="fx-chip" id="fx-blur-pixel" onclick="setFxBlur('pixel')">Pixelate</button>
+            </div>
+            <div id="fx-blur-amt-row" style="display:none;margin-top:10px;" class="bg-slider-row">
+                <span>Amount</span>
+                <input type="range" id="fx-blur-amt" min="1" max="20" value="4" oninput="applyFxToSelected()">
+                <span class="bg-val" id="fx-blur-amt-val">4px</span>
+            </div>
+        </div>
+        <div class="fx-sheet-section">
+            <div class="fx-sheet-label">Filter</div>
+            <div class="fx-chip-row" id="fx-filter-row"></div>
+        </div>
+        <div class="fx-sheet-section">
+            <div class="fx-sheet-label">Opacity</div>
+            <div class="bg-slider-row">
+                <span>Opacity</span>
+                <input type="range" id="fx-opacity" min="10" max="100" value="100" oninput="applyFxToSelected()">
+                <span class="bg-val" id="fx-opacity-val">100%</span>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button onclick="clearFxFromSelected()" style="flex:1;padding:10px;background:#222;color:#aaa;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Clear FX</button>
+            <button onclick="closeSheet('fx')" style="flex:1;padding:10px;background:var(--teal);color:#000;border:none;border-radius:10px;font-weight:800;cursor:pointer;">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── TRANSFORM SHEET BACKDROP (tap outside to close) ── -->
+<div id="transform-sheet-backdrop" onclick="closeTransformSheet()"></div>
+
+<!-- ── TRANSFORM SHEET (pops above bottom bar when layer selected) ── -->
+<div id="transform-sheet">
+    <div class="ts-handle"></div>
+    <div style="padding:0 0 16px;">
+        <div class="ts-title">
+            <span>Transform</span>
+            <button onclick="closeTransformSheet()" style="background:none;border:none;color:#555;font-size:16px;cursor:pointer;">✕</button>
+        </div>
+        <div class="ts-row">
+            <span class="ts-label">Scale</span>
+            <input type="range" id="size-slider" min="20" max="1000" value="200" oninput="document.getElementById('size-num').value=this.value;applyTransform&&applyTransform()">
+            <input type="number" id="size-num" class="ts-num" value="200" min="20" max="1000" oninput="document.getElementById('size-slider').value=Math.min(1000,Math.max(20,+this.value||20));applyTransform&&applyTransform()">
+        </div>
+        <div class="ts-row">
+            <span class="ts-label">Rotate</span>
+            <input type="range" id="rotate-slider" min="0" max="360" value="0" oninput="document.getElementById('rotate-num').value=this.value;applyTransform&&applyTransform()">
+            <input type="number" id="rotate-num" class="ts-num" value="0" min="0" max="360" oninput="document.getElementById('rotate-slider').value=Math.min(360,Math.max(0,+this.value||0));applyTransform&&applyTransform()">
+        </div>
+
+        <!-- Text options (shown only for text/bubble layers) -->
+        <div id="text-settings" class="ts-text-section" style="display:none;">
+            <input type="text" id="text-content-input" class="pub-input" placeholder="Edit text..." oninput="updateTextProp('content',this.value)" style="margin-bottom:8px;">
+            <select id="font-family-select" class="pub-input" onchange="updateTextProp('fontFamily',this.value)" style="margin-bottom:8px;">
+                <option value="'Inter', sans-serif">Standard</option>
+                <option value="'Bangers', cursive">Bangers (Comic)</option>
+                <option value="'Comic Neue', cursive">Comic Neue</option>
+                <option value="'Kalam', cursive">Kalam (Hand)</option>
+                <option value="'Permanent Marker', cursive">Marker</option>
+                <option value="'Creepster', cursive">Horror</option>
+                <option value="'Luckiest Guy', cursive">Luckiest Guy</option>
+                <option value="'Orbitron', sans-serif">Sci-Fi</option>
+                <option value="'Caveat', cursive">Caveat</option>
+                <option value="'Pacifico', cursive">Pacifico</option>
+                <option value="'Bebas Neue', cursive">Bebas Neue</option>
+            </select>
+            <div class="ts-row">
+                <span class="ts-label">Size</span>
+                <input type="range" id="font-size-slider" min="10" max="120" value="28" oninput="document.getElementById('font-size-num').value=this.value;updateTextProp('fontSize',this.value)">
+                <input type="number" id="font-size-num" class="ts-num" value="28" oninput="document.getElementById('font-size-slider').value=+this.value;updateTextProp('fontSize',this.value)">
+            </div>
+            <div class="ts-text-format">
+                <button class="ts-fmt-btn" id="fmt-bold" onclick="toggleTextFmt('bold')"><b>B</b></button>
+                <button class="ts-fmt-btn" id="fmt-italic" onclick="toggleTextFmt('italic')"><i>I</i></button>
+                <button class="ts-fmt-btn" id="fmt-underline" onclick="toggleTextFmt('underline')"><u>U</u></button>
+                <button class="ts-fmt-btn" style="flex:none;padding:8px 12px;" onclick="document.getElementById('ts-text-color-input').click()">🎨</button>
+                <input type="color" id="ts-text-color-input" value="#000000" style="display:none;" oninput="if(activeLayer){activeLayer.color=this.value;render();}">
+            </div>
+            <!-- Bubble style mini grid (shown for bubbles) -->
+            <div id="bubble-style-change-row" style="display:none;margin-top:10px;">
+                <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Bubble Style</div>
+                <div id="bubble-style-mini-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                    <span style="font-size:10px;font-weight:900;color:#555;">BG</span>
+                    <input type="color" id="bubble-bg-color" value="#ffffff" oninput="if(activeLayer){activeLayer.bubbleBg=this.value;render();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
+                    <span style="font-size:10px;font-weight:900;color:#555;">BORDER</span>
+                    <input type="color" id="bubble-border-color" value="#000000" oninput="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Sprite name tag -->
+        <div id="sprite-nametag-row" style="display:none;border-top:1px solid #2c2c2e;padding-top:12px;margin-top:4px;">
+            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Private Name Tag</div>
+            <input type="text" id="sprite-nametag-input" placeholder="Your label (only you see this)" class="pub-input" oninput="updateNameTag(this.value)" style="margin-bottom:8px;">
+            <button onclick="saveSpriteToPersonal()" style="width:100%;padding:10px;background:#0a1a2a;border:1px solid var(--teal);color:var(--teal);border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;">💾 Save to Your Sprites</button>
+        </div>
+
+        <div class="ts-actions">
+            <button class="ts-act-btn" id="ts-swap-btn" onclick="editCurrentSpriteAction()" style="display:none;">🔄 Swap</button>
+            <button class="ts-act-btn" onclick="flipHorizontal()">↔ Flip</button>
+            <button class="ts-act-btn" onclick="resetTransform()">↺ Reset</button>
+            <button class="ts-act-btn danger" onclick="deleteLayer()">🗑 Del</button>
+            <button class="ts-act-btn done" onclick="closeTransformSheet()">✓ Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── HIDDEN INPUTS ── -->
+<input type="file" id="img-input" hidden accept="image/*">
+<input type="file" id="cover-input" hidden accept="image/*" onchange="handleCoverInput(event)">
+
+<!-- ── MAIN APP ── -->
+
+<!-- TOP BAR -->
 <div id="top-bar">
     <button class="tb-btn" onclick="handleExit()">← Exit</button>
-    <button class="tb-btn" onclick="undo()">↩</button>
-    <button class="tb-btn" onclick="redo()">↪</button>
+    <button class="tb-btn" onclick="undo()" title="Undo">↩</button>
+    <button class="tb-btn" onclick="redo()" title="Redo">↪</button>
     <div class="tb-spacer"></div>
-    <span id="top-title">STORY</span>
+    <span id="frame-counter">1 / 1</span>
     <div class="tb-spacer"></div>
-    <button class="tb-btn teal" onclick="saveDraft()">💾</button>
-    <button class="tb-btn teal" onclick="openDraftsModal()">📂</button>
-    <button class="tb-btn accent" onclick="openPublish()">Publish</button>
+    <button class="tb-btn" onclick="saveOffline(false)">💾</button>
+    <button class="tb-btn" onclick="openDraftsModal()" title="Drafts">📂</button>
+    <button class="tb-btn" onclick="toggleHideUI()" title="Hide UI">👁</button>
+    <button class="tb-btn accent" onclick="openPublishModal()">Publish</button>
+</div>
+<!-- Tap-to-show bar when UI is hidden -->
+<div id="hidden-ui-bar" style="display:none; position:fixed; top:0; left:0; right:0; height:38px; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+    <button onclick="toggleHideUI()" style="background:var(--accent);color:#000;border:none;padding:5px 24px;border-radius:20px;font-weight:900;font-size:12px;font-family:inherit;cursor:pointer;">TAP TO SHOW UI</button>
 </div>
 
-<!-- ── FORMAT BAR ── -->
-<div id="format-bar">
-    <!-- Bold / Italic / Underline -->
-    <button class="fmt-btn" id="btn-bold" onclick="fmt('bold')"><b>B</b></button>
-    <button class="fmt-btn" id="btn-italic" onclick="fmt('italic')"><i>I</i></button>
-    <button class="fmt-btn" id="btn-underline" onclick="fmt('underline')"><u>U</u></button>
-
-    <div class="fmt-divider"></div>
-
-    <!-- Font size -->
-    <div class="fmt-size-group">
-        <button class="fmt-btn" onclick="changeFontSize(-2)">−</button>
-        <div class="fmt-size-num" id="size-display">18</div>
-        <button class="fmt-btn" onclick="changeFontSize(+2)">+</button>
-    </div>
-
-    <div class="fmt-divider"></div>
-
-    <!-- Font picker (opens sheet) -->
-    <button class="fmt-btn" onclick="openSheet('font')" id="font-label-btn">Aa Font</button>
-
-    <!-- Spacing (opens sheet) -->
-    <button class="fmt-btn" onclick="openSheet('spacing')">↕ Spacing</button>
-
-    <!-- More options -->
-    <button class="fmt-btn" onclick="openSheet('more')">••• More</button>
-</div>
-
-<!-- ── WRITING AREA ── -->
-<div id="writing-area-wrap">
-    <div id="pages-container"></div>
-    <div id="add-page-btn">
-        <button onclick="addPage()">+ Add Page</button>
+<!-- CANVAS VIEWPORT -->
+<div id="viewport" onclick="handleViewportClick(event)">
+    <div id="canvas-container">
+        <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
+        <div id="comic-frame" onclick="deselectLayer(event)"></div>
+        <div id="global-frame-indicator"></div>
     </div>
 </div>
 
-<!-- ── STATUS BAR ── -->
-<div id="status-bar">
-    <div>Words: <span id="word-count">0</span></div>
-    <div>Chars: <span id="char-count">0</span></div>
-    <div>Pages: <span id="page-count">1</span></div>
-    <div>Read: <span id="read-time">0 min</span></div>
-    <div id="save-status">Unsaved</div>
+<!-- BOTTOM BAR -->
+<div id="bottom-bar">
+    <button class="bot-btn" onclick="openSheet('add')">
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475738268531294349/Untitled50_20260224001655.png?ex=699f3c9d&is=699deb1d&hm=3e952823d71a8451fd45b94c2a8e2f5b92e693d9ca2cb3e79869c1bb5a4945f2&=&format=webp&quality=lossless" class="bot-custom-icon" alt="add">Add
+    </button>
+    <button class="bot-btn" onclick="openSheet('sprites')">
+        <img src="https://cdn.discordapp.com/attachments/1472088820584419450/1475305408464818337/IMG_1798.png?ex=699d00bb&is=699baf3b&hm=7564f665aa8167ab0088952702c05ee4dfe9b0446813b7e59552ac07ceea1f7d&" class="bot-custom-icon" alt="sprites">Sprites
+    </button>
+    <button class="bot-btn" onclick="openSheet('bg')">
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1476014886181011567/Untitled.png?ex=699f957b&is=699e43fb&hm=e0df44f7e1e168ec27e6204f00a5f2b985e41df4020cbbf0865ac8ab79ede02c&=&format=webp&quality=lossless" class="bot-custom-icon" alt="bg">BG
+    </button>
+    <button class="bot-btn" onclick="openSheet('layers')">
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475735904231620699/Untitled50_20260224000728.png?ex=699f3a69&is=699de8e9&hm=a81ad82f44163fe2a2afbe9046d3ed4b0a81f5cd69f3fdcba041a94084b12c2b&=&format=webp&quality=lossless" class="bot-custom-icon" alt="layers">Layers
+    </button>
+    <button class="bot-btn" onclick="openSheet('frames')">
+        <span class="bico">🎞</span>Frames
+    </button>
+    <button class="bot-btn" onclick="sbEditAction()">
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475740938910568600/Untitled50_20260224002716.png?ex=699f3f19&is=699ded99&hm=30eaf2b064268c3e30d7bea8fb0a52fcff552c42c5c1500ec8a89586b51cce0a&=&format=webp&quality=lossless" class="bot-custom-icon" alt="edit">Edit
+    </button>
+    <button class="bot-btn" onclick="openSheet('fx')">
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475743931755925720/Untitled50_20260224003926.png?ex=699f41e3&is=699df063&hm=73efb25b11c45a422741bc6f84621181e94aa3d39f92e261ad2b5f836ddb3a66&=&format=webp&quality=lossless" class="bot-custom-icon" alt="fx">FX
+    </button>
+    <button class="bot-btn" id="onion-bot-btn" onclick="toggleOnionMobile()">
+        <span class="bico">🧅</span>Onion
+    </button>
+    <button class="bot-btn" onclick="openExportModal()">
+        <span class="bico">⬆</span>Export
+    </button>
 </div>
 
-<!-- ── DRAFTS MODAL ── -->
-<div id="drafts-modal" onclick="if(event.target===this)closeDraftsModal()">
-    <div id="drafts-panel">
-        <div id="drafts-panel-head">
-            <h2>📂 Story Drafts</h2>
-            <button onclick="closeDraftsModal()">✕</button>
-        </div>
-        <div id="drafts-list"></div>
-        <div style="padding:0 14px 14px;">
-            <button class="sdraft-new" onclick="startNewStory()">+ New Story</button>
-        </div>
-    </div>
-</div>
+<!-- ── HIDDEN LEGACY DIVS FOR JS COMPAT ── -->
+<div id="plus-menu" style="display:none!important;"></div>
+<div id="layer-menu" style="display:none!important;"></div>
+<div id="transform-ui" style="display:none!important;"></div>
+<div id="bg-edit-panel" style="display:none!important;"></div>
+<div id="fx-panel" style="display:none!important;"></div>
+<div id="frame-strip" style="display:none!important;"></div>
+<div id="frame-drawer" style="display:none!important;"></div>
+<!-- Legacy ids for JS functions that reference them -->
+<div id="sb-sprite-grid" style="display:none;"></div>
+<div id="sb-layer-list" style="display:none;"></div>
+<div id="thumb-container" style="display:none;"></div>
+<div id="frame-label" style="display:none;"></div>
+<div id="left-sidebar" style="display:none!important;"></div>
+<div id="sidebar-panel" style="display:none!important;"></div>
+<div id="ui-reveal-btn" style="display:none!important;"></div>
+<div id="edit-action-btn" style="display:none!important;"></div>
+<div id="onion-skin-control" style="display:none!important;"></div>
+<div id="onion-toggle-wrap" style="display:none;"></div>
+<input type="checkbox" id="onion-toggle" style="display:none;">
+<div id="editor-prefs-panel" style="display:none!important;"></div>
+<input id="pos-x-input" style="display:none;">
+<input id="pos-y-input" style="display:none;">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
-const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
-const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+// ── SUPABASE ──
+const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
+// ── STATE ──
+let frames = [{ layers: [], background: '#ffffff' }];
+let currentIdx = 0;
+let history = [], redoStack = [];
+let activeLayer = null;
+let selectedLayers = [];
+let cropper = null;
+let currentImportType = null;
+let hasUnsavedChanges = false;
 let activeDraftId = null;
-let hasUnsaved = false;
-let coverBase64 = null;
-let currentFontSize = 18;
-let currentFont = "'Merriweather', Georgia, serif";
-let currentSpacing = '1.8';
-let activePage = null;
+let editingComicId = null;
+let finalCoverBase64 = null;
+let frameClipboard = null;
+let canvasRatio = { w: 1, h: 1 };
+let sidebarSprites = null;
 
-// ── FONTS ──
-const FONTS = [
-    { label: 'Merriweather', value: "'Merriweather', Georgia, serif", preview: 'Classic serif' },
-    { label: 'Lora', value: "'Lora', Georgia, serif", preview: 'Elegant story' },
-    { label: 'Playfair', value: "'Playfair Display', Georgia, serif", preview: 'Literary feel' },
-    { label: 'Crimson', value: "'Crimson Text', Georgia, serif", preview: 'Old-style serif' },
-    { label: 'Garamond', value: "'EB Garamond', Georgia, serif", preview: 'Classic novel' },
-    { label: 'Baskerville', value: "'Libre Baskerville', Georgia, serif", preview: 'Sharp & clean' },
-    { label: 'Nunito', value: "'Nunito', sans-serif", preview: 'Modern round' },
-    { label: 'Inter', value: "'Inter', sans-serif", preview: 'Clean sans' },
-    { label: 'Monospace', value: 'monospace', preview: 'Code / draft' },
-];
+const canvas = document.getElementById('comic-frame');
+const onionCanvas = document.getElementById('onion-skin-canvas');
+const onionCtx = onionCanvas.getContext('2d');
 
-function buildFontGrid() {
-    const grid = document.getElementById('font-grid');
-    grid.innerHTML = '';
-    FONTS.forEach(f => {
-        const card = document.createElement('div');
-        card.className = 'font-card' + (f.value === currentFont ? ' active' : '');
-        card.innerHTML = `<div class="font-name">${f.label}</div><div class="font-preview" style="font-family:${f.value}">${f.preview}</div>`;
-        card.onclick = () => {
-            applyFont(f.value);
-            document.getElementById('font-label-btn').innerText = 'Aa ' + f.label;
-            grid.querySelectorAll('.font-card').forEach(c => c.classList.remove('active'));
-            card.classList.add('active');
-            closeSheet('font');
-        };
-        grid.appendChild(card);
-    });
+// ── RATIO + CANVAS SIZE ──
+function setRatio(w, h) {
+    canvasRatio = { w, h };
+    localStorage.setItem('cc-active-ratio', JSON.stringify({ w, h }));
+    const vp = document.getElementById('viewport');
+    const vpW = vp.clientWidth - 24;
+    const vpH = vp.clientHeight - 24;
+    let cw, ch;
+    if (w / h > vpW / vpH) { cw = vpW; ch = Math.round(vpW * h / w); }
+    else { ch = vpH; cw = Math.round(vpH * w / h); }
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    onionCanvas.width = cw; onionCanvas.height = ch;
+    render();
 }
 
-// ── SHEETS ──
+// ── SHEET SYSTEM ──
 function openSheet(name) {
     closeAllSheets();
     document.getElementById('sheet-overlay').classList.add('open');
     document.getElementById('sheet-' + name).classList.add('open');
-    if (name === 'font') buildFontGrid();
+    document.body.classList.add('sheet-open');
+    // Re-fit canvas to the smaller viewport after transition
+    setTimeout(function() { setRatio(canvasRatio.w, canvasRatio.h); }, 260);
+    if (name === 'sprites' && !sidebarSprites) loadMobSprites();
+    if (name === 'layers') renderMobLayers();
+    if (name === 'frames') renderMobFrames();
+    if (name === 'bg') syncBgSliders();
+    if (name === 'fx') syncFxPanel();
 }
 function closeSheet(name) {
     document.getElementById('sheet-overlay').classList.remove('open');
     document.getElementById('sheet-' + name).classList.remove('open');
+    document.body.classList.remove('sheet-open');
+    setTimeout(function() { setRatio(canvasRatio.w, canvasRatio.h); }, 260);
 }
 function closeAllSheets() {
     document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('open'));
     document.getElementById('sheet-overlay').classList.remove('open');
+    document.body.classList.remove('sheet-open');
+    setTimeout(function() { setRatio(canvasRatio.w, canvasRatio.h); }, 260);
 }
 
-// ── PAGES ──
-function createPage(content, pageNum) {
-    const page = document.createElement('div');
-    page.className = 'story-page';
-    page.contentEditable = 'true';
-    page.spellcheck = true;
-    page.setAttribute('data-placeholder', pageNum === 1 ? 'Start writing your story...' : 'Continue your story...');
-    page.innerHTML = content || '';
-    page.style.fontFamily = currentFont;
-    page.style.fontSize = currentFontSize + 'px';
-    page.style.lineHeight = currentSpacing;
+// ── TRANSFORM SHEET ──
+function openTransformSheet() {
+    if (!activeLayer) return;
+    document.getElementById('transform-sheet').classList.add('open');
+    document.getElementById('transform-sheet-backdrop').classList.add('open');
+    document.body.classList.add('sheet-open');
+    setTimeout(function() { setRatio(canvasRatio.w, canvasRatio.h); }, 260);
+    syncTransformSheet();
+}
+function closeTransformSheet() {
+    document.getElementById('transform-sheet').classList.remove('open');
+    document.getElementById('transform-sheet-backdrop').classList.remove('open');
+    document.body.classList.remove('sheet-open');
+    setTimeout(function() { setRatio(canvasRatio.w, canvasRatio.h); }, 260);
+}
+function syncTransformSheet() {
+    if (!activeLayer) return;
+    document.getElementById('size-slider').value = activeLayer.w || 200;
+    document.getElementById('size-num').value = activeLayer.w || 200;
+    document.getElementById('rotate-slider').value = activeLayer.rotation || 0;
+    document.getElementById('rotate-num').value = activeLayer.rotation || 0;
 
-    const label = document.createElement('div');
-    label.className = 'page-label';
-    label.innerText = 'Page ' + pageNum;
+    const isText = ['text','bubble','thinking','subtitle'].includes(activeLayer.type);
+    document.getElementById('text-settings').style.display = isText ? 'block' : 'none';
+    document.getElementById('sprite-nametag-row').style.display = activeLayer.type === 'img' ? 'flex' : 'none';
+    document.getElementById('sprite-nametag-row').style.flexDirection = 'column';
 
-    const delBtn = document.createElement('button');
-    delBtn.className = 'page-delete-btn';
-    delBtn.innerHTML = '✕';
-    delBtn.title = 'Delete page';
-    delBtn.onclick = () => deletePage(page);
+    if (isText) {
+        document.getElementById('text-content-input').value = activeLayer.content || '';
+        if (activeLayer.fontFamily) document.getElementById('font-family-select').value = activeLayer.fontFamily;
+        if (activeLayer.fontSize) {
+            document.getElementById('font-size-slider').value = activeLayer.fontSize;
+            document.getElementById('font-size-num').value = activeLayer.fontSize;
+        }
+    }
+    const isBubble = ['bubble','thinking'].includes(activeLayer.type);
+    document.getElementById('bubble-style-change-row').style.display = isBubble ? 'block' : 'none';
+    if (isBubble) renderBubbleMiniGrid();
 
-    page.appendChild(label);
-    page.appendChild(delBtn);
+    // Show Swap button only for sprite layers that have packData (i.e. from the sprite library)
+    const swapBtn = document.getElementById('ts-swap-btn');
+    if (swapBtn) swapBtn.style.display = (activeLayer.type === 'img' && activeLayer.packData) ? 'inline-flex' : 'none';
 
-    page.addEventListener('focus', () => { activePage = page; updateToolbarState(); });
-    page.addEventListener('keyup', () => { updateStats(); hasUnsaved = true; updatePageNumbers(); document.getElementById('save-status').innerText = 'Unsaved'; });
-    page.addEventListener('mouseup', () => updateToolbarState());
-    page.addEventListener('touchend', () => updateToolbarState());
-    page.addEventListener('keydown', handleKeyDown);
-
-    return page;
+    if (activeLayer.type === 'img' && activeLayer.packData) {
+        document.getElementById('sprite-nametag-input').value = activeLayer.nameTag || '';
+    }
 }
 
-function addPage(content) {
-    const container = document.getElementById('pages-container');
-    const pageNum = container.children.length + 1;
-    const page = createPage(content || '', pageNum);
-    container.appendChild(page);
-    updatePageNumbers();
-    updateStats();
-    setTimeout(() => { page.focus(); page.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
-    return page;
+function toggleTextFmt(prop) {
+    if (!activeLayer) return;
+    saveState();
+    if (prop === 'bold') activeLayer.bold = !activeLayer.bold;
+    if (prop === 'italic') activeLayer.italic = !activeLayer.italic;
+    if (prop === 'underline') activeLayer.underline = !activeLayer.underline;
+    document.getElementById('fmt-' + prop).classList.toggle('active', !!activeLayer[prop]);
+    render();
 }
 
-function deletePage(page) {
-    const container = document.getElementById('pages-container');
-    if (container.children.length <= 1) return;
-    if (!confirm('Delete this page?')) return;
-    page.remove();
-    updatePageNumbers();
-    updateStats();
+// ── RENDER ──
+function render() {
+    canvas.innerHTML = '';
+    const f = frames[currentIdx];
+    const bg = f.background || '#ffffff';
+    const isImg = bg.startsWith('http') || bg.startsWith('data:image');
+    const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+    if (isImg) { canvas.style.backgroundColor = 'transparent'; canvas.style.backgroundImage = `url(${bg})`; }
+    else if (isGrad) { canvas.style.backgroundColor = 'transparent'; canvas.style.backgroundImage = bg; }
+    else { canvas.style.backgroundColor = bg; canvas.style.backgroundImage = 'none'; }
+
+    const s = f.bgSettings || {};
+    const scale = s.scale ?? 100, rotate = s.rotate ?? 0, xOff = s.x ?? 0, yOff = s.y ?? 0, filter = s.filter || 'none';
+    if (isImg || isGrad) {
+        canvas.style.backgroundSize = isGrad ? 'cover' : scale + '%';
+        canvas.style.backgroundPosition = (50 + xOff) + '% ' + (50 + yOff) + '%';
+        canvas.style.filter = filter === 'none' ? '' : filter;
+        if (rotate !== 0) {
+            const bgDiv = document.createElement('div');
+            const bgContent = isImg ? `url(${bg})` : bg;
+            bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;background:${bgContent};background-size:${isImg ? (scale*2.2)+'%' : 'cover'};background-position:center;background-repeat:no-repeat;transform:rotate(${rotate}deg);pointer-events:none;z-index:0;filter:${filter==='none'?'none':filter};transform-origin:center center;`;
+            canvas.style.backgroundImage = 'none'; canvas.style.backgroundColor = 'transparent'; canvas.style.filter = '';
+            canvas.insertBefore(bgDiv, canvas.firstChild);
+        }
+    } else { canvas.style.backgroundSize = ''; canvas.style.backgroundPosition = ''; canvas.style.filter = ''; }
+
+    // onion skin
+    const onionOn = document.getElementById('onion-toggle').checked;
+    if (onionOn && currentIdx > 0) {
+        onionCanvas.style.display = 'block';
+        onionCtx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+        const prevFrame = frames[currentIdx - 1];
+        onionCtx.globalAlpha = parseFloat(document.getElementById('onion-opacity').value);
+        prevFrame.layers.forEach(l => {
+            if (l.type === 'img') {
+                const img = new Image(); img.src = l.src;
+                const draw = () => { onionCtx.save(); const h = l.w * (img.naturalHeight / img.naturalWidth); onionCtx.translate(l.x+l.w/2,l.y+h/2); onionCtx.rotate((l.rotation||0)*Math.PI/180); if(l.flipped)onionCtx.scale(-1,1); onionCtx.drawImage(img,-l.w/2,-h/2,l.w,h); onionCtx.restore(); };
+                if (img.complete) draw(); else img.onload = draw;
+            }
+        });
+    } else { onionCanvas.style.display = 'none'; }
+
+    f.layers.forEach((layer, idx) => {
+        const el = document.createElement('div');
+        el.className = 'layer' + (layer === activeLayer ? ' active' : '');
+        el.style.zIndex = idx;
+        el.dataset.layerId = layer.id;
+
+        if (layer.type === 'img') {
+            const img = document.createElement('img');
+            img.src = layer.src;
+            img.draggable = false;
+            img.style.cssText = `width:${layer.w}px;display:block;user-select:none;`;
+            if (layer.flipped) img.style.transform = `rotate(${layer.rotation||0}deg) scaleX(-1)`;
+            else img.style.transform = `rotate(${layer.rotation||0}deg)`;
+            if (layer.blurType === 'soft') img.style.filter = `blur(${layer.blurAmt||4}px)`;
+            else if (layer.blurType === 'pixel') img.style.filter = `blur(0px)`;
+            if (layer.fxFilter && layer.fxFilter !== 'none') img.style.filter = (img.style.filter ? img.style.filter + ' ' : '') + layer.fxFilter;
+            if (layer.fxOpacity !== undefined) img.style.opacity = layer.fxOpacity / 100;
+            if (layer.nameTag) { const nt = document.createElement('div'); nt.className = 'sprite-nametag'; nt.innerText = layer.nameTag; el.appendChild(nt); }
+            el.appendChild(img);
+        } else if (layer.type === 'bubble' || layer.type === 'thinking') {
+            const bub = document.createElement('div');
+            bub.className = 'speech-bubble bubble-style-' + (layer.bubbleStyle || 'round');
+            bub.style.cssText = `width:${layer.w||120}px;font-size:${layer.fontSize||18}px;font-family:${layer.fontFamily||'Inter, sans-serif'};`;
+            if (layer.bold) bub.style.fontWeight = '900';
+            if (layer.italic) bub.style.fontStyle = 'italic';
+            if (layer.underline) bub.style.textDecoration = 'underline';
+            if (layer.color) bub.style.color = layer.color;
+            if (layer.bubbleBg) bub.style.backgroundColor = layer.bubbleBg;
+            if (layer.bubbleBorderColor) bub.style.borderColor = layer.bubbleBorderColor;
+            bub.style.transform = `rotate(${layer.rotation||0}deg)`;
+            if (layer.fxOpacity !== undefined) bub.style.opacity = layer.fxOpacity / 100;
+            bub.innerText = layer.content || '';
+            const tail = document.createElement('div'); tail.className = 'bubble-tail'; bub.appendChild(tail);
+            if (layer.type === 'thinking') {
+                [1,2,3].forEach(n => { const dot = document.createElement('div'); dot.className = 'thought-dot-' + n; bub.appendChild(dot); });
+            }
+            el.appendChild(bub);
+        } else if (layer.type === 'text') {
+            const t = document.createElement('div');
+            t.style.cssText = `color:${layer.color||'#000'};font-size:${layer.fontSize||24}px;font-family:${layer.fontFamily||'Inter, sans-serif'};font-weight:${layer.bold?'900':'700'};font-style:${layer.italic?'italic':'normal'};text-decoration:${layer.underline?'underline':'none'};white-space:nowrap;width:${layer.w||200}px;transform:rotate(${layer.rotation||0}deg);text-align:${layer.align||'left'};`;
+            if (layer.fxOpacity !== undefined) t.style.opacity = layer.fxOpacity / 100;
+            t.innerText = layer.content || 'Text';
+            el.appendChild(t);
+        } else if (layer.type === 'subtitle') {
+            const s = document.createElement('div');
+            s.style.cssText = `width:${layer.w||canvas.offsetWidth}px;background:rgba(0,0,0,0.75);color:#fff;font-size:${layer.fontSize||16}px;font-family:${layer.fontFamily||'Inter, sans-serif'};padding:8px 14px;text-align:center;transform:rotate(${layer.rotation||0}deg);`;
+            if (layer.fxOpacity !== undefined) s.style.opacity = layer.fxOpacity / 100;
+            s.innerText = layer.content || 'Subtitle';
+            el.appendChild(s);
+        }
+
+        el.style.left = (layer.x || 0) + 'px';
+        el.style.top = (layer.y || 0) + 'px';
+        el.style.position = 'absolute';
+
+        // Tap selects, drag moves — touchstart must stop propagation so viewport pinch isn't triggered
+        el.addEventListener('touchstart', (e) => {
+            // 2-finger on active img layer → pinch-to-resize (NOT viewport zoom)
+            if (e.touches.length === 2 && layer === activeLayer && layer.type === 'img') {
+                e.preventDefault();
+                e.stopPropagation();
+                startTouchPinchResize(e, layer);
+                return;
+            }
+            // For any multi-touch on an active layer, block viewport from stealing the gesture
+            if (e.touches.length > 1) {
+                if (layer === activeLayer) { e.preventDefault(); e.stopPropagation(); }
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            selectLayerLight(layer);
+            startTouchDrag(e, layer);
+        }, { passive: false });
+        el.addEventListener('mousedown', (e) => { e.preventDefault(); selectLayer(layer); startDrag(e, layer); });
+
+        // Double-tap: open transform sheet
+        let lastTap = 0;
+        el.addEventListener('touchend', (e) => {
+            if (e.changedTouches.length === 1) {
+                const now = Date.now();
+                if (!_isDragging && now - lastTap < 300) { e.preventDefault(); openTransformSheet(); }
+                lastTap = now;
+            }
+        }, { passive: false });
+
+
+
+        canvas.appendChild(el);
+    });
+
+    // update mobile UI
+    document.getElementById('frame-counter').innerText = (currentIdx + 1) + ' / ' + frames.length;
+    document.getElementById('mob-frame-label') && (document.getElementById('mob-frame-label').innerText = (currentIdx + 1) + ' / ' + frames.length);
+    if (document.getElementById('global-frame-indicator')) {
+        const fi = document.getElementById('global-frame-indicator');
+        fi.innerText = 'FRAME ' + (currentIdx + 1);
+        fi.style.display = frames.length > 1 ? 'block' : 'none';
+    }
+    hasUnsavedChanges = true;
 }
 
-function updatePageNumbers() {
-    document.querySelectorAll('.story-page').forEach((p, i) => {
-        const label = p.querySelector('.page-label');
-        if (label) label.innerText = 'Page ' + (i + 1);
+function selectLayer(layer) {
+    activeLayer = layer;
+    selectedLayers = [layer];
+    render();
+}
+
+function selectLayerLight(layer) {
+    activeLayer = layer;
+    selectedLayers = [layer];
+    document.querySelectorAll('.layer').forEach(function(el) {
+        el.classList.toggle('active', el.dataset.layerId == layer.id);
     });
 }
 
-function getAllPages() { return Array.from(document.querySelectorAll('.story-page')); }
-function getAllText() { return getAllPages().map(p => p.innerText).join('\n\n'); }
-function getAllHTML() {
-    return getAllPages().map(p => {
-        const clone = p.cloneNode(true);
-        clone.querySelectorAll('.page-label,.page-delete-btn').forEach(el => el.remove());
-        return clone.innerHTML;
-    }).join('<hr class="page-break">');
+// ── TOUCH DRAG ──
+var _isDragging = false; // blocks double-tap-to-transform during a drag
+function startTouchDrag(e, layer) {
+    if (e.touches.length > 1) return;
+    // DON'T saveState here — JSON.stringify of all frames (with base64) is too slow.
+    // We save state on up only if the sprite actually moved.
+    _isDragging = false;
+    var touch = e.touches[0];
+    var fingerStartX = touch.clientX;
+    var fingerStartY = touch.clientY;
+    var layerStartX = layer.x;
+    var layerStartY = layer.y;
+    var moved = false;
+
+    var cleanup = function() {
+        document.removeEventListener('touchmove', move);
+        document.removeEventListener('touchend', up);
+        document.removeEventListener('touchcancel', up);
+        if (moved) {
+            // Save state now that we have the final position
+            saveState();
+            // Sync final position into DOM cleanly via render
+            render();
+        }
+        setTimeout(function() { _isDragging = false; }, 80);
+    };
+    var move = function(me) {
+        if (me.touches.length > 1) { cleanup(); return; }
+        me.preventDefault();
+        if (!moved) moved = true;
+        _isDragging = true;
+        var t = me.touches[0];
+        var dx = (t.clientX - fingerStartX) / vpScale;
+        var dy = (t.clientY - fingerStartY) / vpScale;
+        layer.x = layerStartX + dx;
+        layer.y = layerStartY + dy;
+        // Direct DOM update — fast, no full re-render during drag
+        var el = document.querySelector('.layer[data-layerId="' + layer.id + '"]');
+        if (el) { el.style.left = layer.x + 'px'; el.style.top = layer.y + 'px'; }
+    };
+    var up = function() { cleanup(); };
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', up, { once: true });
+    document.addEventListener('touchcancel', up, { once: true });
 }
 
-// ── FORMATTING ──
-function fmt(cmd) {
-    document.execCommand(cmd, false, null);
-    if (activePage) activePage.focus();
-    updateToolbarState();
+// ── TOUCH PINCH RESIZE (2-finger spread/pinch on active sprite) ──
+function startTouchPinchResize(e, layer) {
+    saveState();
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const startDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    if (startDist < 5) return;
+    const origW = layer.w;
+
+    const onMove = (mv) => {
+        if (mv.touches.length < 2) return;
+        mv.preventDefault();
+        mv.stopPropagation();
+        const a = mv.touches[0], b = mv.touches[1];
+        const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+        const scale = dist / startDist;
+        layer.w = Math.max(30, Math.round(origW * scale));
+        // Sync transform sheet slider if open
+        const sl = document.getElementById('size-slider');
+        if (sl) { sl.value = layer.w; const sn = document.getElementById('size-num'); if (sn) sn.value = layer.w; }
+        render();
+    };
+    const onUp = (ev) => {
+        if (ev.touches.length < 2) {
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+        }
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+}
+function startDrag(e, layer) {
+    saveState();
+    const cR0 = canvas.getBoundingClientRect();
+    let startX = e.clientX - cR0.left - layer.x, startY = e.clientY - cR0.top - layer.y;
+    let moved = false;
+    const move = (me) => { moved = true; const cR = canvas.getBoundingClientRect(); const lW = layer.w||100, lH=layer.h||(layer.fontSize?layer.fontSize*2:80); layer.x=Math.min(Math.max(me.clientX-cR.left-startX,0),cR.width-lW); layer.y=Math.min(Math.max(me.clientY-cR.top-startY,0),cR.height-lH); render(); };
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
 }
 
-function changeFontSize(delta) {
-    currentFontSize = Math.min(Math.max(currentFontSize + delta, 10), 72);
-    document.getElementById('size-display').innerText = currentFontSize;
-    getAllPages().forEach(p => p.style.fontSize = currentFontSize + 'px');
-    hasUnsaved = true;
-    if (activePage) activePage.focus();
-}
-
-function applyFont(font) {
-    currentFont = font;
-    getAllPages().forEach(p => p.style.fontFamily = font);
-    hasUnsaved = true;
-    if (activePage) activePage.focus();
-}
-
-function applySpacing(val, btn) {
-    currentSpacing = val;
-    getAllPages().forEach(p => p.style.lineHeight = val);
-    // Update active state on buttons
-    if (btn) {
-        btn.closest('.spacing-row')?.querySelectorAll('.spacing-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+function deselectLayer(e) {
+    // Close transform sheet and deselect when tapping the canvas itself (not a layer)
+    if (e.target === canvas || e.target === document.getElementById('canvas-container') || e.target === document.getElementById('viewport')) {
+        activeLayer = null; selectedLayers = []; closeTransformSheet(); render();
     }
-    if (activePage) activePage.focus();
 }
-
-function applyHeading(tag) {
-    document.execCommand('formatBlock', false, tag);
-    if (activePage) activePage.focus();
-    closeAllSheets();
-}
-
-function updateToolbarState() {
-    document.getElementById('btn-bold').classList.toggle('active', document.queryCommandState('bold'));
-    document.getElementById('btn-italic').classList.toggle('active', document.queryCommandState('italic'));
-    document.getElementById('btn-underline').classList.toggle('active', document.queryCommandState('underline'));
-}
-
-function handleKeyDown(e) {
-    hasUnsaved = true;
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        document.execCommand('insertHTML', false, '&emsp;&emsp;');
+function handleViewportClick(e) {
+    // Tapping the viewport background (outside the canvas) also deselects
+    if (e.target === document.getElementById('viewport') || e.target === document.getElementById('canvas-container')) {
+        activeLayer = null; selectedLayers = []; closeTransformSheet(); render();
     }
-}
-
-// ── STATS ──
-function updateStats() {
-    const text = getAllText();
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    const chars = text.length;
-    const mins = Math.max(1, Math.ceil(words / 200));
-    const pages = getAllPages().length;
-    document.getElementById('word-count').innerText = words.toLocaleString();
-    document.getElementById('char-count').innerText = chars.toLocaleString();
-    document.getElementById('read-time').innerText = mins + ' min';
-    document.getElementById('page-count').innerText = pages;
+    // Also close bottom sheets if open
+    if (e.target === document.getElementById('sheet-overlay')) closeAllSheets();
 }
 
 // ── UNDO / REDO ──
-function undo() { document.execCommand('undo'); }
-function redo() { document.execCommand('redo'); }
+function saveState() {
+    history.push(JSON.stringify(frames));
+    if (history.length > 60) history.shift();
+    redoStack = [];
+}
+function undo() { if (!history.length) return; redoStack.push(JSON.stringify(frames)); frames = JSON.parse(history.pop()); if (currentIdx >= frames.length) currentIdx = frames.length - 1; activeLayer = null; render(); }
+function redo() { if (!redoStack.length) return; history.push(JSON.stringify(frames)); frames = JSON.parse(redoStack.pop()); activeLayer = null; render(); }
 
-// ── SAVE DRAFT ──
-function saveDraft() {
-    let drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
-    let title = document.getElementById('pub-title').value;
-    if (!title) {
-        title = prompt('Story name:', 'My Story') || 'Untitled Story';
-        document.getElementById('pub-title').value = title;
-    }
-    const draftData = {
-        pages: getAllPages().map(p => { const clone = p.cloneNode(true); clone.querySelectorAll('.page-label,.page-delete-btn').forEach(el => el.remove()); return clone.innerHTML; }),
-        title,
-        fontSize: currentFontSize,
-        font: currentFont,
-        spacing: currentSpacing,
-        updated: Date.now(),
-        lastModified: new Date().toLocaleString()
-    };
-    if (activeDraftId) {
-        const idx = drafts.findIndex(d => d.id == activeDraftId);
-        if (idx !== -1) Object.assign(drafts[idx], draftData);
-        else { draftData.id = activeDraftId; drafts.push(draftData); }
-    } else {
-        draftData.id = Date.now();
-        activeDraftId = draftData.id;
-        drafts.push(draftData);
-    }
-    localStorage.setItem('story_drafts', JSON.stringify(drafts));
-    localStorage.setItem('active_story_draft_id', activeDraftId);
-    hasUnsaved = false;
-    document.getElementById('save-status').innerText = 'Saved ✓';
+// ── FRAMES ──
+function addFrame() { saveState(); frames.splice(currentIdx + 1, 0, { layers: [], background: '#ffffff' }); currentIdx++; activeLayer = null; render(); renderMobFrames(); }
+function duplicateFrame() { saveState(); const copy = JSON.parse(JSON.stringify(frames[currentIdx])); copy.layers = copy.layers.map(l => ({ ...l, id: Date.now() + Math.random() })); frames.splice(currentIdx + 1, 0, copy); currentIdx++; render(); renderMobFrames(); }
+function deleteFrameIfSafe() { if (frames.length === 1) { alert('Cannot delete the only frame.'); return; } saveState(); frames.splice(currentIdx, 1); if (currentIdx >= frames.length) currentIdx = frames.length - 1; activeLayer = null; render(); renderMobFrames(); }
+function prevFrame() { if (currentIdx > 0) { currentIdx--; activeLayer = null; render(); } }
+function nextFrame() { if (currentIdx < frames.length - 1) { currentIdx++; activeLayer = null; render(); } }
+function goToFrame(i) { if (i >= 0 && i < frames.length) { currentIdx = i; activeLayer = null; render(); renderMobFrames(); closeSheet('frames'); } }
+function copyCurrentFrame() { frameClipboard = JSON.parse(JSON.stringify(frames[currentIdx])); }
+function pasteCurrentFrame() { if (!frameClipboard) return; saveState(); const copy = JSON.parse(JSON.stringify(frameClipboard)); copy.layers = copy.layers.map(l => ({...l, id: Date.now() + Math.random()})); frames.splice(currentIdx + 1, 0, copy); currentIdx++; render(); renderMobFrames(); }
 
-    // Toast
-    const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;pointer-events:none;';
-    t.innerText = '✓ Draft saved';
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 1800);
+function renderMobFrames() {
+    const scroll = document.getElementById('mob-frame-scroll');
+    if (!scroll) return;
+    scroll.innerHTML = '';
+    frames.forEach((f, i) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'mob-frame-thumb' + (i === currentIdx ? ' active' : '');
+        thumb.style.background = (f.background && !f.background.startsWith('http') && !f.background.startsWith('data:')) ? f.background : '#222';
+        if (f.background && (f.background.startsWith('http') || f.background.startsWith('data:'))) thumb.style.backgroundImage = `url(${f.background})`;
+        thumb.innerHTML = `<span>${i + 1}</span>`;
+        thumb.onclick = () => goToFrame(i);
+        const del = document.createElement('button');
+        del.className = 'mob-frame-del'; del.innerText = '✕';
+        del.onclick = (e) => { e.stopPropagation(); if (frames.length === 1) { alert('Cannot delete only frame.'); return; } saveState(); frames.splice(i, 1); if (currentIdx >= frames.length) currentIdx = frames.length - 1; activeLayer = null; render(); renderMobFrames(); };
+        thumb.appendChild(del);
+        scroll.appendChild(thumb);
+    });
+    if (document.getElementById('mob-frame-label')) document.getElementById('mob-frame-label').innerText = (currentIdx + 1) + ' / ' + frames.length;
 }
 
-// ── PUBLISH ──
-function openPublish() { document.getElementById('publish-modal').style.display = 'flex'; }
-function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
+// ── LAYERS ──
+function renderMobLayers() {
+    const list = document.getElementById('mob-layer-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const f = frames[currentIdx];
+    if (!f.layers.length) { list.innerHTML = '<div style="color:#555;text-align:center;padding:20px;font-size:13px;">No layers yet</div>'; return; }
+    [...f.layers].reverse().forEach((layer, ri) => {
+        const i = f.layers.length - 1 - ri;
+        const item = document.createElement('div');
+        item.className = 'mob-layer-item' + (layer === activeLayer ? ' active-l' : '');
+        const ico = layer.type === 'img' ? '🖼' : layer.type === 'bubble' ? '💬' : layer.type === 'thinking' ? '💭' : layer.type === 'subtitle' ? '📋' : '✍️';
+        item.innerHTML = `<span style="font-size:20px;flex-shrink:0;">${ico}</span><div class="l-info"><div class="l-name">${layer.nameTag || (layer.content ? layer.content.substring(0,16) : (layer.type + ' ' + (i+1)))}</div><div class="l-type">${layer.type}</div></div>`;
+        item.onclick = () => { activeLayer = layer; render(); renderMobLayers(); };
+        // Support both double-click (PC) and double-tap (mobile) to open transform
+        item.ondblclick = () => openTransformSheet();
+        let layerItemLastTap = 0;
+        item.addEventListener('touchend', () => {
+            const now = Date.now();
+            if (now - layerItemLastTap < 300) openTransformSheet();
+            layerItemLastTap = now;
+        });
+        const del = document.createElement('button'); del.className = 'l-del'; del.innerText = '🗑';
+        del.onclick = (e) => { e.stopPropagation(); saveState(); f.layers.splice(i, 1); if (activeLayer === layer) activeLayer = null; render(); renderMobLayers(); };
+        item.appendChild(del);
+        list.appendChild(item);
+    });
+}
 
-function handleCover(input) {
-    const file = input.files[0]; if (!file) return;
+function deleteLayer() { if (!activeLayer) return; saveState(); const f = frames[currentIdx]; f.layers = f.layers.filter(l => l !== activeLayer); activeLayer = null; closeTransformSheet(); render(); renderMobLayers(); }
+function flipHorizontal() { if (!activeLayer) return; saveState(); activeLayer.flipped = !activeLayer.flipped; render(); }
+function resetTransform() { if (!activeLayer) return; saveState(); activeLayer.w = 200; activeLayer.rotation = 0; activeLayer.flipped = false; syncTransformSheet(); render(); }
+function moveLayerZ(dir) { if (!activeLayer) return; saveState(); const layers = frames[currentIdx].layers; const idx = layers.findIndex(l => l.id === activeLayer.id); if (dir > 0 && idx < layers.length - 1) [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]]; else if (dir < 0 && idx > 0) [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]]; render(); }
+
+function sbCopyLayer() { if (activeLayer) { window._layerClipboard = JSON.parse(JSON.stringify(activeLayer)); } }
+function sbPasteLayer() { if (!window._layerClipboard) return; saveState(); const copy = { ...JSON.parse(JSON.stringify(window._layerClipboard)), id: Date.now(), x: (window._layerClipboard.x || 0) + 20, y: (window._layerClipboard.y || 0) + 20 }; frames[currentIdx].layers.push(copy); activeLayer = copy; render(); renderMobLayers(); }
+function updateTextProp(prop, value) { if (activeLayer && ['bubble','thinking','text','subtitle'].includes(activeLayer.type)) { activeLayer[prop] = (prop === 'fontSize') ? parseInt(value) : value; render(); } }
+function updateNameTag(val) { if (activeLayer) { activeLayer.nameTag = val; render(); } }
+function clearNameTag() { if (activeLayer) { activeLayer.nameTag = ''; document.getElementById('sprite-nametag-input').value = ''; render(); } }
+
+// ── APPLY TRANSFORM ──
+function applyTransform() {
+    if (!activeLayer) return;
+    const w = parseInt(document.getElementById('size-slider').value);
+    const r = parseInt(document.getElementById('rotate-slider').value);
+    activeLayer.w = w; activeLayer.rotation = r;
+    render();
+}
+
+// ── SPRITES ──
+let allSidebarMeta = [];
+async function loadMobSprites() {
+    const grid = document.getElementById('mob-sprite-grid');
+    grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
+    const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
+    sidebarSprites = data || [];
+    allSidebarMeta = sidebarSprites;
+    renderMobSpriteGrid(sidebarSprites);
+}
+
+// ── Batch image fetch queue (like spritesource.html) ──
+let _sbImgQueue = [];
+let _sbImgTimer = null;
+function _sbScheduleBatch() {
+    if (_sbImgTimer) return;
+    _sbImgTimer = setTimeout(_sbFlushBatch, 40);
+}
+async function _sbFlushBatch() {
+    _sbImgTimer = null;
+    if (!_sbImgQueue.length) return;
+    const batch = [...new Set(_sbImgQueue.splice(0, 20))];
+    const { data } = await _supabase.from('sprites_library').select('id, image_data').in('id', batch);
+    if (!data) return;
+    data.forEach(row => {
+        try { localStorage.setItem('sb-img-' + row.id, JSON.stringify({ img: row.image_data })); } catch(e) {}
+        // Apply to any card currently in the DOM
+        const card = document.querySelector('.mob-sprite-card[data-id="' + row.id + '"]');
+        if (card) {
+            const skel = card.querySelector('.mob-skel');
+            if (skel) { const img = document.createElement('img'); img.src = row.image_data; img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
+        }
+    });
+    if (_sbImgQueue.length) _sbScheduleBatch();
+}
+
+function renderMobSpriteGrid(sprites) {
+    const grid = document.getElementById('mob-sprite-grid');
+    grid.innerHTML = '';
+    sprites.forEach(pack => {
+        const card = document.createElement('div');
+        card.className = 'mob-sprite-card';
+        card.dataset.id = pack.id;
+        // Show cached image immediately if available, else shimmer skeleton
+        const cachedImg = sbGetImg(pack.id);
+        if (cachedImg) {
+            card.innerHTML = '<img src="' + cachedImg + '" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">' + pack.name + '</div>';
+        } else {
+            card.innerHTML = '<div class="mob-skel" style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">' + pack.name + '</div>';
+            // Lazy: only queue fetch when card enters viewport
+            const obs = new IntersectionObserver(entries => {
+                if (!entries[0].isIntersecting) return;
+                obs.disconnect();
+                const already = sbGetImg(pack.id);
+                if (already) {
+                    const skel = card.querySelector('.mob-skel');
+                    if (skel) { const img = document.createElement('img'); img.src = already; img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
+                } else {
+                    _sbImgQueue.push(pack.id);
+                    _sbScheduleBatch();
+                }
+            }, { root: grid, rootMargin: '200px 0px' });
+            obs.observe(card);
+        }
+        card.onclick = async () => {
+            const full = await sbFetchFull(pack.id);
+            if (full) { closeSheet('sprites'); openActionModal({ ...pack, ...full }); }
+        };
+        grid.appendChild(card);
+    });
+    if (!sprites.length) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">No sprites found</div>';
+}
+
+function filterMobSprites() {
+    const q = document.getElementById('mob-sprite-search').value.toLowerCase();
+    const filtered = allSidebarMeta.filter(s => s.name.toLowerCase().includes(q) || (s.tags || '').toLowerCase().includes(q));
+    renderMobSpriteGrid(filtered);
+}
+
+// Sprite meta cache
+function sbSaveMetaCache(data) { try { localStorage.setItem('sb-meta-cache', JSON.stringify({ ts: Date.now(), data })); } catch(e) {} }
+function sbLoadMetaCache() { try { const c = JSON.parse(localStorage.getItem('sb-meta-cache')); if (c && Date.now() - c.ts < 600000) return c.data; } catch(e) {} return null; }
+function sbGetImg(id) { try { return JSON.parse(localStorage.getItem('sb-img-' + id))?.img; } catch(e) { return null; } }
+// Full sprite cache: actions keyed by id
+const _sbActionsCache = new Map();
+
+async function sbFetchFull(id) {
+    const cachedImg = sbGetImg(id);
+    const cachedActions = _sbActionsCache.get(id);
+    // If both image and actions are cached, return immediately with no network call
+    if (cachedImg && cachedActions !== undefined) {
+        return { image_data: cachedImg, actions: cachedActions };
+    }
+    if (cachedImg && !cachedActions) {
+        // Image cached but actions not — fetch actions only (tiny payload)
+        const { data } = await _supabase.from('sprites_library').select('actions').eq('id', id).single();
+        const actions = data?.actions || {};
+        _sbActionsCache.set(id, actions);
+        return { image_data: cachedImg, actions };
+    }
+    // Nothing cached — fetch full row
+    const { data } = await _supabase.from('sprites_library').select('id, image_data, actions').eq('id', id).single();
+    if (!data) return null;
+    if (data.image_data) try { localStorage.setItem('sb-img-' + id, JSON.stringify({ img: data.image_data })); } catch(e) {}
+    _sbActionsCache.set(id, data.actions || {});
+    return data;
+}
+
+// ── LIBRARY / ACTION MODALS ──
+async function openLibrary() {
+    const grid = document.getElementById('library-grid');
+    document.getElementById('library-modal').style.display = 'flex';
+    const meta = sidebarSprites || sbLoadMetaCache();
+    if (meta?.length) { renderLibraryGrid(grid, meta); return; }
+    grid.innerHTML = "<p style='color:white;font-size:12px;'>Loading...</p>";
+    const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
+    sidebarSprites = data || [];
+    renderLibraryGrid(grid, sidebarSprites);
+}
+function renderLibraryGrid(grid, sprites) {
+    grid.innerHTML = '';
+    sprites.forEach(pack => {
+        const div = document.createElement('div');
+        div.className = 'action-option';
+        div.innerHTML = `<div style="width:100%;aspect-ratio:1;background:#1a1a1a;border-radius:6px;"></div><strong>${pack.name}</strong>`;
+        div.onclick = async () => { const full = await sbFetchFull(pack.id); if (full) { closeLibrary(); openActionModal({ ...pack, ...full }); } };
+        grid.appendChild(div);
+    });
+}
+function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
+function closeActionModal() { document.getElementById('action-modal').style.display = 'none'; }
+function openActionModal(pack, isEditing = false) {
+    document.getElementById('pack-title').innerText = pack.name;
+    const grid = document.getElementById('action-selector-list');
+    grid.innerHTML = '';
+    const main = createActionOption(pack.image_data, 'Default');
+    main.onclick = () => handleActionSelect(pack.image_data, pack, isEditing);
+    grid.appendChild(main);
+    let actions = pack.actions;
+    if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) { actions = {}; }
+    const items = Array.isArray(actions) ? actions.map((img, i) => [`Action ${i+1}`, img]) : Object.entries(actions || {});
+    items.forEach(([name, img]) => { const opt = createActionOption(img, name); opt.onclick = () => handleActionSelect(img, pack, isEditing); grid.appendChild(opt); });
+    document.getElementById('action-modal').style.display = 'flex';
+}
+function createActionOption(src, name) {
+    const div = document.createElement('div');
+    div.className = 'action-option';
+    div.innerHTML = `<img src="${src}"><strong>${name}</strong>`;
+    return div;
+}
+function handleActionSelect(img, pack, isEditing) {
+    if (isEditing && activeLayer) {
+        saveState();
+        // Preserve all transform so sprite stays same size/position/rotation
+        const { w, rotation, x, y, flipped } = activeLayer;
+        activeLayer.src = img;
+        activeLayer.w = w; activeLayer.rotation = rotation;
+        activeLayer.x = x; activeLayer.y = y; activeLayer.flipped = flipped;
+    } else {
+        addSpriteToCanvas(img, pack);
+    }
+    closeActionModal(); render();
+}
+function addSpriteToCanvas(src, pack) {
+    saveState();
+    const cw = canvas.offsetWidth || 300;
+    const ch = canvas.offsetHeight || 300;
+    const nl = { type: 'img', src, w: Math.round(cw * 0.4), x: Math.round(cw * 0.3), y: Math.round(ch * 0.3), rotation: 0, flipped: false, packData: pack, id: Date.now() };
+    frames[currentIdx].layers.push(nl);
+    activeLayer = nl;
+}
+
+// ── TEXT / BUBBLES ──
+function addText(type) {
+    saveState();
+    const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
+    const nl = { type: 'text', content: 'Text', fontSize: 24, fontFamily: "'Inter', sans-serif", color: '#000', x: Math.round(cw*0.2), y: Math.round(ch*0.3), w: 160, rotation: 0, id: Date.now() };
+    frames[currentIdx].layers.push(nl);
+    activeLayer = nl;
+    render(); openTransformSheet();
+}
+function addSubtitle() {
+    saveState();
+    const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
+    const nl = { type: 'subtitle', content: 'Subtitle', fontSize: 16, x: 0, y: Math.round(ch * 0.85), w: cw, rotation: 0, id: Date.now() };
+    frames[currentIdx].layers.push(nl);
+    activeLayer = nl;
+    render();
+}
+
+// ── BUBBLE PICKER ──
+const BUBBLE_STYLES = [
+    { id: 'round', label: 'Speech', ico: '💬' },
+    { id: 'chat', label: 'Chat', ico: '🗨' },
+    { id: 'rect', label: 'Rect', ico: '⬜' },
+    { id: 'cloud', label: 'Thought', ico: '💭' },
+    { id: 'shout', label: 'Shout', ico: '⚡' },
+    { id: 'whisper', label: 'Whisper', ico: '🤫' },
+    { id: 'narrator', label: 'Narrator', ico: '📋' },
+    { id: 'spiky', label: 'Spiky', ico: '💥' },
+];
+let selectedBubbleStyle = 'round';
+let currentBubbleMode = 'speech';
+
+function openBubblePicker(mode) {
+    currentBubbleMode = mode;
+    selectedBubbleStyle = 'round';
+    document.getElementById('bubble-picker-title').innerText = mode === 'thinking' ? 'Thinking Bubble' : 'Speech Bubble';
+    document.getElementById('bubble-picker-text').value = '';
+    const grid = document.getElementById('bubble-style-grid');
+    grid.innerHTML = '';
+    BUBBLE_STYLES.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = 'bubble-preview-btn' + (s.id === selectedBubbleStyle ? ' selected' : '');
+        btn.innerHTML = `<span class="bpico">${s.ico}</span><span>${s.label}</span>`;
+        btn.onclick = () => { selectedBubbleStyle = s.id; grid.querySelectorAll('.bubble-preview-btn').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); };
+        grid.appendChild(btn);
+    });
+    document.getElementById('bubble-picker-modal').style.display = 'flex';
+}
+function closeBubblePicker() { document.getElementById('bubble-picker-modal').style.display = 'none'; }
+function confirmBubblePicker() {
+    const text = document.getElementById('bubble-picker-text').value || 'Hello!';
+    saveState();
+    const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
+    const nl = { type: currentBubbleMode === 'thinking' ? 'thinking' : 'bubble', content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw*0.5), rotation: 0, id: Date.now() };
+    frames[currentIdx].layers.push(nl);
+    activeLayer = nl;
+    closeBubblePicker();
+    render();
+}
+function renderBubbleMiniGrid() {
+    const grid = document.getElementById('bubble-style-mini-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    BUBBLE_STYLES.forEach(s => {
+        const btn = document.createElement('button');
+        btn.style.cssText = `padding:6px 4px;background:${activeLayer?.bubbleStyle===s.id?'rgba(255,122,0,0.2)':'#1a1a1a'};border:1.5px solid ${activeLayer?.bubbleStyle===s.id?'var(--accent)':'#333'};border-radius:8px;cursor:pointer;text-align:center;font-size:9px;font-family:inherit;color:#aaa;`;
+        btn.innerHTML = `<div style="font-size:16px;">${s.ico}</div>${s.label}`;
+        btn.onclick = () => { if (activeLayer) { saveState(); activeLayer.bubbleStyle = s.id; render(); renderBubbleMiniGrid(); } };
+        grid.appendChild(btn);
+    });
+}
+
+// ── BACKGROUND ──
+function openBackgroundSource() {
+    if (canvasRatio) { localStorage.setItem('cc-bg-ratio-filter', JSON.stringify(canvasRatio)); localStorage.setItem('cc-active-ratio', JSON.stringify(canvasRatio)); }
+    localStorage.setItem('cc-pending-frames', JSON.stringify({ frames, currentIdx }));
+    location.href = 'backgroundsource.html';
+}
+function updateMobBg() {
+    const scale = document.getElementById('mob-bg-scale').value;
+    const rotate = document.getElementById('mob-bg-rotate').value;
+    const x = document.getElementById('mob-bg-x').value;
+    const y = document.getElementById('mob-bg-y').value;
+    document.getElementById('mob-bg-scale-v').innerText = scale + '%';
+    document.getElementById('mob-bg-rotate-v').innerText = rotate + '°';
+    document.getElementById('mob-bg-x-v').innerText = x;
+    document.getElementById('mob-bg-y-v').innerText = y;
+    frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, scale: parseInt(scale), rotate: parseInt(rotate), x: parseInt(x), y: parseInt(y) };
+    render();
+}
+function syncBgSliders() {
+    const s = frames[currentIdx].bgSettings || {};
+    document.getElementById('mob-bg-scale').value = s.scale ?? 100;
+    document.getElementById('mob-bg-rotate').value = s.rotate ?? 0;
+    document.getElementById('mob-bg-x').value = s.x ?? 0;
+    document.getElementById('mob-bg-y').value = s.y ?? 0;
+    document.getElementById('mob-bg-scale-v').innerText = (s.scale ?? 100) + '%';
+    document.getElementById('mob-bg-rotate-v').innerText = (s.rotate ?? 0) + '°';
+    document.getElementById('mob-bg-x-v').innerText = (s.x ?? 0);
+    document.getElementById('mob-bg-y-v').innerText = (s.y ?? 0);
+    // Filters
+    const filterRow = document.getElementById('mob-bg-filter-row');
+    const filters = ['none','grayscale(100%)','sepia(100%)','contrast(150%)','brightness(130%)','hue-rotate(90deg)','invert(100%)'];
+    const filterLabels = ['None','B&W','Sepia','High Contrast','Bright','Color Shift','Invert'];
+    filterRow.innerHTML = '';
+    filters.forEach((f, i) => {
+        const chip = document.createElement('button');
+        chip.className = 'filter-chip' + (s.filter === f || (i === 0 && !s.filter) ? ' active' : '');
+        chip.innerText = filterLabels[i];
+        chip.onclick = () => { filterRow.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); chip.classList.add('active'); frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, filter: f }; render(); };
+        filterRow.appendChild(chip);
+    });
+}
+function resetBgSettings() { saveState(); frames[currentIdx].background = '#ffffff'; frames[currentIdx].bgSettings = {}; render(); syncBgSliders(); }
+
+// BG import choice
+let _bgChoiceSrc = null;
+function showBgImportChoice(src) { _bgChoiceSrc = src; document.getElementById('bg-choice-preview').src = src; document.getElementById('bg-import-choice-modal').style.display = 'flex'; }
+function closeBgChoiceModal() { document.getElementById('bg-import-choice-modal').style.display = 'none'; }
+function bgChoiceCrop() { closeBgChoiceModal(); const t = document.getElementById('crop-target'); t.src = _bgChoiceSrc; document.getElementById('crop-modal').style.display = 'flex'; if (cropper) cropper.destroy(); const r = canvasRatio || { w:1, h:1 }; cropper = new Cropper(t, { aspectRatio: r.w / r.h, viewMode: 1 }); }
+function bgChoiceFixed() { closeBgChoiceModal(); if (!_bgChoiceSrc) return; saveState(); const img = new Image(); img.onload = () => { const r = canvasRatio || {w:1,h:1}; const targetAR = r.w/r.h; const imgAR = img.width/img.height; let sx=0,sy=0,sw=img.width,sh=img.height; if(imgAR>targetAR){sw=img.height*targetAR;sx=(img.width-sw)/2;}else{sh=img.width/targetAR;sy=(img.height-sh)/2;} const c=document.createElement('canvas');c.width=800;c.height=Math.round(800*r.h/r.w);const ctx2=c.getContext('2d');ctx2.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height); frames[currentIdx].background=c.toDataURL('image/jpeg',0.9); render(); }; img.src=_bgChoiceSrc; }
+
+// ── FX ──
+const FX_FILTERS = ['none','grayscale(100%)','sepia(100%)','contrast(1.5)','brightness(1.4)','hue-rotate(90deg)','saturate(2)','invert(100%)'];
+const FX_FILTER_LABELS = ['None','B&W','Sepia','Contrast','Bright','Shift','Vivid','Invert'];
+function syncFxPanel() {
+    const hint = document.getElementById('fx-selected-hint');
+    if (!activeLayer) { hint.innerText = 'Select a layer first (tap it on canvas)'; return; }
+    hint.innerText = 'Editing: ' + (activeLayer.nameTag || activeLayer.type);
+    const fr = document.getElementById('fx-filter-row');
+    fr.innerHTML = '';
+    FX_FILTERS.forEach((f, i) => {
+        const chip = document.createElement('button');
+        chip.className = 'fx-chip' + (activeLayer.fxFilter === f || (i===0&&!activeLayer.fxFilter) ? ' active' : '');
+        chip.innerText = FX_FILTER_LABELS[i];
+        chip.onclick = () => { if(!activeLayer) return; saveState(); activeLayer.fxFilter = f; fr.querySelectorAll('.fx-chip').forEach(c=>c.classList.remove('active')); chip.classList.add('active'); applyFxToSelected(); };
+        fr.appendChild(chip);
+    });
+    if (activeLayer.fxOpacity !== undefined) document.getElementById('fx-opacity').value = activeLayer.fxOpacity;
+}
+function setFxBlur(type) {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.blurType = type;
+    document.getElementById('fx-blur-none').classList.toggle('active', type==='none');
+    document.getElementById('fx-blur-soft').classList.toggle('active', type==='soft');
+    document.getElementById('fx-blur-pixel').classList.toggle('active', type==='pixel');
+    document.getElementById('fx-blur-amt-row').style.display = type === 'none' ? 'none' : 'flex';
+    applyFxToSelected();
+}
+function applyFxToSelected() {
+    if (!activeLayer) return;
+    if (activeLayer.blurType) { const amt = document.getElementById('fx-blur-amt').value; document.getElementById('fx-blur-amt-val').innerText = amt + 'px'; activeLayer.blurAmt = parseInt(amt); }
+    activeLayer.fxOpacity = parseInt(document.getElementById('fx-opacity').value);
+    document.getElementById('fx-opacity-val').innerText = activeLayer.fxOpacity + '%';
+    render();
+}
+function clearFxFromSelected() { if (!activeLayer) return; saveState(); delete activeLayer.fxFilter; delete activeLayer.fxOpacity; delete activeLayer.blurType; delete activeLayer.blurAmt; syncFxPanel(); render(); }
+// stubs for PC compat
+function toggleFxPanel() { openSheet('fx'); }
+function closeFxPanel() { closeSheet('fx'); }
+
+// ── IMPORT ──
+function triggerImport(type) { currentImportType = type; document.getElementById('img-input').click(); }
+document.getElementById('img-input').addEventListener('change', (e) => {
+    const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-        coverBase64 = e.target.result;
-        document.getElementById('cover-img').src = coverBase64;
-        document.getElementById('cover-img').style.display = 'block';
-        document.getElementById('cover-label').style.display = 'none';
+    reader.onload = (ev) => {
+        if (currentImportType === 'bg') { currentImportType = 'bg'; showBgImportChoice(ev.target.result); }
+        else { saveState(); const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300; const nl={type:'img',src:ev.target.result,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()}; frames[currentIdx].layers.push(nl); activeLayer=nl; render(); }
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
+});
+function handleCoverInput(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { currentImportType='cover'; const t=document.getElementById('crop-target'); t.src=ev.target.result; document.getElementById('crop-modal').style.display='flex'; if(cropper)cropper.destroy(); cropper=new Cropper(t,{aspectRatio:1,viewMode:1}); };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+}
+function closeCrop() { document.getElementById('crop-modal').style.display='none'; if(cropper){cropper.destroy();cropper=null;} }
+document.getElementById('apply-crop-btn').onclick = () => {
+    if (!cropper) return;
+    const data = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
+    closeCrop();
+    if (currentImportType === 'bg') { saveState(); frames[currentIdx].background = data; render(); }
+    else if (currentImportType === 'cover') { finalCoverBase64 = data; const img = document.getElementById('final-cover-img'); img.src = data; img.style.display = 'block'; document.getElementById('cover-label').style.display = 'none'; }
+    else { saveState(); const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300; const nl={type:'img',src:data,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()}; frames[currentIdx].layers.push(nl); activeLayer=nl; render(); }
+};
+
+// ── MULTI IMPORT ──
+let multiFiles = [];
+function openMultiImport() { document.getElementById('multi-import-modal').style.display='flex'; multiFiles=[]; document.getElementById('multi-preview-grid').innerHTML=''; document.getElementById('multi-confirm-btn').disabled=true; }
+function closeMultiImport() { document.getElementById('multi-import-modal').style.display='none'; }
+document.getElementById('multi-file-input').addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    multiFiles = [];
+    document.getElementById('multi-preview-grid').innerHTML = '';
+    const grid = document.getElementById('multi-preview-grid');
+    files.forEach((file, i) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            multiFiles.push({ order: i, src: ev.target.result });
+            const thumb = document.createElement('div'); thumb.className = 'multi-thumb'; thumb.style.backgroundImage = `url(${ev.target.result})`;
+            const badge = document.createElement('div'); badge.className = 'order-badge'; badge.innerText = i + 1; thumb.appendChild(badge);
+            grid.appendChild(thumb);
+            document.getElementById('multi-confirm-btn').disabled = false;
+        };
+        reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+});
+function confirmMultiImport() {
+    if (!multiFiles.length) return;
+    saveState();
+    const mode = document.getElementById('multi-insert-mode').value;
+    const sorted = multiFiles.sort((a,b) => a.order - b.order);
+    const newFrames = sorted.map(f => ({ layers: [], background: f.src, bgSettings: { scale: 100 } }));
+    if (mode === 'replace') { frames = newFrames; currentIdx = 0; }
+    else if (mode === 'append') { frames.splice(currentIdx + 1, 0, ...newFrames); currentIdx++; }
+    else { for (let i = 0; i < newFrames.length; i++) { if (currentIdx + i < frames.length) frames[currentIdx + i] = newFrames[i]; else frames.push(newFrames[i]); } }
+    activeLayer = null; closeMultiImport(); render();
 }
 
+// ── SAVE / DRAFTS ──
+function saveOffline(silent = false) {
+    try {
+        const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+        const ratio = canvasRatio || { w:1, h:1 };
+        if (activeDraftId) {
+            const idx = drafts.findIndex(d => d.id == activeDraftId);
+            if (idx !== -1) { drafts[idx].data = frames; drafts[idx].ratio = ratio; drafts[idx].updated = Date.now(); }
+            else { drafts.push({ id: activeDraftId, data: frames, ratio, updated: Date.now() }); }
+        } else {
+            const id = Date.now();
+            activeDraftId = id;
+            localStorage.setItem('active_draft_id', id);
+            drafts.push({ id, data: frames, ratio, updated: Date.now() });
+        }
+        localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+        if (!silent) { const t = document.createElement('div'); t.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;'; t.innerText='✓ Saved'; document.body.appendChild(t); setTimeout(()=>t.remove(), 1800); }
+    } catch(e) { if (!silent) alert('Save failed: storage may be full.'); }
+    hasUnsavedChanges = false;
+}
+function goToDrafts() { saveOffline(true); location.href = 'my-comics.html'; }
+function handleExit() { if (hasUnsavedChanges) { if (confirm('Save before leaving?')) saveOffline(true); } location.href = 'index.html'; }
+
+// ── PUBLISH ──
+function openPublishModal() { document.getElementById('publish-modal').style.display='flex'; }
+function closePublish() { document.getElementById('publish-modal').style.display='none'; }
 async function finalPublish() {
+    const btn = document.getElementById('publish-btn');
     const title = document.getElementById('pub-title').value.trim();
-    const tags = document.getElementById('pub-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+    if (!title) { alert('Please enter a title.'); return; }
+    if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
+    btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
+    const { data: { user } } = await _supabase.auth.getUser();
+    if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
+    const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
-    if (!title) return alert('Please add a title!');
-
-    const btn = document.getElementById('pub-btn');
-    btn.innerText = 'Publishing...'; btn.disabled = true;
-
-    const plainText = getAllText();
-    const htmlContent = getAllHTML();
-    const pageCount = getAllPages().length;
-
-    const { error } = await _supabase.from('stories').insert([{
-        title, description: desc, tags,
-        cover: coverBase64 || null,
-        content_html: htmlContent,
-        content_text: plainText,
-        word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
-        page_count: pageCount,
-        owner_name: myProfile.name || 'Author',
-        owner_handle: myProfile.handle || 'user',
-        font: currentFont,
-        font_size: currentFontSize,
-    }]);
-
-    if (error) {
-        alert('Error: ' + error.message);
-        btn.innerText = 'PUBLISH'; btn.disabled = false;
-    } else {
-        hasUnsaved = false;
-        alert('Story published!');
-        location.href = 'discover.html';
-    }
+    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
+    let error;
+    if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
+    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
+    if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
+    hasUnsavedChanges = false;
+    alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
+    location.href = 'discover.html';
 }
 
 // ── EXPORT ──
+function openExportModal() { document.getElementById('export-modal').style.display='flex'; openExportFramesTab(); }
+function closeExportModal() { document.getElementById('export-modal').style.display='none'; }
 function switchExportTab(tab) {
-    document.querySelectorAll('.export-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.export-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.export-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.export-section').forEach(s=>s.classList.remove('active'));
     event.target.classList.add('active');
-    document.getElementById('export-' + tab).classList.add('active');
+    document.getElementById('export-'+tab).classList.add('active');
+    if (tab === 'frames') openExportFramesTab();
+}
+async function renderFrameToCanvas(frame, cw, ch) {
+    var tmp = document.createElement('canvas');
+    tmp.width = cw; tmp.height = ch;
+    var ctx = tmp.getContext('2d');
+    var bg = frame.background || '#ffffff';
+    var s = frame.bgSettings || {};
+    var scale = s.scale != null ? s.scale : 100;
+    var xOff = s.x != null ? s.x : 0;
+    var yOff = s.y != null ? s.y : 0;
+    var rot = s.rotate != null ? s.rotate : 0;
+    var isImg = bg.indexOf('http') === 0 || bg.indexOf('data:image') === 0;
+    await new Promise(function(res) {
+        if (isImg) {
+            var img = new Image(); img.crossOrigin = 'anonymous'; img.src = bg;
+            var draw = function() {
+                ctx.save();
+                ctx.translate(cw/2 + xOff*cw/100, ch/2 + yOff*ch/100);
+                ctx.rotate(rot * Math.PI / 180);
+                var sc = scale / 100;
+                var iw = img.naturalWidth || cw, ih = img.naturalHeight || ch;
+                var ar = iw/ih, cr = cw/ch;
+                var dw, dh;
+                if (ar > cr) { dh = ch*sc*1.1; dw = dh*ar; } else { dw = cw*sc*1.1; dh = dw/ar; }
+                ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+                ctx.restore(); res();
+            };
+            if (img.complete && img.naturalWidth) draw();
+            else { img.onload = draw; img.onerror = function() { ctx.fillStyle='#fff'; ctx.fillRect(0,0,cw,ch); res(); }; }
+        } else { ctx.fillStyle = bg; ctx.fillRect(0,0,cw,ch); res(); }
+    });
+    for (var li = 0; li < frame.layers.length; li++) {
+        var layer = frame.layers[li];
+        if (layer.type === 'img') {
+            await (function(lyr) {
+                return new Promise(function(res) {
+                    var img = new Image(); img.crossOrigin = 'anonymous'; img.src = lyr.src;
+                    var draw = function() {
+                        var iw = img.naturalWidth||1, ih = img.naturalHeight||1;
+                        var lw = lyr.w||100, lh = lw*(ih/iw);
+                        var cx = (lyr.x||0)+lw/2, cy = (lyr.y||0)+lh/2;
+                        ctx.save();
+                        ctx.globalAlpha = lyr.fxOpacity != null ? lyr.fxOpacity/100 : 1;
+                        ctx.translate(cx, cy);
+                        ctx.rotate((lyr.rotation||0)*Math.PI/180);
+                        if (lyr.flipped) ctx.scale(-1,1);
+                        ctx.drawImage(img,-lw/2,-lh/2,lw,lh);
+                        ctx.restore(); res();
+                    };
+                    if (img.complete && img.naturalWidth) draw();
+                    else { img.onload=draw; img.onerror=res; }
+                });
+            })(layer);
+        } else if (layer.type==='text'||layer.type==='bubble'||layer.type==='thinking'||layer.type==='subtitle') {
+            ctx.save();
+            ctx.globalAlpha = layer.fxOpacity != null ? layer.fxOpacity/100 : 1;
+            var lx=layer.x||0, ly=layer.y||0, fw=layer.w||160;
+            var fs=layer.fontSize||(layer.type==='subtitle'?16:22);
+            var ff=(layer.fontFamily||'Inter, sans-serif').replace(/['"]/g,'');
+            ctx.font=(layer.bold?'900':'700')+' '+fs+'px '+ff;
+            if (layer.type==='subtitle') {
+                ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(lx,ly,fw,fs+20); ctx.fillStyle='#fff';
+            } else if (layer.type==='bubble'||layer.type==='thinking') {
+                ctx.fillStyle=layer.bubbleBg||'#fff';
+                ctx.strokeStyle=layer.bubbleBorderColor||'#000'; ctx.lineWidth=3;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(lx,ly,fw,fs+28,12); else ctx.rect(lx,ly,fw,fs+28);
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle=layer.color||'#000';
+            } else { ctx.fillStyle=layer.color||'#000'; }
+            ctx.textAlign=layer.align||'left';
+            var textContent = layer.content || '';
+            var textLines = textContent.split('\n');
+            for (var tli=0; tli<textLines.length; tli++) {
+                ctx.fillText(textLines[tli], lx+8, ly+fs+14+tli*(fs+4));
+            }
+            ctx.restore();
+        }
+    }
+    return tmp;
 }
 
-function doExportTxt() {
-    const title = document.getElementById('pub-title').value || 'My Story';
-    const text = getAllText();
-    const blob = new Blob([title + '\n' + '='.repeat(title.length) + '\n\n' + text], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = title.replace(/\s+/g, '-').toLowerCase() + '.txt';
-    a.click();
+function mobileDownload(dataUrl, filename) {
+    try {
+        var a = document.createElement('a');
+        a.href=dataUrl; a.download=filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } catch(e) { window.open(dataUrl,'_blank'); }
 }
 
-function doExportPdf() {
-    const title = document.getElementById('pub-title').value || 'My Story';
-    const win = window.open('', '_blank');
-    const pdfHtml = [
-        '<!DOCTYPE html><html><head>',
-        '<title>' + title + '</title>',
-        '<link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">',
-        '<style>',
-        'body{font-family:' + currentFont + ';font-size:' + currentFontSize + 'px;line-height:' + currentSpacing + ';max-width:700px;margin:60px auto;padding:0 40px;color:#111;}',
-        'h1{font-size:2em;margin-bottom:8px;}',
-        '.meta{color:#888;font-size:13px;margin-bottom:40px;border-bottom:1px solid #ddd;padding-bottom:16px;}',
-        'hr.page-break{border:none;page-break-after:always;margin:40px 0;}',
-        '@media print{body{margin:0;}hr.page-break{page-break-after:always;}}',
-        '</style></head><body>',
-        '<h1>' + title + '</h1>',
-        '<div class="meta">by ' + (myProfile.name || 'Author') + ' · ComicCore</div>',
-        getAllHTML(),
-        '<scr' + 'ipt>window.onload=function(){window.print();}</scr' + 'ipt>',
-        '</body></html>'
-    ].join('\n');
-    win.document.write(pdfHtml);
-    win.document.close();
+async function exportGIF() {
+    var statusEl=document.getElementById('gif-status');
+    var fillEl=document.getElementById('gif-progress-fill');
+    var barEl=document.getElementById('gif-progress-bar');
+    var resultWrap=document.getElementById('gif-result-wrap');
+    var btn=document.getElementById('gif-generate-btn');
+    resultWrap.style.display='none'; barEl.style.display='block'; fillEl.style.width='0%';
+    statusEl.innerText='Rendering frames...'; btn.disabled=true; btn.innerText='GENERATING...';
+    var fps=parseInt(document.getElementById('gif-fps').value);
+    var quality=parseInt(document.getElementById('gif-quality').value);
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+    try {
+        var renderedFrames=[];
+        for (var i=0;i<frames.length;i++) {
+            statusEl.innerText='Rendering frame '+(i+1)+' / '+frames.length;
+            fillEl.style.width=(i/frames.length*40)+'%';
+            renderedFrames.push(await renderFrameToCanvas(frames[i],cw,ch));
+        }
+        var gif=new GIF({workers:2,quality:quality,width:cw,height:ch,workerScript:'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'});
+        for (var ri=0;ri<renderedFrames.length;ri++) gif.addFrame(renderedFrames[ri],{delay:Math.round(1000/fps),copy:true});
+        fillEl.style.width='50%'; statusEl.innerText='Encoding GIF...';
+        gif.on('progress',function(p){fillEl.style.width=(50+p*50)+'%';statusEl.innerText='Encoding: '+Math.round(50+p*50)+'%';});
+        gif.on('finished',function(blob){
+            var url=URL.createObjectURL(blob);
+            document.getElementById('gif-result-img').src=url;
+            var dl=document.getElementById('gif-download-link'); dl.href=url; dl.download='comic.gif';
+            resultWrap.style.display='block'; barEl.style.display='none';
+            statusEl.innerText='Done! Long-press image to save on iOS.';
+            btn.disabled=false; btn.innerText='REGENERATE';
+        });
+        gif.on('error',function(err){statusEl.innerText='GIF failed: '+err;barEl.style.display='none';btn.disabled=false;btn.innerText='GENERATE GIF';});
+        gif.render();
+    } catch(err) { statusEl.innerText='Error: '+err.message; barEl.style.display='none'; btn.disabled=false; btn.innerText='GENERATE GIF'; }
 }
+
+async function exportStrip() {
+    var cols=parseInt(document.getElementById('strip-cols').value);
+    var statusEl=document.getElementById('strip-status');
+    var previewWrap=document.getElementById('strip-preview-wrap');
+    statusEl.innerText='Rendering...';
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+    var rows=Math.ceil(frames.length/cols), pad=10;
+    var sw=(cw+pad)*cols+pad, sh=(ch+pad)*rows+pad;
+    var sc=document.createElement('canvas'); sc.width=sw; sc.height=sh;
+    var ctx2=sc.getContext('2d'); ctx2.fillStyle='#111'; ctx2.fillRect(0,0,sw,sh);
+    for (var i=0;i<frames.length;i++) {
+        statusEl.innerText='Frame '+(i+1)+' / '+frames.length;
+        var fc=await renderFrameToCanvas(frames[i],cw,ch);
+        var row=Math.floor(i/cols), col=i%cols;
+        ctx2.drawImage(fc,pad+col*(cw+pad),pad+row*(ch+pad));
+        ctx2.fillStyle='rgba(255,122,0,0.9)'; ctx2.fillRect(pad+col*(cw+pad),pad+row*(ch+pad),22,18);
+        ctx2.fillStyle='#000'; ctx2.font='bold 10px Inter'; ctx2.textAlign='center';
+        ctx2.fillText(i+1,pad+col*(cw+pad)+11,pad+row*(ch+pad)+13);
+    }
+    var dataUrl=sc.toDataURL('image/png');
+    document.getElementById('strip-preview-img').src=dataUrl;
+    previewWrap.style.display='block';
+    statusEl.innerText='Done! Long-press image to save on iOS.';
+    mobileDownload(dataUrl,'comic-strip.png');
+}
+
+async function openExportFramesTab() {
+    var grid=document.getElementById('export-frames-grid');
+    grid.innerHTML='<div style="color:#555;font-size:12px;padding:10px;">Rendering...</div>';
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+    grid.innerHTML='';
+    for (var i=0;i<frames.length;i++) {
+        var fc=await renderFrameToCanvas(frames[i],cw,ch);
+        var dataUrl=fc.toDataURL('image/png');
+        var wrap=document.createElement('div');
+        wrap.style.cssText='position:relative;border-radius:10px;overflow:hidden;border:2px solid #333;cursor:pointer;';
+        var img=document.createElement('img');
+        img.src=dataUrl; img.style.cssText='width:100%;display:block;';
+        var label=document.createElement('div');
+        label.style.cssText='position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:var(--accent);font-size:10px;font-weight:900;padding:5px 8px;text-align:center;';
+        label.innerText='FRAME '+(i+1)+' - TAP TO SAVE';
+        wrap.appendChild(img); wrap.appendChild(label);
+        (function(url,idx){ wrap.onclick=function(){mobileDownload(url,'frame-'+idx+'.png');}; })(dataUrl,i+1);
+        grid.appendChild(wrap);
+    }
+}
+
+// ── SAVE SPRITE TO PERSONAL ──
+async function saveSpriteToPersonal() {
+    if (!activeLayer?.src) return;
+    const { data:{user} } = await _supabase.auth.getUser();
+    if (!user) { alert('Log in first'); return; }
+    const { error } = await _supabase.from('personal_sprites').insert([{ user_id: user.id, src: activeLayer.src, name: activeLayer.nameTag || 'My Sprite', created_at: new Date().toISOString() }]);
+    alert(error ? error.message : '✓ Sprite saved!');
+}
+
+// ── AUTO SAVE ──
+setInterval(() => { if (hasUnsavedChanges) saveOffline(true); }, 60000);
+
+// ── LOAD ──
+function applyPendingBg(pendingBg, pendingBgId) {
+    if (pendingBgId) {
+        localStorage.removeItem('pending_bg_id');
+        currentImportType = 'bg';
+        _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single().then(({ data }) => { if (data?.image_data) showBgImportChoice(data.image_data); });
+        return;
+    }
+    if (!pendingBg) return;
+    localStorage.removeItem('pending_background');
+    if (pendingBg.startsWith('http') || pendingBg.startsWith('data:image')) { currentImportType='bg'; showBgImportChoice(pendingBg); }
+    else { frames[currentIdx].background = pendingBg; render(); }
+}
+
+window.onload = function() {
+    // ── TAP BACKDROP TO CLOSE OVERLAY MODALS ──
+    document.querySelectorAll('.overlay-full').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.style.display = 'none';
+                // destroy cropper if crop modal is closed this way
+                if (overlay.id === 'crop-modal' && cropper) { cropper.destroy(); cropper = null; }
+            }
+        });
+    });
+    const pendingBg = localStorage.getItem('pending_background');
+    const pendingBgId = localStorage.getItem('pending_bg_id');
+
+    // edit_comic_id MUST take priority over draft — user explicitly clicked a comic to edit
+    const editComicId = localStorage.getItem('edit_comic_id');
+    if (editComicId) {
+        localStorage.removeItem('edit_comic_id'); editingComicId = editComicId;
+        document.getElementById('publish-btn').innerText = 'UPDATE';
+        _supabase.from('comics').select('*').eq('id', editComicId).single().then(({data,error}) => {
+            if (error||!data) { alert('Could not load comic.'); return; }
+            frames = data.data || data.frames || [];
+            const r = data.canvas_ratio || {w:1,h:1}; setRatio(r.w,r.h);
+            document.getElementById('pub-title').value = data.title || '';
+            document.getElementById('pub-tags').value = (data.tags||[]).join(', ');
+            document.getElementById('pub-desc').value = data.description || '';
+            if (data.cover) { finalCoverBase64=data.cover; const img=document.getElementById('final-cover-img'); img.src=data.cover; img.style.display='block'; document.getElementById('cover-label').style.display='none'; }
+            applyPendingBg(pendingBg,pendingBgId);
+        });
+        return;
+    }
+    // After edit_comic_id is cleared, check for active draft
+    const resumeId = localStorage.getItem('active_draft_id');
+    if (resumeId) {
+        const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+        const found = drafts.find(d => d.id == resumeId);
+        if (found) { frames = found.data || []; activeDraftId = resumeId; const r = found.ratio || {w:1,h:1}; setRatio(r.w,r.h); currentIdx = 0; render(); renderMobFrames(); applyPendingBg(pendingBg,pendingBgId); return; }
+    }
+    const pendingFrames = localStorage.getItem('cc-pending-frames');
+    if (pendingFrames) { localStorage.removeItem('cc-pending-frames'); const saved=JSON.parse(pendingFrames); frames=saved.frames; currentIdx=saved.currentIdx; }
+    const storedNew = localStorage.getItem('cc-new-comic-ratio');
+    const storedActive = localStorage.getItem('cc-active-ratio');
+    if (storedNew) { const r=JSON.parse(storedNew); localStorage.removeItem('cc-new-comic-ratio'); setRatio(r.w,r.h); }
+    else if (storedActive) { const r=JSON.parse(storedActive); setRatio(r.w,r.h); }
+    else { setRatio(1,1); }
+    applyPendingBg(pendingBg,pendingBgId);
+};
 
 // ── DRAFTS MODAL ──
 function openDraftsModal() {
-    let drafts = [];
-    try { drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]'); } catch(e) {}
-    drafts.sort((a, b) => (b.updated || 0) - (a.updated || 0));
-    const list = document.getElementById('drafts-list');
+    saveOffline(true);
+    var drafts = [];
+    try { drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]'); } catch(e) {}
+    drafts.sort(function(a,b){ return (b.updated||0)-(a.updated||0); });
+    var list = document.getElementById('drafts-list');
     list.innerHTML = '';
-
     if (!drafts.length) {
         list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
-    } else {
-        drafts.forEach(draft => {
-            const item = document.createElement('div');
-            item.className = 'sdraft-item';
-            const isCurrent = String(draft.id) === String(activeDraftId);
-            const pageCount = (draft.pages || []).filter(Boolean).length || 1;
-            const wordEst = (draft.pages || []).reduce((acc, p) => {
-                const tmp = document.createElement('div');
-                tmp.innerHTML = p;
-                return acc + (tmp.innerText.trim().split(/\s+/).filter(Boolean).length);
-            }, 0);
-            const dateStr = draft.lastModified || '';
-            item.innerHTML =
-                '<div class="sdraft-icon">📄</div>' +
-                '<div class="sdraft-info">' +
-                    '<div class="sdraft-title">' + (isCurrent ? '▶ ' : '') + (draft.title || 'Untitled Story') + '</div>' +
-                    '<div class="sdraft-meta">' + pageCount + ' page' + (pageCount !== 1 ? 's' : '') + ' · ~' + wordEst + ' words · ' + dateStr + '</div>' +
-                '</div>' +
-                '<button class="sdraft-del" onclick="event.stopPropagation();deleteDraft(' + JSON.stringify(String(draft.id)) + ')">🗑</button>';
-            item.addEventListener('click', () => loadDraft(draft.id));
-            list.appendChild(item);
-        });
     }
+    drafts.forEach(function(draft) {
+        var item = document.createElement('div');
+        item.className = 'draft-item';
+        var f = (draft.data && draft.data[0]) || {};
+        var bg = f.background || '#222';
+        var frameCount = (draft.data || []).length;
+        var date = draft.updated ? new Date(draft.updated).toLocaleDateString() : '';
+        var isCurrent = String(draft.id) === String(activeDraftId);
+
+        // Build thumb
+        var thumb = document.createElement('div');
+        thumb.className = 'draft-thumb';
+        if (bg.startsWith('http') || bg.startsWith('data:image')) {
+            thumb.style.backgroundImage = 'url(' + bg + ')';
+            thumb.style.backgroundSize = 'cover';
+            thumb.style.backgroundPosition = 'center';
+        } else {
+            thumb.style.background = bg;
+        }
+
+        var info = document.createElement('div');
+        info.className = 'draft-info';
+        var title = document.createElement('div');
+        title.className = 'draft-title';
+        title.textContent = (isCurrent ? '▶ ' : '') + (draft.title || 'Untitled Draft');
+        var meta = document.createElement('div');
+        meta.className = 'draft-meta';
+        meta.textContent = frameCount + ' frame' + (frameCount !== 1 ? 's' : '') + (date ? ' · ' + date : '');
+        info.appendChild(title);
+        info.appendChild(meta);
+
+        var del = document.createElement('button');
+        del.className = 'draft-del';
+        del.textContent = '🗑';
+        del.title = 'Delete draft';
+        del.onclick = function(e) {
+            e.stopPropagation();
+            if (!confirm('Delete this draft?')) return;
+            var all = [];
+            try { all = JSON.parse(localStorage.getItem('comic_drafts') || '[]'); } catch(ex) {}
+            all = all.filter(function(d){ return String(d.id) !== String(draft.id); });
+            localStorage.setItem('comic_drafts', JSON.stringify(all));
+            if (String(draft.id) === String(activeDraftId)) {
+                localStorage.removeItem('active_draft_id');
+                activeDraftId = null;
+            }
+            item.remove();
+            if (!document.querySelectorAll('.draft-item').length) {
+                list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
+            }
+        };
+
+        item.appendChild(thumb);
+        item.appendChild(info);
+        item.appendChild(del);
+
+        // Click to load
+        item.onclick = function() {
+            if (isCurrent) { closeDraftsModal(); return; }
+            if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
+            frames = JSON.parse(JSON.stringify(draft.data || [{ layers:[], background:'#ffffff' }]));
+            activeDraftId = draft.id;
+            localStorage.setItem('active_draft_id', String(draft.id));
+            var r = draft.ratio || {w:1,h:1};
+            setRatio(r.w, r.h);
+            currentIdx = 0;
+            activeLayer = null;
+            render();
+            renderMobFrames();
+            closeDraftsModal();
+        };
+
+        list.appendChild(item);
+    });
     document.getElementById('drafts-modal').classList.add('open');
 }
 
@@ -809,102 +2277,228 @@ function closeDraftsModal() {
     document.getElementById('drafts-modal').classList.remove('open');
 }
 
-function deleteDraft(id) {
-    if (!confirm('Delete this draft?')) return;
-    let drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
-    drafts = drafts.filter(d => String(d.id) !== String(id));
-    localStorage.setItem('story_drafts', JSON.stringify(drafts));
-    if (String(id) === String(activeDraftId)) {
-        activeDraftId = null;
-        localStorage.removeItem('active_story_draft_id');
-    }
-    openDraftsModal();
-}
-
-function loadDraft(id) {
-    if (String(id) === String(activeDraftId)) { closeDraftsModal(); return; }
-    if (hasUnsaved && !confirm('You have unsaved changes. Switch drafts anyway?')) return;
-    const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
-    const draft = drafts.find(d => String(d.id) === String(id));
-    if (!draft) return;
-    const container = document.getElementById('pages-container');
-    container.innerHTML = '';
-    activeDraftId = draft.id;
-    localStorage.setItem('active_story_draft_id', String(draft.id));
-    document.getElementById('pub-title').value = draft.title || '';
-    if (draft.fontSize) { currentFontSize = draft.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
-    if (draft.font) {
-        currentFont = draft.font;
-        const match = FONTS.find(f => f.value === currentFont);
-        if (match) document.getElementById('font-label-btn').innerText = 'Aa ' + match.label;
-    }
-    if (draft.spacing) currentSpacing = draft.spacing;
-    const pages = draft.pages || [draft.content || ''];
-    pages.forEach(html => addPage(html));
-    hasUnsaved = false;
-    document.getElementById('save-status').innerText = 'Draft loaded';
-    updateStats();
-    closeDraftsModal();
-    const first = container.querySelector('.story-page');
-    if (first) setTimeout(() => first.focus(), 100);
-}
-
-function startNewStory() {
-    if (hasUnsaved && !confirm('You have unsaved changes. Start new story anyway?')) return;
+function startNewDraft() {
+    if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
+    frames = [{ layers: [], background: '#ffffff' }];
     activeDraftId = null;
-    localStorage.removeItem('active_story_draft_id');
-    document.getElementById('pages-container').innerHTML = '';
-    document.getElementById('pub-title').value = '';
-    currentFontSize = 18; document.getElementById('size-display').innerText = 18;
-    currentFont = "'Merriweather', Georgia, serif";
-    document.getElementById('font-label-btn').innerText = 'Aa Font';
-    currentSpacing = '1.8';
-    hasUnsaved = false;
-    addPage('');
-    document.getElementById('save-status').innerText = 'New story';
+    localStorage.removeItem('active_draft_id');
+    currentIdx = 0;
+    activeLayer = null;
+    setRatio(1,1);
+    render();
+    renderMobFrames();
     closeDraftsModal();
 }
 
-// ── EXIT ──
-function handleExit() {
-    if (hasUnsaved && !confirm('Exit without saving?')) return;
-    localStorage.removeItem('active_story_draft_id');
-    location.href = 'index.html';
+// ── PC COMPAT STUBS ──
+function toggleMenu() {}
+function toggleSidePanel() {}
+function openBgPanel() { openSheet('bg'); }
+function toggleTransform() { openTransformSheet(); }
+function toggleFtbPanel() {}
+function showFloatToolbar() {}
+function hideFloatToolbar() {}
+function closeFtbPanel() {}
+function hideEditorUI() { if (document.getElementById('top-bar').style.display !== 'none') toggleHideUI(); }
+function showEditorUI() { if (document.getElementById('top-bar').style.display === 'none') toggleHideUI(); }
+function toggleHideUI() {
+    const isHidden = document.getElementById('top-bar').style.display === 'none';
+    document.getElementById('top-bar').style.display = isHidden ? '' : 'none';
+    document.getElementById('bottom-bar').style.display = isHidden ? '' : 'none';
+    document.getElementById('zoom-controls').style.display = isHidden ? '' : 'none';
+    document.getElementById('hidden-ui-bar').style.display = isHidden ? 'none' : 'flex';
+    if (!isHidden) { closeAllSheets(); closeTransformSheet(); }
+}
+function toggleEditorPrefs() {}
+function closeEditorPrefs() {}
+function toggleOnionSkin() { toggleOnionMobile(); }
+function updateSelectionOpacity() {}
+function sbEditAction() { if (activeLayer) openTransformSheet(); else { const t=document.createElement('div'); t.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#aaa;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #333;'; t.innerText='Tap a layer first'; document.body.appendChild(t); setTimeout(()=>t.remove(),1800); } }
+function editCurrentSpriteAction() { if (activeLayer?.packData) openActionModal(activeLayer.packData, true); }
+function copyLayer() { sbCopyLayer(); }
+function pasteLayer() { sbPasteLayer(); }
+function toggleSelectedLayerLock() {}
+function setRatioForBg() {}
+
+// ══════════════════════════════════════
+// ONION SKIN MOBILE TOGGLE
+// ══════════════════════════════════════
+function toggleOnionMobile() {
+    const toggle = document.getElementById('onion-toggle');
+    toggle.checked = !toggle.checked;
+    const on = toggle.checked;
+    const btn = document.getElementById('onion-bot-btn');
+    if (btn) {
+        btn.classList.toggle('onion-on', on);
+        btn.querySelector('.bico').innerText = on ? '🧅' : '🧅';
+        btn.style.color = on ? 'var(--teal)' : '';
+    }
+    const popup = document.getElementById('onion-opacity-popup');
+    if (on) {
+        popup.classList.add('visible');
+        // Auto-hide popup after 3s
+        clearTimeout(popup._t);
+        popup._t = setTimeout(() => popup.classList.remove('visible'), 3000);
+    } else {
+        popup.classList.remove('visible');
+    }
+    render();
 }
 
-// ── AUTO SAVE ──
-setInterval(() => { if (hasUnsaved) saveDraft(); }, 60000);
+// ══════════════════════════════════════
+// VIEWPORT PAN / ZOOM (MOBILE)
+// ══════════════════════════════════════
+let vpScale = 1;
+let vpOffsetX = 0, vpOffsetY = 0;
+let vpZoomTimer = null;
 
-// ── INIT ──
-window.onload = function() {
-    // Consume ratio from index (story doesn't use it for canvas but clears it like PC does)
-    const newRatio = localStorage.getItem('cc-new-comic-ratio');
-    if (newRatio) localStorage.removeItem('cc-new-comic-ratio');
+const _vpViewport = document.getElementById('viewport');
+const _vpContainer = document.getElementById('canvas-container');
 
-    const resumeId = localStorage.getItem('active_story_draft_id');
-    if (resumeId) {
-        const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
-        const found = drafts.find(d => d.id == resumeId);
-        if (found) {
-            activeDraftId = resumeId;
-            document.getElementById('pub-title').value = found.title || '';
-            if (found.fontSize) { currentFontSize = found.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
-            if (found.font) {
-                currentFont = found.font;
-                const match = FONTS.find(f => f.value === currentFont);
-                if (match) document.getElementById('font-label-btn').innerText = 'Aa ' + match.label;
-            }
-            if (found.spacing) currentSpacing = found.spacing;
-            const pages = found.pages || [found.content || ''];
-            pages.forEach(html => addPage(html));
-            document.getElementById('save-status').innerText = 'Draft loaded';
-            updateStats();
-            return;
-        }
+function _applyVpTransform() {
+    _vpContainer.style.transform = `translate(${vpOffsetX}px,${vpOffsetY}px) scale(${vpScale})`;
+}
+
+function _showZoomIndicator() {
+    const el = document.getElementById('zoom-indicator');
+    el.innerText = Math.round(vpScale * 100) + '%';
+    el.classList.add('visible');
+    clearTimeout(vpZoomTimer);
+    vpZoomTimer = setTimeout(() => el.classList.remove('visible'), 1400);
+}
+
+function vpZoomStep(delta) {
+    vpScale = Math.min(5, Math.max(0.2, vpScale + delta));
+    _applyVpTransform();
+    _showZoomIndicator();
+}
+
+function vpZoomReset() {
+    vpScale = 1; vpOffsetX = 0; vpOffsetY = 0;
+    _applyVpTransform();
+    _showZoomIndicator();
+}
+
+// ── Touch: pinch-zoom + 2-finger pan ──
+let _vpTouches = [];
+let _vpPinchDist = 0;
+let _vpPinchMidX = 0, _vpPinchMidY = 0;
+let _vpPanStart = null;
+let _vpIsPinching = false;
+
+_vpViewport.addEventListener('touchstart', (e) => {
+    _vpTouches = Array.from(e.touches);
+    if (_vpTouches.length === 2) {
+        e.preventDefault(); // MUST block browser zoom — requires passive:false
+        _vpIsPinching = true;
+        const dx = _vpTouches[1].clientX - _vpTouches[0].clientX;
+        const dy = _vpTouches[1].clientY - _vpTouches[0].clientY;
+        _vpPinchDist = Math.hypot(dx, dy);
+        _vpPinchMidX = (_vpTouches[0].clientX + _vpTouches[1].clientX) / 2;
+        _vpPinchMidY = (_vpTouches[0].clientY + _vpTouches[1].clientY) / 2;
+        _vpPanStart = { x: vpOffsetX, y: vpOffsetY, midX: _vpPinchMidX, midY: _vpPinchMidY };
+    } else {
+        _vpIsPinching = false;
     }
-    // New story
-    addPage('');
-};
+}, { passive: false });
+
+_vpViewport.addEventListener('touchmove', (e) => {
+    _vpTouches = Array.from(e.touches);
+    if (_vpTouches.length === 2 && _vpIsPinching) {
+        e.preventDefault();
+        const dx = _vpTouches[1].clientX - _vpTouches[0].clientX;
+        const dy = _vpTouches[1].clientY - _vpTouches[0].clientY;
+        const dist = Math.hypot(dx, dy);
+        const midX = (_vpTouches[0].clientX + _vpTouches[1].clientX) / 2;
+        const midY = (_vpTouches[0].clientY + _vpTouches[1].clientY) / 2;
+
+        if (_vpPinchDist > 0) {
+            const scaleChange = dist / _vpPinchDist;
+            const rect = _vpViewport.getBoundingClientRect();
+            const cx = midX - rect.left - rect.width / 2;
+            const cy = midY - rect.top - rect.height / 2;
+            const newScale = Math.min(5, Math.max(0.2, vpScale * scaleChange));
+            const ratio = newScale / vpScale;
+            vpOffsetX = cx + (vpOffsetX - cx) * ratio;
+            vpOffsetY = cy + (vpOffsetY - cy) * ratio;
+            vpScale = newScale;
+        }
+        // 2-finger pan
+        if (_vpPanStart) {
+            vpOffsetX = _vpPanStart.x + (midX - _vpPanStart.midX);
+            vpOffsetY = _vpPanStart.y + (midY - _vpPanStart.midY);
+        }
+
+        _vpPinchDist = dist;
+        _vpPinchMidX = midX; _vpPinchMidY = midY;
+        _applyVpTransform();
+        _showZoomIndicator();
+    }
+}, { passive: false });
+
+_vpViewport.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) {
+        _vpIsPinching = false;
+        _vpPinchDist = 0;
+        _vpPanStart = null;
+    }
+    _vpTouches = Array.from(e.touches);
+}, { passive: true });
+
+// Init
+_applyVpTransform();
+
+// ── Block native browser zoom on all UI chrome (everywhere EXCEPT the #viewport) ──
+// The viewport handles its own pinch via our custom JS above.
+document.addEventListener('touchstart', function(e) {
+    if (e.touches.length > 1 && !_vpViewport.contains(e.target)) {
+        e.preventDefault();
+    }
+}, { passive: false });
+document.addEventListener('touchmove', function(e) {
+    if (e.touches.length > 1 && !_vpViewport.contains(e.target)) {
+        e.preventDefault();
+    }
+}, { passive: false });
+// Block iOS gesturestart (Safari's proprietary pinch event) on UI chrome
+document.addEventListener('gesturestart', function(e) {
+    if (!_vpViewport.contains(e.target)) e.preventDefault();
+}, { passive: false });
+document.addEventListener('gesturechange', function(e) {
+    if (!_vpViewport.contains(e.target)) e.preventDefault();
+}, { passive: false });
 </script>
+<!-- ── ZOOM CONTROLS ── -->
+<div id="zoom-controls">
+    <button class="zoom-ctrl-btn" onclick="vpZoomStep(0.25)" title="Zoom In">+</button>
+    <button class="zoom-ctrl-btn" id="zoom-reset-btn" onclick="vpZoomReset()" title="Reset">FIT</button>
+    <button class="zoom-ctrl-btn" onclick="vpZoomStep(-0.25)" title="Zoom Out">−</button>
+</div>
+<div id="zoom-indicator">100%</div>
+
+<!-- ── ONION OPACITY POPUP ── -->
+<div id="onion-opacity-popup">
+    <span>🧅 Ghost</span>
+    <input type="range" id="onion-opacity" min="0.1" max="0.7" step="0.1" value="0.3"
+        style="width:100px; accent-color:var(--teal);" oninput="render()">
+    <button onclick="document.getElementById('onion-opacity-popup').classList.remove('visible')"
+        style="background:none;border:none;color:#555;font-size:16px;cursor:pointer;padding:0 2px;">✕</button>
+</div>
+
+
+<!-- ── DRAFTS MODAL ── -->
+<div id="drafts-modal" onclick="if(event.target===this)closeDraftsModal()">
+    <div id="drafts-panel">
+        <div id="drafts-panel-head">
+            <h2>📂 Drafts</h2>
+            <button onclick="closeDraftsModal()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer;padding:0;">✕</button>
+        </div>
+        <div id="drafts-list"></div>
+        <div style="padding:0 14px 10px;">
+            <button class="draft-new" onclick="startNewDraft()">+ New Comic</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
