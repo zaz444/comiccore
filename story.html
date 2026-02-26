@@ -2,25 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="theme.css">
     <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore - Story Editor</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Source+Serif+4:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&family=Georgia&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Source+Serif+4:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
         /* ── Top Toolbar ── */
         .toolbar-top {
-            height: 56px; background: var(--card); border-bottom: 1px solid var(--border);
+            height: 52px; background: var(--card); border-bottom: 1px solid var(--border);
             display: flex; align-items: center; justify-content: space-between;
-            padding: 0 14px; gap: 8px; flex-shrink: 0; z-index: 100;
+            padding: 0 12px; gap: 8px; flex-shrink: 0; z-index: 100;
         }
         .nav-btn {
             background: #2c2c2e; border: 1px solid var(--border); color: var(--text);
-            padding: 7px 14px; border-radius: 8px; cursor: pointer;
+            padding: 6px 12px; border-radius: 8px; cursor: pointer;
             font-size: 12px; font-weight: 700; transition: 0.2s; white-space: nowrap;
         }
         .nav-btn:hover { background: #3a3a3c; }
@@ -28,95 +28,128 @@
         /* ── Format Toolbar ── */
         .toolbar-format {
             background: var(--card); border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; gap: 4px; padding: 6px 14px;
+            display: flex; align-items: center; gap: 3px; padding: 5px 12px;
             flex-wrap: wrap; flex-shrink: 0;
         }
         .fmt-btn {
-            background: #2a2a2a; border: 1px solid #444; color: var(--text);
-            border-radius: 7px; padding: 5px 10px; cursor: pointer;
+            background: transparent; border: 1px solid transparent; color: var(--text);
+            border-radius: 6px; padding: 5px 9px; cursor: pointer;
             font-size: 13px; font-weight: 700; transition: 0.15s;
-            min-width: 32px; text-align: center;
+            min-width: 30px; text-align: center;
         }
-        .fmt-btn:hover { background: #3a3a3a; }
+        .fmt-btn:hover { background: rgba(255,255,255,0.08); border-color: #444; }
         .fmt-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-        .fmt-divider { width: 1px; height: 22px; background: #333; margin: 0 4px; }
+        .fmt-divider { width: 1px; height: 22px; background: #333; margin: 0 3px; flex-shrink: 0; }
         .fmt-select {
             background: #2a2a2a; border: 1px solid #444; color: var(--text);
-            border-radius: 7px; padding: 5px 8px; font-size: 12px; outline: none; cursor: pointer;
+            border-radius: 6px; padding: 5px 7px; font-size: 12px; outline: none; cursor: pointer;
         }
-        .fmt-size-group { display: flex; align-items: center; gap: 3px; }
+        .fmt-size-group { display: flex; align-items: center; gap: 2px; }
         .fmt-size-num {
             background: #1a1a1a; border: 1px solid #444; color: var(--text);
-            border-radius: 6px; width: 34px; text-align: center; padding: 4px 2px;
+            border-radius: 5px; width: 32px; text-align: center; padding: 4px 2px;
             font-size: 12px; font-weight: 700;
+        }
+        .color-btn-wrap {
+            position: relative; display: flex; flex-direction: column;
+            align-items: center; cursor: pointer; gap: 1px;
+        }
+        .color-bar { height: 3px; width: 18px; border-radius: 2px; pointer-events: none; }
+        .color-picker-input {
+            position: absolute; opacity: 0; width: 100%; height: 100%;
+            cursor: pointer; top: 0; left: 0; border: none; padding: 0;
         }
 
         /* ── Writing Area ── */
         #writing-area-wrap {
             flex: 1; overflow-y: auto; background: #0a0a0a;
             display: flex; flex-direction: column; align-items: center;
-            padding: 40px 20px 0;
+            padding: 36px 20px 0;
         }
         #pages-container {
             width: 100%; max-width: 760px;
             display: flex; flex-direction: column; gap: 0;
         }
-        .story-page,
-        .story-page *,
-        [data-theme] .story-page,
-        [data-theme] .story-page * {
-            color: #111 !important;
-            -webkit-text-fill-color: #111 !important;
-        }
+
+        /* ── Page wrapper ── */
+        .page-wrapper { position: relative; width: 100%; }
+        .page-wrapper:first-child .story-page { border-radius: 4px 4px 0 0; }
+        .page-wrapper:last-child  .story-page { border-radius: 0 0 4px 4px; }
+        .page-wrapper:only-child  .story-page { border-radius: 4px; }
+        .page-wrapper:not(:last-child) .story-page { border-bottom: 2px dashed #ddd; }
+
+        /* ── THE PAGE — colours hardcoded, nothing from theme bleeds in ── */
         .story-page {
-            width: 100%; background: #fff !important; color: #111 !important;
-            padding: 60px 70px;
+            width: 100%; background: #ffffff; color: #111111;
+            padding: 60px 70px 80px;
             box-shadow: 0 4px 40px rgba(0,0,0,0.5);
             outline: none; font-size: 18px; line-height: 1.8;
             font-family: 'Merriweather', Georgia, serif;
-            caret-color: #ff6600;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            min-height: 900px;
-            position: relative;
-            box-sizing: border-box;
-            -webkit-user-select: text;
-            user-select: text;
-            -webkit-touch-callout: none;
+            caret-color: #FF7A00;
+            word-wrap: break-word; overflow-wrap: break-word;
+            min-height: 900px; box-sizing: border-box;
+            -webkit-user-select: text; user-select: text;
         }
-        @media (max-width: 600px) {
-            .story-page { padding: 40px 24px; min-height: 600px; font-size: 16px; }
-            #writing-area-wrap { padding: 20px 8px 0; }
-            .toolbar-format { gap: 4px; padding: 6px 8px; }
-            .fmt-btn { padding: 5px 7px; font-size: 12px; }
-        }
-        .story-page:first-child { border-radius: 4px 4px 0 0; }
-        .story-page:last-child  { border-radius: 0 0 4px 4px; margin-bottom: 0; }
-        .story-page:only-child  { border-radius: 4px; }
-        .story-page:not(:last-child) { border-bottom: 2px dashed #ddd; }
         .story-page.is-empty::before {
             content: attr(data-placeholder);
             color: #bbb; pointer-events: none;
             position: absolute; top: 60px; left: 70px;
+            font-family: 'Merriweather', Georgia, serif; font-size: 18px;
         }
+        @media (max-width: 600px) {
+            .story-page { padding: 36px 22px 70px; min-height: 600px; font-size: 16px; }
+            #writing-area-wrap { padding: 16px 6px 0; }
+            .toolbar-format { gap: 3px; padding: 5px 8px; }
+            .fmt-btn { padding: 4px 7px; font-size: 12px; }
+        }
+
+        /* ── Page label + delete button — on wrapper NOT inside contenteditable ── */
         .page-label {
-            position: absolute; bottom: 12px; right: 20px;
-            font-size: 11px; color: #ccc; font-family: 'Inter',sans-serif;
+            position: absolute; bottom: 14px; right: 20px;
+            font-size: 11px; color: #aaa; font-family: 'Inter', sans-serif;
             pointer-events: none; user-select: none;
         }
         .page-delete-btn {
-            position: absolute; top: 14px; right: 16px;
-            background: none; border: none; color: #ddd; font-size: 16px;
+            position: absolute; top: 12px; right: 14px;
+            background: none; border: none; color: #bbb; font-size: 15px;
             cursor: pointer; padding: 4px 8px; border-radius: 6px;
-            opacity: 0; transition: 0.2s; pointer-events: all;
+            opacity: 0; transition: 0.2s;
         }
-        .story-page:hover .page-delete-btn { opacity: 1; }
+        .page-wrapper:hover .page-delete-btn { opacity: 1; }
         .page-delete-btn:hover { background: #ffe0e0; color: #cc0000; }
 
-        /* ── Word Count Bar ── */
+        /* ── Images inside page ── */
+        .img-container {
+            display: block; margin: 10px 0; line-height: 0;
+            position: relative;
+        }
+        .img-container.align-left   { text-align: left; }
+        .img-container.align-center { text-align: center; }
+        .img-container.align-right  { text-align: right; }
+        .inserted-img {
+            max-width: 340px; width: 100%; height: auto;
+            border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+            display: inline-block; cursor: pointer; vertical-align: bottom;
+        }
+        .img-toolbar {
+            display: none; align-items: center; gap: 5px;
+            background: #1e1e1e; border: 1px solid #444; border-radius: 8px;
+            padding: 4px 8px; margin-bottom: 5px; flex-wrap: wrap;
+        }
+        .img-container.selected .img-toolbar { display: flex; }
+        .img-tb-btn {
+            background: #333; border: 1px solid #555; color: #eee;
+            border-radius: 5px; padding: 3px 8px; cursor: pointer;
+            font-size: 11px; font-weight: 700; line-height: 1.4;
+        }
+        .img-tb-btn:hover { background: #FF7A00; color: #000; border-color: #FF7A00; }
+        .img-tb-btn.active { background: #FF7A00; color: #000; border-color: #FF7A00; }
+        .img-tb-sep { width: 1px; height: 16px; background: #444; margin: 0 2px; }
+
+        /* ── Status Bar ── */
         .status-bar {
-            height: 30px; background: var(--card); border-top: 1px solid var(--border);
-            display: flex; align-items: center; padding: 0 16px; gap: 20px;
+            height: 28px; background: var(--card); border-top: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 14px; gap: 18px;
             font-size: 11px; color: var(--secondary); font-weight: 600; flex-shrink: 0;
         }
         .status-bar span { color: var(--text); font-weight: 800; }
@@ -128,17 +161,15 @@
             padding: 20px; backdrop-filter: blur(8px);
         }
         .modal-content {
-            background: var(--card); padding: 28px; border-radius: 20px;
+            background: var(--card); padding: 26px; border-radius: 20px;
             width: 100%; max-width: 420px; border: 1px solid var(--border);
         }
         .pub-input {
-            width: 100%; padding: 12px; background: #111; border: 1px solid #333;
+            width: 100%; padding: 11px; background: #111; border: 1px solid #333;
             color: white; border-radius: 10px; margin-bottom: 12px;
             box-sizing: border-box; font-family: inherit; font-size: 14px;
         }
         .pub-input:focus { outline: none; border-color: var(--accent); }
-
-        /* ── Export Modal tabs ── */
         .export-tab-row { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 18px; }
         .export-tab { flex: 1; padding: 10px; text-align: center; font-weight: 800; font-size: 13px; cursor: pointer; background: #1a1a1a; color: #666; border: none; transition: 0.2s; }
         .export-tab.active { background: var(--teal); color: #000; }
@@ -146,53 +177,23 @@
         .export-section.active { display: flex; }
 
         /* ── Drafts Modal ── */
-        #drafts-modal {
-            display: none; position: fixed; inset: 0; z-index: 9999;
-            background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
-            align-items: flex-end; justify-content: center;
-        }
+        #drafts-modal { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); align-items: flex-end; justify-content: center; }
         #drafts-modal.open { display: flex; }
-        #drafts-panel {
-            background: #1a1a1a; border: 1px solid #2c2c2e;
-            border-radius: 20px 20px 0 0;
-            width: 100%; max-width: 600px; max-height: 75dvh;
-            display: flex; flex-direction: column;
-            animation: draftsUp .3s cubic-bezier(.4,0,.2,1);
-            overflow: hidden;
-        }
+        #drafts-panel { background: #1a1a1a; border: 1px solid #2c2c2e; border-radius: 20px 20px 0 0; width: 100%; max-width: 600px; max-height: 75dvh; display: flex; flex-direction: column; animation: draftsUp .3s cubic-bezier(.4,0,.2,1); overflow: hidden; }
         @keyframes draftsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        #drafts-panel-head {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 18px 20px 14px; border-bottom: 1px solid #2c2c2e; flex-shrink: 0;
-        }
+        #drafts-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 12px; border-bottom: 1px solid #2c2c2e; flex-shrink: 0; }
         #drafts-panel-head h2 { margin: 0; font-size: 16px; font-weight: 900; color: #fff; }
         #drafts-panel-head button { background: none; border: none; color: #555; font-size: 22px; cursor: pointer; padding: 0; }
-        #drafts-list {
-            flex: 1; overflow-y: auto; padding: 10px 16px;
-            display: flex; flex-direction: column; gap: 8px;
-        }
-        .sdraft-item {
-            display: flex; align-items: center; gap: 12px;
-            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: background 0.15s;
-        }
-        .sdraft-item:hover, .sdraft-item:active { background: rgba(255,255,255,0.1); }
-        .sdraft-icon { font-size: 28px; flex-shrink: 0; }
+        #drafts-list { flex: 1; overflow-y: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; }
+        .sdraft-item { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: background 0.15s; }
+        .sdraft-item:hover { background: rgba(255,255,255,0.1); }
+        .sdraft-icon { font-size: 26px; flex-shrink: 0; }
         .sdraft-info { flex: 1; min-width: 0; }
         .sdraft-title { font-size: 14px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sdraft-meta { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 3px; font-weight: 600; }
-        .sdraft-del {
-            background: none; border: none; color: rgba(255,255,255,0.25);
-            font-size: 18px; cursor: pointer; padding: 4px 6px; flex-shrink: 0;
-            transition: color 0.15s; line-height: 1;
-        }
+        .sdraft-del { background: none; border: none; color: rgba(255,255,255,0.25); font-size: 18px; cursor: pointer; padding: 4px 6px; flex-shrink: 0; transition: color 0.15s; }
         .sdraft-del:hover { color: #ff453a; }
-        .sdraft-new {
-            width: 100%; padding: 13px; background: rgba(255,255,255,0.06);
-            border: 1px dashed rgba(255,255,255,0.18); border-radius: 12px;
-            color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 700;
-            cursor: pointer; font-family: inherit; transition: background 0.15s;
-        }
+        .sdraft-new { width: 100%; padding: 13px; background: rgba(255,255,255,0.06); border: 1px dashed rgba(255,255,255,0.18); border-radius: 12px; color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s; }
         .sdraft-new:hover { background: rgba(255,255,255,0.11); }
     </style>
 </head>
@@ -202,17 +203,17 @@
 <div id="publish-modal" class="overlay-full">
     <div class="modal-content">
         <h2 style="margin-top:0; color:var(--accent);">Publish Story</h2>
-        <div id="cover-box" style="width:100%; aspect-ratio:2/3; max-height:200px; background:#111; border:2px dashed #444; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; margin-bottom:14px;" onclick="document.getElementById('cover-input').click()">
+        <div id="cover-box" style="width:100%; aspect-ratio:2/3; max-height:190px; background:#111; border:2px dashed #444; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; margin-bottom:14px;" onclick="document.getElementById('cover-input').click()">
             <img id="cover-img" style="width:100%; height:100%; object-fit:cover; display:none;">
             <span id="cover-label" style="color:#555; font-size:13px;">Click to upload cover</span>
         </div>
         <input type="file" id="cover-input" accept="image/*" style="display:none;" onchange="handleCover(this)">
-        <input type="text"     id="pub-title" class="pub-input" placeholder="Story Title">
-        <input type="text"     id="pub-tags"  class="pub-input" placeholder="Tags (e.g. romance, sci-fi, fantasy)">
-        <textarea              id="pub-desc"  class="pub-input" placeholder="Brief description..." style="height:80px; resize:none;"></textarea>
+        <input type="text"  id="pub-title" class="pub-input" placeholder="Story Title">
+        <input type="text"  id="pub-tags"  class="pub-input" placeholder="Tags (e.g. romance, sci-fi, fantasy)">
+        <textarea           id="pub-desc"  class="pub-input" placeholder="Brief description..." style="height:76px; resize:none;"></textarea>
         <div style="display:flex; gap:10px;">
-            <button onclick="closePublish()" style="flex:1; padding:13px; background:#333; color:white; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
-            <button id="pub-btn" onclick="finalPublish()" style="flex:2; padding:13px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:900; cursor:pointer;">PUBLISH</button>
+            <button onclick="closePublish()" style="flex:1; padding:12px; background:#333; color:white; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
+            <button id="pub-btn" onclick="finalPublish()" style="flex:2; padding:12px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:900; cursor:pointer;">PUBLISH</button>
         </div>
     </div>
 </div>
@@ -226,26 +227,26 @@
             <button class="export-tab"        onclick="switchExportTab('pdf')">📑 PDF</button>
         </div>
         <div id="export-txt" class="export-section active">
-            <p style="font-size:13px; color:var(--secondary); margin:0;">Exports your story as a plain .txt file. Clean, simple, universally readable.</p>
-            <button onclick="doExportTxt()" style="background:var(--teal); color:#000; border:none; padding:13px; border-radius:12px; font-weight:900; cursor:pointer;">SAVE AS TXT</button>
+            <p style="font-size:13px; color:var(--secondary); margin:0;">Exports as a plain .txt file.</p>
+            <button onclick="doExportTxt()" style="background:var(--teal); color:#000; border:none; padding:12px; border-radius:12px; font-weight:900; cursor:pointer;">SAVE AS TXT</button>
         </div>
         <div id="export-pdf" class="export-section">
-            <p style="font-size:13px; color:var(--secondary); margin:0;">Exports your story as a formatted PDF with your title, font, and layout preserved.</p>
-            <button onclick="doExportPdf()" style="background:var(--teal); color:#000; border:none; padding:13px; border-radius:12px; font-weight:900; cursor:pointer;">SAVE AS PDF</button>
+            <p style="font-size:13px; color:var(--secondary); margin:0;">Exports as a formatted PDF with your font and layout.</p>
+            <button onclick="doExportPdf()" style="background:var(--teal); color:#000; border:none; padding:12px; border-radius:12px; font-weight:900; cursor:pointer;">SAVE AS PDF</button>
         </div>
-        <button onclick="document.getElementById('export-modal').style.display='none'" style="width:100%; margin-top:10px; padding:12px; background:#222; color:#aaa; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
+        <button onclick="document.getElementById('export-modal').style.display='none'" style="width:100%; margin-top:10px; padding:11px; background:#222; color:#aaa; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
     </div>
 </div>
 
 <!-- ── Top Toolbar ── -->
 <div class="toolbar-top">
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:6px;">
         <button class="nav-btn" onclick="handleExit()">🏠 EXIT</button>
-        <button class="nav-btn" onclick="undo()" title="Undo">↩️</button>
-        <button class="nav-btn" onclick="redo()" title="Redo">↪️</button>
+        <button class="nav-btn" onclick="document.execCommand('undo')" title="Undo">↩️</button>
+        <button class="nav-btn" onclick="document.execCommand('redo')" title="Redo">↪️</button>
     </div>
     <div style="font-size:13px; font-weight:900; color:var(--accent); letter-spacing:1px;">STORY EDITOR</div>
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:6px;">
         <button class="nav-btn" onclick="saveDraft()" style="color:var(--teal); border-color:var(--teal);">💾 SAVE</button>
         <button class="nav-btn" onclick="openDraftsModal()" style="color:var(--teal); border-color:var(--teal);">📂 DRAFTS</button>
         <button class="nav-btn" onclick="document.getElementById('export-modal').style.display='flex'" style="color:var(--teal); border-color:var(--teal);">EXPORT</button>
@@ -255,20 +256,22 @@
 
 <!-- ── Format Toolbar ── -->
 <div class="toolbar-format">
-    <!-- Bold, Italic, Underline -->
-    <button class="fmt-btn" id="btn-bold"      onmousedown="event.preventDefault()" onclick="fmt('bold')"          title="Bold"><b>B</b></button>
-    <button class="fmt-btn" id="btn-italic"    onmousedown="event.preventDefault()" onclick="fmt('italic')"        title="Italic"><i>I</i></button>
-    <button class="fmt-btn" id="btn-underline" onmousedown="event.preventDefault()" onclick="fmt('underline')"     title="Underline"><u>U</u></button>
+
+    <!-- Text style -->
+    <select class="fmt-select" id="heading-select" onchange="applyHeading(this.value)" title="Text style">
+        <option value="p">Paragraph</option>
+        <option value="h1">Heading 1</option>
+        <option value="h2">Heading 2</option>
+        <option value="h3">Heading 3</option>
+        <option value="h4">Heading 4</option>
+        <option value="blockquote">Quote</option>
+        <option value="pre">Code block</option>
+    </select>
+
     <div class="fmt-divider"></div>
-    <!-- Font size -->
-    <div class="fmt-size-group">
-        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(-2)">−</button>
-        <div class="fmt-size-num" id="size-display">18</div>
-        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(+2)">+</button>
-    </div>
-    <div class="fmt-divider"></div>
-    <!-- Font family -->
-    <select class="fmt-select" id="font-select" onchange="applyFont(this.value)">
+
+    <!-- Font -->
+    <select class="fmt-select" id="font-select" onchange="applyFont(this.value)" title="Font family">
         <option value="'Merriweather', Georgia, serif">Merriweather</option>
         <option value="'Lora', Georgia, serif">Lora</option>
         <option value="'Playfair Display', Georgia, serif">Playfair</option>
@@ -280,21 +283,58 @@
         <option value="'Inter', sans-serif">Inter</option>
         <option value="monospace">Monospace</option>
     </select>
+
     <div class="fmt-divider"></div>
+
+    <!-- Font size -->
+    <div class="fmt-size-group">
+        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(-2)" title="Smaller">−</button>
+        <div class="fmt-size-num" id="size-display">18</div>
+        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(+2)" title="Larger">+</button>
+    </div>
+
+    <div class="fmt-divider"></div>
+
+    <!-- Bold / Italic / Underline / Strike -->
+    <button class="fmt-btn" id="btn-bold"      onmousedown="event.preventDefault()" onclick="fmt('bold')"          title="Bold"><b>B</b></button>
+    <button class="fmt-btn" id="btn-italic"    onmousedown="event.preventDefault()" onclick="fmt('italic')"        title="Italic"><i>I</i></button>
+    <button class="fmt-btn" id="btn-underline" onmousedown="event.preventDefault()" onclick="fmt('underline')"     title="Underline"><u>U</u></button>
+    <button class="fmt-btn" id="btn-strike"    onmousedown="event.preventDefault()" onclick="fmt('strikeThrough')" title="Strikethrough"><s>S</s></button>
+
+    <div class="fmt-divider"></div>
+
+    <!-- Text colour -->
+    <div class="color-btn-wrap fmt-btn" title="Text colour" onmousedown="event.preventDefault()">
+        <span style="font-size:13px; font-weight:900; line-height:1.2; pointer-events:none;">A</span>
+        <div class="color-bar" id="text-color-bar" style="background:#111111;"></div>
+        <input class="color-picker-input" type="color" id="text-color-pick" value="#111111"
+               oninput="applyTextColor(this.value)" onchange="applyTextColor(this.value)">
+    </div>
+
+    <!-- Highlight -->
+    <div class="color-btn-wrap fmt-btn" title="Highlight colour" onmousedown="event.preventDefault()">
+        <span style="font-size:11px; font-weight:900; line-height:1.4; pointer-events:none; background:#FFFF00; color:#000; padding:0 3px; border-radius:2px;">H</span>
+        <div class="color-bar" id="highlight-bar" style="background:#FFFF00;"></div>
+        <input class="color-picker-input" type="color" id="highlight-pick" value="#FFFF00"
+               oninput="applyHighlight(this.value)" onchange="applyHighlight(this.value)">
+    </div>
+
+    <div class="fmt-divider"></div>
+
     <!-- Alignment -->
-    <button class="fmt-btn" id="btn-left"    onmousedown="event.preventDefault()" onclick="fmt('justifyLeft')"   title="Left">≡L</button>
+    <button class="fmt-btn" id="btn-left"    onmousedown="event.preventDefault()" onclick="fmt('justifyLeft')"   title="Left align">≡L</button>
     <button class="fmt-btn" id="btn-center"  onmousedown="event.preventDefault()" onclick="fmt('justifyCenter')" title="Center">≡C</button>
-    <button class="fmt-btn" id="btn-right"   onmousedown="event.preventDefault()" onclick="fmt('justifyRight')"  title="Right">≡R</button>
+    <button class="fmt-btn" id="btn-right"   onmousedown="event.preventDefault()" onclick="fmt('justifyRight')"  title="Right align">≡R</button>
     <button class="fmt-btn" id="btn-justify" onmousedown="event.preventDefault()" onclick="fmt('justifyFull')"   title="Justify">≡J</button>
+
     <div class="fmt-divider"></div>
-    <!-- Heading styles -->
-    <select class="fmt-select" id="heading-select" onchange="applyHeading(this.value)">
-        <option value="p">Paragraph</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
-    </select>
+
+    <!-- Lists -->
+    <button class="fmt-btn" id="btn-ul" onmousedown="event.preventDefault()" onclick="fmt('insertUnorderedList')" title="Bullet list">• List</button>
+    <button class="fmt-btn" id="btn-ol" onmousedown="event.preventDefault()" onclick="fmt('insertOrderedList')"   title="Numbered list">1. List</button>
+
     <div class="fmt-divider"></div>
+
     <!-- Line spacing -->
     <select class="fmt-select" id="spacing-select" onchange="applySpacing(this.value)" title="Line spacing">
         <option value="1.4">Tight</option>
@@ -302,17 +342,29 @@
         <option value="2.2">Relaxed</option>
         <option value="2.8">Double</option>
     </select>
+
+    <div class="fmt-divider"></div>
+
+    <!-- Insert image -->
+    <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="triggerImageInsert()" title="Insert image">🖼 Image</button>
+    <input type="file" id="img-file-input" accept="image/*" style="display:none;" onchange="insertImageFromFile(this)">
+
+    <!-- Insert link -->
+    <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="insertLink()" title="Insert hyperlink">🔗 Link</button>
+
+    <!-- Clear formatting -->
+    <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmt('removeFormat')" title="Remove formatting" style="font-size:11px; color:#ff9966;">✕ Clear</button>
+
 </div>
 
 <!-- ── Writing Canvas ── -->
 <div id="writing-area-wrap">
     <div id="pages-container"></div>
-    <div style="display:flex; justify-content:center; padding:20px 0 40px;">
+    <div style="display:flex; justify-content:center; padding:18px 0 40px;">
         <button onclick="addPage()" style="
             background:#1a1a1a; border:2px dashed #444; color:#666;
-            padding:12px 36px; border-radius:12px; cursor:pointer;
-            font-size:13px; font-weight:700; transition:0.2s;
-            font-family:'Inter',sans-serif;
+            padding:11px 34px; border-radius:12px; cursor:pointer;
+            font-size:13px; font-weight:700; transition:0.2s; font-family:'Inter',sans-serif;
         " onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
            onmouseout="this.style.borderColor='#444';this.style.color='#666'">
             + ADD PAGE
@@ -347,28 +399,39 @@
     const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
     const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
 
-    let activeDraftId = null;
-    let hasUnsaved = false;
-    let coverBase64 = null;
+    let activeDraftId   = null;
+    let hasUnsaved      = false;
+    let coverBase64     = null;
     let currentFontSize = 18;
-    let currentFont = "'Merriweather', Georgia, serif";
-    let activePage = null; // currently focused page element
+    let currentFont     = "'Merriweather', Georgia, serif";
+    let activePage      = null;
+    let _savedRange     = null;
 
-    // ── Page Management ──
+    // ═══════════════════════════════════════════
+    // PAGE MANAGEMENT
+    // ═══════════════════════════════════════════
+
     function createPage(content, pageNum) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'page-wrapper';
+
         const page = document.createElement('div');
         page.className = 'story-page';
         page.contentEditable = 'true';
         page.spellcheck = true;
         page.setAttribute('data-placeholder', pageNum === 1 ? 'Start writing your story...' : 'Continue your story...');
-        page.innerHTML = content || '';
-        page.style.fontFamily = currentFont;
-        page.style.fontSize = currentFontSize + 'px';
-        page.style.color = '#111111';
-        page.style.background = '#ffffff';
-        page.style.caretColor = '#ff6600';
-        page.style.webkitTextFillColor = '#111111';
 
+        // ALL colours set as inline styles — beats any CSS cascade including theme.css
+        page.style.background           = '#ffffff';
+        page.style.color                = '#111111';
+        page.style.webkitTextFillColor  = '#111111';
+        page.style.caretColor           = '#FF7A00';
+        page.style.fontFamily           = currentFont;
+        page.style.fontSize             = currentFontSize + 'px';
+
+        page.innerHTML = content || '';
+
+        // Label + delete go on WRAPPER, not inside contenteditable
         const label = document.createElement('div');
         label.className = 'page-label';
         label.innerText = 'Page ' + pageNum;
@@ -377,58 +440,52 @@
         delBtn.className = 'page-delete-btn';
         delBtn.title = 'Delete page';
         delBtn.innerHTML = '✕';
-        delBtn.onclick = () => deletePage(page);
+        delBtn.onmousedown = (e) => e.preventDefault();
+        delBtn.onclick = () => deletePage(wrapper);
 
-        page.appendChild(label);
-        page.appendChild(delBtn);
+        wrapper.appendChild(page);
+        wrapper.appendChild(label);
+        wrapper.appendChild(delBtn);
 
-        page.addEventListener('focus',  () => { activePage = page; updateToolbarState(); enforcePageStyle(page); });
-        page.addEventListener('keyup',  () => { saveSelection(); updateStats(); hasUnsaved = true; updatePageNumbers(); updatePlaceholder(page); enforcePageStyle(page); });
-        page.addEventListener('input',  () => { updatePlaceholder(page); enforcePageStyle(page); });
-        page.addEventListener('mouseup',() => { saveSelection(); updateToolbarState(); });
+        // Events
+        page.addEventListener('focus',    () => { activePage = page; updateToolbarState(); });
+        page.addEventListener('mouseup',  () => { saveSelection(); updateToolbarState(); deselectImages(); });
         page.addEventListener('touchend', () => { saveSelection(); updateToolbarState(); });
-        page.addEventListener('keydown', handleKeyDown);
-        // Mobile tap: ensure contenteditable gets focus and keyboard opens
-        page.addEventListener('touchstart', function(e) {
-            if (e.target === page || e.target.classList.contains('story-page')) {
-                setTimeout(() => { activePage = page; page.focus(); }, 50);
-            }
-        }, { passive: true });
+        page.addEventListener('keydown',  handleKeyDown);
+        page.addEventListener('keyup',    () => { saveSelection(); updateStats(); hasUnsaved = true; updatePlaceholder(page); });
+        page.addEventListener('input',    () => { hasUnsaved = true; updatePlaceholder(page); });
 
-        return page;
+        return wrapper;
     }
 
     function addPage(content) {
         const container = document.getElementById('pages-container');
-        const pageNum = container.children.length + 1;
-        const page = createPage(content || '', pageNum);
-        container.appendChild(page);
+        const pageNum   = container.children.length + 1;
+        const wrapper   = createPage(content || '', pageNum);
+        container.appendChild(wrapper);
         updatePageNumbers();
+        const page = wrapper.querySelector('.story-page');
         updatePlaceholder(page);
-        // Focus new page
-        setTimeout(() => { page.focus(); scrollToPage(page); updatePlaceholder(page); }, 50);
-        return page;
+        setTimeout(() => { page.focus(); page.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+        return wrapper;
     }
 
-    function deletePage(page) {
+    function deletePage(wrapper) {
         const container = document.getElementById('pages-container');
-        if (container.children.length <= 1) return; // keep at least 1 page
+        if (container.children.length <= 1) return;
         if (!confirm('Delete this page?')) return;
-        page.remove();
+        wrapper.remove();
         updatePageNumbers();
         updateStats();
     }
 
     function updatePageNumbers() {
-        const pages = document.querySelectorAll('.story-page');
-        pages.forEach((p, i) => {
-            const label = p.querySelector('.page-label');
+        document.querySelectorAll('.page-wrapper').forEach((w, i) => {
+            const label = w.querySelector('.page-label');
             if (label) label.innerText = 'Page ' + (i + 1);
+            const page = w.querySelector('.story-page');
+            if (page) page.setAttribute('data-placeholder', i === 0 ? 'Start writing your story...' : 'Continue your story...');
         });
-    }
-
-    function scrollToPage(page) {
-        page.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function getAllPages() {
@@ -436,65 +493,64 @@
     }
 
     function getAllText() {
-        return getAllPages().map(p => p.innerText).join('\n\n');
+        return getAllPages().map(p => {
+            const c = p.cloneNode(true);
+            c.querySelectorAll('.img-toolbar').forEach(el => el.remove());
+            return c.innerText;
+        }).join('\n\n');
     }
 
     function getAllHTML() {
-        return getAllPages().map((p, i) => {
-            // Clone without the label/delete button for clean HTML
+        return getAllPages().map(p => {
             const clone = p.cloneNode(true);
-            clone.querySelectorAll('.page-label, .page-delete-btn').forEach(el => el.remove());
+            clone.querySelectorAll('.img-toolbar').forEach(el => el.remove());
             return clone.innerHTML;
         }).join('<hr class="page-break">');
     }
 
-    // ── Init ──
-    window.onload = function() {
+    // ═══════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════
+
+    window.onload = function () {
         const resumeId = localStorage.getItem('active_story_draft_id');
         if (resumeId) {
             const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
-            const found = drafts.find(d => d.id == resumeId);
+            const found  = drafts.find(d => d.id == resumeId);
             if (found) {
                 activeDraftId = resumeId;
                 document.getElementById('pub-title').value = found.title || '';
                 if (found.fontSize) { currentFontSize = found.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
                 if (found.font)     { currentFont = found.font; document.getElementById('font-select').value = currentFont; }
-                // Restore pages
-                const pages = found.pages || [found.content || ''];
-                pages.forEach((html, i) => addPage(html));
+                (found.pages || [found.content || '']).forEach(html => addPage(html));
                 document.getElementById('save-status').innerText = 'Draft loaded';
                 updateStats();
                 return;
             }
         }
-        // New story — start with one blank page
         addPage('');
     };
 
-    // ── Selection save/restore (keeps cursor in place when toolbar buttons are clicked) ──
-    let _savedRange = null;
+    // ═══════════════════════════════════════════
+    // SELECTION
+    // ═══════════════════════════════════════════
 
     function saveSelection() {
-        var sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-            _savedRange = sel.getRangeAt(0).cloneRange();
-        }
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) _savedRange = sel.getRangeAt(0).cloneRange();
     }
 
     function restoreSelection() {
-        if (!_savedRange) {
-            if (activePage) activePage.focus();
-            return;
-        }
         if (activePage) activePage.focus();
-        var sel = window.getSelection();
-        if (sel) {
-            sel.removeAllRanges();
-            sel.addRange(_savedRange);
-        }
+        if (!_savedRange) return;
+        const sel = window.getSelection();
+        if (sel) { sel.removeAllRanges(); sel.addRange(_savedRange); }
     }
 
-    // ── Formatting ──
+    // ═══════════════════════════════════════════
+    // FORMATTING
+    // ═══════════════════════════════════════════
+
     function fmt(cmd) {
         restoreSelection();
         document.execCommand(cmd, false, null);
@@ -528,10 +584,34 @@
         restoreSelection();
     }
 
+    function applyTextColor(val) {
+        document.getElementById('text-color-bar').style.background = val;
+        restoreSelection();
+        document.execCommand('foreColor', false, val);
+        saveSelection();
+    }
+
+    function applyHighlight(val) {
+        document.getElementById('highlight-bar').style.background = val;
+        restoreSelection();
+        document.execCommand('hiliteColor', false, val);
+        saveSelection();
+    }
+
+    function insertLink() {
+        restoreSelection();
+        const url = prompt('Enter URL:', 'https://');
+        if (url) { document.execCommand('createLink', false, url); }
+        saveSelection();
+    }
+
     function updateToolbarState() {
         document.getElementById('btn-bold').classList.toggle('active',      document.queryCommandState('bold'));
         document.getElementById('btn-italic').classList.toggle('active',    document.queryCommandState('italic'));
         document.getElementById('btn-underline').classList.toggle('active', document.queryCommandState('underline'));
+        document.getElementById('btn-strike').classList.toggle('active',    document.queryCommandState('strikeThrough'));
+        document.getElementById('btn-ul').classList.toggle('active',        document.queryCommandState('insertUnorderedList'));
+        document.getElementById('btn-ol').classList.toggle('active',        document.queryCommandState('insertOrderedList'));
     }
 
     function handleKeyDown(e) {
@@ -542,85 +622,168 @@
         }
     }
 
-    // ── Force page colours so theme.css can never override them ──
-    function enforcePageStyle(page) {
-        page.style.color = '#111111';
-        page.style.background = '#ffffff';
-        page.style.caretColor = '#ff6600';
-        page.style.webkitTextFillColor = '#111111';
-        // Also fix any child divs/spans the browser created while typing
-        page.querySelectorAll('*').forEach(el => {
-            if (!el.classList.contains('page-label') && !el.classList.contains('page-delete-btn')) {
-                el.style.color = '#111111';
-                el.style.webkitTextFillColor = '#111111';
+    // ═══════════════════════════════════════════
+    // IMAGE INSERT
+    // ═══════════════════════════════════════════
+
+    function triggerImageInsert() {
+        saveSelection();
+        const input = document.getElementById('img-file-input');
+        input.value = '';
+        input.click();
+    }
+
+    function insertImageFromFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => { restoreSelection(); buildImageBlock(e.target.result); };
+        reader.readAsDataURL(file);
+    }
+
+    function buildImageBlock(src) {
+        const container = document.createElement('div');
+        container.className = 'img-container align-center';
+        container.contentEditable = 'false';
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'img-toolbar';
+        toolbar.innerHTML = `
+            <span style="color:#aaa; font-size:11px; font-weight:700; margin-right:2px;">Align:</span>
+            <button class="img-tb-btn" data-align="align-left"   onclick="imgAlign(this,'align-left')">Left</button>
+            <button class="img-tb-btn active" data-align="align-center" onclick="imgAlign(this,'align-center')">Center</button>
+            <button class="img-tb-btn" data-align="align-right"  onclick="imgAlign(this,'align-right')">Right</button>
+            <div class="img-tb-sep"></div>
+            <span style="color:#aaa; font-size:11px; font-weight:700; margin-right:2px;">Size:</span>
+            <button class="img-tb-btn" onclick="imgSize(this,200)">S</button>
+            <button class="img-tb-btn active" onclick="imgSize(this,340)">M</button>
+            <button class="img-tb-btn" onclick="imgSize(this,520)">L</button>
+            <button class="img-tb-btn" onclick="imgSize(this,0)">Full</button>
+            <div class="img-tb-sep"></div>
+            <button class="img-tb-btn" style="color:#ff8888;" onclick="this.closest('.img-container').remove(); updateStats();">✕ Remove</button>
+        `;
+
+        const img = document.createElement('img');
+        img.src = src;
+        img.className = 'inserted-img';
+        img.style.maxWidth = '340px';
+        img.draggable = false;
+        img.onclick = (e) => { e.preventDefault(); e.stopPropagation(); selectImg(container); };
+
+        container.appendChild(toolbar);
+        container.appendChild(img);
+
+        // Insert at cursor position
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && activePage) {
+            const range = sel.getRangeAt(0);
+            // Make sure cursor is inside a page
+            if (activePage.contains(range.commonAncestorContainer)) {
+                range.collapse(false);
+                range.insertNode(container);
+                // Put cursor after image block
+                const after = document.createTextNode('\u200B');
+                container.after(after);
+                range.setStartAfter(after);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            } else {
+                activePage.appendChild(container);
             }
+        } else if (activePage) {
+            activePage.appendChild(container);
+        }
+
+        updateStats();
+        hasUnsaved = true;
+    }
+
+    function selectImg(container) {
+        deselectImages();
+        container.classList.add('selected');
+    }
+
+    function deselectImages() {
+        document.querySelectorAll('.img-container.selected').forEach(c => c.classList.remove('selected'));
+    }
+
+    function imgAlign(btn, cls) {
+        const c = btn.closest('.img-container');
+        c.classList.remove('align-left', 'align-center', 'align-right');
+        c.classList.add(cls);
+        c.querySelectorAll('[data-align]').forEach(b => b.classList.toggle('active', b.dataset.align === cls));
+    }
+
+    function imgSize(btn, px) {
+        const c   = btn.closest('.img-container');
+        const img = c.querySelector('.inserted-img');
+        img.style.maxWidth = px === 0 ? '100%' : px + 'px';
+        c.querySelectorAll('.img-tb-btn').forEach(b => {
+            const map = { S: 200, M: 340, L: 520, Full: 0 };
+            if (b.innerText in map) b.classList.toggle('active', map[b.innerText] === px);
         });
     }
 
-    // ── Placeholder helper ──
+    // Click outside images = deselect
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.img-container')) deselectImages();
+    });
+
+    // ═══════════════════════════════════════════
+    // PLACEHOLDER + STATS
+    // ═══════════════════════════════════════════
+
     function updatePlaceholder(page) {
-        var text = page.innerText.replace(/[\s\u200B]/g, '');
-        page.classList.toggle('is-empty', text.length === 0);
+        page.classList.toggle('is-empty', !page.innerText.replace(/[\s\u200B]/g, '').length);
     }
 
-    // ── Stats ──
     function updateStats() {
         const text  = getAllText();
         const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-        const chars = text.length;
-        const mins  = Math.max(1, Math.ceil(words / 200));
-        const pages = getAllPages().length;
-        document.getElementById('word-count').innerText  = words.toLocaleString();
-        document.getElementById('char-count').innerText  = chars.toLocaleString();
-        document.getElementById('read-time').innerText   = mins + ' min';
-        document.getElementById('page-count').innerText  = pages;
+        document.getElementById('word-count').innerText = words.toLocaleString();
+        document.getElementById('char-count').innerText = text.length.toLocaleString();
+        document.getElementById('read-time').innerText  = Math.max(1, Math.ceil(words / 200)) + ' min';
+        document.getElementById('page-count').innerText = getAllPages().length;
         document.getElementById('save-status').innerText = 'Unsaved changes';
     }
 
-    // ── Undo/Redo ──
-    function undo() { document.execCommand('undo'); }
-    function redo() { document.execCommand('redo'); }
+    // ═══════════════════════════════════════════
+    // SAVE DRAFT
+    // ═══════════════════════════════════════════
 
-    // ── Save Draft ──
     function saveDraft() {
         let drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
-        let title = document.getElementById('pub-title').value;
+        let title  = document.getElementById('pub-title').value;
         if (!title) {
             title = prompt('Story name:', 'My Story') || 'Untitled Story';
             document.getElementById('pub-title').value = title;
         }
-
-        const draftData = {
-            pages: getAllPages().map(p => {
-                const clone = p.cloneNode(true);
-                clone.querySelectorAll('.page-label,.page-delete-btn').forEach(el => el.remove());
-                return clone.innerHTML;
-            }),
-            title,
-            fontSize: currentFontSize,
-            font: currentFont,
-            updated: Date.now(),
-            lastModified: new Date().toLocaleString()
+        const data = {
+            pages: getAllPages().map(p => p.cloneNode(true).innerHTML),
+            title, fontSize: currentFontSize, font: currentFont,
+            updated: Date.now(), lastModified: new Date().toLocaleString()
         };
-
         if (activeDraftId) {
             const idx = drafts.findIndex(d => d.id == activeDraftId);
-            if (idx !== -1) { Object.assign(drafts[idx], draftData); }
-            else { draftData.id = activeDraftId; drafts.push(draftData); }
+            if (idx !== -1) Object.assign(drafts[idx], data);
+            else { data.id = activeDraftId; drafts.push(data); }
         } else {
-            draftData.id = Date.now();
-            activeDraftId = draftData.id;
-            drafts.push(draftData);
+            data.id = Date.now();
+            activeDraftId = data.id;
+            drafts.push(data);
         }
-
         localStorage.setItem('story_drafts', JSON.stringify(drafts));
         localStorage.setItem('active_story_draft_id', activeDraftId);
         hasUnsaved = false;
         document.getElementById('save-status').innerText = 'Saved ✓';
     }
 
-    // ── Publish ──
-    function openPublish() { document.getElementById('publish-modal').style.display = 'flex'; }
+    // ═══════════════════════════════════════════
+    // PUBLISH
+    // ═══════════════════════════════════════════
+
+    function openPublish()  { document.getElementById('publish-modal').style.display = 'flex'; }
     function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
 
     function handleCover(input) {
@@ -640,40 +803,27 @@
         const tags  = document.getElementById('pub-tags').value.split(',').map(t => t.trim()).filter(Boolean);
         const desc  = document.getElementById('pub-desc').value.trim();
         if (!title) return alert('Please add a title!');
-
         const btn = document.getElementById('pub-btn');
         btn.innerText = 'Publishing...'; btn.disabled = true;
-
         const plainText = getAllText();
-        const htmlContent = getAllHTML();
-        const pageCount = getAllPages().length;
-
         const { error } = await _supabase.from('stories').insert([{
-            title,
-            description: desc,
-            tags,
+            title, description: desc, tags,
             cover: coverBase64 || null,
-            content_html: htmlContent,
-            content_text: plainText,
+            content_html: getAllHTML(), content_text: plainText,
             word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
-            page_count: pageCount,
+            page_count: getAllPages().length,
             owner_name: myProfile.name || 'Author',
             owner_handle: myProfile.handle || 'user',
-            font: currentFont,
-            font_size: currentFontSize,
+            font: currentFont, font_size: currentFontSize,
         }]);
-
-        if (error) {
-            alert('Error: ' + error.message);
-            btn.innerText = 'PUBLISH'; btn.disabled = false;
-        } else {
-            hasUnsaved = false;
-            alert('Story published!');
-            location.href = 'discover.html';
-        }
+        if (error) { alert('Error: ' + error.message); btn.innerText = 'PUBLISH'; btn.disabled = false; }
+        else { hasUnsaved = false; alert('Story published!'); location.href = 'discover.html'; }
     }
 
-    // ── Export ──
+    // ═══════════════════════════════════════════
+    // EXPORT
+    // ═══════════════════════════════════════════
+
     function switchExportTab(tab) {
         document.querySelectorAll('.export-tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'txt')));
         document.getElementById('export-txt').classList.toggle('active', tab === 'txt');
@@ -682,8 +832,7 @@
 
     function doExportTxt() {
         const title = document.getElementById('pub-title').value || 'My Story';
-        const text  = getAllText();
-        const blob  = new Blob([title + '\n' + '='.repeat(title.length) + '\n\n' + text], { type: 'text/plain' });
+        const blob  = new Blob([title + '\n' + '='.repeat(title.length) + '\n\n' + getAllText()], { type: 'text/plain' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = title.replace(/\s+/g, '-').toLowerCase() + '.txt';
@@ -692,56 +841,50 @@
 
     function doExportPdf() {
         const title = document.getElementById('pub-title').value || 'My Story';
-        const win = window.open('', '_blank');
-        const pdfHtml = [
-            '<!DOCTYPE html><html><head>',
-            '<title>' + title + '</title>',
+        const win   = window.open('', '_blank');
+        win.document.write([
+            '<!DOCTYPE html><html><head><title>' + title + '</title>',
             '<link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">',
-            '<style>',
-            'body{font-family:' + currentFont + ';font-size:' + currentFontSize + 'px;line-height:1.8;max-width:700px;margin:60px auto;padding:0 40px;color:#111;}',
-            'h1{font-size:2em;margin-bottom:8px;}',
-            '.meta{color:#888;font-size:13px;margin-bottom:40px;border-bottom:1px solid #ddd;padding-bottom:16px;}',
+            '<style>body{font-family:' + currentFont + ';font-size:' + currentFontSize + 'px;line-height:1.8;max-width:700px;margin:60px auto;padding:0 40px;color:#111;}',
+            'h1{font-size:2em;margin-bottom:8px;}.meta{color:#888;font-size:13px;margin-bottom:40px;border-bottom:1px solid #ddd;padding-bottom:16px;}',
+            'img{max-width:100%;height:auto;border-radius:6px;} .img-toolbar{display:none!important;}',
             'hr.page-break{border:none;page-break-after:always;margin:40px 0;border-top:1px dashed #ddd;}',
-            '@media print{body{margin:0;}hr.page-break{page-break-after:always;}}',
-            '</style></head><body>',
+            '@media print{body{margin:0;}}</style></head><body>',
             '<h1>' + title + '</h1>',
             '<div class="meta">by ' + (myProfile.name || 'Author') + ' · ComicCore</div>',
             getAllHTML(),
             '<scr' + 'ipt>window.onload=function(){window.print();}</scr' + 'ipt>',
             '</body></html>'
-        ].join('\n');
-        win.document.write(pdfHtml);
+        ].join('\n'));
         win.document.close();
     }
 
-    // ── Drafts Modal ──
+    // ═══════════════════════════════════════════
+    // DRAFTS
+    // ═══════════════════════════════════════════
+
     function openDraftsModal() {
         let drafts = [];
         try { drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]'); } catch(e) {}
-        drafts.sort((a, b) => (b.updated || b.lastModified || 0) - (a.updated || a.lastModified || 0));
+        drafts.sort((a, b) => (b.updated || 0) - (a.updated || 0));
         const list = document.getElementById('drafts-list');
-
         if (!drafts.length) {
             list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
         } else {
             list.innerHTML = '';
             drafts.forEach(draft => {
-                const item = document.createElement('div');
-                item.className = 'sdraft-item';
                 const isCurrent = String(draft.id) === String(activeDraftId);
                 const pageCount = (draft.pages || [draft.content]).filter(Boolean).length || 1;
-                const wordEst = draft.pages
-                    ? draft.pages.map(p => { const tmp = document.createElement('div'); tmp.innerHTML = p; return tmp.innerText; }).join(' ').trim().split(/\s+/).filter(Boolean).length
-                    : 0;
-                const dateStr = draft.lastModified || (draft.updated ? new Date(draft.updated).toLocaleDateString() : '');
+                const wordEst   = (draft.pages || []).map(p => { const t = document.createElement('div'); t.innerHTML = p; return t.innerText; }).join(' ').trim().split(/\s+/).filter(Boolean).length;
+                const item = document.createElement('div');
+                item.className = 'sdraft-item';
                 item.innerHTML = `
                     <div class="sdraft-icon">📄</div>
                     <div class="sdraft-info">
                         <div class="sdraft-title">${isCurrent ? '▶ ' : ''}${draft.title || 'Untitled Story'}</div>
-                        <div class="sdraft-meta">${pageCount} page${pageCount !== 1 ? 's' : ''} · ~${wordEst} words · ${dateStr}</div>
+                        <div class="sdraft-meta">${pageCount} page${pageCount !== 1 ? 's' : ''} · ~${wordEst} words · ${draft.lastModified || ''}</div>
                     </div>
-                    <button class="sdraft-del" title="Delete draft" onclick="event.stopPropagation(); deleteDraft('${draft.id}')">🗑</button>
-                `;
+                    <button class="sdraft-del" onclick="event.stopPropagation(); deleteDraft('${draft.id}')">🗑</button>`;
                 item.addEventListener('click', () => loadDraft(draft.id));
                 list.appendChild(item);
             });
@@ -749,54 +892,41 @@
         document.getElementById('drafts-modal').classList.add('open');
     }
 
-    function closeDraftsModal() {
-        document.getElementById('drafts-modal').classList.remove('open');
-    }
+    function closeDraftsModal() { document.getElementById('drafts-modal').classList.remove('open'); }
 
     function deleteDraft(id) {
         if (!confirm('Delete this draft?')) return;
         let drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
         drafts = drafts.filter(d => String(d.id) !== String(id));
         localStorage.setItem('story_drafts', JSON.stringify(drafts));
-        if (String(id) === String(activeDraftId)) {
-            activeDraftId = null;
-            localStorage.removeItem('active_story_draft_id');
-        }
-        openDraftsModal(); // refresh
+        if (String(id) === String(activeDraftId)) { activeDraftId = null; localStorage.removeItem('active_story_draft_id'); }
+        openDraftsModal();
     }
 
     function loadDraft(id) {
         if (String(id) === String(activeDraftId)) { closeDraftsModal(); return; }
-        if (hasUnsaved && !confirm('You have unsaved changes. Switch drafts anyway?')) return;
-        const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
-        const draft = drafts.find(d => String(d.id) === String(id));
+        if (hasUnsaved && !confirm('Unsaved changes. Switch drafts anyway?')) return;
+        const draft = JSON.parse(localStorage.getItem('story_drafts') || '[]').find(d => String(d.id) === String(id));
         if (!draft) return;
-        // Clear pages
-        const container = document.getElementById('pages-container');
-        container.innerHTML = '';
-        // Restore state
+        document.getElementById('pages-container').innerHTML = '';
         activeDraftId = draft.id;
         localStorage.setItem('active_story_draft_id', String(draft.id));
         document.getElementById('pub-title').value = draft.title || '';
         if (draft.fontSize) { currentFontSize = draft.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
-        if (draft.font) { currentFont = draft.font; document.getElementById('font-select').value = currentFont; }
-        const pages = draft.pages || [draft.content || ''];
-        pages.forEach(html => addPage(html));
+        if (draft.font)     { currentFont = draft.font; document.getElementById('font-select').value = currentFont; }
+        (draft.pages || [draft.content || '']).forEach(html => addPage(html));
         hasUnsaved = false;
         document.getElementById('save-status').innerText = 'Draft loaded';
-        updateStats();
-        closeDraftsModal();
-        // Focus first page
-        const first = container.querySelector('.story-page');
+        updateStats(); closeDraftsModal();
+        const first = document.querySelector('.story-page');
         if (first) setTimeout(() => first.focus(), 100);
     }
 
     function startNewStory() {
-        if (hasUnsaved && !confirm('You have unsaved changes. Start new story anyway?')) return;
+        if (hasUnsaved && !confirm('Unsaved changes. Start new story anyway?')) return;
         activeDraftId = null;
         localStorage.removeItem('active_story_draft_id');
-        const container = document.getElementById('pages-container');
-        container.innerHTML = '';
+        document.getElementById('pages-container').innerHTML = '';
         document.getElementById('pub-title').value = '';
         currentFontSize = 18; document.getElementById('size-display').innerText = 18;
         currentFont = "'Merriweather', Georgia, serif";
@@ -807,7 +937,10 @@
         closeDraftsModal();
     }
 
-    // ── Exit ──
+    // ═══════════════════════════════════════════
+    // EXIT
+    // ═══════════════════════════════════════════
+
     function handleExit() {
         if (hasUnsaved && !confirm('Exit without saving?')) return;
         localStorage.removeItem('active_story_draft_id');
