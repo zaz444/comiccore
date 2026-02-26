@@ -364,6 +364,10 @@
         page.innerHTML = content || '';
         page.style.fontFamily = currentFont;
         page.style.fontSize = currentFontSize + 'px';
+        page.style.color = '#111111';
+        page.style.background = '#ffffff';
+        page.style.caretColor = '#ff6600';
+        page.style.webkitTextFillColor = '#111111';
 
         const label = document.createElement('div');
         label.className = 'page-label';
@@ -378,9 +382,9 @@
         page.appendChild(label);
         page.appendChild(delBtn);
 
-        page.addEventListener('focus',  () => { activePage = page; updateToolbarState(); });
-        page.addEventListener('keyup',  () => { saveSelection(); updateStats(); hasUnsaved = true; updatePageNumbers(); updatePlaceholder(page); });
-        page.addEventListener('input',  () => updatePlaceholder(page));
+        page.addEventListener('focus',  () => { activePage = page; updateToolbarState(); enforcePageStyle(page); });
+        page.addEventListener('keyup',  () => { saveSelection(); updateStats(); hasUnsaved = true; updatePageNumbers(); updatePlaceholder(page); enforcePageStyle(page); });
+        page.addEventListener('input',  () => { updatePlaceholder(page); enforcePageStyle(page); });
         page.addEventListener('mouseup',() => { saveSelection(); updateToolbarState(); });
         page.addEventListener('touchend', () => { saveSelection(); updateToolbarState(); });
         page.addEventListener('keydown', handleKeyDown);
@@ -536,6 +540,21 @@
             e.preventDefault();
             document.execCommand('insertHTML', false, '&emsp;&emsp;');
         }
+    }
+
+    // ── Force page colours so theme.css can never override them ──
+    function enforcePageStyle(page) {
+        page.style.color = '#111111';
+        page.style.background = '#ffffff';
+        page.style.caretColor = '#ff6600';
+        page.style.webkitTextFillColor = '#111111';
+        // Also fix any child divs/spans the browser created while typing
+        page.querySelectorAll('*').forEach(el => {
+            if (!el.classList.contains('page-label') && !el.classList.contains('page-delete-btn')) {
+                el.style.color = '#111111';
+                el.style.webkitTextFillColor = '#111111';
+            }
+        });
     }
 
     // ── Placeholder helper ──
