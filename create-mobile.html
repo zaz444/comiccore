@@ -462,6 +462,67 @@
 
     /* Selections outline */
     .layer.active { outline-color: rgba(var(--sel-r,255),var(--sel-g,122),var(--sel-b,0),var(--sel-opacity,1)); }
+
+    /* ── FRAME COUNTER PILL ── */
+    #frame-counter {
+        font-size: 11px; font-weight: 900; color: #000;
+        background: var(--accent); border-radius: 8px;
+        padding: 4px 10px; letter-spacing: 0.5px; flex-shrink: 0;
+    }
+
+    /* ── DRAFTS MODAL ── */
+    #drafts-modal {
+        display: none; position: fixed; inset: 0; z-index: 9999;
+        background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+        align-items: flex-end; justify-content: center;
+    }
+    #drafts-modal.open { display: flex; }
+    #drafts-panel {
+        background: #1a1a1a; border: 1px solid #2c2c2e;
+        border-radius: 20px 20px 0 0;
+        width: 100%; max-width: 480px; max-height: 75dvh;
+        display: flex; flex-direction: column;
+        animation: draftsSlideUp .3s cubic-bezier(.4,0,.2,1);
+        overflow: hidden;
+    }
+    @keyframes draftsSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    #drafts-panel-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 18px 18px 12px; border-bottom: 1px solid #2c2c2e; flex-shrink: 0;
+    }
+    #drafts-panel-head h2 { margin: 0; font-size: 16px; font-weight: 900; color: #fff; }
+    #drafts-list {
+        flex: 1; overflow-y: auto; padding: 10px 14px;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .draft-item {
+        display: flex; align-items: center; gap: 12px;
+        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px; padding: 10px 12px; cursor: pointer;
+        transition: background 0.15s;
+    }
+    .draft-item:active { background: rgba(255,255,255,0.12); }
+    .draft-thumb {
+        width: 48px; height: 48px; border-radius: 8px;
+        background: #2c2c2e; object-fit: cover; flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .draft-info { flex: 1; min-width: 0; }
+    .draft-title { font-size: 13px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .draft-meta { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 3px; font-weight: 600; }
+    .draft-del {
+        background: none; border: none; color: rgba(255,255,255,0.3);
+        font-size: 18px; cursor: pointer; padding: 4px 6px; flex-shrink: 0;
+        transition: color 0.15s; line-height: 1;
+    }
+    .draft-del:active { color: #ff453a; }
+    .draft-new {
+        width: 100%; padding: 13px; background: rgba(255,255,255,0.07);
+        border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px;
+        color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 700;
+        cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .draft-new:active { background: rgba(255,255,255,0.12); }
 </style>
 </head>
 <body>
@@ -1823,17 +1884,19 @@ async function finalPublish() {
     if (!title) { alert('Please enter a title.'); return; }
     if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
     btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
-    const { data: { user } } = await _supabase.auth.getUser();
-    if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
     const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
-    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
+    const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
+    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, swipe_dir: swipeDir };
     let error;
-    if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
-    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
+    if (editingComicId) {
+        ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId));
+    } else {
+        ({ error } = await _supabase.from('comics').insert([{ ...payload, owner_name: profile.name, owner_handle: profile.handle, stars: 0, starred_by: [] }]));
+    }
     if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
-    alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
     location.href = 'discover.html';
 }
 
