@@ -75,14 +75,24 @@
             min-height: 900px;
             position: relative;
             box-sizing: border-box;
+            -webkit-user-select: text;
+            user-select: text;
+            -webkit-touch-callout: none;
+        }
+        @media (max-width: 600px) {
+            .story-page { padding: 40px 24px; min-height: 600px; font-size: 16px; }
+            #writing-area-wrap { padding: 20px 8px 0; }
+            .toolbar-format { gap: 4px; padding: 6px 8px; }
+            .fmt-btn { padding: 5px 7px; font-size: 12px; }
         }
         .story-page:first-child { border-radius: 4px 4px 0 0; }
         .story-page:last-child  { border-radius: 0 0 4px 4px; margin-bottom: 0; }
         .story-page:only-child  { border-radius: 4px; }
         .story-page:not(:last-child) { border-bottom: 2px dashed #ddd; }
-        .story-page:empty::before {
+        .story-page.is-empty::before {
             content: attr(data-placeholder);
             color: #bbb; pointer-events: none;
+            position: absolute; top: 60px; left: 70px;
         }
         .page-label {
             position: absolute; bottom: 12px; right: 20px;
@@ -190,15 +200,15 @@
 <!-- ── Format Toolbar ── -->
 <div class="toolbar-format">
     <!-- Bold, Italic, Underline -->
-    <button class="fmt-btn" id="btn-bold"      onclick="fmt('bold')"          title="Bold"><b>B</b></button>
-    <button class="fmt-btn" id="btn-italic"    onclick="fmt('italic')"        title="Italic"><i>I</i></button>
-    <button class="fmt-btn" id="btn-underline" onclick="fmt('underline')"     title="Underline"><u>U</u></button>
+    <button class="fmt-btn" id="btn-bold"      onmousedown="event.preventDefault()" onclick="fmt('bold')"          title="Bold"><b>B</b></button>
+    <button class="fmt-btn" id="btn-italic"    onmousedown="event.preventDefault()" onclick="fmt('italic')"        title="Italic"><i>I</i></button>
+    <button class="fmt-btn" id="btn-underline" onmousedown="event.preventDefault()" onclick="fmt('underline')"     title="Underline"><u>U</u></button>
     <div class="fmt-divider"></div>
     <!-- Font size -->
     <div class="fmt-size-group">
-        <button class="fmt-btn" onclick="changeFontSize(-2)">−</button>
+        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(-2)">−</button>
         <div class="fmt-size-num" id="size-display">18</div>
-        <button class="fmt-btn" onclick="changeFontSize(+2)">+</button>
+        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(+2)">+</button>
     </div>
     <div class="fmt-divider"></div>
     <!-- Font family -->
@@ -216,10 +226,10 @@
     </select>
     <div class="fmt-divider"></div>
     <!-- Alignment -->
-    <button class="fmt-btn" id="btn-left"    onclick="fmt('justifyLeft')"   title="Left">≡L</button>
-    <button class="fmt-btn" id="btn-center"  onclick="fmt('justifyCenter')" title="Center">≡C</button>
-    <button class="fmt-btn" id="btn-right"   onclick="fmt('justifyRight')"  title="Right">≡R</button>
-    <button class="fmt-btn" id="btn-justify" onclick="fmt('justifyFull')"   title="Justify">≡J</button>
+    <button class="fmt-btn" id="btn-left"    onmousedown="event.preventDefault()" onclick="fmt('justifyLeft')"   title="Left">≡L</button>
+    <button class="fmt-btn" id="btn-center"  onmousedown="event.preventDefault()" onclick="fmt('justifyCenter')" title="Center">≡C</button>
+    <button class="fmt-btn" id="btn-right"   onmousedown="event.preventDefault()" onclick="fmt('justifyRight')"  title="Right">≡R</button>
+    <button class="fmt-btn" id="btn-justify" onmousedown="event.preventDefault()" onclick="fmt('justifyFull')"   title="Justify">≡J</button>
     <div class="fmt-divider"></div>
     <!-- Heading styles -->
     <select class="fmt-select" id="heading-select" onchange="applyHeading(this.value)">
@@ -299,9 +309,17 @@
         page.appendChild(delBtn);
 
         page.addEventListener('focus',  () => { activePage = page; updateToolbarState(); });
-        page.addEventListener('keyup',  () => { updateStats(); hasUnsaved = true; updatePageNumbers(); });
-        page.addEventListener('mouseup',() => updateToolbarState());
+        page.addEventListener('keyup',  () => { saveSelection(); updateStats(); hasUnsaved = true; updatePageNumbers(); updatePlaceholder(page); });
+        page.addEventListener('input',  () => updatePlaceholder(page));
+        page.addEventListener('mouseup',() => { saveSelection(); updateToolbarState(); });
+        page.addEventListener('touchend', () => { saveSelection(); updateToolbarState(); });
         page.addEventListener('keydown', handleKeyDown);
+        // Mobile tap: ensure contenteditable gets focus and keyboard opens
+        page.addEventListener('touchstart', function(e) {
+            if (e.target === page || e.target.classList.contains('story-page')) {
+                setTimeout(() => { activePage = page; page.focus(); }, 50);
+            }
+        }, { passive: true });
 
         return page;
     }
@@ -312,8 +330,9 @@
         const page = createPage(content || '', pageNum);
         container.appendChild(page);
         updatePageNumbers();
+        updatePlaceholder(page);
         // Focus new page
-        setTimeout(() => { page.focus(); scrollToPage(page); }, 50);
+        setTimeout(() => { page.focus(); scrollToPage(page); updatePlaceholder(page); }, 50);
         return page;
     }
 
@@ -378,10 +397,34 @@
         addPage('');
     };
 
+    // ── Selection save/restore (keeps cursor in place when toolbar buttons are clicked) ──
+    let _savedRange = null;
+
+    function saveSelection() {
+        var sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+            _savedRange = sel.getRangeAt(0).cloneRange();
+        }
+    }
+
+    function restoreSelection() {
+        if (!_savedRange) {
+            if (activePage) activePage.focus();
+            return;
+        }
+        if (activePage) activePage.focus();
+        var sel = window.getSelection();
+        if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(_savedRange);
+        }
+    }
+
     // ── Formatting ──
     function fmt(cmd) {
+        restoreSelection();
         document.execCommand(cmd, false, null);
-        if (activePage) activePage.focus();
+        saveSelection();
         updateToolbarState();
     }
 
@@ -390,24 +433,25 @@
         document.getElementById('size-display').innerText = currentFontSize;
         getAllPages().forEach(p => p.style.fontSize = currentFontSize + 'px');
         hasUnsaved = true;
-        if (activePage) activePage.focus();
+        restoreSelection();
     }
 
     function applyFont(font) {
         currentFont = font;
         getAllPages().forEach(p => p.style.fontFamily = font);
         hasUnsaved = true;
-        if (activePage) activePage.focus();
+        restoreSelection();
     }
 
     function applyHeading(tag) {
+        restoreSelection();
         document.execCommand('formatBlock', false, tag);
-        if (activePage) activePage.focus();
+        saveSelection();
     }
 
     function applySpacing(val) {
         getAllPages().forEach(p => p.style.lineHeight = val);
-        if (activePage) activePage.focus();
+        restoreSelection();
     }
 
     function updateToolbarState() {
@@ -422,6 +466,12 @@
             e.preventDefault();
             document.execCommand('insertHTML', false, '&emsp;&emsp;');
         }
+    }
+
+    // ── Placeholder helper ──
+    function updatePlaceholder(page) {
+        var text = page.innerText.replace(/[\s\u200B]/g, '');
+        page.classList.toggle('is-empty', text.length === 0);
     }
 
     // ── Stats ──

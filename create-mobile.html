@@ -874,6 +874,7 @@
     <span id="frame-counter">1 / 1</span>
     <div class="tb-spacer"></div>
     <button class="tb-btn" onclick="saveOffline(false)">💾</button>
+    <button class="tb-btn" onclick="openDraftsModal()" title="Drafts">📂</button>
     <button class="tb-btn" onclick="toggleHideUI()" title="Hide UI">👁</button>
     <button class="tb-btn accent" onclick="openPublishModal()">Publish</button>
 </div>
@@ -1829,7 +1830,7 @@ async function finalPublish() {
     const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
     let error;
     if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
-    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, author_id: user.id, created_at: new Date().toISOString() }])); }
+    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
     if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
     alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
@@ -2057,12 +2058,7 @@ window.onload = function() {
     const pendingBg = localStorage.getItem('pending_background');
     const pendingBgId = localStorage.getItem('pending_bg_id');
 
-    const resumeId = localStorage.getItem('active_draft_id');
-    if (resumeId) {
-        const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-        const found = drafts.find(d => d.id == resumeId);
-        if (found) { frames = found.data; activeDraftId = resumeId; const r = found.ratio || {w:1,h:1}; setRatio(r.w,r.h); applyPendingBg(pendingBg,pendingBgId); return; }
-    }
+    // edit_comic_id MUST take priority over draft — user explicitly clicked a comic to edit
     const editComicId = localStorage.getItem('edit_comic_id');
     if (editComicId) {
         localStorage.removeItem('edit_comic_id'); editingComicId = editComicId;
@@ -2079,6 +2075,13 @@ window.onload = function() {
         });
         return;
     }
+    // After edit_comic_id is cleared, check for active draft
+    const resumeId = localStorage.getItem('active_draft_id');
+    if (resumeId) {
+        const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+        const found = drafts.find(d => d.id == resumeId);
+        if (found) { frames = found.data || []; activeDraftId = resumeId; const r = found.ratio || {w:1,h:1}; setRatio(r.w,r.h); currentIdx = 0; render(); renderMobFrames(); applyPendingBg(pendingBg,pendingBgId); return; }
+    }
     const pendingFrames = localStorage.getItem('cc-pending-frames');
     if (pendingFrames) { localStorage.removeItem('cc-pending-frames'); const saved=JSON.parse(pendingFrames); frames=saved.frames; currentIdx=saved.currentIdx; }
     const storedNew = localStorage.getItem('cc-new-comic-ratio');
@@ -2088,6 +2091,111 @@ window.onload = function() {
     else { setRatio(1,1); }
     applyPendingBg(pendingBg,pendingBgId);
 };
+
+// ── DRAFTS MODAL ──
+function openDraftsModal() {
+    saveOffline(true);
+    var drafts = [];
+    try { drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]'); } catch(e) {}
+    drafts.sort(function(a,b){ return (b.updated||0)-(a.updated||0); });
+    var list = document.getElementById('drafts-list');
+    list.innerHTML = '';
+    if (!drafts.length) {
+        list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
+    }
+    drafts.forEach(function(draft) {
+        var item = document.createElement('div');
+        item.className = 'draft-item';
+        var f = (draft.data && draft.data[0]) || {};
+        var bg = f.background || '#222';
+        var frameCount = (draft.data || []).length;
+        var date = draft.updated ? new Date(draft.updated).toLocaleDateString() : '';
+        var isCurrent = String(draft.id) === String(activeDraftId);
+
+        // Build thumb
+        var thumb = document.createElement('div');
+        thumb.className = 'draft-thumb';
+        if (bg.startsWith('http') || bg.startsWith('data:image')) {
+            thumb.style.backgroundImage = 'url(' + bg + ')';
+            thumb.style.backgroundSize = 'cover';
+            thumb.style.backgroundPosition = 'center';
+        } else {
+            thumb.style.background = bg;
+        }
+
+        var info = document.createElement('div');
+        info.className = 'draft-info';
+        var title = document.createElement('div');
+        title.className = 'draft-title';
+        title.textContent = (isCurrent ? '▶ ' : '') + (draft.title || 'Untitled Draft');
+        var meta = document.createElement('div');
+        meta.className = 'draft-meta';
+        meta.textContent = frameCount + ' frame' + (frameCount !== 1 ? 's' : '') + (date ? ' · ' + date : '');
+        info.appendChild(title);
+        info.appendChild(meta);
+
+        var del = document.createElement('button');
+        del.className = 'draft-del';
+        del.textContent = '🗑';
+        del.title = 'Delete draft';
+        del.onclick = function(e) {
+            e.stopPropagation();
+            if (!confirm('Delete this draft?')) return;
+            var all = [];
+            try { all = JSON.parse(localStorage.getItem('comic_drafts') || '[]'); } catch(ex) {}
+            all = all.filter(function(d){ return String(d.id) !== String(draft.id); });
+            localStorage.setItem('comic_drafts', JSON.stringify(all));
+            if (String(draft.id) === String(activeDraftId)) {
+                localStorage.removeItem('active_draft_id');
+                activeDraftId = null;
+            }
+            item.remove();
+            if (!document.querySelectorAll('.draft-item').length) {
+                list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
+            }
+        };
+
+        item.appendChild(thumb);
+        item.appendChild(info);
+        item.appendChild(del);
+
+        // Click to load
+        item.onclick = function() {
+            if (isCurrent) { closeDraftsModal(); return; }
+            if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
+            frames = JSON.parse(JSON.stringify(draft.data || [{ layers:[], background:'#ffffff' }]));
+            activeDraftId = draft.id;
+            localStorage.setItem('active_draft_id', String(draft.id));
+            var r = draft.ratio || {w:1,h:1};
+            setRatio(r.w, r.h);
+            currentIdx = 0;
+            activeLayer = null;
+            render();
+            renderMobFrames();
+            closeDraftsModal();
+        };
+
+        list.appendChild(item);
+    });
+    document.getElementById('drafts-modal').classList.add('open');
+}
+
+function closeDraftsModal() {
+    document.getElementById('drafts-modal').classList.remove('open');
+}
+
+function startNewDraft() {
+    if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
+    frames = [{ layers: [], background: '#ffffff' }];
+    activeDraftId = null;
+    localStorage.removeItem('active_draft_id');
+    currentIdx = 0;
+    activeLayer = null;
+    setRatio(1,1);
+    render();
+    renderMobFrames();
+    closeDraftsModal();
+}
 
 // ── PC COMPAT STUBS ──
 function toggleMenu() {}
@@ -2262,6 +2370,21 @@ _applyVpTransform();
         style="width:100px; accent-color:var(--teal);" oninput="render()">
     <button onclick="document.getElementById('onion-opacity-popup').classList.remove('visible')"
         style="background:none;border:none;color:#555;font-size:16px;cursor:pointer;padding:0 2px;">✕</button>
+</div>
+
+
+<!-- ── DRAFTS MODAL ── -->
+<div id="drafts-modal" onclick="if(event.target===this)closeDraftsModal()">
+    <div id="drafts-panel">
+        <div id="drafts-panel-head">
+            <h2>📂 Drafts</h2>
+            <button onclick="closeDraftsModal()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer;padding:0;">✕</button>
+        </div>
+        <div id="drafts-list"></div>
+        <div style="padding:0 14px 10px;">
+            <button class="draft-new" onclick="startNewDraft()">+ New Comic</button>
+        </div>
+    </div>
 </div>
 
 </body>
