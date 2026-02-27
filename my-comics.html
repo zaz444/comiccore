@@ -453,17 +453,20 @@ function askDelete(id, type, title) {
 }
 function closeDel() { document.getElementById('del-sheet').style.display = 'none'; pendingDeleteId = null; }
 async function confirmDelete() {
+  // Capture before closeDel() nulls them
+  const deleteId = pendingDeleteId;
+  const deleteType = pendingDeleteType;
   closeDel();
-  if (pendingDeleteType === 'draft') {
-    drafts = drafts.filter(d => d.id != pendingDeleteId);
+  if (deleteType === 'draft') {
+    drafts = drafts.filter(d => String(d.id) !== String(deleteId));
     localStorage.setItem('comic_drafts', JSON.stringify(drafts));
     document.getElementById('drafts-count').innerText = drafts.length;
     renderStats(); renderDrafts();
     toast('🗑 Draft deleted');
   } else {
-    const { error } = await _sb.from('comics').delete().eq('id', pendingDeleteId);
+    const { error } = await _sb.from('comics').delete().eq('id', deleteId);
     if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
-    published = published.filter(c => c.id != pendingDeleteId);
+    published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
     renderStats(); renderPublished();
     toast('🗑 Comic unpublished & deleted');

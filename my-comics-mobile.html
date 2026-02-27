@@ -530,22 +530,24 @@ function closeDelSheet() {
 }
 
 async function confirmDelete() {
+  // Capture before closeDelSheet() nulls them
+  const deleteId = pendingDeleteId;
+  const deleteType = pendingDeleteType;
   closeDelSheet();
-  if (pendingDeleteType === 'draft') {
-    drafts = drafts.filter(d => d.id != pendingDeleteId);
+  if (deleteType === 'draft') {
+    drafts = drafts.filter(d => String(d.id) !== String(deleteId));
     localStorage.setItem('comic_drafts', JSON.stringify(drafts));
     document.getElementById('drafts-count').innerText = drafts.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
-    // Also clear active_draft_id if it was this draft
-    if (localStorage.getItem('active_draft_id') == pendingDeleteId) {
+    if (String(localStorage.getItem('active_draft_id')) === String(deleteId)) {
       localStorage.removeItem('active_draft_id');
     }
     renderStats(); renderDrafts();
     toast('🗑 Draft deleted');
   } else {
-    const { error } = await _sb.from('comics').delete().eq('id', pendingDeleteId);
+    const { error } = await _sb.from('comics').delete().eq('id', deleteId);
     if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
-    published = published.filter(c => c.id != pendingDeleteId);
+    published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
     renderStats(); renderPublished();
