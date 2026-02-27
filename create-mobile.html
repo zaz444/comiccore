@@ -77,26 +77,20 @@
 
     /* ── LAYERS ── */
     .layer { position: absolute; cursor: move; user-select: none; transform-origin: center; touch-action: none; z-index: 10; }
-    .layer.active { outline: 1.5px solid var(--accent); outline-offset: 1px; z-index: 99 !important; }
+    .layer.active { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 99 !important; }
 
     /* ── RESIZE HANDLES ── */
     .resize-handle {
-        position: absolute; width: 20px; height: 20px; z-index: 200;
-        background: var(--accent); border: 2px solid rgba(0,0,0,0.7); border-radius: 4px;
+        position: absolute; width: 26px; height: 26px; z-index: 200;
+        background: var(--accent); border: 2px solid #000; border-radius: 5px;
         touch-action: none; cursor: nwse-resize;
-        /* Invisible tap area extends way beyond the visual */
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9px; font-weight: 900; color: #000;
     }
-    /* Huge invisible tap target — the actual touchable area is 48x48 */
-    .resize-handle::after {
-        content: ''; position: absolute;
-        top: -14px; left: -14px; right: -14px; bottom: -14px;
-    }
-    .resize-handle.tl { top: -10px; left: -10px; }
-    .resize-handle.tr { top: -10px; right: -10px; cursor: nesw-resize; }
-    .resize-handle.bl { bottom: -10px; left: -10px; cursor: nesw-resize; }
-    .resize-handle.br { bottom: -10px; right: -10px; }
-    /* Thin clean selection border like the reference app */
-    .layer.active { outline: 1.5px solid var(--accent); outline-offset: 2px; z-index: 99 !important; }
+    .resize-handle.tl { top: -13px; left: -13px; }
+    .resize-handle.tr { top: -13px; right: -13px; cursor: nesw-resize; }
+    .resize-handle.bl { bottom: -13px; left: -13px; cursor: nesw-resize; }
+    .resize-handle.br { bottom: -13px; right: -13px; }
 
     /* ── BUBBLE STYLES (same as PC) ── */
     .speech-bubble { padding: 12px 16px; background: #fff; color: #000; font-weight: 800; text-align: center; min-width: 50px; position: relative; word-wrap: break-word; line-height: 1.35; }
@@ -1278,38 +1272,37 @@ function render() {
                     const startClientY = t0.clientY;
                     const isLeft = (corner === 'tl' || corner === 'bl');
                     const isTop  = (corner === 'tl' || corner === 'tr');
-                    const layerEl = document.querySelector('.layer[data-layerId="' + layer.id + '"]');
                     const onMove = (mv) => {
                         if (mv.touches.length > 1) return;
                         mv.preventDefault();
+                        mv.stopPropagation();
+                        // Use true diagonal delta — both axes contribute equally
                         const rawDx = (mv.touches[0].clientX - startClientX) / vpScale;
                         const rawDy = (mv.touches[0].clientY - startClientY) / vpScale;
-                        // Use diagonal magnitude for proportional, natural scaling
-                        // Direction: pulling corner OUT = bigger, pushing IN = smaller
-                        const diag = isLeft ? -rawDx : rawDx;
-                        const diagV = isTop ? -rawDy : rawDy;
-                        // Average horizontal + vertical so both axes contribute equally
-                        const delta = (diag + diagV) / 2;
+                        const dx = isLeft ? -rawDx : rawDx;
+                        const dy = isTop  ? -rawDy : rawDy;
+                        const delta = (dx + dy) / 2;
                         const newW = Math.max(20, Math.round(origW + delta));
                         layer.w = newW;
                         if (isLeft) layer.x = origX + (origW - newW);
-                        if (isTop)  layer.y = origY + (origW - newW) * (layer.h || layer.w) / layer.w || 0;
-                        // Update DOM directly for instant feel
-                        if (layerEl) {
-                            layerEl.style.width = newW + 'px';
-                            if (isLeft) layerEl.style.left = layer.x + 'px';
+                        // Direct DOM update — instant feedback without full re-render
+                        if (el) {
+                            el.style.width = newW + 'px';
+                            if (isLeft) el.style.left = layer.x + 'px';
                         }
-                        // Sync slider if transform sheet open
+                        // sync slider if transform sheet is open
                         const sl = document.getElementById('size-slider');
                         if (sl) { sl.value = newW; const sn = document.getElementById('size-num'); if (sn) sn.value = newW; }
                     };
                     const onUp = () => {
-                        document.removeEventListener('touchmove', onMove);
-                        document.removeEventListener('touchend', onUp);
-                        render(); // full re-render on release
+                        // CRITICAL: remove from h, same element we added to
+                        h.removeEventListener('touchmove', onMove);
+                        h.removeEventListener('touchend', onUp);
+                        render(); // full re-render on finger lift
                     };
-                    document.addEventListener('touchmove', onMove, { passive: false });
-                    document.addEventListener('touchend', onUp, { once: true });
+                    // CRITICAL: attach to h (the handle element), NOT document
+                    h.addEventListener('touchmove', onMove, { passive: false });
+                    h.addEventListener('touchend', onUp, { once: true });
                 }, { passive: false });
                 el.appendChild(h);
             });
@@ -1353,39 +1346,39 @@ function startTouchDrag(e, layer) {
     var layerStartX = layer.x;
     var layerStartY = layer.y;
     var stateSaved = false;
-    // Cache the DOM element now so we don't querySelector on every move event
-    var layerEl = document.querySelector('.layer[data-layerId="' + layer.id + '"]');
+    // CRITICAL: get the element that received touchstart — attach move/end to IT,
+    // not document. On iOS, stopPropagation() on touchstart means document-level
+    // touchmove listeners added dynamically never fire for that touch sequence.
+    var el = e.currentTarget;
 
     var cleanup = function() {
-        document.removeEventListener('touchmove', move);
-        document.removeEventListener('touchend', up);
-        document.removeEventListener('touchcancel', up);
+        el.removeEventListener('touchmove', move);
+        el.removeEventListener('touchend', up);
+        el.removeEventListener('touchcancel', up);
         if (_isDragging) render();
         setTimeout(function() { _isDragging = false; }, 60);
     };
     var move = function(me) {
         if (me.touches.length > 1) { cleanup(); return; }
         me.preventDefault();
+        me.stopPropagation();
         var t = me.touches[0];
         var rawDx = t.clientX - fingerStartX;
         var rawDy = t.clientY - fingerStartY;
-        // 3px dead zone — prevents taps accidentally triggering drag state
+        // 3px dead zone — so taps don't accidentally become drags
         if (!_isDragging && Math.hypot(rawDx, rawDy) < 3) return;
-        // Save state only once, at the moment drag is confirmed
         if (!stateSaved) { saveState(); stateSaved = true; }
         _isDragging = true;
         layer.x = layerStartX + rawDx / vpScale;
         layer.y = layerStartY + rawDy / vpScale;
-        // Direct DOM update = no re-render needed during drag, silky smooth
-        if (layerEl) {
-            layerEl.style.left = layer.x + 'px';
-            layerEl.style.top  = layer.y + 'px';
-        }
+        // Direct DOM update for instant, jank-free feel — no full re-render during drag
+        el.style.left = layer.x + 'px';
+        el.style.top  = layer.y + 'px';
     };
     var up = function() { cleanup(); };
-    document.addEventListener('touchmove', move, { passive: false });
-    document.addEventListener('touchend', up, { once: true });
-    document.addEventListener('touchcancel', up, { once: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', up, { once: true });
+    el.addEventListener('touchcancel', up, { once: true });
 }
 
 // ── TOUCH PINCH RESIZE (2-finger spread/pinch on active sprite) ──
@@ -1395,6 +1388,8 @@ function startTouchPinchResize(e, layer) {
     const startDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
     if (startDist < 5) return;
     const origW = layer.w;
+    // Attach to the element that received the touchstart, not document
+    const el = e.currentTarget;
 
     const onMove = (mv) => {
         if (mv.touches.length < 2) return;
@@ -1411,12 +1406,12 @@ function startTouchPinchResize(e, layer) {
     };
     const onUp = (ev) => {
         if (ev.touches.length < 2) {
-            document.removeEventListener('touchmove', onMove);
-            document.removeEventListener('touchend', onUp);
+            el.removeEventListener('touchmove', onMove);
+            el.removeEventListener('touchend', onUp);
         }
     };
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onUp);
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onUp);
 }
 function startDrag(e, layer) {
     saveState();
@@ -1919,22 +1914,13 @@ async function finalPublish() {
     if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
     const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
-    const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
-    const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
-    const payload = {
-        title, description: desc, tags, cover: finalCoverBase64,
-        data: frames, swipe_dir: swipeDir, canvas_ratio: canvasRatio
-    };
+    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
     let error;
-    if (editingComicId) {
-        ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
-    } else {
-        ({ error } = await _supabase.from('comics').insert([{
-            ...payload, owner_name: profile.name, owner_handle: profile.handle, stars: 0, starred_by: []
-        }]));
-    }
+    if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
+    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
     if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
+    alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
     location.href = 'discover.html';
 }
 
