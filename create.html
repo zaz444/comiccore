@@ -1302,8 +1302,8 @@
         <!-- Hide UI -->
         <button class="tb-btn icon-btn" onclick="hideEditorUI()" title="Hide Interface (press H to restore)" style="font-size:13px; border-color:rgba(255,255,255,0.15);">👁</button>
 
-        <!-- Edit-action (SWAP) button — shown when sprite selected -->
-        <button id="edit-action-btn" style="display:none; background:rgba(0,210,255,0.1); border:1px solid var(--teal); color:var(--teal); padding:6px 11px; border-radius:8px; cursor:pointer; font-size:11px; font-weight:800; font-family:inherit; white-space:nowrap;" onclick="editCurrentSpriteAction()">🔄 Swap</button>
+        <!-- Edit-action (ACTIONS) button — now lives in sidebar; hidden from top bar -->
+        <button id="edit-action-btn" style="display:none;" onclick="editCurrentSpriteAction()">🎬 Actions</button>
     </div>
 
     <!-- WORK AREA -->
@@ -1343,6 +1343,11 @@
                 <!-- FX (opens floating panel) -->
                 <button class="sb-icon-btn teal-icon" id="fx-btn" onclick="toggleFxPanel()">
                     <span class="sb-icon"><img src="https://media.discordapp.net/attachments/1472088820584419450/1475743931755925720/Untitled50_20260224003926.png?ex=699f41e3&is=699df063&hm=73efb25b11c45a422741bc6f84621181e94aa3d39f92e261ad2b5f836ddb3a66&=&format=webp&quality=lossless" class="sb-custom-icon" alt="fx"></span>FX
+                </button>
+
+                <!-- Actions (swap sprite action — shown when sprite selected) -->
+                <button class="sb-icon-btn teal-icon" id="sb-actions-btn" onclick="sbTriggerActions()" title="Change sprite action/pose">
+                    <span class="sb-icon">🎬</span>Actions
                 </button>
 
             </div>
@@ -1693,6 +1698,8 @@
             document.getElementById('transform-ui').style.display = 'none';
             document.getElementById('text-settings').style.display = 'none';
             document.getElementById('onion-skin-control').style.display = 'none';
+            const actBtn = document.getElementById('sb-actions-btn');
+            if (actBtn) actBtn.classList.remove('active');
             render();
         }
     }
@@ -1705,12 +1712,21 @@
         const move = (me) => {
             if (!moved) { moved = true; closeFtbPanel(); hideFloatToolbar(); }
             const canvasRect = canvas.getBoundingClientRect();
-            const layerW = layer.w || 100;
-            const layerH = layer.h || (layer.fontSize ? layer.fontSize * 2 : 80);
             const rawX = me.clientX - startX;
             const rawY = me.clientY - startY;
-            layer.x = Math.min(Math.max(rawX, 0), canvasRect.width - layerW);
-            layer.y = Math.min(Math.max(rawY, 0), canvasRect.height - layerH);
+            if (layer.type === 'img') {
+                // Images can go up to halfway outside the frame on any edge
+                const layerW = layer.w || 100;
+                const layerH = layer.h || layerW;
+                const halfW = layerW / 2;
+                const halfH = layerH / 2;
+                layer.x = Math.min(Math.max(rawX, -halfW), canvasRect.width - halfW);
+                layer.y = Math.min(Math.max(rawY, -halfH), canvasRect.height - halfH);
+            } else {
+                // Text, bubbles, subtitles — completely free movement, no clamping
+                layer.x = rawX;
+                layer.y = rawY;
+            }
             render();
         };
         const up = () => { 
@@ -2038,7 +2054,10 @@
                     e.stopPropagation();
                     if (l.locked) return; // Locked layers cannot be selected
                     activeLayer = l;
-                    document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
+                    // Highlight Actions sidebar button when a sprite with packData is selected
+                    const actBtn = document.getElementById('sb-actions-btn');
+                    if (actBtn) actBtn.classList.toggle('active', !!l.packData);
+                    document.getElementById('edit-action-btn').style.display = 'none';
                     document.getElementById('onion-skin-control').style.display = 'flex';
                     render();
                     if (['text','bubble','thinking','subtitle'].includes(l.type)) {
@@ -2054,7 +2073,10 @@
                 e.stopPropagation();
                 if (l.locked) return; // Locked layers cannot be selected via canvas click
                 activeLayer = l; 
-                document.getElementById('edit-action-btn').style.display = l.packData ? 'flex' : 'none';
+                // Highlight Actions sidebar button when a sprite with packData is selected
+                const actBtn = document.getElementById('sb-actions-btn');
+                if (actBtn) actBtn.classList.toggle('active', !!l.packData);
+                document.getElementById('edit-action-btn').style.display = 'none';
                 document.getElementById('onion-skin-control').style.display = 'flex';
                 render();
                 // Show floating toolbar for text layers, hide for others
@@ -2745,7 +2767,12 @@
         }
         document.getElementById('ftb-dot').style.background       = hex;
         document.getElementById('ftb-color-btn').style.background = hex;
+        // Also update the bubble bg override if it's a bubble
+        // (text color is stored in l.color and applied in render)
         render();
+        // Re-sync ftb-color-input value in case browser didn't update it
+        const inp = document.getElementById('ftb-color-input');
+        if (inp && hex.startsWith('#')) inp.value = hex;
     }
 
     function ftbSize(delta) {
@@ -3848,6 +3875,15 @@
         if (btn) btn.classList.toggle('active');
     }
 
+    function sbTriggerActions() {
+        if (activeLayer && activeLayer.packData) {
+            editCurrentSpriteAction();
+        } else {
+            // Flash a hint if no sprite is selected
+            showKbFlash('Select a sprite first to change its action/pose');
+        }
+    }
+
     function sbCopyLayer() {
         copyLayer();
     }
@@ -4264,7 +4300,7 @@
                 <button class="ftb-p-btn" id="ftb-underline" onclick="ftbToggle('underline')"   ><u>U</u></button>
                 <button class="ftb-p-btn" id="ftb-strike"    onclick="ftbToggle('strikethrough')"><s>S</s></button>
                 <div id="ftb-color-btn" onclick="document.getElementById('ftb-color-input').click()" title="Text color"></div>
-                <input type="color" id="ftb-color-input" value="#000000" oninput="ftbColor(this.value)">
+                <input type="color" id="ftb-color-input" value="#000000" oninput="ftbColor(this.value)" onchange="ftbColor(this.value)">
             </div>
             <div class="ftb-size-row">
                 <button class="ftb-size-btn" onclick="ftbSize(-2)">−</button>
