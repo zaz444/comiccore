@@ -402,9 +402,33 @@
     }
 
     const fullDataCache = new Map();
+    const FULL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+    function getFullCache(id) {
+        try {
+            const raw = localStorage.getItem('sb-full-' + id);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - (p.ts || 0) > FULL_CACHE_TTL) { localStorage.removeItem('sb-full-' + id); return null; }
+            return p;
+        } catch(e) { return null; }
+    }
+
+    function setFullCache(id, imageData, actions) {
+        try { localStorage.setItem('sb-full-' + id, JSON.stringify({ img: imageData, actions: actions || {}, ts: Date.now() })); } catch(e) {}
+    }
 
     async function fetchFullSprite(id) {
         if (fullDataCache.has(id)) return fullDataCache.get(id);
+
+        // Check localStorage — shared cache key with create.html / create-mobile.html
+        const lsCached = getFullCache(id);
+        if (lsCached) {
+            const result = { image_data: lsCached.img, actions: lsCached.actions };
+            fullDataCache.set(id, result);
+            return result;
+        }
+
         const sprite = allSprites.find(s => s.id === id);
         const hasImage = !!(sprite && sprite.image_data);
         const fields = hasImage ? 'id, actions' : 'id, image_data, actions';
@@ -412,7 +436,18 @@
         if (!data) return null;
         if (sprite && data.image_data) sprite.image_data = data.image_data;
         fullDataCache.set(id, data);
+
+        // Persist so next visit (and create.html / create-mobile) is instant
+        const imgToStore = data.image_data || sprite?.image_data;
+        if (imgToStore) setFullCache(id, imgToStore, data.actions);
+
         return data;
+    }
+
+    // Prefetch on hover so actions are ready before user taps
+    function prefetchSprite(id) {
+        if (fullDataCache.has(id) || getFullCache(id)) return;
+        fetchFullSprite(id);
     }
 
     async function fetchLibrary() {
@@ -587,6 +622,8 @@
             if (cachedSrc) { card.innerHTML = `<img src="${cachedSrc}" class="loaded"><div class="sprite-card-label">${item.name}</div>`; } 
             else { card.innerHTML = `<div class="sprite-skeleton"></div><div class="sprite-card-label">${item.name}</div>`; lazyObserver.observe(card); }
             card.onclick = () => openPreview(item);
+            card.addEventListener('mouseenter', () => prefetchSprite(item.id));
+            card.addEventListener('touchstart', () => prefetchSprite(item.id), { passive: true });
             grid.appendChild(card);
         });
     }

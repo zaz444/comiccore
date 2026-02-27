@@ -31,21 +31,26 @@
         display: flex; align-items: center; padding: 0 10px; gap: 6px;
         z-index: 200; flex-shrink: 0;
         box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-        touch-action: manipulation;
+        overflow-x: auto; overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        touch-action: pan-x;
     }
+    #top-bar::-webkit-scrollbar { display: none; }
     .tb-btn {
         background: rgba(255,255,255,0.07); border: 1px solid var(--border);
         color: var(--text); padding: 7px 11px; border-radius: 8px;
         cursor: pointer; font-size: 12px; font-weight: 700;
         font-family: inherit; display: flex; align-items: center; gap: 4px;
-        white-space: nowrap; transition: 0.15s;
+        white-space: nowrap; transition: 0.15s; flex-shrink: 0;
     }
     .tb-btn:active { opacity: 0.7; }
     .tb-btn.accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 900; }
     .tb-spacer { flex: 1; }
     #frame-counter {
-        font-size: 12px; font-weight: 900; color: var(--accent);
-        letter-spacing: 0.5px; padding: 0 4px;
+        font-size: 11px; font-weight: 900; color: #000;
+        background: var(--accent); border-radius: 8px;
+        padding: 4px 10px; letter-spacing: 0.5px; flex-shrink: 0;
     }
 
     /* ── CANVAS AREA ── */
@@ -771,6 +776,7 @@
         <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 8px;">Filter</div>
         <div class="filter-row" id="mob-bg-filter-row"></div>
         <button onclick="resetBgSettings();closeSheet('bg')" style="width:100%;padding:11px;background:#222;border:1px solid #333;color:#aaa;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;">Reset Background</button>
+        <button id="mob-bg-drag-btn" onclick="toggleMobBgDrag()" style="width:100%;padding:11px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:12px;">✋ Drag Canvas to Pan</button>
     </div>
 </div>
 
@@ -893,7 +899,7 @@
                 <button class="ts-fmt-btn" id="fmt-italic" onclick="toggleTextFmt('italic')"><i>I</i></button>
                 <button class="ts-fmt-btn" id="fmt-underline" onclick="toggleTextFmt('underline')"><u>U</u></button>
                 <button class="ts-fmt-btn" style="flex:none;padding:8px 12px;" onclick="document.getElementById('ts-text-color-input').click()">🎨</button>
-                <input type="color" id="ts-text-color-input" value="#000000" style="display:none;" oninput="if(activeLayer){activeLayer.color=this.value;render();}">
+                <input type="color" id="ts-text-color-input" value="#000000" style="display:none;" oninput="if(activeLayer){activeLayer.color=this.value;render();}" onchange="if(activeLayer){activeLayer.color=this.value;render();}">
             </div>
             <!-- Bubble style mini grid (shown for bubbles) -->
             <div id="bubble-style-change-row" style="display:none;margin-top:10px;">
@@ -901,9 +907,9 @@
                 <div id="bubble-style-mini-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
                 <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
                     <span style="font-size:10px;font-weight:900;color:#555;">BG</span>
-                    <input type="color" id="bubble-bg-color" value="#ffffff" oninput="if(activeLayer){activeLayer.bubbleBg=this.value;render();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
+                    <input type="color" id="bubble-bg-color" value="#ffffff" oninput="if(activeLayer){activeLayer.bubbleBg=this.value;render();}" onchange="if(activeLayer){activeLayer.bubbleBg=this.value;render();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
                     <span style="font-size:10px;font-weight:900;color:#555;">BORDER</span>
-                    <input type="color" id="bubble-border-color" value="#000000" oninput="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
+                    <input type="color" id="bubble-border-color" value="#000000" oninput="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" onchange="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
                 </div>
             </div>
         </div>
@@ -953,7 +959,11 @@
 <div id="viewport" onclick="handleViewportClick(event)">
     <div id="canvas-container">
         <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
-        <div id="comic-frame" onclick="deselectLayer(event)"></div>
+        <div id="comic-frame" onclick="deselectLayer(event)">
+            <div id="bg-drag-overlay" style="display:none;position:absolute;inset:0;z-index:200;cursor:grab;background:rgba(0,180,255,0.04);border:2px dashed rgba(0,180,255,0.3);box-sizing:border-box;">
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.65);color:#00b4ff;font-size:11px;font-weight:900;padding:6px 14px;border-radius:8px;pointer-events:none;white-space:nowrap;">✋ Drag to pan background</div>
+            </div>
+        </div>
         <div id="global-frame-indicator"></div>
     </div>
 </div>
@@ -1069,6 +1079,11 @@ function openSheet(name) {
 function closeSheet(name) {
     document.getElementById('sheet-overlay').classList.remove('open');
     document.getElementById('sheet-' + name).classList.remove('open');
+    // Hide bg drag overlay when bg sheet closes
+    if (name === 'bg' && mobBgDragActive) {
+        mobBgDragActive = false;
+        document.getElementById('bg-drag-overlay').style.display = 'none';
+    }
 }
 function closeAllSheets() {
     document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('open'));
@@ -1129,6 +1144,16 @@ function toggleTextFmt(prop) {
     render();
 }
 
+// ── Helper: detect animated bg ──
+function isAnimatedBg(src) {
+    if (!src) return false;
+    if (src.startsWith('data:image/gif')) return true;
+    if (src.startsWith('data:image/webp')) return true;
+    if (src.startsWith('data:image/apng')) return true;
+    const lower = src.toLowerCase();
+    return lower.includes('.gif') || lower.includes('.webp');
+}
+
 // ── RENDER ──
 function render() {
     canvas.innerHTML = '';
@@ -1136,24 +1161,58 @@ function render() {
     const bg = f.background || '#ffffff';
     const isImg = bg.startsWith('http') || bg.startsWith('data:image');
     const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
-    if (isImg) { canvas.style.backgroundColor = 'transparent'; canvas.style.backgroundImage = `url(${bg})`; }
-    else if (isGrad) { canvas.style.backgroundColor = 'transparent'; canvas.style.backgroundImage = bg; }
-    else { canvas.style.backgroundColor = bg; canvas.style.backgroundImage = 'none'; }
+    const isAnimated = isAnimatedBg(bg);
+
+    // Always reset canvas-level styles — filter ONLY goes on the bg-layer div
+    canvas.style.backgroundColor = '#ffffff';
+    canvas.style.backgroundImage = 'none';
+    canvas.style.backgroundSize  = '';
+    canvas.style.backgroundPosition = '';
+    canvas.style.filter = '';
 
     const s = f.bgSettings || {};
     const scale = s.scale ?? 100, rotate = s.rotate ?? 0, xOff = s.x ?? 0, yOff = s.y ?? 0, filter = s.filter || 'none';
-    if (isImg || isGrad) {
-        canvas.style.backgroundSize = isGrad ? 'cover' : scale + '%';
-        canvas.style.backgroundPosition = (50 + xOff) + '% ' + (50 + yOff) + '%';
-        canvas.style.filter = filter === 'none' ? '' : filter;
+    const filterCSS = filter === 'none' ? '' : filter;
+
+    // Build dedicated bg-layer div so filter never leaks into sprites
+    const bgLayer = document.createElement('div');
+    bgLayer.id = 'cc-bg-layer';
+    bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
+    if (filterCSS) bgLayer.style.filter = filterCSS;
+
+    if (isImg) {
+        canvas.style.backgroundColor = 'transparent';
+        if (isAnimated) {
+            const img = document.createElement('img');
+            img.src = bg;
+            const posX = 50 + xOff, posY = 50 + yOff;
+            img.style.cssText = `position:absolute;width:${scale}%;height:auto;min-height:${scale}%;object-fit:cover;pointer-events:none;left:${posX}%;top:${posY}%;transform:translate(-50%,-50%) rotate(${rotate}deg);transform-origin:center center;`;
+            bgLayer.appendChild(img);
+        } else if (rotate !== 0) {
+            const bgDiv = document.createElement('div');
+            bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;background:url(${bg});background-size:${scale*2.2}%;background-position:center;background-repeat:no-repeat;transform:rotate(${rotate}deg);transform-origin:center center;`;
+            bgLayer.appendChild(bgDiv);
+        } else {
+            bgLayer.style.background = `url(${bg})`;
+            bgLayer.style.backgroundSize = scale + '%';
+            bgLayer.style.backgroundPosition = (50 + xOff) + '% ' + (50 + yOff) + '%';
+            bgLayer.style.backgroundRepeat = 'no-repeat';
+        }
+    } else if (isGrad) {
+        canvas.style.backgroundColor = 'transparent';
         if (rotate !== 0) {
             const bgDiv = document.createElement('div');
-            const bgContent = isImg ? `url(${bg})` : bg;
-            bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;background:${bgContent};background-size:${isImg ? (scale*2.2)+'%' : 'cover'};background-position:center;background-repeat:no-repeat;transform:rotate(${rotate}deg);pointer-events:none;z-index:0;filter:${filter==='none'?'none':filter};transform-origin:center center;`;
-            canvas.style.backgroundImage = 'none'; canvas.style.backgroundColor = 'transparent'; canvas.style.filter = '';
-            canvas.insertBefore(bgDiv, canvas.firstChild);
+            bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;background:${bg};background-size:cover;background-position:center;transform:rotate(${rotate}deg);transform-origin:center center;`;
+            bgLayer.appendChild(bgDiv);
+        } else {
+            bgLayer.style.background = bg;
+            bgLayer.style.backgroundSize = 'cover';
         }
-    } else { canvas.style.backgroundSize = ''; canvas.style.backgroundPosition = ''; canvas.style.filter = ''; }
+    } else {
+        canvas.style.backgroundColor = bg;
+    }
+
+    canvas.appendChild(bgLayer);
 
     // onion skin
     const onionOn = document.getElementById('onion-toggle').checked;
@@ -1288,6 +1347,9 @@ function render() {
                         // Direct DOM update — instant feedback without full re-render
                         if (el) {
                             el.style.width = newW + 'px';
+                            // Also resize the img inside so it visually matches the handle drag
+                            const imgEl = el.querySelector('img');
+                            if (imgEl) imgEl.style.width = newW + 'px';
                             if (isLeft) el.style.left = layer.x + 'px';
                         }
                         // sync slider if transform sheet is open
@@ -1418,7 +1480,23 @@ function startDrag(e, layer) {
     const cR0 = canvas.getBoundingClientRect();
     let startX = e.clientX - cR0.left - layer.x, startY = e.clientY - cR0.top - layer.y;
     let moved = false;
-    const move = (me) => { moved = true; const cR = canvas.getBoundingClientRect(); const lW = layer.w||100, lH=layer.h||(layer.fontSize?layer.fontSize*2:80); layer.x=Math.min(Math.max(me.clientX-cR.left-startX,0),cR.width-lW); layer.y=Math.min(Math.max(me.clientY-cR.top-startY,0),cR.height-lH); render(); };
+    const move = (me) => {
+        moved = true;
+        const cR = canvas.getBoundingClientRect();
+        const rawX = me.clientX - cR.left - startX;
+        const rawY = me.clientY - cR.top - startY;
+        if (layer.type === 'img') {
+            const lW = layer.w || 100;
+            const lH = layer.h || lW;
+            layer.x = Math.min(Math.max(rawX, -lW / 2), cR.width - lW / 2);
+            layer.y = Math.min(Math.max(rawY, -lH / 2), cR.height - lH / 2);
+        } else {
+            // Text, bubbles, subtitles — completely free movement
+            layer.x = rawX;
+            layer.y = rawY;
+        }
+        render();
+    };
     const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
@@ -1574,18 +1652,28 @@ function filterMobSprites() {
 // Sprite meta cache
 function sbSaveMetaCache(data) { try { localStorage.setItem('sb-meta-cache', JSON.stringify({ ts: Date.now(), data })); } catch(e) {} }
 function sbLoadMetaCache() { try { const c = JSON.parse(localStorage.getItem('sb-meta-cache')); if (c && Date.now() - c.ts < 600000) return c.data; } catch(e) {} return null; }
-function sbGetImg(id) { try { return JSON.parse(localStorage.getItem('sb-img-' + id))?.img; } catch(e) { return null; } }
+
+const SB_FULL_TTL = 30 * 60 * 1000; // 30 minutes
+function sbGetFullCache(id) {
+    try {
+        const raw = localStorage.getItem('sb-full-' + id);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (Date.now() - (p.ts || 0) > SB_FULL_TTL) { localStorage.removeItem('sb-full-' + id); return null; }
+        return p;
+    } catch(e) { return null; }
+}
+function sbSetFullCache(id, imageData, actions) {
+    try { localStorage.setItem('sb-full-' + id, JSON.stringify({ img: imageData, actions: actions || {}, ts: Date.now() })); } catch(e) {}
+}
+
 async function sbFetchFull(id) {
-    const cached = sbGetImg(id);
-    if (cached) {
-        const meta = allSidebarMeta.find(s => s.id === id);
-        if (meta) {
-            const { data } = await _supabase.from('sprites_library').select('actions').eq('id', id).single();
-            return { image_data: cached, actions: data?.actions || {} };
-        }
-    }
+    // Full cache hit (image + actions) — zero network calls
+    const fullCached = sbGetFullCache(id);
+    if (fullCached) return { image_data: fullCached.img, actions: fullCached.actions };
+
     const { data } = await _supabase.from('sprites_library').select('*').eq('id', id).single();
-    if (data?.image_data) try { localStorage.setItem('sb-img-' + id, JSON.stringify({ img: data.image_data })); } catch(e) {}
+    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {});
     return data;
 }
 
@@ -1767,6 +1855,72 @@ function syncBgSliders() {
     });
 }
 function resetBgSettings() { saveState(); frames[currentIdx].background = '#ffffff'; frames[currentIdx].bgSettings = {}; render(); syncBgSliders(); }
+
+// ── BG DRAG-TO-PAN (mobile) ──
+let mobBgDragActive = false;
+function toggleMobBgDrag() {
+    mobBgDragActive = !mobBgDragActive;
+    const overlay = document.getElementById('bg-drag-overlay');
+    const btn = document.getElementById('mob-bg-drag-btn');
+    overlay.style.display = mobBgDragActive ? 'block' : 'none';
+    if (btn) {
+        btn.style.background = mobBgDragActive ? 'rgba(0,180,255,0.15)' : '#111';
+        btn.style.borderColor = mobBgDragActive ? '#00b4ff' : 'rgba(0,180,255,0.3)';
+        btn.innerText = mobBgDragActive ? '✅ Dragging — tap again to stop' : '✋ Drag Canvas to Pan';
+    }
+    setupMobBgDrag();
+}
+function setupMobBgDrag() {
+    const overlay = document.getElementById('bg-drag-overlay');
+    if (!overlay) return;
+    let dragging = false, startX = 0, startY = 0, startBgX = 0, startBgY = 0;
+    const SENSITIVITY = 0.33;
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    overlay.ontouchstart = e => {
+        dragging = true;
+        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+        startBgX = parseInt(document.getElementById('mob-bg-x').value) || 0;
+        startBgY = parseInt(document.getElementById('mob-bg-y').value) || 0;
+        e.preventDefault(); e.stopPropagation();
+    };
+    overlay.ontouchmove = e => {
+        if (!dragging) return;
+        const dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+        const newX = clamp(Math.round(startBgX + dx * SENSITIVITY), -50, 50);
+        const newY = clamp(Math.round(startBgY + dy * SENSITIVITY), -50, 50);
+        document.getElementById('mob-bg-x').value = newX;
+        document.getElementById('mob-bg-x-v').innerText = newX;
+        document.getElementById('mob-bg-y').value = newY;
+        document.getElementById('mob-bg-y-v').innerText = newY;
+        if (!frames[currentIdx].bgSettings) frames[currentIdx].bgSettings = {};
+        frames[currentIdx].bgSettings.x = newX;
+        frames[currentIdx].bgSettings.y = newY;
+        render();
+        e.preventDefault();
+    };
+    overlay.ontouchend = () => { dragging = false; };
+    overlay.onmousedown = e => {
+        dragging = true; startX = e.clientX; startY = e.clientY;
+        startBgX = parseInt(document.getElementById('mob-bg-x').value) || 0;
+        startBgY = parseInt(document.getElementById('mob-bg-y').value) || 0;
+        e.preventDefault(); e.stopPropagation();
+    };
+    document.onmousemove = e => {
+        if (!dragging || !mobBgDragActive) return;
+        const newX = clamp(Math.round(startBgX + (e.clientX - startX) * SENSITIVITY), -50, 50);
+        const newY = clamp(Math.round(startBgY + (e.clientY - startY) * SENSITIVITY), -50, 50);
+        document.getElementById('mob-bg-x').value = newX;
+        document.getElementById('mob-bg-x-v').innerText = newX;
+        document.getElementById('mob-bg-y').value = newY;
+        document.getElementById('mob-bg-y-v').innerText = newY;
+        if (!frames[currentIdx].bgSettings) frames[currentIdx].bgSettings = {};
+        frames[currentIdx].bgSettings.x = newX;
+        frames[currentIdx].bgSettings.y = newY;
+        render();
+    };
+    document.onmouseup = () => { dragging = false; };
+}
 
 // BG import choice
 let _bgChoiceSrc = null;

@@ -17,8 +17,9 @@
         .nav-btn { background: #2c2c2e; border: 1px solid var(--border); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; transition: 0.2s; }
         .nav-btn:hover { background: #3a3a3c; }
 
-        .tab-row { display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 16px; flex-shrink: 0; }
-        .tab { padding: 12px 20px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--secondary); position: relative; border: none; background: none; transition: 0.2s; }
+        .tab-row { display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 16px; flex-shrink: 0; overflow-x: auto; }
+        .tab-row::-webkit-scrollbar { display: none; }
+        .tab { padding: 12px 20px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--secondary); position: relative; border: none; background: none; transition: 0.2s; white-space: nowrap; flex-shrink: 0; }
         .tab.active { color: var(--accent); }
         .tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: var(--accent); border-radius: 2px 2px 0 0; }
 
@@ -53,15 +54,50 @@
         .ratio-badge { display: inline-block; background: #222; color: #666; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; margin-left: 5px; border: 1px solid #333; }
         .ratio-badge.match { background: rgba(0,255,102,0.1); color: var(--accent); border-color: var(--accent); }
         .ratio-badge.mismatch { background: rgba(255,60,60,0.08); color: #ff453a; border-color: #ff453a; }
+
         .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+
+        /* bg-card: always clickable. mismatch dims but still works (ratio is advisory on apply) */
         .bg-card { background: var(--card); border-radius: 12px; overflow: hidden; border: 2px solid transparent; transition: 0.2s; cursor: pointer; position: relative; }
         .bg-card:hover { border-color: var(--accent); transform: translateY(-3px); }
-        .bg-card.mismatch { opacity: 0.35; pointer-events: none; cursor: default; }
+        .bg-card.ratio-mismatch { opacity: 0.45; }
+        .bg-card.ratio-mismatch:hover { opacity: 1; border-color: #ff453a; }
+
         .bg-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
         .bg-info { padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; }
         .bg-delete { color: #ff453a; cursor: pointer; pointer-events: all; padding: 2px 4px; }
+
+        /* Verified badge */
+        .verified-badge {
+            display: inline-flex; align-items: center; gap: 3px;
+            background: rgba(0, 180, 255, 0.12); color: #00b4ff;
+            border: 1px solid rgba(0,180,255,0.35);
+            font-size: 9px; font-weight: 900; padding: 2px 6px;
+            border-radius: 4px; letter-spacing: 0.3px;
+        }
+        .verified-badge svg { width: 9px; height: 9px; flex-shrink: 0; }
+
+        /* Official section banner */
+        .official-banner {
+            display: flex; align-items: center; gap: 10px;
+            background: linear-gradient(135deg, rgba(0,180,255,0.08), rgba(0,180,255,0.03));
+            border: 1px solid rgba(0,180,255,0.2);
+            border-radius: 12px; padding: 10px 14px; margin-bottom: 16px;
+        }
+        .official-banner-icon { font-size: 20px; }
+        .official-banner-text { flex: 1; }
+        .official-banner-title { font-size: 12px; font-weight: 900; color: #00b4ff; }
+        .official-banner-sub { font-size: 10px; color: #555; font-weight: 700; margin-top: 2px; }
+
+        /* Upload zone */
         .upload-zone { border: 2px dashed #333; border-radius: 14px; padding: 28px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 20px; }
         .upload-zone:hover { border-color: var(--accent); background: rgba(0,255,102,0.03); }
+
+        /* Info note */
+        .upload-note { background: rgba(255,255,255,0.04); border: 1px solid #2a2a2a; border-radius: 10px; padding: 10px 14px; font-size: 11px; color: #666; font-weight: 700; margin-bottom: 16px; line-height: 1.5; }
+        .upload-note span { color: var(--accent); }
+
+        /* Ratio filter bar */
         .ratio-filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; background: #111; border-radius: 10px; border: 1px solid var(--border); font-size: 12px; }
 
         /* Modal */
@@ -69,6 +105,19 @@
         .modal { background: var(--card); padding: 24px; border-radius: 20px; width: 100%; max-width: 420px; border: 1px solid var(--border); }
         .modal input[type="text"] { width: 100%; padding: 11px 14px; background: #111; border: 1px solid #333; color: white; border-radius: 10px; margin: 10px 0; box-sizing: border-box; font-family: inherit; font-size: 14px; outline: none; }
         .modal input:focus { border-color: var(--accent); }
+
+        /* Admin upload modal extras */
+        .modal-note { background: rgba(0,180,255,0.07); border: 1px solid rgba(0,180,255,0.2); border-radius: 8px; padding: 9px 12px; font-size: 11px; color: #00b4ff; font-weight: 700; margin-bottom: 12px; }
+
+        /* Tabs for My Backgrounds / Official */
+        .lib-subtab-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .lib-subtab { flex: 1; padding: 9px; background: #111; border: 1.5px solid #222; color: #555; font-size: 12px; font-weight: 800; border-radius: 10px; cursor: pointer; transition: 0.15s; text-align: center; }
+        .lib-subtab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,102,0.04); }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 40px 20px; color: #444; }
+        .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; }
+        .empty-state p { font-size: 13px; font-weight: 700; margin: 0; }
     </style>
 </head>
 <body>
@@ -126,27 +175,70 @@
 
 <!-- LIBRARY -->
 <div id="tab-library" class="tab-content">
-    <div class="upload-zone" onclick="document.getElementById('upload-input').click()">
-        <div style="font-size:30px; margin-bottom:6px;">📤</div>
-        <p style="margin:0; color:#555; font-size:13px; font-weight:600;">Tap to upload a background image</p>
-        <p style="margin:6px 0 0; color:#444; font-size:11px;" id="upload-ratio-hint"></p>
+    <!-- Sub-tabs: My Backgrounds / Official -->
+    <div class="lib-subtab-row">
+        <div class="lib-subtab active" id="subtab-mine" onclick="switchLibTab('mine')">My Backgrounds</div>
+        <div class="lib-subtab" id="subtab-official" onclick="switchLibTab('official')">
+            ✓ Official
+        </div>
     </div>
-    <div class="ratio-filter-bar" id="ratio-filter-bar" style="display:none;">
-        <span style="color:var(--secondary); font-weight:600;">Ratio filter:</span>
-        <b style="color:var(--accent);" id="ratio-filter-label">—</b>
-        <span style="margin-left:auto; cursor:pointer; color:var(--accent); font-weight:700;" onclick="clearRatioFilter()">Show all</span>
+
+    <!-- MY BACKGROUNDS panel -->
+    <div id="lib-mine">
+        <!-- Upload zone — NO ratio lock applied here -->
+        <div class="upload-zone" onclick="document.getElementById('upload-input').click()">
+            <div style="font-size:30px; margin-bottom:6px;">📤</div>
+            <p style="margin:0; color:#555; font-size:13px; font-weight:600;">Tap to upload a background image</p>
+            <p style="margin:6px 0 0; color:#444; font-size:11px;">PNG, JPG, GIF, WebP — free crop, no ratio lock</p>
+        </div>
+
+        <div class="upload-note">
+            ℹ️ Your backgrounds are saved <span>without ratio locking</span>. When you apply one to a canvas, it'll be shown at its natural size — no stretching or cropping forced. The ratio badge is just a <span>compatibility hint</span>.
+        </div>
+
+        <div class="ratio-filter-bar" id="ratio-filter-bar" style="display:none;">
+            <span style="color:var(--secondary); font-weight:600;">Canvas ratio:</span>
+            <b style="color:var(--accent);" id="ratio-filter-label">—</b>
+            <span style="margin-left:auto; cursor:pointer; color:var(--accent); font-weight:700;" onclick="clearRatioFilter()">Show all</span>
+        </div>
+
+        <div class="section-label">YOUR BACKGROUNDS</div>
+        <div id="bg-container" class="bg-grid"></div>
     </div>
-    <div class="section-label">YOUR BACKGROUNDS</div>
-    <div id="bg-container" class="bg-grid"></div>
+
+    <!-- OFFICIAL BACKGROUNDS panel -->
+    <div id="lib-official" style="display:none;">
+        <div class="official-banner">
+            <div class="official-banner-icon">🛡️</div>
+            <div class="official-banner-text">
+                <div class="official-banner-title">Official Backgrounds</div>
+                <div class="official-banner-sub">Hand-picked by ComicCore. Works on any canvas.</div>
+            </div>
+        </div>
+
+        <!-- Admin upload button — only visible to jeffyplays -->
+        <div id="admin-upload-zone" style="display:none;">
+            <div class="upload-zone" onclick="document.getElementById('admin-upload-input').click()" style="border-color:rgba(0,180,255,0.3); margin-bottom:16px;">
+                <div style="font-size:24px; margin-bottom:6px;">🔒</div>
+                <p style="margin:0; color:#00b4ff; font-size:12px; font-weight:800;">Upload Official Background</p>
+                <p style="margin:4px 0 0; color:#444; font-size:11px;">Admin only — visible to all users, uploader hidden</p>
+            </div>
+        </div>
+
+        <div id="official-container" class="bg-grid"></div>
+    </div>
 </div>
 
-<!-- Upload Modal -->
+<!-- User Upload Modal (no ratio lock on crop) -->
 <div id="upload-modal" class="overlay">
     <div class="modal">
         <h3 style="margin-top:0; color:var(--accent);">Upload Background</h3>
         <div style="width:100%; height:180px; background:#000; overflow:hidden; border-radius:10px; margin-bottom:12px;">
             <img id="crop-target" style="max-width:100%;">
         </div>
+        <p id="crop-note" style="margin:0 0 8px; font-size:11px; color:#555; font-weight:700;">
+            Crop freely — ratio is not locked. Your canvas ratio is shown as a hint only.
+        </p>
         <input type="text" id="bg-name" placeholder="Name (e.g., City Street)">
         <p style="margin:0 0 12px; font-size:11px; color:#555; font-weight:700;" id="ratio-tag-note"></p>
         <div style="display:flex; gap:8px;">
@@ -156,14 +248,55 @@
     </div>
 </div>
 
-<input type="file" id="upload-input" hidden accept="image/*">
+<!-- Admin Upload Modal (no ratio lock on crop either) -->
+<div id="admin-upload-modal" class="overlay">
+    <div class="modal">
+        <h3 style="margin-top:0; color:#00b4ff;">Upload Official Background</h3>
+        <div class="modal-note">
+            🛡️ This will be visible to ALL users as an Official background. Your username will NOT be shown.
+        </div>
+        <div style="width:100%; height:180px; background:#000; overflow:hidden; border-radius:10px; margin-bottom:12px;">
+            <img id="admin-crop-target" style="max-width:100%;">
+        </div>
+        <input type="text" id="admin-bg-name" placeholder="Background name (e.g., Rooftop Sunset)">
+        <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="nav-btn" onclick="closeAdminModal()" style="flex:1;">CANCEL</button>
+            <button class="nav-btn" id="admin-save-btn" onclick="saveOfficialBackground()" style="flex:2; background:#00b4ff; color:#000; border:none;">PUBLISH</button>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="upload-input" hidden accept="image/*,image/gif,image/webp,image/apng">
+<input type="file" id="admin-upload-input" hidden accept="image/*,image/gif,image/webp,image/apng">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <script>
     const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+
+    // ── Owner handle — change to however you store the current user session ──
+    // We read from localStorage under the same key your app uses (cc-profile or similar).
+    // Adjust `OWNER_HANDLE` and `getCurrentHandle()` to match your auth flow.
+    const OWNER_HANDLE = 'jeffyplays';
+
+    function getCurrentHandle() {
+        try {
+            const p = localStorage.getItem('cc-my-profile');
+            if (p) return JSON.parse(p).handle || '';
+        } catch(e) {}
+        return localStorage.getItem('cc-handle') || '';
+    }
+
+    function isOwner() {
+        return getCurrentHandle().toLowerCase() === OWNER_HANDLE.toLowerCase();
+    }
+
     let cropper = null;
+    let adminCropper = null;
     let currentRatioFilter = null;
     let showAllLibrary = false;
+    let currentLibTab = 'mine';
 
+    // ── Init ──
     window.onload = function() {
         const stored = localStorage.getItem('cc-bg-ratio-filter');
         if (stored) {
@@ -172,33 +305,50 @@
             document.getElementById('ratio-display').innerText = 'Canvas: ' + label;
             document.getElementById('ratio-filter-bar').style.display = 'flex';
             document.getElementById('ratio-filter-label').innerText = label;
-            document.getElementById('upload-ratio-hint').innerText = 'Will be tagged as ' + label + ' ratio';
-            document.getElementById('ratio-tag-note').innerText = 'Tagged as ratio ' + label;
+            // Hint in modal — informational only, NO aspect ratio lock on cropper
+            document.getElementById('ratio-tag-note').innerText = 'Canvas ratio hint: ' + label + ' (crop is free)';
         } else {
-            document.getElementById('upload-ratio-hint').innerText = 'No ratio filter active — free crop. Works on any canvas.';
-            document.getElementById('ratio-tag-note').innerText = 'No ratio tag — will work on any canvas.';
+            document.getElementById('ratio-tag-note').innerText = 'No canvas ratio — works on any canvas.';
         }
+
+        if (isOwner()) {
+            document.getElementById('admin-upload-zone').style.display = 'block';
+        }
+
         renderPresetColors();
         renderPresetGradients();
         updateGradPreview();
-        loadLibrary();
+        loadMyBackgrounds();
     };
 
+    // ── Tab switching ──
     function switchTab(name) {
         const tabs = ['colors','gradients','library'];
         document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === name));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         document.getElementById('tab-' + name).classList.add('active');
-        if (name === 'library') loadLibrary();
+        if (name === 'library') {
+            if (currentLibTab === 'mine') loadMyBackgrounds();
+            else loadOfficialBackgrounds();
+        }
     }
 
+    function switchLibTab(tab) {
+        currentLibTab = tab;
+        document.getElementById('subtab-mine').classList.toggle('active', tab === 'mine');
+        document.getElementById('subtab-official').classList.toggle('active', tab === 'official');
+        document.getElementById('lib-mine').style.display = tab === 'mine' ? 'block' : 'none';
+        document.getElementById('lib-official').style.display = tab === 'official' ? 'block' : 'none';
+        if (tab === 'official') loadOfficialBackgrounds();
+        else loadMyBackgrounds();
+    }
+
+    // ── Apply background to canvas ──
     function applyBg(css, bgId) {
         if (bgId !== undefined) {
-            // Library image: store only the ID to avoid localStorage size limits (base64 can be huge)
             localStorage.setItem('pending_bg_id', bgId);
             localStorage.removeItem('pending_background');
         } else {
-            // Color or gradient: small enough to store directly
             localStorage.setItem('pending_background', css);
             localStorage.removeItem('pending_bg_id');
         }
@@ -209,6 +359,284 @@
         localStorage.removeItem('cc-bg-ratio-filter');
         const isMobile = localStorage.getItem('cc-device-mode') === 'mobile';
         location.href = isMobile ? 'create-mobile.html' : 'create.html';
+    }
+
+    // ── Ratio helpers ──
+    function clearRatioFilter() {
+        showAllLibrary = true;
+        document.getElementById('ratio-filter-bar').style.display = 'none';
+        loadMyBackgrounds();
+    }
+
+    function getRatioMatchClass(bgRatio) {
+        // Only used as advisory indicator, does NOT block applying the background
+        if (!currentRatioFilter || !bgRatio || showAllLibrary) return '';
+        const filterKey = currentRatioFilter.w + ':' + currentRatioFilter.h;
+        const bgKey = bgRatio.w + ':' + bgRatio.h;
+        return bgKey === filterKey ? 'match' : 'mismatch';
+    }
+
+    // ── Verified badge HTML ──
+    function verifiedBadgeHtml() {
+        return `<span class="verified-badge"><svg viewBox="0 0 12 12" fill="none"><path d="M6 1l1.2 1.6L9 2.2l.2 1.9 1.8.6-.8 1.7.8 1.7-1.8.6L9 10.8l-1.8-.4L6 12l-1.2-1.6L3 10.8l-.2-1.9-1.8-.6.8-1.7-.8-1.7 1.8-.6L3 2.2l1.8.4z" fill="#00b4ff"/><path d="M4.2 6l1.3 1.3 2.3-2.6" stroke="#fff" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>Official</span>`;
+    }
+
+    // ── Load My Backgrounds ──
+    async function loadMyBackgrounds() {
+        const container = document.getElementById('bg-container');
+        container.innerHTML = '<p style="color:#555;font-size:13px;">Loading...</p>';
+
+        const handle = getCurrentHandle() || 'guest';
+        const { data, error } = await _supabase
+            .from('backgrounds_library')
+            .select('*')
+            .eq('uploaded_by', handle)
+            .order('id', { ascending: false });
+
+        if (error) { container.innerHTML = '<p style="color:#ff453a;">Error loading.</p>'; return; }
+        if (!data || !data.length) {
+            container.innerHTML = `<div class="empty-state"><div class="empty-icon">🖼</div><p>No backgrounds yet.<br>Upload one above!</p></div>`;
+            return;
+        }
+
+        const filterKey = currentRatioFilter && !showAllLibrary ? currentRatioFilter.w + ':' + currentRatioFilter.h : null;
+        container.innerHTML = '';
+        data.forEach(bg => {
+            const bgRatioKey = bg.ratio ? bg.ratio.w + ':' + bg.ratio.h : null;
+            const isMatch = !filterKey || !bgRatioKey || bgRatioKey === filterKey;
+            const badgeClass = !bgRatioKey ? '' : (isMatch ? 'match' : 'mismatch');
+            const badgeText = bgRatioKey || 'any';
+
+            const card = document.createElement('div');
+            // ratio-mismatch dims the card but it's still clickable — ratio lock is only advisory
+            card.className = 'bg-card' + (!isMatch ? ' ratio-mismatch' : '');
+            card.innerHTML = `
+                <img src="${bg.image_data}" style="cursor:pointer;">
+                <div class="bg-info">
+                    <div style="overflow:hidden;">
+                        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(bg.name || 'BG').toUpperCase()}</div>
+                        <span class="ratio-badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                    <span class="bg-delete" title="Delete">✕</span>
+                </div>`;
+            const bgId = bg.id;
+            const imageData = bg.image_data;
+            card.querySelector('img').addEventListener('click', () => applyBg(imageData, bgId));
+            card.querySelector('.bg-delete').addEventListener('click', (e) => deleteBG(bgId, e));
+            container.appendChild(card);
+        });
+    }
+
+    // ── Load Official Backgrounds ──
+    async function loadOfficialBackgrounds() {
+        const container = document.getElementById('official-container');
+        container.innerHTML = '<p style="color:#555;font-size:13px;">Loading...</p>';
+
+        const { data, error } = await _supabase
+            .from('backgrounds_library')
+            .select('*')
+            .eq('is_official', true)
+            .order('id', { ascending: false });
+
+        if (error) { container.innerHTML = '<p style="color:#ff453a;">Error loading.</p>'; return; }
+        if (!data || !data.length) {
+            container.innerHTML = `<div class="empty-state"><div class="empty-icon">🛡️</div><p>No official backgrounds yet.</p></div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        data.forEach(bg => {
+            const card = document.createElement('div');
+            card.className = 'bg-card';
+            card.innerHTML = `
+                <img src="${bg.image_data}" style="cursor:pointer;">
+                <div class="bg-info" style="flex-direction:column; align-items:flex-start; gap:4px;">
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">${(bg.name || 'BG').toUpperCase()}</div>
+                    <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                        ${verifiedBadgeHtml()}
+                        ${isOwner() ? `<span class="bg-delete" data-id="${bg.id}" title="Delete official bg">✕</span>` : ''}
+                    </div>
+                </div>`;
+            const imageData = bg.image_data;
+            card.querySelector('img').addEventListener('click', () => applyBg(imageData, bg.id));
+            if (isOwner()) {
+                card.querySelector('.bg-delete').addEventListener('click', (e) => deleteOfficialBG(bg.id, e));
+            }
+            container.appendChild(card);
+        });
+    }
+
+    // ── User upload (no ratio lock on cropper; skip cropper for GIFs) ──
+    let isAnimatedUpload = false;
+    let animatedUploadData = null;
+
+    function isAnimatedFile(file) {
+        return file.type === 'image/gif' || file.type === 'image/webp' || file.type === 'image/apng';
+    }
+
+    document.getElementById('upload-input').onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        isAnimatedUpload = isAnimatedFile(file);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            document.getElementById('upload-modal').style.display = 'flex';
+            const target = document.getElementById('crop-target');
+            target.src = ev.target.result;
+            if (cropper) { cropper.destroy(); cropper = null; }
+            if (isAnimatedUpload) {
+                // Don't use cropper — just show the image directly
+                animatedUploadData = ev.target.result;
+                target.style.maxWidth = '100%';
+                target.style.maxHeight = '180px';
+                target.style.objectFit = 'contain';
+                document.getElementById('crop-note').innerText = '🎞️ Animated image — saved as-is (no crop)';
+            } else {
+                animatedUploadData = null;
+                target.style.maxWidth = '';
+                target.style.maxHeight = '';
+                target.style.objectFit = '';
+                document.getElementById('crop-note').innerText = 'Crop freely — ratio is not locked. Your canvas ratio is shown as a hint only.';
+                // No aspectRatio — always free crop for user uploads
+                cropper = new Cropper(target, { aspectRatio: NaN, viewMode: 1 });
+            }
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    async function saveBackground() {
+        const name = document.getElementById('bg-name').value || 'Untitled';
+        const btn  = document.getElementById('save-btn');
+        btn.innerText = 'Saving...'; btn.disabled = true;
+
+        let b64;
+        let naturalRatio = null;
+
+        if (isAnimatedUpload && animatedUploadData) {
+            // Use the raw data URL for animated images — no canvas crop
+            b64 = animatedUploadData;
+        } else if (cropper) {
+            // Detect natural ratio of the cropped selection (advisory tag only, NOT enforced)
+            const cropData = cropper.getCropBoxData();
+            naturalRatio = cropData.width && cropData.height
+                ? simplifyRatio(Math.round(cropData.width), Math.round(cropData.height))
+                : null;
+            b64 = cropper.getCroppedCanvas({ maxWidth: 1200, maxHeight: 1200 }).toDataURL('image/jpeg', 0.85);
+        } else {
+            btn.innerText = 'SAVE'; btn.disabled = false;
+            alert('No image loaded.'); return;
+        }
+
+        const handle = getCurrentHandle() || 'guest';
+
+        const { error } = await _supabase.from('backgrounds_library').insert([{
+            name,
+            image_data: b64,
+            ratio: naturalRatio,          // advisory only
+            is_official: false,
+            uploaded_by: handle           // stored but only shown for personal library
+        }]);
+
+        btn.innerText = 'SAVE'; btn.disabled = false;
+        if (error) { alert(error.message); return; }
+        closeModal();
+        switchLibTab('mine');
+    }
+
+    // ── Admin upload (official, uploader hidden) ──
+    let isAdminAnimated = false;
+    let adminAnimatedData = null;
+
+    document.getElementById('admin-upload-input').onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        isAdminAnimated = isAnimatedFile(file);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            document.getElementById('admin-upload-modal').style.display = 'flex';
+            const target = document.getElementById('admin-crop-target');
+            target.src = ev.target.result;
+            if (adminCropper) { adminCropper.destroy(); adminCropper = null; }
+            if (isAdminAnimated) {
+                adminAnimatedData = ev.target.result;
+                target.style.maxWidth = '100%';
+                target.style.maxHeight = '180px';
+                target.style.objectFit = 'contain';
+            } else {
+                adminAnimatedData = null;
+                adminCropper = new Cropper(target, { aspectRatio: NaN, viewMode: 1 });
+            }
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    async function saveOfficialBackground() {
+        if (!isOwner()) { alert('Not authorized.'); return; }
+        const name = document.getElementById('admin-bg-name').value || 'Official BG';
+        const btn  = document.getElementById('admin-save-btn');
+        btn.innerText = 'Publishing...'; btn.disabled = true;
+
+        let b64;
+        if (isAdminAnimated && adminAnimatedData) {
+            b64 = adminAnimatedData;
+        } else if (adminCropper) {
+            b64 = adminCropper.getCroppedCanvas({ maxWidth: 1920, maxHeight: 1920 }).toDataURL('image/jpeg', 0.90);
+        } else {
+            btn.innerText = 'PUBLISH'; btn.disabled = false;
+            alert('No image loaded.'); return;
+        }
+
+        const { error } = await _supabase.from('backgrounds_library').insert([{
+            name,
+            image_data: b64,
+            ratio: null,               // official BGs work on any canvas
+            is_official: true,
+            uploaded_by: null          // intentionally null — uploader not stored/shown
+        }]);
+
+        btn.innerText = 'PUBLISH'; btn.disabled = false;
+        if (error) { alert(error.message); return; }
+        closeAdminModal();
+        switchLibTab('official');
+    }
+
+    // ── Delete ──
+    async function deleteBG(id, e) {
+        e.stopPropagation();
+        if (!confirm('Delete this background?')) return;
+        await _supabase.from('backgrounds_library').delete().eq('id', id);
+        loadMyBackgrounds();
+    }
+
+    async function deleteOfficialBG(id, e) {
+        e.stopPropagation();
+        if (!confirm('Delete this official background? This will remove it for everyone.')) return;
+        await _supabase.from('backgrounds_library').delete().eq('id', id);
+        loadOfficialBackgrounds();
+    }
+
+    function closeModal() {
+        document.getElementById('upload-modal').style.display = 'none';
+        document.getElementById('bg-name').value = '';
+        if (cropper) { cropper.destroy(); cropper = null; }
+        isAnimatedUpload = false;
+        animatedUploadData = null;
+    }
+
+    function closeAdminModal() {
+        document.getElementById('admin-upload-modal').style.display = 'none';
+        document.getElementById('admin-bg-name').value = '';
+        if (adminCropper) { adminCropper.destroy(); adminCropper = null; }
+        isAdminAnimated = false;
+        adminAnimatedData = null;
+    }
+
+    // ── Ratio simplification utility ──
+    function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+    function simplifyRatio(w, h) {
+        // Scale down to reasonable canvas ratio bucket
+        const g = gcd(w, h);
+        return { w: w / g, h: h / g };
     }
 
     // ── Colors ──
@@ -278,91 +706,6 @@
         const dir = document.getElementById('grad-dir').value;
         const css = dir === 'circle' ? `radial-gradient(circle, ${c1}, ${c2})` : `linear-gradient(${dir}, ${c1}, ${c2})`;
         applyBg(css);
-    }
-
-    // ── Library ──
-    async function loadLibrary() {
-        const container = document.getElementById('bg-container');
-        container.innerHTML = '<p style="color:#555;font-size:13px;">Loading...</p>';
-        const { data, error } = await _supabase.from('backgrounds_library').select('*').order('id', { ascending: false });
-        if (error) { container.innerHTML = '<p style="color:#ff453a;">Error loading.</p>'; return; }
-        if (!data || !data.length) { container.innerHTML = '<p style="color:#555;font-size:13px;">No backgrounds yet. Upload one above!</p>'; return; }
-
-        const filterKey = currentRatioFilter && !showAllLibrary ? currentRatioFilter.w + ':' + currentRatioFilter.h : null;
-        container.innerHTML = '';
-        data.forEach(bg => {
-            const ratioKey = bg.ratio ? bg.ratio.w + ':' + bg.ratio.h : null;
-            const isMatch  = !filterKey || !ratioKey || ratioKey === filterKey;
-            const badgeClass = !ratioKey ? '' : (isMatch ? 'match' : 'mismatch');
-            const badgeText  = ratioKey || 'any';
-
-            const card = document.createElement('div');
-            card.className = 'bg-card' + (!isMatch ? ' mismatch' : '');
-            // Use innerHTML for structure but NOT for inline base64 onclick (breaks with large data)
-            card.innerHTML = `
-                <img src="${bg.image_data}" style="cursor:pointer;">
-                <div class="bg-info">
-                    <div style="overflow:hidden;">
-                        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(bg.name || 'BG').toUpperCase()}</div>
-                        <span class="ratio-badge ${badgeClass}">${badgeText}</span>
-                    </div>
-                    <span class="bg-delete">✕</span>
-                </div>`;
-            // Safe event listeners — avoid embedding base64 in inline onclick attributes
-            const bgId = bg.id;
-            const imageData = bg.image_data;
-            card.querySelector('img').addEventListener('click', () => applyBg(imageData, bgId));
-            card.querySelector('.bg-delete').addEventListener('click', (e) => deleteBG(bgId, e));
-            container.appendChild(card);
-        });
-    }
-
-    function clearRatioFilter() {
-        showAllLibrary = true;
-        document.getElementById('ratio-filter-bar').style.display = 'none';
-        loadLibrary();
-    }
-
-    document.getElementById('upload-input').onchange = (e) => {
-        const file = e.target.files[0]; if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            document.getElementById('upload-modal').style.display = 'flex';
-            const target = document.getElementById('crop-target');
-            target.src = ev.target.result;
-            if (cropper) cropper.destroy();
-            const ar = currentRatioFilter ? currentRatioFilter.w / currentRatioFilter.h : NaN;
-            cropper = new Cropper(target, { aspectRatio: ar, viewMode: 1 });
-        };
-        reader.readAsDataURL(file);
-        e.target.value = '';
-    };
-
-    async function saveBackground() {
-        const name = document.getElementById('bg-name').value || 'Untitled';
-        const btn  = document.getElementById('save-btn');
-        btn.innerText = 'Saving...'; btn.disabled = true;
-        const b64 = cropper.getCroppedCanvas({ maxWidth: 1200, maxHeight: 1200 }).toDataURL('image/jpeg', 0.85);
-        const { error } = await _supabase.from('backgrounds_library').insert([{
-            name, image_data: b64, ratio: currentRatioFilter || null
-        }]);
-        btn.innerText = 'SAVE'; btn.disabled = false;
-        if (error) { alert(error.message); return; }
-        closeModal();
-        switchTab('library');
-    }
-
-    async function deleteBG(id, e) {
-        e.stopPropagation();
-        if (!confirm('Delete this background?')) return;
-        await _supabase.from('backgrounds_library').delete().eq('id', id);
-        loadLibrary();
-    }
-
-    function closeModal() {
-        document.getElementById('upload-modal').style.display = 'none';
-        document.getElementById('bg-name').value = '';
-        if (cropper) { cropper.destroy(); cropper = null; }
     }
 </script>
 </body>
