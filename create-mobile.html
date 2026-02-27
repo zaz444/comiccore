@@ -1331,34 +1331,35 @@ function selectLayerLight(layer) {
 var _isDragging = false; // blocks double-tap-to-transform during a drag
 function startTouchDrag(e, layer) {
     if (e.touches.length > 1) return;
-    saveState();
-    _isDragging = false;
     var touch = e.touches[0];
     var fingerStartX = touch.clientX;
     var fingerStartY = touch.clientY;
     var layerStartX = layer.x;
     var layerStartY = layer.y;
+    var stateSaved = false;
+    var layerEl = document.querySelector('.layer[data-layerId="' + layer.id + '"]');
 
     var cleanup = function() {
         document.removeEventListener('touchmove', move);
         document.removeEventListener('touchend', up);
         document.removeEventListener('touchcancel', up);
-        // Always commit — layer.x/y may have changed even if render() wasn't called yet
-        render();
-        // Brief delay so the element's touchend doesn't fire the transform sheet
+        if (_isDragging) render();
         setTimeout(function() { _isDragging = false; }, 80);
     };
     var move = function(me) {
         if (me.touches.length > 1) { cleanup(); return; }
         me.preventDefault();
-        _isDragging = true;
         var t = me.touches[0];
-        var dx = (t.clientX - fingerStartX) / vpScale;
-        var dy = (t.clientY - fingerStartY) / vpScale;
-        layer.x = layerStartX + dx;
-        layer.y = layerStartY + dy;
-        var el = document.querySelector('.layer[data-layerId="' + layer.id + '"]');
-        if (el) { el.style.left = layer.x + 'px'; el.style.top = layer.y + 'px'; }
+        var rawDx = t.clientX - fingerStartX;
+        var rawDy = t.clientY - fingerStartY;
+        // 4px dead zone prevents accidental drag on tap
+        if (!_isDragging && Math.hypot(rawDx, rawDy) < 4) return;
+        if (!stateSaved) { saveState(); stateSaved = true; }
+        _isDragging = true;
+        layer.x = layerStartX + rawDx / vpScale;
+        layer.y = layerStartY + rawDy / vpScale;
+        // Direct DOM update for instant feedback
+        if (layerEl) { layerEl.style.left = layer.x + 'px'; layerEl.style.top = layer.y + 'px'; }
     };
     var up = function() { cleanup(); };
     document.addEventListener('touchmove', move, { passive: false });
@@ -1366,7 +1367,6 @@ function startTouchDrag(e, layer) {
     document.addEventListener('touchcancel', up, { once: true });
 }
 
-// ── TOUCH PINCH RESIZE (2-finger spread/pinch on active sprite) ──
 function startTouchPinchResize(e, layer) {
     saveState();
     const t0 = e.touches[0], t1 = e.touches[1];
@@ -1897,13 +1897,23 @@ async function finalPublish() {
     if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
     const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
-    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
+    const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
+    const payload = {
+        title, description: desc, tags, cover: finalCoverBase64,
+        data: frames, swipe_dir: swipeDir,
+        canvas_ratio: canvasRatio
+    };
     let error;
-    if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
-    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
+    if (editingComicId) {
+        ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
+    } else {
+        ({ error } = await _supabase.from('comics').insert([{
+            ...payload, owner_name: profile.name, owner_handle: profile.handle, stars: 0, starred_by: []
+        }]));
+    }
     if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
-    alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
     location.href = 'discover.html';
 }
 

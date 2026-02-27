@@ -251,12 +251,12 @@
 
     <div class="grid">
         <button class="card" onclick="location.href='discover.html'">Discover</button>
-        <button class="card" onclick="location.href='my-comics.html'">My Comics</button>
+        <button class="card" onclick="goToMyComics()">My Comics</button>
         
         <button class="card" onclick="goToMyProfile()">View Profile</button>
         <button class="card" onclick="location.href='favorites.html'">Favorites</button>
         
-        <button class="card large" onclick="openRatioModal()">Create Comic</button>
+        <button class="card large" onclick="openCreateFlow()">Create Comic</button>
         <button class="card large" onclick="location.href='settings.html'">Settings</button>
         
         <button id="teams-btn" class="card large" onclick="location.href='squads.html'">Squads</button>
@@ -370,6 +370,33 @@
             window.location.href = "login.html";
         }
 
+        function openCreateFlow() {
+            // Check if there's an active draft to resume
+            const resumeId = localStorage.getItem('active_draft_id');
+            const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+            const found = resumeId && drafts.find(d => String(d.id) === String(resumeId));
+            if (found) {
+                document.getElementById('draft-title-preview').innerText = found.title || 'Untitled Draft';
+                const frames = found.data || [];
+                document.getElementById('draft-frames-preview').innerText = frames.length + ' frame' + (frames.length !== 1 ? 's' : '');
+                document.getElementById('draft-choice-modal').style.display = 'flex';
+            } else {
+                document.getElementById('ratio-modal').style.display = 'flex';
+            }
+        }
+
+        function resumeDraft() {
+            document.getElementById('draft-choice-modal').style.display = 'none';
+            const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+            window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
+        }
+
+        function startNewFromDraftChoice() {
+            document.getElementById('draft-choice-modal').style.display = 'none';
+            localStorage.removeItem('active_draft_id');
+            document.getElementById('ratio-modal').style.display = 'flex';
+        }
+
         function openRatioModal() {
             document.getElementById('ratio-modal').style.display = 'flex';
         }
@@ -381,6 +408,11 @@
             document.getElementById('mode-modal').style.display = 'flex';
         }
 
+        function goToMyComics() {
+            const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+            window.location.href = deviceMode === 'mobile' ? 'my-comics-mobile.html' : 'my-comics.html';
+        }
+
         function goToMode(mode) {
             const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
             if (mode === 'comic') {
@@ -389,6 +421,7 @@
                 window.location.href = deviceMode === 'mobile' ? 'story-mobile.html' : 'story.html';
             }
         }
+
 
         function applyDeviceMode() {
             const deviceMode = localStorage.getItem('cc-device-mode');
@@ -403,6 +436,39 @@
         applyDeviceMode();
         checkUser();
     </script>
+
+
+    <!-- Draft Resume Modal -->
+    <div id="draft-choice-modal" style="
+        position:fixed; inset:0; background:rgba(10,10,12,0.88);
+        z-index:9998; display:none; flex-direction:column;
+        align-items:center; justify-content:center; gap:20px;
+        backdrop-filter:blur(16px); padding:30px;
+        font-family:'Inter',sans-serif; animation:fadeIn 0.3s ease-out;
+    ">
+        <div style="text-align:center;">
+            <div style="font-size:40px; margin-bottom:12px;">📝</div>
+            <h2 style="margin:0; color:var(--accent); font-size:22px; font-weight:900; letter-spacing:1px;">YOU HAVE A DRAFT</h2>
+            <p style="margin:10px 0 4px; color:#ccc; font-size:16px; font-weight:700;" id="draft-title-preview">Untitled Draft</p>
+            <p style="margin:0; color:#666; font-size:13px;" id="draft-frames-preview">0 frames</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:12px; width:100%; max-width:320px;">
+            <button onclick="resumeDraft()" style="
+                padding:18px; background:var(--accent); color:white; border:none;
+                border-radius:16px; font-size:16px; font-weight:900; cursor:pointer;
+                font-family:'Inter',sans-serif; letter-spacing:0.5px;
+            ">▶ Resume Draft</button>
+            <button onclick="startNewFromDraftChoice()" style="
+                padding:18px; background:#1a1a1a; color:#ccc; border:2px solid #333;
+                border-radius:16px; font-size:15px; font-weight:700; cursor:pointer;
+                font-family:'Inter',sans-serif;
+            ">+ Start New Comic</button>
+            <button onclick="document.getElementById('draft-choice-modal').style.display='none'" style="
+                padding:12px; background:none; color:#555; border:none;
+                font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;
+            ">Cancel</button>
+        </div>
+    </div>
 
     <div id="ratio-modal">
         <h2>CHOOSE CANVAS FORMAT</h2>

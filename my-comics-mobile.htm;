@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ComicCore — My Comics</title>
+<link rel="stylesheet" href="theme.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+:root{--bg:#0d0d0f;--card:#141416;--text:#f0f0f2;--accent:#ff7a00;--border:#222224;--teal:#00d2ff;--danger:#ff3b30;--green:#32d74b;--muted:#555;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
+html,body{height:100%;overscroll-behavior:none;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column;padding-bottom:80px;}
+
+/* ── Top bar ── */
+.topbar{position:sticky;top:0;z-index:100;height:56px;background:rgba(13,13,15,.97);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;backdrop-filter:blur(14px);}
+.back-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#1a1a1c;border:1px solid var(--border);border-radius:10px;color:#aaa;font-size:16px;cursor:pointer;flex-shrink:0;text-decoration:none;}
+.topbar-center{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0;}
+.topbar-title{font-size:15px;font-weight:900;letter-spacing:.3px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.topbar-sub{font-size:10px;color:#333;font-weight:700;}
+.new-btn{height:36px;padding:0 14px;background:var(--accent);color:#000;border:none;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;letter-spacing:.3px;}
+
+/* ── Tabs ── */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:rgba(13,13,15,.85);position:sticky;top:56px;z-index:90;backdrop-filter:blur(8px);}
+.tab{flex:1;padding:14px 8px;text-align:center;font-size:11px;font-weight:900;letter-spacing:.8px;color:#2a2a2a;cursor:pointer;border:none;background:none;text-transform:uppercase;border-bottom:2.5px solid transparent;transition:.12s;}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-count{display:inline-flex;align-items:center;justify-content:center;background:#1e1e20;color:#444;border-radius:10px;padding:1px 7px;font-size:9px;margin-left:5px;font-weight:900;min-width:18px;}
+.tab.active .tab-count{background:rgba(255,122,0,.18);color:var(--accent);}
+
+/* ── Content ── */
+.content{flex:1;padding:14px 14px 0;}
+
+/* ── Search + sort bar ── */
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+.search-box{flex:1;background:#111;border:1.5px solid #1e1e1e;color:#ddd;padding:10px 14px;border-radius:12px;font-family:inherit;font-size:13px;outline:none;transition:.15s;}
+.search-box:focus{border-color:var(--accent);}
+.search-box::placeholder{color:#333;}
+.sort-select{appearance:none;background:#1a1a1c;border:1px solid var(--border);color:#888;padding:10px 12px;border-radius:12px;font-family:inherit;font-size:11px;font-weight:700;outline:none;cursor:pointer;}
+
+/* ── Stats bar ── */
+.stats-bar{display:flex;gap:20px;padding:10px 2px 14px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+.stat-item{display:flex;flex-direction:column;gap:2px;}
+.stat-val{font-size:22px;font-weight:900;line-height:1;}
+.stat-lbl{font-size:9px;font-weight:700;color:#2a2a2a;text-transform:uppercase;letter-spacing:1px;}
+
+/* ── Comics list (mobile: vertical list, not grid) ── */
+.comics-list{display:flex;flex-direction:column;gap:10px;}
+
+/* ── Comic row card ── */
+.comic-row{background:var(--card);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;display:flex;align-items:stretch;cursor:pointer;transition:border-color .15s;position:relative;min-height:88px;}
+.comic-row.draft-row{border-left:3px solid var(--teal);}
+.comic-row.pub-row{border-left:3px solid var(--accent);}
+.comic-row:active{background:#1a1a1c;}
+
+/* Thumb */
+.row-thumb{width:68px;flex-shrink:0;background:#0a0a0a;position:relative;overflow:hidden;}
+.row-thumb img,.row-thumb .thumb-bg{width:100%;height:100%;object-fit:cover;display:block;}
+.thumb-bg{display:flex;align-items:center;justify-content:center;font-size:26px;background:linear-gradient(135deg,#111,#0a0a12);}
+
+/* Info */
+.row-info{flex:1;padding:12px 12px 12px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;}
+.row-title{font-size:14px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.row-meta{font-size:10px;color:var(--muted);font-weight:600;}
+.row-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px;}
+.badge{font-size:8px;font-weight:900;padding:2px 8px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;}
+.badge-draft{background:rgba(0,210,255,.12);color:var(--teal);border:1px solid rgba(0,210,255,.2);}
+.badge-pub{background:rgba(255,122,0,.12);color:var(--accent);border:1px solid rgba(255,122,0,.2);}
+.badge-pages{background:#1a1a1c;color:#444;border:1px solid var(--border);}
+
+/* Action trigger button */
+.row-menu{width:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#333;font-size:20px;cursor:pointer;border-left:1px solid var(--border);transition:.12s;}
+.row-menu:active{background:#1e1e20;color:#aaa;}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:64px 24px;display:flex;flex-direction:column;align-items:center;gap:14px;}
+.empty-icon{font-size:56px;opacity:.25;}
+.empty-title{font-size:16px;font-weight:900;color:#333;}
+.empty-sub{font-size:13px;color:#222;line-height:1.6;max-width:260px;}
+.empty-cta{margin-top:4px;padding:13px 28px;background:var(--accent);color:#000;border:none;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:.3px;}
+
+/* ── Bottom Nav ── */
+.nav-bottom{position:fixed;bottom:0;left:0;right:0;height:64px;background:rgba(13,13,15,.97);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:center;z-index:200;backdrop-filter:blur(12px);}
+.nav-item{font-size:22px;cursor:pointer;opacity:.4;text-decoration:none;color:white;display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:14px;transition:.12s;}
+.nav-item.active{opacity:1;color:var(--accent);}
+.nav-item:active{background:#1a1a1a;}
+
+/* ── Bottom Sheet Overlay ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(8px);}
+.overlay.open{display:flex;}
+.sheet{background:#111;border-radius:22px 22px 0 0;border:1px solid #1e1e1e;border-bottom:none;width:100%;max-width:500px;padding:0 0 max(env(safe-area-inset-bottom),20px);}
+.sheet-handle{width:38px;height:4px;background:#2a2a2a;border-radius:2px;margin:14px auto 4px;}
+.sheet-header{padding:16px 20px 12px;border-bottom:1px solid #1a1a1a;}
+.sheet-header-title{font-size:14px;font-weight:900;color:#ccc;letter-spacing:.3px;}
+.sheet-header-sub{font-size:11px;color:#444;margin-top:3px;}
+
+/* Sheet action rows */
+.sheet-action{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;transition:.12s;border-bottom:1px solid #0f0f0f;}
+.sheet-action:last-child{border-bottom:none;}
+.sheet-action:active{background:#1a1a1a;}
+.sheet-action-icon{font-size:20px;width:36px;text-align:center;flex-shrink:0;}
+.sheet-action-label{font-size:14px;font-weight:700;flex:1;}
+.sheet-action-label.danger{color:var(--danger);}
+.sheet-action-label.accent{color:var(--accent);}
+.sheet-action-label.teal{color:var(--teal);}
+
+/* ── New comic sheet ── */
+.ratio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 20px 20px;}
+.ratio-opt{background:#0a0a0a;border:2px solid #1e1e1e;border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:8px;}
+.ratio-opt:active{background:#111;}
+.ratio-opt.sel{border-color:var(--accent);background:rgba(255,122,0,.05);}
+.ratio-preview{background:#1a1a1a;border-radius:4px;}
+.ratio-name{font-size:10px;font-weight:900;color:#888;letter-spacing:.3px;}
+.ratio-dims{font-size:8px;color:#333;font-weight:700;}
+.sheet-cta{margin:0 20px 4px;padding:15px;background:var(--accent);color:#000;border:none;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;width:calc(100% - 40px);font-family:inherit;letter-spacing:.3px;}
+
+/* ── Rename input ── */
+.rename-wrap{padding:14px 20px 20px;}
+.rename-input{background:#0a0a0a;border:1.5px solid #2a2a2a;color:white;padding:13px 14px;border-radius:12px;font-family:inherit;font-size:15px;outline:none;width:100%;margin-bottom:12px;transition:.15s;}
+.rename-input:focus{border-color:var(--accent);}
+.rename-row{display:flex;gap:10px;}
+.rename-cancel{flex:1;padding:13px;background:#1a1a1a;border:1px solid var(--border);color:#aaa;border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;}
+.rename-ok{flex:1;padding:13px;background:var(--accent);border:none;color:#000;border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;}
+
+/* ── Delete confirm sheet ── */
+.del-wrap{padding:14px 20px 20px;}
+.del-title{font-size:15px;font-weight:900;color:var(--danger);margin-bottom:6px;}
+.del-sub{font-size:12px;color:#444;line-height:1.6;margin-bottom:20px;}
+.del-confirm{width:100%;padding:15px;background:var(--danger);color:white;border:none;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;margin-bottom:10px;}
+.del-cancel{width:100%;padding:14px;background:#1a1a1a;border:1px solid var(--border);color:#aaa;border-radius:14px;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;}
+
+/* ── Toast ── */
+.toast-el{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:14px;font-weight:900;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;transition:opacity .4s;}
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <a href="index.html" class="back-btn">←</a>
+  <div class="topbar-center">
+    <div class="topbar-title">My Comics</div>
+    <div class="topbar-sub" id="topbar-sub">Loading…</div>
+  </div>
+  <button class="new-btn" onclick="openNewSheet()">+ New</button>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" id="tab-drafts" onclick="switchTab('drafts')">
+    Drafts <span class="tab-count" id="drafts-count">0</span>
+  </button>
+  <button class="tab" id="tab-published" onclick="switchTab('published')">
+    Published <span class="tab-count" id="pub-count">0</span>
+  </button>
+</div>
+
+<!-- Content -->
+<div class="content">
+  <!-- Drafts toolbar -->
+  <div class="toolbar" id="drafts-toolbar">
+    <input class="search-box" id="draft-search" placeholder="🔍 Search drafts…" oninput="renderDrafts()">
+    <select class="sort-select" id="draft-sort" onchange="renderDrafts()">
+      <option value="newest">Newest</option>
+      <option value="oldest">Oldest</option>
+      <option value="alpha">A→Z</option>
+      <option value="pages">Pages</option>
+    </select>
+  </div>
+
+  <!-- Published toolbar -->
+  <div class="toolbar" id="pub-toolbar" style="display:none;">
+    <input class="search-box" id="pub-search" placeholder="🔍 Search published…" oninput="renderPublished()">
+    <select class="sort-select" id="pub-sort" onchange="renderPublished()">
+      <option value="newest">Newest</option>
+      <option value="stars">⭐ Stars</option>
+      <option value="alpha">A→Z</option>
+    </select>
+  </div>
+
+  <!-- Stats bars -->
+  <div id="draft-stats" class="stats-bar" style="display:none;"></div>
+  <div id="pub-stats" class="stats-bar" style="display:none;"></div>
+
+  <!-- List container -->
+  <div id="list-container"></div>
+</div>
+
+<!-- Bottom Nav -->
+<div class="nav-bottom">
+  <a href="index.html" class="nav-item">🏠</a>
+  <a href="discover.html" class="nav-item">🌐</a>
+  <a href="create-mobile.html" class="nav-item">➕</a>
+  <a href="settings.html" class="nav-item">⚙️</a>
+</div>
+
+<!-- ── Action Sheet (draft) ── -->
+<div id="action-sheet" class="overlay" onclick="if(event.target===this)closeActionSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-header-title" id="action-sheet-title">Comic</div>
+      <div class="sheet-header-sub" id="action-sheet-sub"></div>
+    </div>
+    <div id="action-sheet-body"></div>
+  </div>
+</div>
+
+<!-- ── New Comic Sheet ── -->
+<div id="new-sheet" class="overlay" onclick="if(event.target===this)closeNewSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-header-title">📖 New Comic</div>
+      <div class="sheet-header-sub">Pick a canvas ratio — can't change later.</div>
+    </div>
+    <div class="ratio-grid" id="ratio-grid"></div>
+    <button class="sheet-cta" onclick="startNewComic()">START CREATING →</button>
+  </div>
+</div>
+
+<!-- ── Rename Sheet ── -->
+<div id="rename-sheet" class="overlay" onclick="if(event.target===this)closeRenameSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-header-title">✏️ Rename Draft</div>
+    </div>
+    <div class="rename-wrap">
+      <input class="rename-input" id="rename-inp" placeholder="Comic title…" maxlength="80">
+      <div class="rename-row">
+        <button class="rename-cancel" onclick="closeRenameSheet()">Cancel</button>
+        <button class="rename-ok" onclick="confirmRename()">Rename</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Sheet ── -->
+<div id="del-sheet" class="overlay" onclick="if(event.target===this)closeDelSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="del-wrap">
+      <div class="del-title" id="del-title">🗑 Delete?</div>
+      <div class="del-sub" id="del-sub"></div>
+      <button class="del-confirm" onclick="confirmDelete()">DELETE PERMANENTLY</button>
+      <button class="del-cancel" onclick="closeDelSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+
+// ── State ──────────────────────────────────────────────────
+let currentTab = 'drafts';
+let drafts = [];
+let published = [];
+let myHandle = null, myName = null;
+let pendingDeleteId = null, pendingDeleteType = null;
+let renameTargetId = null;
+let selectedRatio = { w: 9, h: 13 };
+
+const RATIOS = [
+  { w:9,  h:13, label:'Comic',    dims:'9:13',  icon:{ w:34, h:48 } },
+  { w:1,  h:1,  label:'Square',   dims:'1:1',   icon:{ w:44, h:44 } },
+  { w:9,  h:16, label:'Vertical', dims:'9:16',  icon:{ w:32, h:56 } },
+  { w:16, h:9,  label:'Wide',     dims:'16:9',  icon:{ w:60, h:34 } },
+  { w:4,  h:3,  label:'Classic',  dims:'4:3',   icon:{ w:52, h:38 } },
+  { w:3,  h:4,  label:'Portrait', dims:'3:4',   icon:{ w:38, h:50 } },
+];
+
+// ── Init ───────────────────────────────────────────────────
+window.onload = async () => {
+  const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+  myHandle = profile.handle || null;
+  myName = profile.name || 'Creator';
+
+  loadDrafts();
+  await loadPublished();
+  renderStats();
+  renderDrafts();
+  buildRatioGrid();
+};
+
+// ── Load data ─────────────────────────────────────────────
+function loadDrafts() {
+  drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+  document.getElementById('drafts-count').innerText = drafts.length;
+}
+
+async function loadPublished() {
+  if (!myHandle) { published = []; document.getElementById('pub-count').innerText = 0; return; }
+  const { data } = await _sb.from('comics')
+    .select('id,title,description,cover,tags,stars,data,canvas_ratio,created_at,owner_handle')
+    .eq('owner_handle', myHandle)
+    .order('id', { ascending: false });
+  published = data || [];
+  document.getElementById('pub-count').innerText = published.length;
+  document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+}
+
+// ── Stats ─────────────────────────────────────────────────
+function renderStats() {
+  const totalPages = drafts.reduce((a,d) => a+(d.data?.length||0), 0);
+  const draftEl = document.getElementById('draft-stats');
+  if (drafts.length) {
+    draftEl.style.display = 'flex';
+    draftEl.innerHTML = [
+      { v: drafts.length, l: 'Drafts' },
+      { v: totalPages,    l: 'Total Pages' },
+      { v: drafts.reduce((a,d) => Math.max(a, d.data?.length||0), 0), l: 'Longest' },
+    ].map(s => `<div class="stat-item"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+  } else { draftEl.style.display = 'none'; }
+
+  const totalStars = published.reduce((a,c) => a+(c.stars||0), 0);
+  const pubEl = document.getElementById('pub-stats');
+  if (published.length) {
+    pubEl.style.display = 'flex';
+    pubEl.innerHTML = [
+      { v: published.length, l: 'Published' },
+      { v: totalStars,       l: 'Total Stars' },
+      { v: Math.max(...published.map(c=>c.stars||0), 0), l: 'Top Stars' },
+    ].map(s => `<div class="stat-item"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+  } else { pubEl.style.display = 'none'; }
+}
+
+// ── Tab switching ─────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-drafts').classList.toggle('active', tab==='drafts');
+  document.getElementById('tab-published').classList.toggle('active', tab==='published');
+  document.getElementById('drafts-toolbar').style.display = tab==='drafts' ? 'flex' : 'none';
+  document.getElementById('pub-toolbar').style.display = tab==='published' ? 'flex' : 'none';
+  document.getElementById('draft-stats').style.display = (tab==='drafts'&&drafts.length) ? 'flex' : 'none';
+  document.getElementById('pub-stats').style.display = (tab==='published'&&published.length) ? 'flex' : 'none';
+  tab === 'drafts' ? renderDrafts() : renderPublished();
+}
+
+// ── Render drafts ─────────────────────────────────────────
+function renderDrafts() {
+  const q = document.getElementById('draft-search').value.toLowerCase();
+  const sort = document.getElementById('draft-sort').value;
+  let list = drafts.filter(d => !q || d.title?.toLowerCase().includes(q));
+  if (sort === 'newest')   list = [...list].reverse();
+  else if (sort === 'alpha') list = [...list].sort((a,b) => (a.title||'').localeCompare(b.title||''));
+  else if (sort === 'pages') list = [...list].sort((a,b) => (b.data?.length||0)-(a.data?.length||0));
+
+  const container = document.getElementById('list-container');
+  if (!list.length) {
+    container.innerHTML = `<div class="empty">
+      <div class="empty-icon">✏️</div>
+      <div class="empty-title">${q ? 'No drafts found' : 'No drafts yet'}</div>
+      <div class="empty-sub">${q ? 'Try a different search.' : 'Start a comic and save it as a draft — it will appear here.'}</div>
+      ${!q ? `<button class="empty-cta" onclick="openNewSheet()">+ Create Your First Comic</button>` : ''}
+    </div>`;
+    return;
+  }
+  const listEl = document.createElement('div');
+  listEl.className = 'comics-list';
+  list.forEach(d => listEl.appendChild(makeDraftRow(d)));
+  container.innerHTML = '';
+  container.appendChild(listEl);
+}
+
+function makeDraftRow(d) {
+  const row = document.createElement('div');
+  row.className = 'comic-row draft-row';
+  const pages = d.data?.length || 0;
+  const thumbHtml = makeDraftThumb(d.data?.[0], d.ratio);
+
+  row.innerHTML = `
+    <div class="row-thumb">${thumbHtml}</div>
+    <div class="row-info">
+      <div class="row-title">${escHtml(d.title || 'Untitled')}</div>
+      <div class="row-meta">${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}</div>
+      <div class="row-badges">
+        <span class="badge badge-draft">Draft</span>
+        <span class="badge badge-pages">${pages} page${pages!==1?'s':''}</span>
+      </div>
+    </div>
+    <div class="row-menu" onclick="event.stopPropagation();openDraftActions(${d.id},'${escAttr(d.title||'Untitled')}',${pages})">⋯</div>
+  `;
+  row.onclick = () => resumeDraft(d.id);
+  return row;
+}
+
+function makeDraftThumb(frame, ratio) {
+  if (!frame) return `<div class="thumb-bg">📄</div>`;
+  const imgLayer = frame.layers?.find(l => l.type==='img' && l.src);
+  if (imgLayer) return `<img src="${imgLayer.src}" onerror="this.parentNode.innerHTML='<div class=\\'thumb-bg\\'>📄</div>'">`;
+  const bg = frame.background || '#111';
+  const isUrl = typeof bg==='string' && (bg.startsWith('http')||bg.startsWith('data:'));
+  const isGrad = typeof bg==='string' && bg.includes('gradient');
+  const style = isUrl ? `background:url('${bg}') center/cover` : `background:${bg}`;
+  return `<div class="thumb-bg" style="${style};font-size:0;"></div>`;
+}
+
+// ── Render published ──────────────────────────────────────
+function renderPublished() {
+  const q = document.getElementById('pub-search').value.toLowerCase();
+  const sort = document.getElementById('pub-sort').value;
+  let list = published.filter(c => !q || c.title?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q));
+  if (sort === 'stars') list = [...list].sort((a,b) => (b.stars||0)-(a.stars||0));
+  else if (sort === 'alpha') list = [...list].sort((a,b) => (a.title||'').localeCompare(b.title||''));
+
+  const container = document.getElementById('list-container');
+  if (!list.length) {
+    container.innerHTML = `<div class="empty">
+      <div class="empty-icon">🌍</div>
+      <div class="empty-title">${q ? 'No matches' : 'Nothing published yet'}</div>
+      <div class="empty-sub">${q ? 'Try different search terms.' : 'Comics you publish appear here. Fans can discover and star your work.'}</div>
+      ${!q ? `<button class="empty-cta" onclick="openNewSheet()">Create & Publish</button>` : ''}
+    </div>`;
+    return;
+  }
+  const listEl = document.createElement('div');
+  listEl.className = 'comics-list';
+  list.forEach(c => listEl.appendChild(makePublishedRow(c)));
+  container.innerHTML = '';
+  container.appendChild(listEl);
+}
+
+function makePublishedRow(c) {
+  const row = document.createElement('div');
+  row.className = 'comic-row pub-row';
+  const pages = c.data?.length || 0;
+  const stars = c.stars || 0;
+  const thumbHtml = c.cover
+    ? `<img src="${c.cover}" onerror="this.parentNode.innerHTML='<div class=\\'thumb-bg\\'>📖</div>'">`
+    : `<div class="thumb-bg">📖</div>`;
+
+  row.innerHTML = `
+    <div class="row-thumb">${thumbHtml}</div>
+    <div class="row-info">
+      <div class="row-title">${escHtml(c.title || 'Untitled')}</div>
+      <div class="row-meta">⭐ ${stars} star${stars!==1?'s':''} · ${pages} page${pages!==1?'s':''}</div>
+      <div class="row-badges">
+        <span class="badge badge-pub">Live</span>
+      </div>
+    </div>
+    <div class="row-menu" onclick="event.stopPropagation();openPublishedActions('${c.id}','${escAttr(c.title||'Untitled')}')">⋯</div>
+  `;
+  row.onclick = () => readComic(c.id);
+  return row;
+}
+
+// ── Action Sheets ─────────────────────────────────────────
+function openDraftActions(id, title, pages) {
+  document.getElementById('action-sheet-title').innerText = title || 'Untitled';
+  document.getElementById('action-sheet-sub').innerText = `Draft · ${pages} page${pages!==1?'s':''}`;
+  document.getElementById('action-sheet-body').innerHTML = `
+    <div class="sheet-action" onclick="closeActionSheet();resumeDraft(${id})">
+      <span class="sheet-action-icon">✏️</span>
+      <span class="sheet-action-label teal">Resume Editing</span>
+    </div>
+    <div class="sheet-action" onclick="closeActionSheet();openRenameSheet(${id},'${escAttr(title)}')">
+      <span class="sheet-action-icon">📝</span>
+      <span class="sheet-action-label">Rename Draft</span>
+    </div>
+    <div class="sheet-action" onclick="closeActionSheet();askDelete(${id},'draft','${escAttr(title)}')">
+      <span class="sheet-action-icon">🗑</span>
+      <span class="sheet-action-label danger">Delete Draft</span>
+    </div>
+    <div class="sheet-action" onclick="closeActionSheet()">
+      <span class="sheet-action-icon" style="color:#333;">✕</span>
+      <span class="sheet-action-label" style="color:#444;">Cancel</span>
+    </div>
+  `;
+  document.getElementById('action-sheet').classList.add('open');
+}
+
+function openPublishedActions(id, title) {
+  document.getElementById('action-sheet-title').innerText = title || 'Untitled';
+  document.getElementById('action-sheet-sub').innerText = 'Published · Live on Discover';
+  document.getElementById('action-sheet-body').innerHTML = `
+    <div class="sheet-action" onclick="closeActionSheet();readComic('${id}')">
+      <span class="sheet-action-icon">📖</span>
+      <span class="sheet-action-label teal">Read</span>
+    </div>
+    <div class="sheet-action" onclick="closeActionSheet();editPublished('${id}')">
+      <span class="sheet-action-icon">✏️</span>
+      <span class="sheet-action-label">Edit in Editor</span>
+    </div>
+    <div class="sheet-action" onclick="closeActionSheet();askDelete('${id}','published','${escAttr(title)}')">
+      <span class="sheet-action-icon">🗑</span>
+      <span class="sheet-action-label danger">Unpublish & Delete</span>
+    </div>
+    <div class="sheet-action" onclick="closeActionSheet()">
+      <span class="sheet-action-icon" style="color:#333;">✕</span>
+      <span class="sheet-action-label" style="color:#444;">Cancel</span>
+    </div>
+  `;
+  document.getElementById('action-sheet').classList.add('open');
+}
+
+function closeActionSheet() {
+  document.getElementById('action-sheet').classList.remove('open');
+}
+
+// ── Actions ───────────────────────────────────────────────
+function resumeDraft(id) {
+  localStorage.removeItem('edit_comic_id');
+  localStorage.setItem('active_draft_id', String(id));
+  location.href = 'create-mobile.html';
+}
+
+function editPublished(id) {
+  localStorage.removeItem('active_draft_id');
+  localStorage.setItem('edit_comic_id', id);
+  location.href = 'create-mobile.html';
+}
+
+function readComic(id) {
+  location.href = `reader.html?id=${id}`;
+}
+
+// ── Delete ────────────────────────────────────────────────
+function askDelete(id, type, title) {
+  pendingDeleteId = id;
+  pendingDeleteType = type;
+  document.getElementById('del-title').innerText = type === 'draft' ? '🗑 Delete Draft?' : '🗑 Unpublish & Delete?';
+  document.getElementById('del-sub').innerText = `"${title}" will be permanently deleted${type==='published'?' and removed from the Discover feed':' from your device'}. This can't be undone.`;
+  document.getElementById('del-sheet').classList.add('open');
+}
+
+function closeDelSheet() {
+  document.getElementById('del-sheet').classList.remove('open');
+  pendingDeleteId = null;
+}
+
+async function confirmDelete() {
+  closeDelSheet();
+  if (pendingDeleteType === 'draft') {
+    drafts = drafts.filter(d => d.id != pendingDeleteId);
+    localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+    document.getElementById('drafts-count').innerText = drafts.length;
+    document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+    // Also clear active_draft_id if it was this draft
+    if (localStorage.getItem('active_draft_id') == pendingDeleteId) {
+      localStorage.removeItem('active_draft_id');
+    }
+    renderStats(); renderDrafts();
+    toast('🗑 Draft deleted');
+  } else {
+    const { error } = await _sb.from('comics').delete().eq('id', pendingDeleteId);
+    if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
+    published = published.filter(c => c.id != pendingDeleteId);
+    document.getElementById('pub-count').innerText = published.length;
+    document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+    renderStats(); renderPublished();
+    toast('🗑 Comic removed from Discover');
+  }
+}
+
+// ── Rename ────────────────────────────────────────────────
+function openRenameSheet(id, currentTitle) {
+  renameTargetId = id;
+  document.getElementById('rename-inp').value = currentTitle || '';
+  document.getElementById('rename-sheet').classList.add('open');
+  setTimeout(() => document.getElementById('rename-inp').focus(), 150);
+}
+function closeRenameSheet() { document.getElementById('rename-sheet').classList.remove('open'); }
+function confirmRename() {
+  const newTitle = document.getElementById('rename-inp').value.trim();
+  if (!newTitle) return;
+  closeRenameSheet();
+  const idx = drafts.findIndex(d => d.id == renameTargetId);
+  if (idx >= 0) {
+    drafts[idx].title = newTitle;
+    localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+    renderDrafts();
+    toast('✅ Renamed!');
+  }
+}
+
+// ── New Comic ─────────────────────────────────────────────
+function openNewSheet() {
+  document.getElementById('new-sheet').classList.add('open');
+}
+function closeNewSheet() { document.getElementById('new-sheet').classList.remove('open'); }
+
+function buildRatioGrid() {
+  const grid = document.getElementById('ratio-grid');
+  RATIOS.forEach((r, i) => {
+    const opt = document.createElement('div');
+    opt.className = 'ratio-opt' + (i===0?' sel':'');
+    opt.innerHTML = `
+      <div class="ratio-preview" style="width:${r.icon.w}px;height:${r.icon.h}px;"></div>
+      <div class="ratio-name">${r.label}</div>
+      <div class="ratio-dims">${r.dims}</div>
+    `;
+    opt.onclick = () => {
+      document.querySelectorAll('.ratio-opt').forEach(o => o.classList.remove('sel'));
+      opt.classList.add('sel');
+      selectedRatio = r;
+    };
+    grid.appendChild(opt);
+  });
+  selectedRatio = RATIOS[0];
+}
+
+function startNewComic() {
+  closeNewSheet();
+  localStorage.removeItem('active_draft_id');
+  localStorage.removeItem('edit_comic_id');
+  localStorage.removeItem('cc-pending-frames');
+  localStorage.setItem('cc-new-comic-ratio', JSON.stringify({ w: selectedRatio.w, h: selectedRatio.h }));
+  location.href = 'create-mobile.html';
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+function toast(msg, col='var(--green)') {
+  const t = document.createElement('div');
+  t.className = 'toast-el';
+  t.style.background = col; t.style.color = col==='var(--green)' ? '#000' : 'white';
+  t.innerText = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; }, 2000);
+  setTimeout(() => t.remove(), 2500);
+}
+</script>
+</body>
+</html>
