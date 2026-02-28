@@ -107,21 +107,21 @@
         transform-origin: center center;
     }
 
-    /* Drag-to-pan overlay — shown when bg-edit panel is open */
+    /* Drag-to-pan overlay — transparent so bg is fully visible while dragging */
     #bg-drag-overlay {
         position: absolute; inset: 0; z-index: 200;
         cursor: grab; display: none;
-        background: rgba(0,180,255,0.04);
-        border: 2px dashed rgba(0,180,255,0.3);
+        background: transparent;
+        border: 2px dashed rgba(0,180,255,0.45);
         box-sizing: border-box;
     }
     #bg-drag-overlay.dragging { cursor: grabbing; }
     #bg-drag-overlay .drag-hint {
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-        background: rgba(0,0,0,0.65); color: #00b4ff; font-size: 11px;
-        font-weight: 900; padding: 6px 14px; border-radius: 8px;
+        position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.72); color: #00b4ff; font-size: 11px;
+        font-weight: 900; padding: 5px 14px; border-radius: 20px;
         pointer-events: none; letter-spacing: 0.5px; white-space: nowrap;
-        opacity: 0.8;
+        opacity: 0.9; transition: opacity 0.3s;
     }
 
     .layer { position: absolute; cursor: move; user-select: none; transform-origin: center; touch-action: none; z-index: 10; }
@@ -1064,13 +1064,13 @@
     </div>
     <div class="bg-slider-row">
         <span>X Pos</span>
-        <input type="range" id="bg-x" min="-100" max="100" value="0" oninput="applyBgTransform()">
-        <input type="number" class="bg-num-input" id="bg-x-num" min="-100" max="100" value="0" oninput="document.getElementById('bg-x').value=this.value; applyBgTransform()">
+        <input type="range" id="bg-x" min="-50" max="50" value="0" oninput="applyBgTransform()">
+        <input type="number" class="bg-num-input" id="bg-x-num" min="-50" max="50" value="0" oninput="document.getElementById('bg-x').value=this.value; applyBgTransform()">
     </div>
     <div class="bg-slider-row">
         <span>Y Pos</span>
-        <input type="range" id="bg-y" min="-100" max="100" value="0" oninput="applyBgTransform()">
-        <input type="number" class="bg-num-input" id="bg-y-num" min="-100" max="100" value="0" oninput="document.getElementById('bg-y').value=this.value; applyBgTransform()">
+        <input type="range" id="bg-y" min="-50" max="50" value="0" oninput="applyBgTransform()">
+        <input type="number" class="bg-num-input" id="bg-y-num" min="-50" max="50" value="0" oninput="document.getElementById('bg-y').value=this.value; applyBgTransform()">
     </div>
     <div style="font-size:10px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; margin-top:4px;">Filter</div>
     <div class="filter-row" id="filter-row"></div>
@@ -3287,11 +3287,11 @@
         const s = f.bgSettings || {};
         document.getElementById('bg-scale').value  = s.scale  ?? 100;
         document.getElementById('bg-rotate').value = s.rotate ?? 0;
-        document.getElementById('bg-x').value      = s.x      ?? 0;
-        document.getElementById('bg-y').value      = s.y      ?? 0;
+        document.getElementById('bg-x').value      = Math.max(-50, Math.min(50, s.x ?? 0));
+        document.getElementById('bg-y').value      = Math.max(-50, Math.min(50, s.y ?? 0));
         document.getElementById('bg-scale-num').value  = s.scale  ?? 100;
-        document.getElementById('bg-x-num').value      = s.x      ?? 0;
-        document.getElementById('bg-y-num').value      = s.y      ?? 0;
+        document.getElementById('bg-x-num').value      = Math.max(-50, Math.min(50, s.x ?? 0));
+        document.getElementById('bg-y-num').value      = Math.max(-50, Math.min(50, s.y ?? 0));
         document.getElementById('bg-rotate-val').innerText = (s.rotate ?? 0) + '°';
         // Show re-crop only for non-GIF image backgrounds
         const isBgImage = f.background && (f.background.startsWith('http') || f.background.startsWith('data:image'));
@@ -3368,10 +3368,9 @@
             if (!overlay) return;
             let dragging = false, startX = 0, startY = 0, startBgX = 0, startBgY = 0;
 
-            // The X/Y sliders have range -100..100, which maps to ±100% offset from center
-            // Drag sensitivity: how many slider units per pixel dragged
-            // Canvas is 600px wide; slider range is 200 units → 200/600 ≈ 0.33 units/px
-            const SENSITIVITY = 0.25;
+            // The X/Y sliders have range -50..50, which maps to 0-100% bg-position offset from center.
+            // Drag sensitivity: canvas ~600px, slider range 100 units → 100/600 ≈ 0.17 units/px
+            const SENSITIVITY = 0.17;
 
             function getStartVals() {
                 startBgX = parseInt(document.getElementById('bg-x').value) || 0;
@@ -3403,8 +3402,8 @@
 
             function onMove(dx, dy) {
                 if (!dragging) return;
-                const newX = clamp(Math.round(startBgX + dx * SENSITIVITY), -100, 100);
-                const newY = clamp(Math.round(startBgY + dy * SENSITIVITY), -100, 100);
+                const newX = clamp(Math.round(startBgX + dx * SENSITIVITY), -50, 50);
+                const newY = clamp(Math.round(startBgY + dy * SENSITIVITY), -50, 50);
                 document.getElementById('bg-x').value       = newX;
                 document.getElementById('bg-x-num').value   = newX;
                 document.getElementById('bg-y').value       = newY;
