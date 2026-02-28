@@ -652,8 +652,20 @@
             delBtn.innerText = 'DELETE ASSET PACK';
             delBtn.onclick = async () => {
                 if (!confirm("Delete this pack?")) return;
-                await _supabase.from('sprites_library').delete().eq('id', item.id);
+                delBtn.disabled = true;
+                delBtn.innerText = 'DELETING...';
+                const { error } = await _supabase.from('sprites_library').delete().eq('id', item.id);
+                if (error) {
+                    alert('Delete failed: ' + error.message);
+                    delBtn.disabled = false;
+                    delBtn.innerText = 'DELETE ASSET PACK';
+                    return;
+                }
+                // Clear ALL caches for this item so it doesn't reappear on reload
                 localStorage.removeItem(META_CACHE_KEY);
+                localStorage.removeItem('sb-full-' + item.id);
+                sessionStorage.removeItem('cc_simg_' + item.id);
+                fullDataCache.delete(item.id);
                 location.reload();
             };
             adminContainer.appendChild(delBtn);
