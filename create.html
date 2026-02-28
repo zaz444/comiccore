@@ -1786,6 +1786,15 @@
         if(!activeLayer) return;
         saveState();
         activeLayer.w = 250; activeLayer.rotation = 0; activeLayer.flipped = false;
+        // Recompute h from natural image ratio on reset
+        const resetProbe = new Image();
+        resetProbe.onload = () => {
+            if (resetProbe.naturalWidth && resetProbe.naturalHeight) {
+                activeLayer.h = Math.round(250 * resetProbe.naturalHeight / resetProbe.naturalWidth);
+                render();
+            }
+        };
+        resetProbe.src = activeLayer.src;
         render();
     }
 
@@ -1870,16 +1879,30 @@
     }
 
     function handleActionSelect(img, pack, isEditing) {
-        if(isEditing) { saveState(); activeLayer.src = img; }
-        else addSpriteToCanvas(img, pack);
+        if (isEditing) {
+            saveState();
+            activeLayer.src = img;
+            // w and h are intentionally NOT touched — user's current size is preserved
+        } else {
+            addSpriteToCanvas(img, pack);
+        }
         closeActionModal(); render();
     }
 
     function addSpriteToCanvas(src, pack) {
         saveState();
-        const nl = { type: 'img', src, w: 200, x: 100, y: 100, rotation: 0, flipped: false, packData: pack, id: Date.now() };
+        const nl = { type: 'img', src, w: 200, h: 200, x: 100, y: 100, rotation: 0, flipped: false, packData: pack, id: Date.now() };
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
+        // Compute real h from natural ratio of the first image and lock it in
+        const probe = new Image();
+        probe.onload = () => {
+            if (probe.naturalWidth && probe.naturalHeight) {
+                nl.h = Math.round(200 * probe.naturalHeight / probe.naturalWidth);
+                render();
+            }
+        };
+        probe.src = src;
     }
 
     function editCurrentSpriteAction() { if (activeLayer?.packData) openActionModal(activeLayer.packData, true); }
@@ -2000,7 +2023,7 @@
                     img.src = l.src;
                     const draw = () => {
                         onionCtx.save();
-                        const h = l.w * (img.naturalHeight / img.naturalWidth);
+                        const h = (l.h != null) ? l.h : l.w * (img.naturalHeight / img.naturalWidth);
                         onionCtx.translate(l.x + l.w/2, l.y + h/2);
                         onionCtx.rotate((l.rotation || 0) * Math.PI / 180);
                         if(l.flipped) onionCtx.scale(-1, 1);
@@ -2087,7 +2110,8 @@
             // Multi-select highlight
             const isMultiSel = selectedLayers.some(s => s.id === l.id);
             el.className = 'layer' + (activeLayer && activeLayer.id === l.id ? ' active' : '') + (isMultiSel ? ' layer-item-sel' : '');
-            Object.assign(el.style, { width: l.w + 'px', left: l.x + 'px', top: l.y + 'px', transform: `rotate(${l.rotation || 0}deg) scaleX(${l.flipped ? -1 : 1})` });
+            const layerHeightPx = (l.type === 'img' && l.h != null) ? l.h + 'px' : '';
+            Object.assign(el.style, { width: l.w + 'px', height: layerHeightPx, left: l.x + 'px', top: l.y + 'px', transform: `rotate(${l.rotation || 0}deg) scaleX(${l.flipped ? -1 : 1})` });
             // Locked layer: show dim overlay and lock badge
             if (l.locked) {
                 el.style.opacity = (l.opacity != null ? l.opacity / 100 : 1) * 0.6 + '';
@@ -2717,15 +2741,28 @@
         if(activeLayer) { activeLayer.rotation = this.value; render(); }
         const n = document.getElementById('rotate-num'); if(n) n.value = this.value;
     };
-    document.getElementById('size-slider').oninput = function() { 
-        if(activeLayer) { activeLayer.w = this.value; render(); }
+    document.getElementById('size-slider').oninput = function() {
+        if (activeLayer) {
+            const newW = parseInt(this.value);
+            if (activeLayer.h != null && activeLayer.w) {
+                activeLayer.h = Math.round(activeLayer.h * newW / activeLayer.w);
+            }
+            activeLayer.w = newW;
+            render();
+        }
         const n = document.getElementById('size-num'); if(n) n.value = this.value;
     };
     // Number input → slider sync
     document.getElementById('size-num').oninput = function() {
         const v = Math.min(1000, Math.max(20, parseInt(this.value) || 20));
         document.getElementById('size-slider').value = v;
-        if(activeLayer) { activeLayer.w = v; render(); }
+        if (activeLayer) {
+            if (activeLayer.h != null && activeLayer.w) {
+                activeLayer.h = Math.round(activeLayer.h * v / activeLayer.w);
+            }
+            activeLayer.w = v;
+            render();
+        }
     };
     document.getElementById('rotate-num').oninput = function() {
         const v = Math.min(360, Math.max(0, parseInt(this.value) || 0));
@@ -3020,7 +3057,7 @@
                     const img = new Image();
                     img.crossOrigin = 'anonymous';
                     img.onload = () => {
-                        const h = l.w * (img.naturalHeight / img.naturalWidth) * scaleY;
+                        const h = ((l.h != null) ? l.h : l.w * (img.naturalHeight / img.naturalWidth)) * scaleY;
                         const w = l.w * scaleX;
                         ctx.save();
                         ctx.translate((l.x * scaleX) + w/2, (l.y * scaleY) + h/2);

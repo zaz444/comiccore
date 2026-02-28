@@ -1284,7 +1284,7 @@ function render() {
         prevFrame.layers.forEach(l => {
             if (l.type === 'img') {
                 const img = new Image(); img.src = l.src;
-                const draw = () => { onionCtx.save(); const h = l.w * (img.naturalHeight / img.naturalWidth); onionCtx.translate(l.x+l.w/2,l.y+h/2); onionCtx.rotate((l.rotation||0)*Math.PI/180); if(l.flipped)onionCtx.scale(-1,1); onionCtx.drawImage(img,-l.w/2,-h/2,l.w,h); onionCtx.restore(); };
+                const draw = () => { onionCtx.save(); const h = (l.h != null) ? l.h : l.w * (img.naturalHeight / img.naturalWidth); onionCtx.translate(l.x+l.w/2,l.y+h/2); onionCtx.rotate((l.rotation||0)*Math.PI/180); if(l.flipped)onionCtx.scale(-1,1); onionCtx.drawImage(img,-l.w/2,-h/2,l.w,h); onionCtx.restore(); };
                 if (img.complete) draw(); else img.onload = draw;
             }
         });
@@ -1402,11 +1402,13 @@ function render() {
                         const dy = isTop  ? -rawDy : rawDy;
                         const delta = (dx + dy) / 2;
                         const newW = Math.max(20, Math.round(origW + delta));
+                        if (layer.h != null && layer.w) layer.h = Math.round(layer.h * newW / layer.w);
                         layer.w = newW;
                         if (isLeft) layer.x = origX + (origW - newW);
                         // Direct DOM update — instant feedback without full re-render
                         if (el) {
                             el.style.width = newW + 'px';
+                            if (layer.h != null) el.style.height = layer.h + 'px';
                             // Also resize the img inside so it visually matches the handle drag
                             const imgEl = el.querySelector('img');
                             if (imgEl) imgEl.style.width = newW + 'px';
@@ -1520,7 +1522,9 @@ function startTouchPinchResize(e, layer) {
         const a = mv.touches[0], b = mv.touches[1];
         const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
         const scale = dist / startDist;
-        layer.w = Math.max(30, Math.round(origW * scale));
+        const newPinchW = Math.max(30, Math.round(origW * scale));
+        if (layer.h != null && layer.w) layer.h = Math.round(layer.h * newPinchW / layer.w);
+        layer.w = newPinchW;
         // Sync transform sheet slider if open
         const sl = document.getElementById('size-slider');
         if (sl) { sl.value = layer.w; const sn = document.getElementById('size-num'); if (sn) sn.value = layer.w; }
@@ -1647,7 +1651,22 @@ function renderMobLayers() {
 
 function deleteLayer() { if (!activeLayer) return; saveState(); const f = frames[currentIdx]; f.layers = f.layers.filter(l => l !== activeLayer); activeLayer = null; closeTransformSheet(); render(); renderMobLayers(); }
 function flipHorizontal() { if (!activeLayer) return; saveState(); activeLayer.flipped = !activeLayer.flipped; render(); }
-function resetTransform() { if (!activeLayer) return; saveState(); activeLayer.w = 200; activeLayer.rotation = 0; activeLayer.flipped = false; syncTransformSheet(); render(); }
+function resetTransform() {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.w = 200; activeLayer.rotation = 0; activeLayer.flipped = false;
+    if (activeLayer.type === 'img') {
+        const resetProbe = new Image();
+        resetProbe.onload = () => {
+            if (resetProbe.naturalWidth && resetProbe.naturalHeight) {
+                activeLayer.h = Math.round(200 * resetProbe.naturalHeight / resetProbe.naturalWidth);
+                render();
+            }
+        };
+        resetProbe.src = activeLayer.src;
+    }
+    syncTransformSheet(); render();
+}
 function moveLayerZ(dir) { if (!activeLayer) return; saveState(); const layers = frames[currentIdx].layers; const idx = layers.findIndex(l => l.id === activeLayer.id); if (dir > 0 && idx < layers.length - 1) [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]]; else if (dir < 0 && idx > 0) [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]]; render(); }
 
 function sbCopyLayer() { if (activeLayer) { window._layerClipboard = JSON.parse(JSON.stringify(activeLayer)); } }
@@ -1661,6 +1680,9 @@ function applyTransform() {
     if (!activeLayer) return;
     const w = parseInt(document.getElementById('size-slider').value);
     const r = parseInt(document.getElementById('rotate-slider').value);
+    if (activeLayer.h != null && activeLayer.w && activeLayer.w !== w) {
+        activeLayer.h = Math.round(activeLayer.h * w / activeLayer.w);
+    }
     activeLayer.w = w; activeLayer.rotation = r;
     render();
 }
@@ -1782,11 +1804,8 @@ function createActionOption(src, name) {
 function handleActionSelect(img, pack, isEditing) {
     if (isEditing && activeLayer) {
         saveState();
-        // Preserve all transform so sprite stays same size/position/rotation
-        const { w, rotation, x, y, flipped } = activeLayer;
         activeLayer.src = img;
-        activeLayer.w = w; activeLayer.rotation = rotation;
-        activeLayer.x = x; activeLayer.y = y; activeLayer.flipped = flipped;
+        // w and h are intentionally NOT touched — user's current size is preserved
     } else {
         addSpriteToCanvas(img, pack);
     }
@@ -1796,9 +1815,19 @@ function addSpriteToCanvas(src, pack) {
     saveState();
     const cw = canvas.offsetWidth || 300;
     const ch = canvas.offsetHeight || 300;
-    const nl = { type: 'img', src, w: Math.round(cw * 0.4), x: Math.round(cw * 0.3), y: Math.round(ch * 0.3), rotation: 0, flipped: false, packData: pack, id: Date.now() };
+    const initW = Math.round(cw * 0.4);
+    const nl = { type: 'img', src, w: initW, h: initW, x: Math.round(cw * 0.3), y: Math.round(ch * 0.3), rotation: 0, flipped: false, packData: pack, id: Date.now() };
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
+    // Compute real h from natural ratio and lock it in
+    const probe = new Image();
+    probe.onload = () => {
+        if (probe.naturalWidth && probe.naturalHeight) {
+            nl.h = Math.round(initW * probe.naturalHeight / probe.naturalWidth);
+            render();
+        }
+    };
+    probe.src = src;
 }
 
 // ── TEXT / BUBBLES ──
@@ -2225,7 +2254,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     var img = new Image(); img.crossOrigin = 'anonymous'; img.src = lyr.src;
                     var draw = function() {
                         var iw = img.naturalWidth||1, ih = img.naturalHeight||1;
-                        var lw = lyr.w||100, lh = lw*(ih/iw);
+                        var lw = lyr.w||100, lh = (lyr.h != null) ? lyr.h : lw*(ih/iw);
                         var cx = (lyr.x||0)+lw/2, cy = (lyr.y||0)+lh/2;
                         ctx.save();
                         ctx.globalAlpha = lyr.fxOpacity != null ? lyr.fxOpacity/100 : 1;
