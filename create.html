@@ -1052,6 +1052,7 @@
         <span style="cursor:pointer; color:#555;" onclick="closeBgPanel()">✕</span>
     </div>
     <button id="bg-recrop-btn" onclick="openBgRecrop()">✂️ Re-crop / Edit Crop</button>
+    <button id="bg-move-btn" onclick="openMoveBgModal()" style="padding:9px 12px; background:#0a1520; border:1.5px solid rgba(0,210,255,0.4); color:var(--teal); border-radius:10px; font-weight:900; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:7px; letter-spacing:0.5px;">✋ Move Background</button>
     <div class="bg-slider-row">
         <span>Scale</span>
         <input type="range" id="bg-scale" min="50" max="300" value="100" oninput="applyBgTransform()">
@@ -4587,6 +4588,188 @@
         <button onclick="closeExportModal()" style="width:100%; margin-top:12px; padding:12px; background:#222; color:#aaa; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
     </div>
 </div>
+
+
+<!-- ── Move BG Modal ── -->
+<div id="move-bg-modal" style="display:none;">
+    <div id="move-bg-modal-header">
+        <h3>✋ MOVE BACKGROUND</h3>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <button id="move-bg-reset" onclick="resetMoveBg()">Reset</button>
+            <button id="move-bg-done" onclick="closeMoveBgModal()">Done ✓</button>
+            <button id="move-bg-modal-close" onclick="closeMoveBgModal()">✕</button>
+        </div>
+    </div>
+    <div id="move-bg-viewport">
+        <div id="move-bg-frame">
+            <div id="move-bg-frame-inner"></div>
+            <div id="move-bg-hint">✋ Drag to pan • or use inputs below</div>
+        </div>
+    </div>
+    <div id="move-bg-controls">
+        <div class="move-bg-row">
+            <label>X</label>
+            <input type="range" id="mbg-x-range" min="-50" max="50" value="0" oninput="onMoveBgInput('x', this.value)">
+            <input type="number" class="move-bg-num" id="mbg-x-num" min="-50" max="50" value="0" oninput="onMoveBgInput('x', this.value)">
+        </div>
+        <div class="move-bg-row">
+            <label>Y</label>
+            <input type="range" id="mbg-y-range" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
+            <input type="number" class="move-bg-num" id="mbg-y-num" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
+        </div>
+    </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// MOVE BG MODAL
+// ══════════════════════════════════════
+(function() {
+    let mbgX = 0, mbgY = 0;
+    let dragging = false, startMX = 0, startMY = 0, startBX = 0, startBY = 0;
+    const SENS = 0.25; // units per pixel — higher = faster pan
+
+    function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, Math.round(v))); }
+
+    function syncMoveBgFrame() {
+        const el = document.getElementById('move-bg-frame-inner');
+        if (!el) return;
+        el.style.backgroundPosition = (50 + mbgX) + '% ' + (50 + mbgY) + '%';
+        // sync range + number inputs
+        document.getElementById('mbg-x-range').value = mbgX;
+        document.getElementById('mbg-x-num').value   = mbgX;
+        document.getElementById('mbg-y-range').value = mbgY;
+        document.getElementById('mbg-y-num').value   = mbgY;
+    }
+
+    function commitMoveBg() {
+        // Write back into the real bg-x/bg-y and call applyBgTransform
+        document.getElementById('bg-x').value     = mbgX;
+        document.getElementById('bg-x-num').value = mbgX;
+        document.getElementById('bg-y').value     = mbgY;
+        document.getElementById('bg-y-num').value = mbgY;
+        applyBgTransform();
+    }
+
+    window.openMoveBgModal = function() {
+        const f = frames[currentIdx];
+        if (!f || !f.background || f.background === '#ffffff') {
+            alert('Add a background image first!'); return;
+        }
+        // Hide bg panel while modal is open
+        document.getElementById('bg-edit-panel').style.display = 'none';
+        document.getElementById('bg-drag-overlay').style.display = 'none';
+        const s = f.bgSettings || {};
+        mbgX = s.x ?? 0;
+        mbgY = s.y ?? 0;
+
+        // Mirror bg into the preview frame
+        const inner = document.getElementById('move-bg-frame-inner');
+        const scale = s.scale ?? 100;
+        const rotate = s.rotate ?? 0;
+        inner.style.backgroundImage = '';
+        inner.style.background = '';
+        inner.style.transform = `scale(${scale/100}) rotate(${rotate}deg)`;
+        inner.style.transformOrigin = 'center center';
+
+        if (f.background.startsWith('data:') || f.background.startsWith('http') || f.background.startsWith('blob:')) {
+            inner.style.backgroundImage = `url('${f.background}')`;
+            inner.style.backgroundSize = 'cover';
+            inner.style.backgroundRepeat = 'no-repeat';
+        } else {
+            inner.style.background = f.background;
+            inner.style.backgroundSize = 'cover';
+        }
+
+        syncMoveBgFrame();
+
+        const hint = document.getElementById('move-bg-hint');
+        hint.style.opacity = '1';
+        setTimeout(() => { hint.style.opacity = '0'; }, 2500);
+
+        const modal = document.getElementById('move-bg-modal');
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    };
+
+    window.closeMoveBgModal = function() {
+        commitMoveBg();
+        const modal = document.getElementById('move-bg-modal');
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+        // Re-open the bg panel so user can continue editing
+        openBgPanel();
+    };
+
+    window.resetMoveBg = function() {
+        mbgX = 0; mbgY = 0;
+        syncMoveBgFrame();
+        commitMoveBg();
+    };
+
+    window.onMoveBgInput = function(axis, val) {
+        const v = clamp(parseFloat(val) || 0, -50, 50);
+        if (axis === 'x') mbgX = v; else mbgY = v;
+        syncMoveBgFrame();
+        commitMoveBg();
+    };
+
+    // ── Drag to pan ──
+    document.addEventListener('DOMContentLoaded', function() {
+        const frame = document.getElementById('move-bg-frame');
+        if (!frame) return;
+
+        frame.addEventListener('mousedown', function(e) {
+            if (e.button !== 0) return;
+            dragging = true;
+            startMX = e.clientX; startMY = e.clientY;
+            startBX = mbgX; startBY = mbgY;
+            frame.classList.add('dragging');
+            e.preventDefault();
+        });
+
+        frame.addEventListener('touchstart', function(e) {
+            dragging = true;
+            startMX = e.touches[0].clientX; startMY = e.touches[0].clientY;
+            startBX = mbgX; startBY = mbgY;
+            frame.classList.add('dragging');
+            e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            mbgX = clamp(startBX + (e.clientX - startMX) * SENS, -50, 50);
+            mbgY = clamp(startBY + (e.clientY - startMY) * SENS, -50, 50);
+            syncMoveBgFrame();
+            commitMoveBg();
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!dragging) return;
+            mbgX = clamp(startBX + (e.touches[0].clientX - startMX) * SENS, -50, 50);
+            mbgY = clamp(startBY + (e.touches[0].clientY - startMY) * SENS, -50, 50);
+            syncMoveBgFrame();
+            commitMoveBg();
+        }, { passive: true });
+
+        function endDrag() {
+            if (!dragging) return;
+            dragging = false;
+            frame.classList.remove('dragging');
+        }
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+
+        // Escape key closes modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('move-bg-modal');
+                if (modal.classList.contains('open')) closeMoveBgModal();
+            }
+        });
+    });
+})();
+</script>
 
 </body>
 </html>

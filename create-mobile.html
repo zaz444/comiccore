@@ -533,6 +533,65 @@
         cursor: pointer; font-family: inherit; transition: background 0.15s;
     }
     .draft-new:active { background: rgba(255,255,255,0.12); }
+
+    /* ── Move BG Modal ── */
+    #move-bg-modal {
+        position: fixed; inset: 0; z-index: 9000;
+        background: rgba(0,0,0,0.97);
+        display: none; flex-direction: column;
+        align-items: center; justify-content: flex-start;
+        padding-top: env(safe-area-inset-top, 0px);
+    }
+    #move-bg-modal.open { display: flex; }
+    #move-bg-modal-header {
+        width: 100%; display: flex; justify-content: space-between; align-items: center;
+        padding: 14px 16px; box-sizing: border-box; border-bottom: 1px solid #222;
+    }
+    #move-bg-modal-header h3 { margin: 0; font-size: 13px; font-weight: 900; color: var(--teal); letter-spacing: 1.5px; }
+    #move-bg-frame {
+        width: calc(100vw - 32px); aspect-ratio: 1; max-height: 55vw;
+        max-width: 55vh;
+        margin: 20px auto; position: relative; overflow: hidden;
+        border: 2px solid #333; border-radius: 8px;
+        cursor: grab; user-select: none; touch-action: none;
+        box-shadow: 0 0 30px rgba(0,180,255,0.15);
+    }
+    #move-bg-frame.dragging { cursor: grabbing; }
+    #move-bg-frame-inner {
+        position: absolute; inset: 0; background-size: cover;
+        background-repeat: no-repeat; pointer-events: none;
+    }
+    #move-bg-hint {
+        position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.8); color: #00b4ff; font-size: 11px; font-weight: 900;
+        padding: 5px 12px; border-radius: 20px; pointer-events: none;
+        white-space: nowrap; transition: opacity 0.4s;
+    }
+    #move-bg-controls {
+        width: 100%; padding: 0 16px 20px; box-sizing: border-box;
+        display: flex; flex-direction: column; gap: 12px;
+    }
+    .move-bg-row {
+        display: flex; align-items: center; gap: 10px;
+    }
+    .move-bg-row label { font-size: 11px; font-weight: 900; color: #666; text-transform: uppercase; width: 14px; flex-shrink: 0; }
+    .move-bg-row input[type=range] { flex: 1; accent-color: var(--teal); }
+    .move-bg-num {
+        width: 56px; padding: 8px; background: #111; border: 1px solid #333;
+        color: white; border-radius: 8px; font-size: 14px; font-weight: 800;
+        text-align: center; font-family: inherit;
+    }
+    #move-bg-done {
+        padding: 14px; background: var(--teal); color: #000;
+        border: none; border-radius: 12px; font-weight: 900; font-size: 14px;
+        cursor: pointer; width: 100%; margin-top: 4px;
+    }
+    #move-bg-reset-mob {
+        padding: 12px; background: #222; color: #aaa;
+        border: 1px solid #333; border-radius: 12px; font-weight: 700; font-size: 13px;
+        cursor: pointer; width: 100%;
+    }
+
 </style>
 </head>
 <body>
@@ -777,6 +836,7 @@
         <div class="filter-row" id="mob-bg-filter-row"></div>
         <button onclick="resetBgSettings();closeSheet('bg')" style="width:100%;padding:11px;background:#222;border:1px solid #333;color:#aaa;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;">Reset Background</button>
         <button id="mob-bg-drag-btn" onclick="toggleMobBgDrag()" style="width:100%;padding:11px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:12px;">✋ Drag Canvas to Pan</button>
+        <button onclick="openMoveBgModal();closeSheet('bg')" style="width:100%;padding:13px;background:#0a1520;border:1.5px solid rgba(0,210,255,0.45);color:var(--teal);border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:13px;letter-spacing:0.5px;">🎯 Move Background</button>
     </div>
 </div>
 
@@ -2647,6 +2707,179 @@ document.addEventListener('gesturechange', function(e) {
         </div>
     </div>
 </div>
+
+
+<!-- ── Move BG Modal (Mobile) ── -->
+<div id="move-bg-modal" style="display:none;">
+    <div id="move-bg-modal-header">
+        <h3>✋ MOVE BACKGROUND</h3>
+        <button onclick="closeMoveBgModal()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <div id="move-bg-frame">
+        <div id="move-bg-frame-inner"></div>
+        <div id="move-bg-hint">✋ Drag to pan background</div>
+    </div>
+    <div id="move-bg-controls">
+        <div class="move-bg-row">
+            <label>X</label>
+            <input type="range" id="mbg-x-range" min="-50" max="50" value="0" oninput="onMoveBgInput('x', this.value)">
+            <input type="number" class="move-bg-num" id="mbg-x-num" min="-50" max="50" value="0" oninput="onMoveBgInput('x', this.value)">
+        </div>
+        <div class="move-bg-row">
+            <label>Y</label>
+            <input type="range" id="mbg-y-range" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
+            <input type="number" class="move-bg-num" id="mbg-y-num" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
+        </div>
+        <button id="move-bg-reset-mob" onclick="resetMoveBg()">Reset Position</button>
+        <button id="move-bg-done" onclick="closeMoveBgModal()">Done ✓</button>
+    </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// MOVE BG MODAL (shared desktop+mobile)
+// ══════════════════════════════════════
+(function() {
+    let mbgX = 0, mbgY = 0;
+    let dragging = false, startMX = 0, startMY = 0, startBX = 0, startBY = 0;
+    const SENS = 0.30;
+
+    function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, Math.round(v))); }
+
+    function syncMoveBgFrame() {
+        const el = document.getElementById('move-bg-frame-inner');
+        if (!el) return;
+        el.style.backgroundPosition = (50 + mbgX) + '% ' + (50 + mbgY) + '%';
+        document.getElementById('mbg-x-range').value = mbgX;
+        document.getElementById('mbg-x-num').value   = mbgX;
+        document.getElementById('mbg-y-range').value = mbgY;
+        document.getElementById('mbg-y-num').value   = mbgY;
+    }
+
+    function commitMoveBg() {
+        // Write into mob sliders and call updateMobBg
+        document.getElementById('mob-bg-x').value    = mbgX;
+        document.getElementById('mob-bg-x-v').innerText = mbgX;
+        document.getElementById('mob-bg-y').value    = mbgY;
+        document.getElementById('mob-bg-y-v').innerText = mbgY;
+        updateMobBg();
+    }
+
+    window.openMoveBgModal = function() {
+        const f = frames[currentIdx];
+        if (!f || !f.background || f.background === '#ffffff') {
+            alert('Add a background image first!'); return;
+        }
+        // Close all sheets first
+        document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('open'));
+        const s = f.bgSettings || {};
+        mbgX = s.x ?? 0;
+        mbgY = s.y ?? 0;
+
+        const inner = document.getElementById('move-bg-frame-inner');
+        const scale = s.scale ?? 100;
+        const rotate = s.rotate ?? 0;
+        inner.style.transform = `scale(${scale/100}) rotate(${rotate}deg)`;
+        inner.style.transformOrigin = 'center center';
+        inner.style.background = '';
+        inner.style.backgroundImage = '';
+
+        if (f.background.startsWith('data:') || f.background.startsWith('http') || f.background.startsWith('blob:')) {
+            inner.style.backgroundImage = `url('${f.background}')`;
+            inner.style.backgroundSize = 'cover';
+            inner.style.backgroundRepeat = 'no-repeat';
+        } else {
+            inner.style.background = f.background;
+            inner.style.backgroundSize = 'cover';
+        }
+
+        syncMoveBgFrame();
+        const hint = document.getElementById('move-bg-hint');
+        hint.style.opacity = '1';
+        setTimeout(() => { hint.style.opacity = '0'; }, 2500);
+        const modal = document.getElementById('move-bg-modal');
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    };
+
+    window.closeMoveBgModal = function() {
+        commitMoveBg();
+        const modal = document.getElementById('move-bg-modal');
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+        // Return user to the bg sheet
+        openSheet('bg');
+    };
+
+    window.resetMoveBg = function() {
+        mbgX = 0; mbgY = 0;
+        syncMoveBgFrame();
+        commitMoveBg();
+    };
+
+    window.onMoveBgInput = function(axis, val) {
+        const v = clamp(parseFloat(val) || 0, -50, 50);
+        if (axis === 'x') mbgX = v; else mbgY = v;
+        syncMoveBgFrame();
+        commitMoveBg();
+    };
+
+    // Drag to pan
+    document.addEventListener('DOMContentLoaded', function() {
+        const frame = document.getElementById('move-bg-frame');
+        if (!frame) return;
+
+        frame.addEventListener('mousedown', function(e) {
+            if (e.button !== 0) return;
+            dragging = true;
+            startMX = e.clientX; startMY = e.clientY;
+            startBX = mbgX; startBY = mbgY;
+            frame.classList.add('dragging');
+            e.preventDefault();
+        });
+
+        frame.addEventListener('touchstart', function(e) {
+            dragging = true;
+            startMX = e.touches[0].clientX; startMY = e.touches[0].clientY;
+            startBX = mbgX; startBY = mbgY;
+            frame.classList.add('dragging');
+            e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            mbgX = clamp(startBX + (e.clientX - startMX) * SENS, -50, 50);
+            mbgY = clamp(startBY + (e.clientY - startMY) * SENS, -50, 50);
+            syncMoveBgFrame();
+            commitMoveBg();
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!dragging) return;
+            mbgX = clamp(startBX + (e.touches[0].clientX - startMX) * SENS, -50, 50);
+            mbgY = clamp(startBY + (e.touches[0].clientY - startMY) * SENS, -50, 50);
+            syncMoveBgFrame();
+            commitMoveBg();
+        }, { passive: true });
+
+        function endDrag() {
+            if (!dragging) return;
+            dragging = false;
+            frame.classList.remove('dragging');
+        }
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+
+        // Escape key closes modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('move-bg-modal');
+                if (modal.classList.contains('open')) closeMoveBgModal();
+            }
+        });
+    });
+})();
+</script>
 
 </body>
 </html>
