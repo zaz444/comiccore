@@ -397,10 +397,21 @@
 
     function applyImageToCard(card, src) {
         const skeleton = card.querySelector('.sprite-skeleton');
-        if (!skeleton) return;
-        const img = document.createElement('img');
-        img.onload = () => { skeleton.replaceWith(img); img.classList.add('loaded'); };
-        img.src = src;
+        if (skeleton) {
+            const img = document.createElement('img');
+            img.onload = () => { skeleton.replaceWith(img); img.classList.add('loaded'); };
+            img.src = src;
+        } else {
+            // Card may already have an img (from cache hit on initial render)
+            let img = card.querySelector('img');
+            if (!img) {
+                img = document.createElement('img');
+                const label = card.querySelector('.sprite-card-label');
+                label ? card.insertBefore(img, label) : card.appendChild(img);
+            }
+            img.onload = () => img.classList.add('loaded');
+            img.src = src;
+        }
     }
 
     const fullDataCache = new Map();
