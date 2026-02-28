@@ -2207,18 +2207,42 @@
     };
 
     document.getElementById('apply-crop-btn').onclick = () => {
-        const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
-        if(currentImportType === 'cover') {
+        if (currentImportType === 'cover') {
+            const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
             finalCoverBase64 = b64;
             const img = document.getElementById('final-cover-img');
             img.src = b64; img.style.display = 'block';
             document.getElementById('cover-label').style.display = 'none';
-        } else {
+            closeCrop(); render();
+        } else if (currentImportType === 'bg') {
+            // Store FULL original image — no rasterization.
+            // Translate the crop selection into bgSettings so the visible area
+            // matches what the user selected, while still allowing panning beyond it.
+            const cropData   = cropper.getData(true); // { x, y, width, height } in natural px
+            const imgData    = cropper.getImageData(); // { naturalWidth, naturalHeight }
+            const naturalW   = imgData.naturalWidth;
+            const naturalH   = imgData.naturalHeight;
+            // Center of crop box as % of full image (0-100)
+            const cropCX     = (cropData.x + cropData.width  / 2) / naturalW * 100;
+            const cropCY     = (cropData.y + cropData.height / 2) / naturalH * 100;
+            // Convert to bgSettings x/y (0 = center, -50 = left/top, +50 = right/bottom)
+            const bgX        = Math.round(Math.max(-50, Math.min(50, cropCX - 50)));
+            const bgY        = Math.round(Math.max(-50, Math.min(50, cropCY - 50)));
+            // Scale: how much of the image width the crop box takes up
+            const bgScale    = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
             saveState();
-            if(currentImportType === 'bg') frames[currentIdx].background = b64;
-            else frames[currentIdx].layers.push({ type: 'img', src: b64, w: 200, x: 50, y: 50, rotation: 0, flipped: false, id: Date.now() });
+            frames[currentIdx].background = pendingBgImageSrc || frames[currentIdx].background;
+            frames[currentIdx].bgSettings = {
+                scale: bgScale, rotate: 0, x: bgX, y: bgY,
+                filter: frames[currentIdx].bgSettings?.filter || 'none'
+            };
+            closeCrop(); render();
+        } else {
+            const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
+            saveState();
+            frames[currentIdx].layers.push({ type: 'img', src: b64, w: 200, x: 50, y: 50, rotation: 0, flipped: false, id: Date.now() });
+            closeCrop(); render();
         }
-        closeCrop(); render();
     };
 
     function toggleMenu(id) {
@@ -2453,30 +2477,13 @@
         document.getElementById('bg-import-choice-modal').style.display = 'none';
         const src = pendingBgImageSrc;
         pendingBgImageSrc = null;
-        const img = new Image();
-        img.onload = () => {
-            const targetRatio = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
-            const imgRatio = img.width / img.height;
-            let sx, sy, sw, sh;
-            if (imgRatio > targetRatio) {
-                sh = img.height; sw = img.height * targetRatio;
-                sy = 0; sx = (img.width - sw) / 2;
-            } else {
-                sw = img.width; sh = img.width / targetRatio;
-                sx = 0; sy = (img.height - sh) / 2;
-            }
-            const offscreen = document.createElement('canvas');
-            offscreen.width  = 1200;
-            offscreen.height = Math.round(1200 / targetRatio);
-            const ctx = offscreen.getContext('2d');
-            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, offscreen.width, offscreen.height);
-            const b64 = offscreen.toDataURL('image/jpeg', 0.9);
-            saveState();
-            frames[currentIdx].background = b64;
-            render();
-        };
-        img.crossOrigin = 'anonymous';
-        img.src = src;
+        if (!src) return;
+        // Store the ORIGINAL full image — no rasterization — so Move Background can pan freely
+        saveState();
+        frames[currentIdx].background = src;
+        // Reset bgSettings so image is centered/fitted by default
+        frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
+        render();
     }
     function toggleDrawer() { document.getElementById('frame-drawer').classList.toggle('open'); }
 
@@ -4603,7 +4610,10 @@
     <div id="move-bg-viewport">
         <div id="move-bg-frame">
             <div id="move-bg-frame-inner"></div>
-            <div id="move-bg-hint">✋ Drag to pan • or use inputs below</div>
+            <div id="move-bg-hint">✋ Drag to pan background</div>
+        </div>
+        <div id="move-bg-instructions" style="font-size:11px;color:#555;font-weight:700;text-align:center;margin-top:10px;letter-spacing:0.3px;">
+            Drag the preview above — or use the sliders below
         </div>
     </div>
     <div id="move-bg-controls">
@@ -4616,6 +4626,11 @@
             <label>Y</label>
             <input type="range" id="mbg-y-range" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
             <input type="number" class="move-bg-num" id="mbg-y-num" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+            <button id="mbg-pan-canvas-btn" onclick="togglePanOnCanvas()" style="flex:1;padding:10px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-size:11px;letter-spacing:0.3px;">
+                🖼 Pan on Comic Canvas
+            </button>
         </div>
     </div>
 </div>
@@ -4694,11 +4709,62 @@
 
     window.closeMoveBgModal = function() {
         commitMoveBg();
+        // Always turn off canvas pan mode when closing
+        const overlay = document.getElementById('bg-drag-overlay');
+        if (overlay) { overlay.style.display = 'none'; isPanningOnCanvas = false; }
+        const btn = document.getElementById('mbg-pan-canvas-btn');
+        if (btn) { btn.style.borderColor = 'rgba(0,180,255,0.3)'; btn.style.background = '#111'; btn.innerText = '🖼 Pan on Comic Canvas'; }
         const modal = document.getElementById('move-bg-modal');
         modal.classList.remove('open');
         modal.style.display = 'none';
         // Re-open the bg panel so user can continue editing
         openBgPanel();
+    };
+
+    let isPanningOnCanvas = false;
+    window.togglePanOnCanvas = function() {
+        isPanningOnCanvas = !isPanningOnCanvas;
+        const overlay = document.getElementById('bg-drag-overlay');
+        const btn = document.getElementById('mbg-pan-canvas-btn');
+        const modal = document.getElementById('move-bg-modal');
+        if (isPanningOnCanvas) {
+            // Hide modal, show canvas overlay so user can drag directly on the comic
+            modal.style.display = 'none';
+            modal.classList.remove('open');
+            if (overlay) overlay.style.display = 'block';
+            // Show a floating "Done" badge so user can return
+            let badge = document.getElementById('pan-canvas-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.id = 'pan-canvas-badge';
+                badge.style.cssText = 'position:fixed;bottom:110px;left:50%;transform:translateX(-50%);z-index:5000;background:var(--teal);color:#000;padding:10px 22px;border-radius:30px;font-weight:900;font-size:13px;cursor:pointer;letter-spacing:0.5px;box-shadow:0 4px 20px rgba(0,210,255,0.4);';
+                badge.innerHTML = '✋ Panning BG — tap to return';
+                badge.onclick = function() {
+                    isPanningOnCanvas = false;
+                    if (overlay) overlay.style.display = 'none';
+                    badge.remove();
+                    // Re-show modal
+                    const m = document.getElementById('move-bg-modal');
+                    m.style.display = 'flex';
+                    m.classList.add('open');
+                    // Sync values back from real bg-x/y inputs
+                    mbgX = parseInt(document.getElementById('bg-x').value) || 0;
+                    mbgY = parseInt(document.getElementById('bg-y').value) || 0;
+                    syncMoveBgFrame();
+                };
+                document.body.appendChild(badge);
+            }
+        } else {
+            if (overlay) overlay.style.display = 'none';
+            const badge = document.getElementById('pan-canvas-badge');
+            if (badge) badge.remove();
+            // Re-show modal
+            modal.style.display = 'flex';
+            modal.classList.add('open');
+            mbgX = parseInt(document.getElementById('bg-x').value) || 0;
+            mbgY = parseInt(document.getElementById('bg-y').value) || 0;
+            syncMoveBgFrame();
+        }
     };
 
     window.resetMoveBg = function() {

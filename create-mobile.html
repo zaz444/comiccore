@@ -1987,7 +1987,16 @@ let _bgChoiceSrc = null;
 function showBgImportChoice(src) { _bgChoiceSrc = src; document.getElementById('bg-choice-preview').src = src; document.getElementById('bg-import-choice-modal').style.display = 'flex'; }
 function closeBgChoiceModal() { document.getElementById('bg-import-choice-modal').style.display = 'none'; }
 function bgChoiceCrop() { closeBgChoiceModal(); const t = document.getElementById('crop-target'); t.src = _bgChoiceSrc; document.getElementById('crop-modal').style.display = 'flex'; if (cropper) cropper.destroy(); const r = canvasRatio || { w:1, h:1 }; cropper = new Cropper(t, { aspectRatio: r.w / r.h, viewMode: 1 }); }
-function bgChoiceFixed() { closeBgChoiceModal(); if (!_bgChoiceSrc) return; saveState(); const img = new Image(); img.onload = () => { const r = canvasRatio || {w:1,h:1}; const targetAR = r.w/r.h; const imgAR = img.width/img.height; let sx=0,sy=0,sw=img.width,sh=img.height; if(imgAR>targetAR){sw=img.height*targetAR;sx=(img.width-sw)/2;}else{sh=img.width/targetAR;sy=(img.height-sh)/2;} const c=document.createElement('canvas');c.width=800;c.height=Math.round(800*r.h/r.w);const ctx2=c.getContext('2d');ctx2.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height); frames[currentIdx].background=c.toDataURL('image/jpeg',0.9); render(); }; img.src=_bgChoiceSrc; }
+function bgChoiceFixed() {
+    closeBgChoiceModal();
+    if (!_bgChoiceSrc) return;
+    // Store ORIGINAL full image — no rasterization — so Move Background can pan freely
+    saveState();
+    frames[currentIdx].background = _bgChoiceSrc;
+    frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
+    _bgChoiceSrc = null;
+    render();
+}
 
 // ── FX ──
 const FX_FILTERS = ['none','grayscale(100%)','sepia(100%)','contrast(1.5)','brightness(1.4)','hue-rotate(90deg)','saturate(2)','invert(100%)'];
@@ -2051,11 +2060,41 @@ function handleCoverInput(e) {
 function closeCrop() { document.getElementById('crop-modal').style.display='none'; if(cropper){cropper.destroy();cropper=null;} }
 document.getElementById('apply-crop-btn').onclick = () => {
     if (!cropper) return;
-    const data = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
-    closeCrop();
-    if (currentImportType === 'bg') { saveState(); frames[currentIdx].background = data; render(); }
-    else if (currentImportType === 'cover') { finalCoverBase64 = data; const img = document.getElementById('final-cover-img'); img.src = data; img.style.display = 'block'; document.getElementById('cover-label').style.display = 'none'; }
-    else { saveState(); const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300; const nl={type:'img',src:data,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()}; frames[currentIdx].layers.push(nl); activeLayer=nl; render(); }
+    if (currentImportType === 'bg') {
+        // Store FULL original image — derive bgSettings from crop box
+        const cropData = cropper.getData(true);
+        const imgData  = cropper.getImageData();
+        const naturalW = imgData.naturalWidth;
+        const naturalH = imgData.naturalHeight;
+        const cropCX   = (cropData.x + cropData.width  / 2) / naturalW * 100;
+        const cropCY   = (cropData.y + cropData.height / 2) / naturalH * 100;
+        const bgX      = Math.round(Math.max(-50, Math.min(50, cropCX - 50)));
+        const bgY      = Math.round(Math.max(-50, Math.min(50, cropCY - 50)));
+        const bgScale  = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
+        const fullSrc  = _bgChoiceSrc || frames[currentIdx].background;
+        saveState();
+        frames[currentIdx].background = fullSrc;
+        frames[currentIdx].bgSettings = {
+            scale: bgScale, rotate: 0, x: bgX, y: bgY,
+            filter: frames[currentIdx].bgSettings?.filter || 'none'
+        };
+        _bgChoiceSrc = null;
+        closeCrop(); render();
+    } else if (currentImportType === 'cover') {
+        const data = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
+        closeCrop();
+        finalCoverBase64 = data;
+        const img = document.getElementById('final-cover-img');
+        img.src = data; img.style.display = 'block';
+        document.getElementById('cover-label').style.display = 'none';
+    } else {
+        const data = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
+        closeCrop();
+        saveState();
+        const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300;
+        const nl={type:'img',src:data,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()};
+        frames[currentIdx].layers.push(nl); activeLayer=nl; render();
+    }
 };
 
 // ── MULTI IMPORT ──
@@ -2719,6 +2758,9 @@ document.addEventListener('gesturechange', function(e) {
         <div id="move-bg-frame-inner"></div>
         <div id="move-bg-hint">✋ Drag to pan background</div>
     </div>
+    <div style="font-size:11px;color:#555;font-weight:700;text-align:center;margin:8px 0 4px;letter-spacing:0.3px;">
+        Drag the preview above — or use the sliders below
+    </div>
     <div id="move-bg-controls">
         <div class="move-bg-row">
             <label>X</label>
@@ -2730,6 +2772,9 @@ document.addEventListener('gesturechange', function(e) {
             <input type="range" id="mbg-y-range" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
             <input type="number" class="move-bg-num" id="mbg-y-num" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
         </div>
+        <button id="mbg-pan-canvas-btn" onclick="togglePanOnCanvas()" style="width:100%;padding:12px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:0.3px;">
+            🖼 Pan on Comic Canvas
+        </button>
         <button id="move-bg-reset-mob" onclick="resetMoveBg()">Reset Position</button>
         <button id="move-bg-done" onclick="closeMoveBgModal()">Done ✓</button>
     </div>
@@ -2802,13 +2847,61 @@ document.addEventListener('gesturechange', function(e) {
         modal.classList.add('open');
     };
 
+    let isPanningOnCanvas = false;
+
     window.closeMoveBgModal = function() {
         commitMoveBg();
+        // Always turn off canvas pan mode when closing
+        const overlay = document.getElementById('bg-drag-overlay');
+        if (overlay) { overlay.style.display = 'none'; isPanningOnCanvas = false; }
+        const badge = document.getElementById('pan-canvas-badge');
+        if (badge) badge.remove();
         const modal = document.getElementById('move-bg-modal');
         modal.classList.remove('open');
         modal.style.display = 'none';
         // Return user to the bg sheet
         openSheet('bg');
+    };
+
+    window.togglePanOnCanvas = function() {
+        isPanningOnCanvas = !isPanningOnCanvas;
+        const overlay = document.getElementById('bg-drag-overlay');
+        const modal = document.getElementById('move-bg-modal');
+        if (isPanningOnCanvas) {
+            // Hide modal, expose canvas with drag overlay
+            modal.style.display = 'none';
+            modal.classList.remove('open');
+            if (overlay) overlay.style.display = 'block';
+            // Floating badge to return
+            let badge = document.getElementById('pan-canvas-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.id = 'pan-canvas-badge';
+                badge.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:5000;background:var(--teal);color:#000;padding:12px 24px;border-radius:30px;font-weight:900;font-size:14px;cursor:pointer;letter-spacing:0.5px;box-shadow:0 4px 20px rgba(0,210,255,0.4);white-space:nowrap;';
+                badge.innerHTML = '✋ Panning BG — tap to return';
+                badge.onclick = function() {
+                    isPanningOnCanvas = false;
+                    if (overlay) overlay.style.display = 'none';
+                    badge.remove();
+                    const m = document.getElementById('move-bg-modal');
+                    m.style.display = 'flex';
+                    m.classList.add('open');
+                    mbgX = parseInt(document.getElementById('mob-bg-x').value) || 0;
+                    mbgY = parseInt(document.getElementById('mob-bg-y').value) || 0;
+                    syncMoveBgFrame();
+                };
+                document.body.appendChild(badge);
+            }
+        } else {
+            if (overlay) overlay.style.display = 'none';
+            const badge = document.getElementById('pan-canvas-badge');
+            if (badge) badge.remove();
+            modal.style.display = 'flex';
+            modal.classList.add('open');
+            mbgX = parseInt(document.getElementById('mob-bg-x').value) || 0;
+            mbgY = parseInt(document.getElementById('mob-bg-y').value) || 0;
+            syncMoveBgFrame();
+        }
     };
 
     window.resetMoveBg = function() {
