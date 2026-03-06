@@ -6,7 +6,7 @@
     <script src="theme.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore — Squads</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="pocketbase-api.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
@@ -268,7 +268,6 @@
 </div>
 
 <script>
-    const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
     const TOPICS = ['Manga','Comics','Anime','Sprites','Art','Story','Sci-Fi','Horror','Fantasy','Action','Collab','Beginners'];
 
     let myHandle = '';
@@ -285,10 +284,10 @@
             return;
         }
         const local = JSON.parse(localStorage.getItem('user_profile') || '{}');
-        const { data: { user } } = await _sb.auth.getUser();
+        const { user } = await PBAuth.getUser();
         if (user) {
-            const { data: dbp } = await _sb.from('profiles').select('handle').eq('id', user.id).single();
-            myHandle = dbp?.handle || local.handle;
+            const rows = await PBdb.select('users', { filter: PBFilter.eq('id', user.id), fields: 'handle', perPage: 1 });
+            myHandle = rows[0]?.handle || local.handle;
         } else { myHandle = local.handle; }
         if (!myHandle || myHandle === 'anonymous') { alert('Please save your profile first!'); return location.href = 'profile.html'; }
 
@@ -316,21 +315,21 @@
     async function loadSquads() {
         const feed = document.getElementById('sq-feed');
         feed.innerHTML = `<div style="padding:20px 16px;display:flex;flex-direction:column;gap:10px;">${[1,2,3].map(()=>`<div class="sq-skeleton" style="height:90px;"></div>`).join('')}</div>`;
-        const [{ data: squads }, { data: reqs }, { data: accepted }] = await Promise.all([
-            _sb.from('team_tickets').select('*').order('created_at', { ascending: false }),
-            _sb.from('team_requests').select('*').eq('sender_handle', myHandle),
-            _sb.from('team_requests').select('ticket_id').eq('status', 'accepted')
+        const [squads, reqs, accepted] = await Promise.all([
+            PBdb.select('team_tickets', { sort: '-created_at' }),
+            PBdb.select('team_requests', { filter: PBFilter.eq('sender_handle', myHandle) }),
+            PBdb.select('team_requests', { filter: PBFilter.eq('status', 'accepted'), fields: 'ticket_id' })
         ]);
-        allSquads = squads || [];
-        myRequests = reqs || [];
-        allAccepted = accepted || [];
+        allSquads = squads;
+        myRequests = reqs;
+        allAccepted = accepted;
         renderFeed();
     }
 
     async function updateStats() {
-        const [{ count: c }, { count: j }] = await Promise.all([
-            _sb.from('team_tickets').select('*',{count:'exact',head:true}).eq('owner_handle', myHandle),
-            _sb.from('team_requests').select('*',{count:'exact',head:true}).eq('sender_handle', myHandle).eq('status','accepted')
+        const [c, j] = await Promise.all([
+            PBdb.count('team_tickets', PBFilter.eq('owner_handle', myHandle)),
+            PBdb.count('team_requests', PBFilter.and(PBFilter.eq('sender_handle', myHandle), PBFilter.eq('status', 'accepted')))
         ]);
         document.getElementById('stat-created').innerText = c || 0;
         document.getElementById('stat-joined').innerText = j || 0;
@@ -438,8 +437,9 @@
         const btn = document.getElementById(`jbtn-${id}`);
         if (btn) { btn.innerText = '…'; btn.disabled = true; }
         const status = isPrivate ? 'pending' : 'accepted';
-        const { error } = await _sb.from('team_requests').insert([{ ticket_id: String(id), sender_handle: myHandle, status }]);
-        if (error) { if (btn) { btn.innerText = isPrivate?'Request to Join':'Join'; btn.disabled=false; } return; }
+        try {
+            await PBdb.insert('team_requests', { ticket_id: String(id), sender_handle: myHandle, status });
+        } catch(e) { if (btn) { btn.innerText = isPrivate?'Request to Join':'Join'; btn.disabled=false; } return; }
         if (!isPrivate) allAccepted.push({ ticket_id: String(id) });
         myRequests.push({ ticket_id: String(id), sender_handle: myHandle, status });
         await updateStats();
@@ -448,7 +448,7 @@
 
     async function leaveSquad(id) {
         if (!confirm('Leave this squad?')) return;
-        await _sb.from('team_requests').delete().eq('ticket_id', String(id)).eq('sender_handle', myHandle);
+        await PBdb.deleteWhere('team_requests', PBFilter.and(PBFilter.eq('ticket_id', String(id)), PBFilter.eq('sender_handle', myHandle)));
         myRequests = myRequests.filter(r => r.ticket_id !== String(id));
         allAccepted = allAccepted.filter(r => !(String(r.ticket_id) === String(id) && r.sender_handle === myHandle));
         await updateStats();
@@ -515,15 +515,16 @@
         if (!name) { document.getElementById('sq-name').focus(); return; }
         const btn = document.getElementById('create-btn');
         btn.innerText='Creating…'; btn.disabled=true;
-        const { error } = await _sb.from('team_tickets').insert([{
-            owner_handle: myHandle,
-            team_name: name,
-            description: document.getElementById('sq-desc').value.trim(),
-            pfp: newPfp || null,
-            is_private: document.getElementById('sq-private').checked
-        }]);
+        try {
+            await PBdb.insert('team_tickets', {
+                owner_handle: myHandle,
+                team_name: name,
+                description: document.getElementById('sq-desc').value.trim(),
+                pfp: newPfp || null,
+                is_private: document.getElementById('sq-private').checked
+            });
+        } catch(e) { btn.innerText='Create Squad'; btn.disabled=false; alert('Error: ' + e.message); return; }
         btn.innerText='Create Squad'; btn.disabled=false;
-        if (error) { alert('Error: ' + error.message); return; }
         closeCreateModal();
         await Promise.all([loadSquads(), updateStats()]);
     }
@@ -548,9 +549,9 @@
     function closeManageModal() { document.getElementById('manage-overlay').classList.remove('open'); activeManageId = null; }
 
     async function loadManageMembers(id) {
-        const { data: reqs } = await _sb.from('team_requests').select('*').eq('ticket_id', String(id));
-        const pending = (reqs||[]).filter(r=>r.status==='pending');
-        const members = (reqs||[]).filter(r=>r.status==='accepted');
+        const reqs = await PBdb.select('team_requests', { filter: PBFilter.eq('ticket_id', String(id)) });
+        const pending = reqs.filter(r=>r.status==='pending');
+        const members = reqs.filter(r=>r.status==='accepted');
 
         document.getElementById('manage-requests').innerHTML = pending.length
             ? pending.map(r=>`<div class="sq-member-item"><span class="sq-member-handle">@${esc(r.sender_handle)}</span><div class="sq-member-actions"><button class="sq-mbtn sq-mbtn-accept" onclick="respondReq('${r.id}','accepted')">Accept</button><button class="sq-mbtn sq-mbtn-decline" onclick="respondReq('${r.id}','declined')">Decline</button></div></div>`).join('')
@@ -562,26 +563,26 @@
     }
 
     async function respondReq(reqId, status) {
-        if (status==='declined') await _sb.from('team_requests').delete().eq('id', reqId);
-        else await _sb.from('team_requests').update({ status }).eq('id', reqId);
+        if (status==='declined') await PBdb.delete('team_requests', reqId);
+        else await PBdb.update('team_requests', reqId, { status });
         await loadManageMembers(activeManageId);
     }
 
     async function kickMember(reqId) {
         if (!confirm('Kick this member?')) return;
-        await _sb.from('team_requests').delete().eq('id', reqId);
+        await PBdb.delete('team_requests', reqId);
         await loadManageMembers(activeManageId);
     }
 
     async function saveSquad() {
         const name = document.getElementById('edit-name').value.trim();
         if (!name) return;
-        await _sb.from('team_tickets').update({
+        await PBdb.update('team_tickets', activeManageId, {
             team_name: name,
             description: document.getElementById('edit-desc').value.trim(),
             pfp: editPfp || null,
             is_private: document.getElementById('edit-private').checked
-        }).eq('id', activeManageId);
+        });
         closeManageModal();
         await loadSquads();
     }
@@ -589,10 +590,10 @@
     async function deleteSquad() {
         if (!confirm('Delete this squad forever? This cannot be undone.')) return;
         await Promise.all([
-            _sb.from('team_requests').delete().eq('ticket_id', String(activeManageId)),
-            _sb.from('team_messages').delete().eq('ticket_id', String(activeManageId))
+            PBdb.deleteWhere('team_requests', PBFilter.eq('ticket_id', String(activeManageId))),
+            PBdb.deleteWhere('team_messages', PBFilter.eq('ticket_id', String(activeManageId)))
         ]);
-        await _sb.from('team_tickets').delete().eq('id', activeManageId);
+        await PBdb.delete('team_tickets', activeManageId);
         closeManageModal();
         await Promise.all([loadSquads(), updateStats()]);
     }

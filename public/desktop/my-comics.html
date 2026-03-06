@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ComicCore — My Comics</title>
 <link rel="stylesheet" href="theme.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="pocketbase-api.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
 :root{--bg:#0d0d0f;--card:#141416;--text:#f0f0f2;--accent:#ff7a00;--border:#222224;--teal:#00d2ff;--danger:#ff3b30;--green:#32d74b;--muted:#666;}
@@ -199,7 +199,6 @@ select.tb{appearance:none;padding-right:10px;}
 </div>
 
 <script>
-const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
 // ── State ──────────────────────────────────────────────────
 let currentTab = 'drafts';
@@ -240,8 +239,8 @@ function loadDrafts() {
 
 async function loadPublished() {
   if (!myHandle) { published = []; document.getElementById('pub-count').innerText = 0; return; }
-  const { data, error } = await _sb.from('comics').select('id,title,description,cover,tags,stars,data,canvas_ratio,created_at,owner_handle').eq('owner_handle', myHandle).order('id', { ascending: false });
-  published = data || [];
+  const data = await PBdb.select('comics', { filter: PBFilter.eq('owner_handle', myHandle), fields: 'id,title,description,cover,tags,stars,data,canvas_ratio,created_at,owner_handle', sort: '-created_at' });
+  published = data;
   document.getElementById('pub-count').innerText = published.length;
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
 }
@@ -464,7 +463,7 @@ async function confirmDelete() {
     renderStats(); renderDrafts();
     toast('🗑 Draft deleted');
   } else {
-    const { error } = await _sb.from('comics').delete().eq('id', deleteId);
+    try { await PBdb.delete('comics', deleteId); } catch(e) { alert('Error deleting'); return; }
     if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
     published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;

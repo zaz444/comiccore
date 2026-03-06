@@ -6,7 +6,7 @@
     <script src="theme.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore - Background Source</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="pocketbase-api.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
@@ -262,11 +262,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <script>
-// ── Supabase ──
-const _supabase = supabase.createClient(
-    'https://mmycqeejhguzhtzkyjaj.supabase.co',
-    'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
-);
 
 // ── Auth — uses same key as profile.html & create.html ──
 const OWNER_HANDLE = 'jeffyplays';
@@ -572,14 +567,16 @@ async function saveOfficialBackground() {
 
 // Auto-fallback insert: tries full payload, falls back to base columns if schema error
 async function tryInsert(payload) {
-    const { error } = await _supabase.from('backgrounds_library').insert([payload]);
-    if (error && error.message && (error.message.includes('is_official') || error.message.includes('uploaded_by') || error.message.includes('schema cache'))) {
-        // New columns not in DB yet — strip them and retry with just base columns
-        const base = { name: payload.name, image_data: payload.image_data, ratio: payload.ratio || null };
-        const r2 = await _supabase.from('backgrounds_library').insert([base]);
-        return r2.error || null;
+    try {
+        await PBdb.insert('backgrounds_library', payload);
+        return null;
+    } catch(e) {
+        // Retry with base columns only if field error
+        try {
+            await PBdb.insert('backgrounds_library', { name: payload.name, image_data: payload.image_data, ratio: payload.ratio || null });
+            return null;
+        } catch(e2) { return e2; }
     }
-    return error || null;
 }
 
 // ── Close modals ──
@@ -612,14 +609,14 @@ async function loadMyBackgrounds() {
         return;
     }
     // Try with uploaded_by filter; fall back if column doesn't exist
-    let { data, error } = await _supabase.from('backgrounds_library').select('*').eq('uploaded_by', handle).order('id', { ascending: false });
-    if (error && error.message && (error.message.includes('uploaded_by') || error.message.includes('schema cache'))) {
-        // Column missing — load everything as fallback
-        const r2 = await _supabase.from('backgrounds_library').select('*').order('id', { ascending: false });
-        data = r2.data; error = r2.error;
+    let data;
+    try {
+        data = await PBdb.select('backgrounds_library', { filter: PBFilter.eq('uploaded_by', handle), sort: '-id' });
+    } catch(e) {
+        try { data = await PBdb.select('backgrounds_library', { sort: '-id' }); }
+        catch(e2) { container.innerHTML = '<p style="color:#ff453a;">Error loading.</p>'; return; }
     }
-    if (error) { container.innerHTML = '<p style="color:#ff453a;">Error loading.</p>'; return; }
-    if (!data || !data.length) {
+    if (!data.length) {
         container.innerHTML = `<div class="empty-state"><div class="empty-icon">🖼</div><p>No backgrounds yet.<br>Upload one above!</p></div>`;
         return;
     }
@@ -631,13 +628,14 @@ async function loadMyBackgrounds() {
 async function loadOfficialBackgrounds() {
     const container = document.getElementById('official-container');
     container.innerHTML = '<p style="color:#555;font-size:13px;padding:10px 0;">Loading…</p>';
-    let { data, error } = await _supabase.from('backgrounds_library').select('*').eq('is_official', true).order('id', { ascending: false });
-    if (error && error.message && (error.message.includes('is_official') || error.message.includes('schema cache'))) {
+    let data;
+    try {
+        data = await PBdb.select('backgrounds_library', { filter: PBFilter.eq('is_official', true), sort: '-id' });
+    } catch(e) {
         container.innerHTML = `<div class="empty-state"><div class="empty-icon">🛡️</div><p>No official backgrounds yet.</p></div>`;
         return;
     }
-    if (error) { container.innerHTML = '<p style="color:#ff453a;">Error loading.</p>'; return; }
-    if (!data || !data.length) {
+    if (!data.length) {
         container.innerHTML = `<div class="empty-state"><div class="empty-icon">🛡️</div><p>No official backgrounds yet.</p></div>`;
         return;
     }
@@ -675,7 +673,7 @@ function renderCard(bg, container, filterKey, isOfficial) {
         e.stopPropagation();
         const msg = isOfficial ? 'Delete official background for everyone?' : 'Delete this background?';
         if (!confirm(msg)) return;
-        _supabase.from('backgrounds_library').delete().eq('id', bg.id).then(() => {
+        PBdb.delete('backgrounds_library', bg.id).then(() => {
             isOfficial ? loadOfficialBackgrounds() : loadMyBackgrounds();
         });
     });

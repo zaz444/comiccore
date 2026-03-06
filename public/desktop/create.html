@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ComicCore - Pro Creator</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="pocketbase-api.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
 
 <!-- GIF encoder for export -->
@@ -1543,7 +1543,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
-    const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
     let frames = [{ layers: [], background: '#ffffff' }];
     let currentIdx = 0;
@@ -1598,8 +1597,8 @@
             if (pendingBgId) {
                 localStorage.removeItem('pending_bg_id');
                 currentImportType = 'bg';
-                _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single().then(({ data }) => {
-                    if (data && data.image_data) showBgImportChoice(data.image_data);
+                PBdb.select('backgrounds_library', { filter: PBFilter.eq('id', pendingBgId), fields: 'image_data', perPage: 1 }).then(rows => {
+                    if (rows[0]?.image_data) showBgImportChoice(rows[0].image_data);
                 });
                 return;
             }
@@ -1671,8 +1670,8 @@
             banner.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);background:#00d2ff;color:#000;padding:5px 20px;font-size:11px;font-weight:900;border-radius:0 0 10px 10px;z-index:9999;letter-spacing:1px;pointer-events:none;';
             banner.innerText = '✏️ EDITING PUBLISHED COMIC';
             document.body.appendChild(banner);
-            _supabase.from('comics').select('*').eq('id', editComicId).single().then(({ data, error }) => {
-                if (error || !data) { alert('Could not load comic for editing.'); return; }
+            PBdb.getOne('comics', editComicId).then(data => {
+                if (!data) { alert('Could not load comic for editing.'); return; }
                 frames = data.data || data.frames || [];
                 const r = data.canvas_ratio || { w: 1, h: 1 };
                 setRatio(r.w, r.h);
@@ -1816,10 +1815,8 @@
             renderLibraryGrid(grid, meta);
         } else {
             grid.innerHTML = "<p style='color:white; font-size:12px;'>Loading...</p>";
-            const { data } = await _supabase.from('sprites_library')
-                .select('id, name, tags, creator, created_at')
-                .order('created_at', { ascending: false });
-            sidebarSprites = data || [];
+            const data = await PBdb.select('sprites_library', { fields: 'id,name,tags,creator,created_at', sort: '-created_at' });
+            sidebarSprites = data;
             sbSaveMetaCache(sidebarSprites);
             renderLibraryGrid(grid, sidebarSprites);
         }
@@ -2441,23 +2438,18 @@
             data: frames, swipe_dir: swipeDir,
             canvas_ratio: canvasRatio
         };
-        let error;
-        if (editingComicId) {
-            // Update existing comic
-            ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
-        } else {
-            // New publish
-            ({ error } = await _supabase.from('comics').insert([{
-                ...payload, owner_name: profile.name, owner_handle: profile.handle, stars: 0, starred_by: []
-            }]));
-        }
-        if (error) {
-            alert(error.message);
-            btn.innerText = editingComicId ? "UPDATE" : "POST NOW";
-            btn.disabled = false;
-        } else {
+        try {
+            if (editingComicId) {
+                await PBdb.update('comics', editingComicId, payload);
+            } else {
+                await PBdb.insert('comics', { ...payload, owner_name: profile.name, owner_handle: profile.handle, stars: 0, starred_by: [] });
+            }
             hasUnsavedChanges = false;
             location.href = 'discover.html';
+        } catch(e) {
+            alert(e.message);
+            btn.innerText = editingComicId ? "UPDATE" : "POST NOW";
+            btn.disabled = false;
         }
     }
 
@@ -3545,24 +3537,20 @@
             actions: activeLayer.packData?.actions || {}
         };
         localStorage.setItem('save_sprite_to_personal', JSON.stringify(pack));
-        // Save directly via supabase without navigating away
-        _supabase.from('user_sprites').insert([{
+        // Save directly via PocketBase without navigating away
+        PBdb.insert('user_sprites', {
             owner_handle: profile.handle,
             name: pack.name,
             image_data: pack.image_data,
             actions: pack.actions
-        }]).then(({ error }) => {
-            if (error) alert('Error saving: ' + error.message);
-            else {
-                localStorage.removeItem('save_sprite_to_personal');
-                // Brief confirmation flash
-                const flash = document.createElement('div');
-                flash.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:var(--teal);color:#000;padding:8px 20px;border-radius:10px;font-weight:900;font-size:12px;z-index:9999;pointer-events:none;';
-                flash.innerText = '✅ Saved to Your Sprites!';
-                document.body.appendChild(flash);
-                setTimeout(() => flash.remove(), 2500);
-            }
-        });
+        }).then(() => {
+            localStorage.removeItem('save_sprite_to_personal');
+            const flash = document.createElement('div');
+            flash.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:var(--teal);color:#000;padding:8px 20px;border-radius:10px;font-weight:900;font-size:12px;z-index:9999;pointer-events:none;';
+            flash.innerText = '✅ Saved to Your Sprites!';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 2500);
+        }).catch(e => alert('Error saving: ' + e.message));
     }
 
     // ═══════════════════════════════════════
@@ -3875,8 +3863,8 @@
             return result;
         }
 
-        const { data } = await _supabase.from('sprites_library')
-            .select('id, image_data, actions').eq('id', id).single();
+        const rows = await PBdb.select('sprites_library', { filter: PBFilter.eq('id', id), fields: 'id,image_data,actions', perPage: 1 });
+        const data = rows[0] || null;
         if (data) {
             sbFullCache.set(id, data);
             const sp = (sidebarSprites || []).find(s => s.id === id);
@@ -3916,9 +3904,8 @@
         sbLazyTimer = null;
         if (!sbLazyQueue.length) return;
         const batch = [...new Set(sbLazyQueue.splice(0, 20))];
-        const { data } = await _supabase.from('sprites_library')
-            .select('id, image_data').in('id', batch);
-        if (!data) return;
+        const data = await PBdb.select('sprites_library', { filter: PBFilter.inList('id', batch), fields: 'id,image_data' });
+        if (!data.length) return;
         data.forEach(row => {
             sbSetImg(row.id, row.image_data);
             const sp = (sidebarSprites || []).find(s => s.id === row.id);
@@ -3953,10 +3940,7 @@
 
         // 2. Refresh metadata from DB in background
         try {
-            const { data } = await _supabase.from('sprites_library')
-                .select('id, name, tags, creator, created_at')
-                .order('created_at', { ascending: false });
-            const fresh = data || [];
+            const fresh = await PBdb.select('sprites_library', { fields: 'id,name,tags,creator,created_at', sort: '-created_at' });
 
             // Only re-render if data changed
             const cachedIds = (sidebarSprites || []).map(s => s.id).join(',');

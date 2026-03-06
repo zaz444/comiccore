@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ComicCore — Sprite Editor</title>
 <link rel="stylesheet" href="theme.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="pocketbase-api.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
@@ -303,7 +303,6 @@ select.cbb{appearance:none;}
 // ══════════════════════════════════════════════════════════
 //  ComicCore Sprite Editor — FFS-inspired full edition
 // ══════════════════════════════════════════════════════════
-const _S = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
 // ── Global state ─────────────────────────────────────────
 let W=64,H=64,zoom=4;
@@ -640,15 +639,15 @@ async function remapAllPersonalSprites(){
   const slots=remapSlots.filter(s=>s.from&&s.to);
   if(!slots.length)return alert('No remap slots defined.');
   toast('⏳ Recoloring sprites...','#888');
-  const{data}=await _S.from('user_sprites').select('*').eq('owner_handle',myHandle);
-  if(!data||!data.length){toast('No personal sprites found','#888');return;}
+  const data=await PBdb.select('user_sprites',{filter:PBFilter.eq('owner_handle',myHandle)});
+  if(!data.length){toast('No personal sprites found','#888');return;}
   let count=0;
   for(const sp of data){
     const img=new Image();await new Promise(res=>{img.onload=res;img.src=sp.image_data;});
     const cv=document.createElement('canvas');cv.width=img.naturalWidth;cv.height=img.naturalHeight;
     const c=cv.getContext('2d');c.drawImage(img,0,0);
     const id=c.getImageData(0,0,cv.width,cv.height);applyRemapToImageData(id);c.putImageData(id,0,0);
-    await _S.from('user_sprites').update({image_data:cv.toDataURL('image/png')}).eq('id',sp.id);
+    await PBdb.update('user_sprites',sp.id,{image_data:cv.toDataURL('image/png')});
     count++;
   }
   toast(`✅ Recolored ${count} sprites!`,'var(--purple)');
@@ -853,7 +852,7 @@ function closeAct(){document.getElementById('act-modal').style.display='none';}
 function confirmAct(){const name=document.getElementById('act-iname').value.trim()||'Action '+(actions.length+1);closeAct();saveFrame();actions.push({name,snap:capFrame()});switchTab('actions');}
 
 // ── Library ───────────────────────────────────────────────────
-async function fetchLib(){if(!myHandle)return;const{data}=await _S.from('user_sprites').select('*').eq('owner_handle',myHandle).order('created_at',{ascending:false});mySprites=data||[];if(cTab==='lib')renderR();}
+async function fetchLib(){if(!myHandle)return;const data=await PBdb.select('user_sprites',{filter:PBFilter.eq('owner_handle',myHandle),sort:'-created_at'});mySprites=data;if(cTab==='lib')renderR();}
 function loadSprLib(sp){saveSt();const img=new Image();img.onload=()=>{aL().ctx.clearRect(0,0,W,H);aL().ctx.drawImage(img,0,0,W,H);};img.src=sp.image_data;const acts=typeof sp.actions==='string'?JSON.parse(sp.actions):(sp.actions||{});actions=Object.entries(acts).map(([name,dataUrl])=>{const sn={};layers.forEach(l=>sn[l.id]=l.ctx.getImageData(0,0,W,H));return{name,snap:sn};});if(cTab==='actions')renderR();}
 
 // ── Composite / Export ─────────────────────────────────────────
@@ -894,8 +893,8 @@ function openPub(){document.getElementById('pub-modal').style.display='flex';}
 function closePub(){document.getElementById('pub-modal').style.display='none';}
 function openSave(){document.getElementById('save-modal').style.display='flex';}
 function closeSave(){document.getElementById('save-modal').style.display='none';}
-async function savePersonal(){if(!myHandle)return alert('Log in to save.');const name=document.getElementById('save-name').value.trim()||'Sprite';const ao={};actions.forEach(a=>{const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);ao[a.name]=t.toDataURL('image/png');});const{error}=await _S.from('user_sprites').insert([{owner_handle:myHandle,name,image_data:composite(aFidx),actions:ao}]);if(error)return alert('Error: '+error.message);closeSave();toast('✅ Saved!','var(--teal)');fetchLib();}
-async function publishSprite(){if(!myHandle)return alert('Log in.');const name=document.getElementById('pub-name').value.trim();if(!name)return alert('Name required!');const tags=document.getElementById('pub-tags').value.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);const btn=document.getElementById('pub-btn');btn.innerText='Publishing...';btn.disabled=true;const img=composite(aFidx);const ao={};actions.forEach(a=>{const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);ao[a.name]=t.toDataURL('image/png');});const[{error:e1},{error:e2}]=await Promise.all([_S.from('sprites_library').insert([{name,image_data:img,actions:ao,creator:myHandle,tags}]),_S.from('user_sprites').insert([{owner_handle:myHandle,name,image_data:img,actions:ao}])]);btn.innerText='PUBLISH';btn.disabled=false;if(e1)return alert('Error: '+e1.message);closePub();toast('✅ Published!','var(--accent)');fetchLib();}
+async function savePersonal(){if(!myHandle)return alert('Log in to save.');const name=document.getElementById('save-name').value.trim()||'Sprite';const ao={};actions.forEach(a=>{const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);ao[a.name]=t.toDataURL('image/png');});try{await PBdb.insert('user_sprites',{owner_handle:myHandle,name,image_data:composite(aFidx),actions:ao});}catch(e){return alert('Error: '+e.message);}closeSave();toast('✅ Saved!','var(--teal)');fetchLib();}
+async function publishSprite(){if(!myHandle)return alert('Log in.');const name=document.getElementById('pub-name').value.trim();if(!name)return alert('Name required!');const tags=document.getElementById('pub-tags').value.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);const btn=document.getElementById('pub-btn');btn.innerText='Publishing...';btn.disabled=true;const img=composite(aFidx);const ao={};actions.forEach(a=>{const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);ao[a.name]=t.toDataURL('image/png');});try{await Promise.all([PBdb.insert('sprites_library',{name,image_data:img,actions:ao,creator:myHandle,tags}),PBdb.insert('user_sprites',{owner_handle:myHandle,name,image_data:img,actions:ao})]);}catch(e){btn.innerText='PUBLISH';btn.disabled=false;return alert('Error: '+e.message);}btn.innerText='PUBLISH';btn.disabled=false;closePub();toast('✅ Published!','var(--accent)');fetchLib();}
 
 // ── Import ─────────────────────────────────────────────────────
 function importImg(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const img=new Image();img.onload=()=>{saveSt();aL().ctx.clearRect(0,0,W,H);aL().ctx.drawImage(img,0,0,W,H);};img.src=e.target.result;};r.readAsDataURL(f);inp.value='';}

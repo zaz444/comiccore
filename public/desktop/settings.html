@@ -166,12 +166,8 @@
     <a href="settings.html" class="nav-item active">⚙️</a>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="pocketbase-api.js"></script>
 <script>
-    const SUPABASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co'; 
-    const SUPABASE_KEY = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
     function saveSetting(key, value) {
         localStorage.setItem(key, value);
     }
@@ -181,11 +177,9 @@
         document.getElementById('btn-device-pc').classList.toggle('active', mode === 'pc');
         document.getElementById('btn-device-mobile').classList.toggle('active', mode === 'mobile');
         const hint = document.getElementById('device-mode-hint');
-        if (mode === 'mobile') {
-            hint.innerText = '✓ Mobile editor will be used for Create & Story.';
-        } else {
-            hint.innerText = '✓ Full PC editor will be used for Create & Story.';
-        }
+        hint.innerText = mode === 'mobile'
+            ? '✓ Mobile editor will be used for Create & Story.'
+            : '✓ Full PC editor will be used for Create & Story.';
     }
 
     function setTheme(theme) {
@@ -197,10 +191,9 @@
     }
 
     async function loadAccount() {
-        const { data: { user } } = await supabaseClient.auth.getUser();
+        const { user } = await PBAuth.getUser();
         if (user) {
-            const emailEl = document.getElementById('display-email');
-            emailEl.innerText = user.new_email ? `${user.email} (Pending: ${user.new_email})` : user.email;
+            document.getElementById('display-email').innerText = user.email;
         } else {
             window.location.href = "login.html";
         }
@@ -209,15 +202,22 @@
     async function changeEmail() {
         const newEmail = prompt("Enter your new email address:");
         if (!newEmail) return;
-        const { error } = await supabaseClient.auth.updateUser({ email: newEmail });
-        if (error) alert(error.message);
-        else alert("Check confirmation links!");
+        try {
+            await PBAuth.updateUser({ email: newEmail });
+            alert("Email updated! Check your inbox.");
+        } catch(err) {
+            alert(err.message);
+        }
     }
 
     async function resetPassword() {
-        const { data: { user } } = await supabaseClient.auth.getUser();
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(user.email);
-        alert(error ? error.message : "Reset link sent!");
+        const { user } = await PBAuth.getUser();
+        try {
+            await PBAuth.resetPasswordForEmail(user.email);
+            alert("Reset link sent!");
+        } catch(err) {
+            alert(err.message);
+        }
     }
 
     function loadAllSettings() {
@@ -225,7 +225,6 @@
         const savedDevice = localStorage.getItem('cc-device-mode');
         if (savedDevice) setDeviceMode(savedDevice);
         else {
-            // Auto-detect on first visit
             const autoMode = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc';
             setDeviceMode(autoMode);
         }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ComicCore - Story Editor</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="pocketbase-api.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -511,7 +511,6 @@
 </div>
 
 <script>
-const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
 
 let activeDraftId   = null;
@@ -983,18 +982,19 @@ async function finalPublish() {
     const btn = document.getElementById('pub-btn');
     btn.innerText = 'Publishing...'; btn.disabled = true;
     const plainText = getAllText();
-    const { error } = await _supabase.from('stories').insert([{
-        title, description: desc, tags,
-        cover: coverBase64 || null,
-        content_html: getAllHTML(), content_text: plainText,
-        word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
-        page_count: getAllPages().length,
-        owner_name: myProfile.name || 'Author',
-        owner_handle: myProfile.handle || 'user',
-        font: currentFont, font_size: currentFontSize,
-    }]);
-    if (error) { alert('Error: ' + error.message); btn.innerText = 'PUBLISH'; btn.disabled = false; }
-    else { hasUnsaved = false; alert('Story published!'); location.href = 'discover.html'; }
+    try {
+        await PBdb.insert('stories', {
+            title, description: desc, tags,
+            cover: coverBase64 || null,
+            content_html: getAllHTML(), content_text: plainText,
+            word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
+            page_count: getAllPages().length,
+            owner_name: myProfile.name || 'Author',
+            owner_handle: myProfile.handle || 'user',
+            font: currentFont, font_size: currentFontSize,
+        });
+        hasUnsaved = false; alert('Story published!'); location.href = 'discover.html';
+    } catch(e) { alert('Error: ' + e.message); btn.innerText = 'PUBLISH'; btn.disabled = false; }
 }
 
 // ═══════════════════════════════════════════
