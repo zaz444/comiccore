@@ -158,8 +158,30 @@
   </div>
 </div>
 
-<script src="pocketbase-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+  const _sb = supabase.createClient(
+    'https://mmycqeejhguzhtzkyjaj.supabase.co',
+    'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
+  );
+
+  // ── On page load: check if user just verified their email ──
+  window.addEventListener('load', async () => {
+    const hash = window.location.hash;
+    const params = new URLSearchParams(hash.replace('#', '?'));
+    const type = params.get('type');
+
+    if (type === 'signup') {
+      // Supabase puts the session in the URL hash after email confirmation
+      // Let the SDK pick it up, then show the success banner
+      await _sb.auth.getSession(); // triggers session exchange from hash
+      document.getElementById('verified-banner').style.display = 'block';
+      toggle('login');
+      // Clean the URL so it doesn't look weird
+      history.replaceState(null, '', window.location.pathname);
+    }
+  });
+
   // Eye toggle
   function toggleEye(inputId, iconId) {
     const inp  = document.getElementById(inputId);
@@ -189,21 +211,13 @@
     status.className = 'handle-status check';
     clearTimeout(handleTimer);
     handleTimer = setTimeout(async () => {
-      try {
-        const rows = await PBdb.select('users', {
-          filter: PBFilter.eq('handle', val),
-          fields: 'handle',
-          perPage: 1
-        });
-        if (rows.length > 0) {
-          status.textContent = '✕ @' + val + ' is already taken';
-          status.className = 'handle-status taken';
-        } else {
-          status.textContent = '✓ @' + val + ' is available';
-          status.className = 'handle-status ok';
-        }
-      } catch(_) {
-        status.textContent = '';
+      const { data } = await _sb.from('profiles').select('handle').eq('handle', val).maybeSingle();
+      if (data) {
+        status.textContent = '✕ @' + val + ' is already taken';
+        status.className = 'handle-status taken';
+      } else {
+        status.textContent = '✓ @' + val + ' is available';
+        status.className = 'handle-status ok';
       }
     }, 500);
   }
@@ -230,31 +244,43 @@
     if (!email)                        return showStatus('Please enter your email.', 'error');
     if (!dob)                          return showStatus('Please enter your date of birth.', 'error');
     if (!isOldEnough(dob))             return showStatus('You must be 13 or older to join.', 'error');
-    if (pass.length < 8)               return showStatus('Password must be at least 8 characters.', 'error');
+    if (pass.length < 6)               return showStatus('Password must be at least 6 characters.', 'error');
 
-    // Double-check handle availability
-    const existing = await PBdb.select('users', {
-      filter: PBFilter.eq('handle', handle),
-      fields: 'handle',
-      perPage: 1
-    });
-    if (existing.length > 0) return showStatus('That username is already taken. Choose another.', 'error');
+    const { data: existing } = await _sb.from('profiles').select('handle').eq('handle', handle).maybeSingle();
+    if (existing) return showStatus('That username is already taken. Choose another.', 'error');
 
     btn.disabled = true;
     btn.textContent = 'Creating account…';
 
     try {
-      await PBAuth.signUp(email, pass, {
-        handle,
-        permanent_id: handle, // will be updated to real id after creation
-        name: handle,
-        socials: {},
-        settings: {}
+      const { data: signUpData, error: signUpError } = await _sb.auth.signUp({
+        email,
+        password: pass,
+        options: {
+          // After clicking the verification link, user lands back on login.html
+          emailRedirectTo: window.location.href.split('?')[0].split('#')[0]
+        }
       });
+      if (signUpError) throw signUpError;
 
-      showStatus('✅ Account created! Redirecting…', 'success');
-      btn.textContent = '✓ Done!';
-      setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+      const user = signUpData.user;
+
+      const { error: profileError } = await _sb.from('profiles').insert({
+        handle:       handle,
+        permanent_id: user.id,
+        name:         handle,
+        socials:      {},
+        settings:     {}
+      });
+      if (profileError) throw profileError;
+
+      localStorage.setItem('user_profile', JSON.stringify({
+        handle, permanent_id: user.id, name: handle,
+        email, pic: '', banner: '', bio: '', socials: {}, settings: {}
+      }));
+
+      showStatus('✅ Account created! Check your email to verify, then log in.', 'success');
+      btn.textContent = '✓ Check Your Email';
 
     } catch (err) {
       showStatus(err.message, 'error');
@@ -271,9 +297,26 @@
     if (!email || !pass) return showStatus('Please enter your email and password.', 'error');
 
     try {
-      await PBAuth.signIn(email, pass);
+      const { data: signInData, error } = await _sb.auth.signInWithPassword({ email, password: pass });
+      if (error) throw error;
+
+      const user = signInData.user;
+
+      const { data: profile } = await _sb
+        .from('profiles')
+        .select('*')
+        .eq('permanent_id', user.id)
+        .maybeSingle();
+
+      if (profile) {
+        localStorage.setItem('user_profile', JSON.stringify(profile));
+      } else {
+        localStorage.setItem('user_profile', JSON.stringify({ permanent_id: user.id, email: user.email }));
+      }
+
       showStatus('Welcome back! Redirecting…', 'success');
       setTimeout(() => { window.location.href = 'index.html'; }, 800);
+
     } catch (err) {
       showStatus(err.message, 'error');
     }
@@ -297,12 +340,6 @@
     document.getElementById('c-login').className  = isCreate ? 'form-content' : 'form-content active';
     document.getElementById('status-banner').style.display = 'none';
   }
-
-  // Check if already logged in
-  window.addEventListener('load', async () => {
-    const { user } = await PBAuth.getUser();
-    if (user) window.location.href = 'index.html';
-  });
 </script>
 </body>
 </html>

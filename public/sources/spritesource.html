@@ -6,7 +6,7 @@
     <script src="theme.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpriteSource | Pro Library</title>
-    <script src="pocketbase-api.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
         /* colors now in theme.css */
@@ -205,6 +205,9 @@
 </div>
 
 <script>
+    const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
+    const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
     const ADMIN_ID = "de0b7378-e779-4e0d-9e3d-b33bf643df3e";
 
@@ -234,7 +237,7 @@
         // Primary check: ask Supabase auth server directly for the real user UUID
         let isAdmin = false;
         try {
-            const { user: authUser } = await PBAuth.getUser();
+            const { data: { user: authUser }, error } = await _supabase.auth.getUser();
             if (authUser) {
                 console.log('[SpriteSource] Auth user ID:', authUser.id);
                 isAdmin = checkIsAdmin(authUser);
@@ -321,18 +324,19 @@
             if (item.dataset.base64) actionsObj[aName] = item.dataset.base64;
         });
 
-        try {
-            await PBdb.insert('sprites_library', {
-                name, image_data: mainBase64, actions: actionsObj,
-                creator: myHandle || 'Guest', tags
-            });
-            localStorage.removeItem(META_CACHE_KEY);
-            alert('Success! Pack Published.');
-            location.reload();
-        } catch(e) {
-            alert('Upload Failed: ' + e.message);
+        const { error } = await _supabase.from('sprites_library').insert([{
+            name, image_data: mainBase64, actions: actionsObj,
+            creator: myHandle || "Guest", tags
+        }]);
+
+        if (error) {
+            alert("Upload Failed: " + error.message);
             btn.disabled = false;
-            btn.innerText = 'PUBLISH ASSET PACK';
+            btn.innerText = "PUBLISH ASSET PACK";
+        } else {
+            localStorage.removeItem(META_CACHE_KEY);
+            alert("Success! Pack Published.");
+            location.reload();
         }
     }
 
@@ -379,8 +383,8 @@
         lazyTimer = null;
         if (!lazyQueue.length) return;
         const batch = [...new Set(lazyQueue.splice(0, 20))];
-        const data = await PBdb.select('sprites_library', { filter: PBFilter.inList('id', batch), fields: 'id,image_data' });
-        if (!data.length) return;
+        const { data } = await _supabase.from('sprites_library').select('id, image_data').in('id', batch);
+        if (!data) return;
         data.forEach(row => {
             setCachedImage(row.id, row.image_data);
             const sprite = allSprites.find(s => s.id === row.id);
@@ -441,8 +445,7 @@
         const sprite = allSprites.find(s => s.id === id);
         const hasImage = !!(sprite && sprite.image_data);
         const fields = hasImage ? 'id, actions' : 'id, image_data, actions';
-        const rows = await PBdb.select('sprites_library', { filter: PBFilter.eq('id', id), fields, perPage: 1 });
-        const data = rows[0] || null;
+        const { data } = await _supabase.from('sprites_library').select(fields).eq('id', id).single();
         if (!data) return null;
         if (sprite && data.image_data) sprite.image_data = data.image_data;
         fullDataCache.set(id, data);
@@ -463,8 +466,8 @@
     async function fetchLibrary() {
         const cached = loadMetaCache();
         if (cached) { allSprites = cached; initAfterMetaFetch(false); }
-        const data = await PBdb.select('sprites_library', { fields: 'id,name,tags,creator,created_at', sort: '-created_at' });
-        const fresh = data;
+        const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
+        const fresh = data || [];
         const cachedIds = (allSprites || []).map(s => s.id).join(',');
         const freshIds  = fresh.map(s => s.id).join(',');
         if (freshIds !== cachedIds || !cached) {
@@ -475,8 +478,8 @@
     }
 
     async function fetchMySprites() {
-        const data = await PBdb.select('user_sprites', { filter: PBFilter.eq('owner_handle', myHandle), fields: 'id,name,actions,image_data,created_at', sort: '-created_at' });
-        if (!data.length) return;
+        const { data } = await _supabase.from('user_sprites').select('id, name, actions, image_data, created_at').eq('owner_handle', myHandle).order('created_at', { ascending: false });
+        if (!data || data.length === 0) return;
         document.getElementById('your-sprites-section').style.display = 'block';
         const grid = document.getElementById('your-sprites-grid');
         grid.innerHTML = '';
@@ -498,15 +501,14 @@
 
     async function saveToPersonal(pack) {
         if (!myHandle) { alert('Log in to save sprites.'); return; }
-        try {
-            await PBdb.insert('user_sprites', {
-                owner_handle: myHandle,
-                name: pack.name,
-                image_data: pack.image_data,
-                actions: pack.actions || {}
-            });
-            alert('✅ Saved to Your Sprites!'); fetchMySprites();
-        } catch(e) { alert('Error saving: ' + e.message); }
+        const { error } = await _supabase.from('user_sprites').insert([{
+            owner_handle: myHandle,
+            name: pack.name,
+            image_data: pack.image_data,
+            actions: pack.actions || {}
+        }]);
+        if (!error) { alert('✅ Saved to Your Sprites!'); fetchMySprites(); }
+        else { alert('Error saving: ' + error.message); }
     }
 
     function useMySprite(e, sprite) {
@@ -518,7 +520,7 @@
     async function deleteMySprite(e, id) {
         e.stopPropagation();
         if (!confirm('Remove from your sprites?')) return;
-        await PBdb.delete('user_sprites', id);
+        await _supabase.from('user_sprites').delete().eq('id', id);
         fetchMySprites();
     }
 
@@ -663,10 +665,9 @@
                 if (!confirm("Delete this pack?")) return;
                 delBtn.disabled = true;
                 delBtn.innerText = 'DELETING...';
-                try {
-                    await PBdb.delete('sprites_library', item.id);
-                } catch(e) {
-                    alert('Delete failed: ' + e.message);
+                const { error } = await _supabase.from('sprites_library').delete().eq('id', item.id);
+                if (error) {
+                    alert('Delete failed: ' + error.message);
                     delBtn.disabled = false;
                     delBtn.innerText = 'DELETE ASSET PACK';
                     return;

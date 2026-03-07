@@ -6,7 +6,7 @@
     <script src="theme.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore - My Favorites</title>
-    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
         /* colors now in theme.css */
@@ -61,8 +61,8 @@
         <a href="profile.html" class="nav-item">👤</a>
     </nav>
 
-<script src="pocketbase-api.js"></script>
 <script>
+    const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
     const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
     async function loadFavorites() {
@@ -71,22 +71,30 @@
             return;
         }
 
-        const starEntries = await PBdb.select('messages', {
-            filter: PBFilter.and(PBFilter.eq('sender_handle', myProfile.handle), PBFilter.eq('reaction', '⭐')),
-            fields: 'receiver_hand'
-        });
+        // 1. Get all Star IDs for this user
+        const { data: starEntries, error: starError } = await _supabase
+            .from('messages')
+            .select('receiver_hand')
+            .eq('sender_handle', myProfile.handle)
+            .eq('reaction', '⭐');
 
-        if (!starEntries.length) {
+        if (!starEntries || starEntries.length === 0) {
             document.getElementById('favoritesList').innerHTML = '<div class="empty-state">No favorites yet. Go explore!</div>';
             return;
         }
 
-        const favoriteIds = starEntries.map(e => e.receiver_hand);
-        const comics = await PBdb.select('comics', {
-            filter: PBFilter.inList('id', favoriteIds)
-        });
+        // 2. Extract IDs
+        const favoriteIds = starEntries.map(entry => entry.receiver_hand);
 
-        if (comics.length) renderFavorites(comics);
+        // 3. Fetch comic data for these IDs
+        const { data: comics, error: comicError } = await _supabase
+            .from('comics')
+            .select('*')
+            .in('id', favoriteIds);
+
+        if (comics) {
+            renderFavorites(comics);
+        }
     }
 
     function renderFavorites(comics) {

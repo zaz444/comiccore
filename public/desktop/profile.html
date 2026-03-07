@@ -5,7 +5,7 @@
     <script src="theme.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore - Profile</title>
-    <script src="pocketbase-api.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Dynamic Open Graph tags — populated by JS after Supabase fetch -->
     <meta property="og:title" content="ComicCore Profile">
     <meta property="og:description" content="Check out this profile on ComicCore!">
@@ -435,6 +435,7 @@
 
     <script>
 
+        const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
         
         const SOCIAL_CONFIG = [
             { key: 'x', label: 'X (Twitter)', icon: '𝕏' },
@@ -507,19 +508,27 @@
 
             // Self-heal: if handle is missing from localStorage, re-fetch from Supabase auth
             if (!myProfile.handle && !currentViewedHandle) {
-                const { user } = await PBAuth.getUser();
+                const { data: { user } } = await _supabase.auth.getUser();
                 if (!user) {
                     alert('You must be logged in to edit your profile.');
                     location.href = 'login.html';
                     return;
                 }
-                const rows = await PBdb.select('users', { filter: PBFilter.eq('id', user.id), perPage: 1 });
-                if (rows[0]) {
-                    myProfile = { ...myProfile, ...rows[0] };
+                // Look up profile by permanent_id (Supabase auth user ID)
+                const { data: fresh } = await _supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('permanent_id', user.id)
+                    .maybeSingle();
+
+                if (fresh) {
+                    // Sync localStorage so everything works going forward
+                    myProfile = { ...myProfile, ...fresh };
                     localStorage.setItem('user_profile', JSON.stringify(myProfile));
                 } else {
+                    // No profile row found — force fresh login
                     alert('Profile not found. Please sign in again.');
-                    PBAuth.signOut();
+                    await _supabase.auth.signOut();
                     location.href = 'login.html';
                     return;
                 }
@@ -543,8 +552,7 @@
             document.getElementById('public-view').style.flexDirection = 'column';
             document.getElementById('edit-view').style.display = 'none';
 
-            const profileRows = await PBdb.select('users', { filter: PBFilter.eq('handle', handle), perPage: 1 });
-            const profile = profileRows[0];
+            const { data: profile } = await _supabase.from('profiles').select('*').eq('handle', handle).single();
             if (!profile) return;
 
             document.getElementById('view-name').innerText = profile.name || handle;
@@ -616,8 +624,9 @@
             actionRow.innerHTML = '';
             if (!isOwn && myProfile.handle) {
                 // Follow button
-                const followRows = await PBdb.select('follows', { filter: PBFilter.and(PBFilter.eq('follower', myProfile.handle), PBFilter.eq('following', handle)), fields: 'id', perPage: 1 });
-                const isFollowing = followRows.length > 0;
+                const { data: followRow } = await _supabase.from('follows')
+                    .select('id').eq('follower', myProfile.handle).eq('following', handle).maybeSingle();
+                const isFollowing = !!followRow;
 
                 const followBtn = document.createElement('button');
                 followBtn.className = 'follow-btn' + (isFollowing ? ' following' : '');
@@ -625,11 +634,11 @@
                 followBtn.onclick = async () => {
                     followBtn.disabled = true;
                     if (isFollowing) {
-                        await PBdb.deleteWhere('follows', PBFilter.and(PBFilter.eq('follower', myProfile.handle), PBFilter.eq('following', handle)));
+                        await _supabase.from('follows').delete().eq('follower', myProfile.handle).eq('following', handle);
                         followBtn.innerText = 'Follow';
                         followBtn.classList.remove('following');
                     } else {
-                        await PBdb.insert('follows', { follower: myProfile.handle, following: handle });
+                        await _supabase.from('follows').insert([{ follower: myProfile.handle, following: handle }]);
                         followBtn.innerText = 'Following ✓';
                         followBtn.classList.add('following');
                     }
@@ -639,13 +648,10 @@
                 actionRow.appendChild(followBtn);
 
                 // Check if friends (accepted connection) for DM
-                const connRows = await PBdb.select('connections', {
-                    filter: PBFilter.and(
-                        PBFilter.or(PBFilter.and(PBFilter.eq('user_a', myProfile.handle), PBFilter.eq('user_b', handle)), PBFilter.and(PBFilter.eq('user_a', handle), PBFilter.eq('user_b', myProfile.handle))),
-                        PBFilter.eq('status', 'accepted')
-                    ), perPage: 1
-                });
-                const conn = connRows[0] || null;
+                const { data: conn } = await _supabase.from('connections')
+                    .select('id')
+                    .or(`and(sender_handle.eq.${myProfile.handle},receiver_handle.eq.${handle}),and(sender_handle.eq.${handle},receiver_handle.eq.${myProfile.handle})`)
+                    .eq('status', 'accepted').maybeSingle();
                 if (conn) {
                     actionRow.innerHTML += `<button class="msg-btn" onclick="location.href='messages.html?to=${handle}'">💬 Message</button>`;
                 }
@@ -667,9 +673,9 @@
         }
 
         async function loadFollowCounts(handle) {
-            const [followers, following] = await Promise.all([
-                PBdb.count('follows', PBFilter.eq('following', handle)),
-                PBdb.count('follows', PBFilter.eq('follower', handle)),
+            const [{ count: followers }, { count: following }] = await Promise.all([
+                _supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following', handle),
+                _supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower', handle),
             ]);
             document.getElementById('count-followers').innerText = followers || 0;
             document.getElementById('count-following').innerText = following || 0;
@@ -686,11 +692,11 @@
 
             let handles = [];
             if (type === 'followers') {
-                const data = await PBdb.select('follows', { filter: PBFilter.eq('following', currentViewedHandle), fields: 'follower' });
-                handles = data.map(r => r.follower);
+                const { data } = await _supabase.from('follows').select('follower').eq('following', currentViewedHandle);
+                handles = (data || []).map(r => r.follower);
             } else {
-                const data = await PBdb.select('follows', { filter: PBFilter.eq('follower', currentViewedHandle), fields: 'following' });
-                handles = data.map(r => r.following);
+                const { data } = await _supabase.from('follows').select('following').eq('follower', currentViewedHandle);
+                handles = (data || []).map(r => r.following);
             }
 
             if (!handles.length) {
@@ -700,8 +706,7 @@
 
             list.innerHTML = '';
             for (const h of handles) {
-                const pRows = await PBdb.select('users', { filter: PBFilter.eq('handle', h), fields: 'name,pic', perPage: 1 });
-                const p = pRows[0] || null;
+                const { data: p } = await _supabase.from('profiles').select('name, pic').eq('handle', h).maybeSingle();
                 const row = document.createElement('div');
                 row.className = 'fol-row';
                 row.onclick = () => location.href = 'profile.html?u=' + h;
@@ -720,9 +725,9 @@
         }
 
         async function loadUserComics(handle) {
-            const comics = await PBdb.select('comics', { filter: PBFilter.eq('owner_handle', handle), fields: 'id,cover' });
+            const { data: comics } = await _supabase.from('comics').select('id, cover').eq('owner_handle', handle);
             const grid = document.getElementById('user-comic-grid');
-            grid.innerHTML = comics.map(c => `
+            grid.innerHTML = comics?.map(c => `
                 <div class="grid-item" onclick="location.href='reader.html?id=${c.id}'">
                     <img src="${c.cover}">
                 </div>
@@ -794,18 +799,21 @@
                 socials
             };
 
-            try {
-                await PBdb.update('users', myProfile.id, {
-                    name: updated.name,
-                    bio: updated.bio,
-                    pic: updated.pic,
-                    banner: updated.banner,
-                    socials: updated.socials
-                });
+            const { error } = await _supabase.from('profiles').upsert({
+                handle: myProfile.handle,
+                name: updated.name,
+                bio: updated.bio,
+                pic: updated.pic,
+                banner: updated.banner,
+                socials: updated.socials,
+                permanent_id: myProfile.permanent_id || null
+            }, { onConflict: 'handle' });
+
+            if (!error) {
                 localStorage.setItem('user_profile', JSON.stringify(updated));
                 location.href = `profile.html?u=${myProfile.handle}`;
-            } catch(err) {
-                alert(err.message);
+            } else {
+                alert(error.message);
             }
         }
 

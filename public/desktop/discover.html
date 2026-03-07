@@ -5,6 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ComicCore — Discover</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap">
 <style>
@@ -629,8 +630,11 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
   </a>
 </div>
 
-<script src="pocketbase-api.js"></script>
 <script>
+const _sb = supabase.createClient(
+  'https://mmycqeejhguzhtzkyjaj.supabase.co',
+  'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
+);
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
 let allComics       = [];
@@ -644,36 +648,26 @@ let shareComicId    = null;
 let shareComicTitle = null;
 let toastTimer      = null;
 
-// ── Profile cache ──
+// ── Profile cache (to avoid re-fetching same profiles) ────
 const profileCache = {};
 async function getCachedProfile(handle) {
   if (profileCache[handle]) return profileCache[handle];
-  try {
-    const rows = await PBdb.select('users', {
-      filter: PBFilter.eq('handle', handle),
-      fields: 'pic,name,handle',
-      perPage: 1
-    });
-    profileCache[handle] = rows[0] || { pic: '', name: handle };
-  } catch(_) {
-    profileCache[handle] = { pic: '', name: handle };
-  }
+  const { data } = await _sb.from('profiles').select('pic, name').eq('handle', handle).maybeSingle();
+  profileCache[handle] = data || { pic: '', name: handle };
   return profileCache[handle];
 }
 
-// ── Follow system ──
-const followCache = {};
+// ── Follow system (real one-way follows via `follows` table) ──
+const followCache = {}; // handle -> bool
 
 async function isFollowing(targetHandle) {
   if (!myProfile.handle || myProfile.handle === 'guest') return false;
   if (targetHandle === myProfile.handle) return false;
   if (followCache[targetHandle] !== undefined) return followCache[targetHandle];
-  const rows = await PBdb.select('follows', {
-    filter: PBFilter.and(PBFilter.eq('follower', myProfile.handle), PBFilter.eq('following', targetHandle)),
-    fields: 'id', perPage: 1
-  });
-  followCache[targetHandle] = rows.length > 0;
-  return followCache[targetHandle];
+  const { data } = await _sb.from('follows')
+    .select('id').eq('follower', myProfile.handle).eq('following', targetHandle).maybeSingle();
+  followCache[targetHandle] = !!data;
+  return !!data;
 }
 
 async function tileFollow(btn, handle) {
@@ -681,51 +675,56 @@ async function tileFollow(btn, handle) {
   btn.classList.add('loading');
   const already = await isFollowing(handle);
   if (already) {
-    await PBdb.deleteWhere('follows', PBFilter.and(PBFilter.eq('follower', myProfile.handle), PBFilter.eq('following', handle)));
+    // Unfollow
+    await _sb.from('follows').delete().eq('follower', myProfile.handle).eq('following', handle);
     followCache[handle] = false;
     btn.textContent = 'Follow';
     btn.classList.remove('following');
     showToast(`Unfollowed @${handle}`);
   } else {
-    await PBdb.insert('follows', { follower: myProfile.handle, following: handle });
+    // Follow
+    const { error } = await _sb.from('follows').insert([{ follower: myProfile.handle, following: handle }]);
+    if (error) { showToast('Error — try again'); btn.classList.remove('loading'); return; }
     followCache[handle] = true;
     btn.textContent = 'Following ✓';
     btn.classList.add('following');
     showToast(`✅ Now following @${handle}`);
   }
   btn.classList.remove('loading');
+  // Refresh top creators after follow change
   loadTopCreators(currentRankTab);
 }
 
-// ── Connection cache ──
+// ── Connection/follow cache (legacy — keep for share sheet) ────────────────────────────────
 const connectionCache = {};
 async function getConnectionStatus(targetHandle) {
   if (!myProfile.handle || myProfile.handle === 'guest') return 'guest';
   if (targetHandle === myProfile.handle) return 'self';
   const key = targetHandle;
   if (connectionCache[key] !== undefined) return connectionCache[key];
-  const rows = await PBdb.select('connections', {
-    filter: PBFilter.or(
-      PBFilter.and(PBFilter.eq('user_a', myProfile.handle), PBFilter.eq('user_b', targetHandle)),
-      PBFilter.and(PBFilter.eq('user_a', targetHandle), PBFilter.eq('user_b', myProfile.handle))
-    ),
-    fields: 'status', perPage: 1
-  });
-  const status = rows[0]?.status || 'none';
+  const { data } = await _sb.from('connections')
+    .select('status')
+    .or(`and(sender_handle.eq.${myProfile.handle},receiver_handle.eq.${targetHandle}),and(sender_handle.eq.${targetHandle},receiver_handle.eq.${myProfile.handle})`)
+    .maybeSingle();
+  const status = data?.status || 'none';
   connectionCache[key] = status;
   return status;
 }
 
-// ── Helpers ──
+// ── Helpers ──────────────────────────────────────────────
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.innerText = msg; t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
+
 function timeAgo(d) {
   if (!d) return '';
   const sec = Math.floor((Date.now() - new Date(d)) / 1000);
@@ -737,14 +736,17 @@ function timeAgo(d) {
   const mo  = Math.floor(day/30); if (mo  < 12) return mo +'mo ago';
   return Math.floor(day/365)+'y ago';
 }
+
 function exactDate(d) {
   if (!d) return 'Unknown';
   return new Date(d).toLocaleString('en-US',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
 }
+
 function isNewComic(d) {
   if (!d) return false;
   return (Date.now() - new Date(d)) < 1000 * 60 * 60 * 48;
 }
+
 function getProgress(comicId, totalFrames) {
   try {
     const s = localStorage.getItem('cc-progress-' + comicId);
@@ -755,7 +757,7 @@ function getProgress(comicId, totalFrames) {
   } catch(e) { return null; }
 }
 
-// ── Sort ──
+// ── Sort ─────────────────────────────────────────────────
 function setSort(s) {
   currentSort = s;
   ['recent','popular','oldest'].forEach(k =>
@@ -765,17 +767,21 @@ function setSort(s) {
   document.getElementById('comics-label').innerText = labels[s];
   renderComics(allComics, globalStars);
 }
+
 function sortedComics(comics, stars) {
   const c = [...comics];
   if (currentSort === 'popular') {
-    return c.sort((a,b) => stars.filter(s => s.receiver_hand === b.id).length - stars.filter(s => s.receiver_hand === a.id).length);
+    return c.sort((a,b) =>
+      stars.filter(s => s.receiver_hand === b.id).length -
+      stars.filter(s => s.receiver_hand === a.id).length
+    );
   } else if (currentSort === 'oldest') {
     return c.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   }
   return c.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
-// ── Top Creators ──
+// ── Top Creators ──────────────────────────────────────────
 let currentRankTab = 'stars';
 let topCreatorsData = { stars: [], follows: [] };
 
@@ -789,11 +795,15 @@ function switchRankTab(tab, el) {
 async function loadTopCreators(tab) {
   const list = document.getElementById('top-creators-list');
   if (!list) return;
+
   if (tab === 'stars') {
+    // Aggregate stars (messages with reaction ⭐) by owner_handle
     const starsByOwner = {};
     globalStars.forEach(s => {
       const comic = allComics.find(c => c.id === s.receiver_hand);
-      if (comic?.owner_handle) starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
+      if (comic?.owner_handle) {
+        starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
+      }
     });
     const sorted = Object.entries(starsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
     const withProfiles = await Promise.all(sorted.map(async ([handle, count]) => {
@@ -802,9 +812,10 @@ async function loadTopCreators(tab) {
     }));
     topCreatorsData.stars = withProfiles;
   } else if (tab === 'follows') {
-    const allFollows = await PBdb.select('follows', { fields: 'following', perPage: 500 });
+    // Count follows per handle from the follows table
+    const { data: followCounts } = await _sb.from('follows').select('following');
     const countMap = {};
-    allFollows.forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
+    (followCounts || []).forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
     const sorted = Object.entries(countMap).sort((a,b) => b[1]-a[1]).slice(0,10);
     const withProfiles = await Promise.all(sorted.map(async ([handle, count]) => {
       const p = await getCachedProfile(handle);
@@ -812,10 +823,11 @@ async function loadTopCreators(tab) {
     }));
     topCreatorsData.follows = withProfiles;
   }
+
   renderTopCreators(topCreatorsData[tab], tab);
 }
 
-const RANK_MEDALS  = ['🥇','🥈','🥉','4','5','6','7','8','9','10'];
+const RANK_MEDALS = ['🥇','🥈','🥉','4','5','6','7','8','9','10'];
 const RANK_CLASSES = ['gold','silver','bronze','','','','','','',''];
 
 function renderTopCreators(creators, tab) {
@@ -830,47 +842,57 @@ function renderTopCreators(creators, tab) {
     const medal = RANK_MEDALS[i] || (i+1);
     const rankClass = RANK_CLASSES[i] || '';
     const isMedal = i < 3;
-    return `<a class="creator-rank-card ${rankClass}" href="profile.html?u=${esc(c.handle)}">
-      ${isMedal ? `<div class="rank-badge">${medal}</div>` : `<div style="position:absolute;top:6px;left:8px;font-size:9px;color:#444;font-weight:900;">#${i+1}</div>`}
-      <img class="creator-rank-avatar" src="${esc(c.pic||'')}" onerror="this.src=''" alt="${esc(c.handle)}">
-      <div class="creator-rank-name">${esc(c.name||c.handle)}</div>
-      <div class="creator-rank-handle">@${esc(c.handle)}</div>
-      <div class="creator-rank-stat">${statLabel} ${c.count}</div>
-    </a>`;
+    return `
+      <a class="creator-rank-card ${rankClass}" href="profile.html?u=${esc(c.handle)}">
+        ${isMedal ? `<div class="rank-badge">${medal}</div>` : `<div style="position:absolute;top:6px;left:8px;font-size:9px;color:#444;font-weight:900;">#${i+1}</div>`}
+        <img class="creator-rank-avatar" src="${esc(c.pic||'')}" onerror="this.src=''" alt="${esc(c.handle)}">
+        <div class="creator-rank-name">${esc(c.name||c.handle)}</div>
+        <div class="creator-rank-handle">@${esc(c.handle)}</div>
+        <div class="creator-rank-stat">${statLabel} ${c.count}</div>
+      </a>`;
   }).join('');
 }
 
-// ── Load ──
+// ── Load ─────────────────────────────────────────────────
 async function init() {
   await loadFeeds();
   setupRealtime();
+  // Hide loading screen once all data is loaded
   const loader = document.getElementById('loading-screen');
   if (loader) loader.classList.add('hidden');
 }
 
 function setupRealtime() {
-  PBRealtime.subscribe('messages', () => {
-    loadFeeds();
-    if (activeComicId) fetchComments();
-  });
+  _sb.channel('discover_realtime')
+    .on('postgres_changes', { event:'*', schema:'public', table:'messages' }, () => {
+      loadFeeds();
+      if (activeComicId) fetchComments();
+    })
+    .subscribe();
 }
 
 async function loadFeeds() {
-  const [comics, stars, teams, validProfiles] = await Promise.all([
-    PBdb.select('comics', { sort: '-created_at' }),
-    PBdb.select('messages', { filter: PBFilter.eq('reaction', '⭐'), fields: 'receiver_hand,sender_handle' }),
-    PBdb.select('team_tickets', {}),
-    PBdb.select('users', { fields: 'handle' }),
+  const [{ data: comics }, { data: stars }, { data: teams }, { data: validProfiles }] = await Promise.all([
+    _sb.from('comics').select('*').order('created_at', { ascending: false }),
+    _sb.from('messages').select('receiver_hand, sender_handle').eq('reaction','⭐'),
+    _sb.from('team_tickets').select('*'),
+    _sb.from('profiles').select('handle'),
   ]);
-  const knownHandles = new Set(validProfiles.map(p => p.handle));
-  allComics   = comics.filter(c => c.title && (c.data?.length > 0 || c.cover) && knownHandles.has(c.owner_handle));
-  globalStars = stars;
+
+  // Build a Set of known handles so we can filter out orphaned/deleted accounts
+  const knownHandles = new Set((validProfiles || []).map(p => p.handle));
+
+  allComics   = (comics || []).filter(c =>
+    c.title && (c.data?.length > 0 || c.cover) && knownHandles.has(c.owner_handle)
+  );
+  globalStars = stars || [];
+
   renderComics(allComics, globalStars);
-  renderTeams(teams);
+  renderTeams(teams || []);
   loadTopCreators(currentRankTab);
 }
 
-// ── Render comics grid ──
+// ── Render comics grid ────────────────────────────────────
 function renderComics(comics, stars) {
   const sorted    = sortedComics(comics, stars);
   const container = document.getElementById('recentFeed');
@@ -884,15 +906,22 @@ function renderComics(comics, stars) {
     const isMine     = c.owner_handle === myProfile.handle;
     const isNew      = isNewComic(c.created_at) && !isMine;
     const prog       = getProgress(c.id, (c.data||[]).length);
-    const coverHtml  = c.cover ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">` : `<div class="no-cover">📖</div>`;
-    const progressHtml = prog ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
-    const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>` : (isNew ? `<div class="tile-new">NEW</div>` : '');
+    const coverHtml  = c.cover
+      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+      : `<div class="no-cover">📖</div>`;
+    const progressHtml = prog
+      ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
+    const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
+      : (isNew ? `<div class="tile-new">NEW</div>` : '');
     const starsHtml  = starCount > 0 ? `<div class="tile-stars">⭐ ${starCount}</div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const followBtn = (!isMine && myProfile.handle !== 'guest')
       ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
+
     return `<div class="comic-card" data-id="${esc(c.id)}">
-      <div class="comic-card-cover">${coverHtml}${badgeHtml}${starsHtml}${progressHtml}</div>
+      <div class="comic-card-cover">
+        ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}
+      </div>
       <div class="comic-card-info">
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
         <div class="comic-card-meta">
@@ -905,9 +934,12 @@ function renderComics(comics, stars) {
       </div>
     </div>`;
   }).join('');
+
   container.querySelectorAll('.comic-card').forEach(card => {
     card.addEventListener('click', () => openPopup(card.dataset.id));
   });
+
+  // Hydrate avatars (reuse existing function but target new class)
   hydrateCardAvatars(container);
   hydrateFollowButtons(container);
   updateCarouselBtns();
@@ -939,6 +971,7 @@ function updateCarouselBtns() {
   rBtn.disabled = el.scrollLeft >= el.scrollWidth - el.clientWidth - 4;
 }
 
+// Update arrow state on manual scroll too
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('recentFeed');
   if (el) el.addEventListener('scroll', updateCarouselBtns);
@@ -946,11 +979,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function hydrateAvatars(container) {
   const avatars = container.querySelectorAll('.tile-creator-avatar[data-handle]');
+  // Batch by unique handles
   const handles = [...new Set([...avatars].map(a => a.dataset.handle))];
   await Promise.all(handles.map(async handle => {
     const p = await getCachedProfile(handle);
     container.querySelectorAll(`.tile-creator-avatar[data-handle="${handle}"]`).forEach(img => {
-      if (p?.pic) img.src = p.pic; else img.style.display = 'none';
+      if (p?.pic) { img.src = p.pic; }
+      else img.style.display = 'none';
     });
   }));
 }
@@ -963,71 +998,128 @@ async function hydrateFollowButtons(container) {
     const following = await isFollowing(handle);
     container.querySelectorAll(`[data-follow-handle="${handle}"]`).forEach(btn => {
       if (following) { btn.textContent = 'Following ✓'; btn.classList.add('following'); }
+      else { btn.textContent = 'Follow'; }
     });
   }));
 }
 
-// ── Popup ──
-async function openPopup(comicId) {
-  const c = allComics.find(x => x.id === comicId);
+// ── Popup ─────────────────────────────────────────────────
+async function openPopup(id) {
+  const c = allComics.find(c => c.id === id);
   if (!c) return;
   activePopupComic = c;
-  const isMine = c.owner_handle === myProfile.handle;
-  const starCount = globalStars.filter(s => s.receiver_hand === c.id).length;
-  const isStarred = globalStars.some(s => s.receiver_hand === c.id && s.sender_handle === myProfile.handle);
-  activePopupStarred = isStarred;
 
-  document.getElementById('popup-cover').innerHTML = c.cover
-    ? `<img src="${esc(c.cover)}" style="width:100%;height:100%;object-fit:cover;">`
-    : `<div class="no-cover" style="height:100%;">📖</div>`;
-  document.getElementById('popup-title').innerText = c.title || 'Untitled';
-  document.getElementById('popup-handle').innerText = '@' + (c.owner_handle || 'unknown');
-  document.getElementById('popup-handle').onclick = () => location.href = 'profile.html?u=' + esc(c.owner_handle);
-  document.getElementById('popup-date').innerText = exactDate(c.created_at);
-  document.getElementById('popup-star-count').innerText = starCount;
+  // Cover
+  const coverWrap = document.getElementById('popup-cover-wrap');
+  coverWrap.innerHTML = c.cover
+    ? `<img class="popup-cover" src="${esc(c.cover)}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📖</div>'">`
+    : `<div class="popup-cover-placeholder">📖</div>`;
 
-  const starBtn = document.getElementById('popup-star-btn');
-  if (starBtn) {
-    starBtn.innerHTML = isStarred ? '⭐' : '☆';
-    starBtn.classList.toggle('starred', isStarred);
-    starBtn.onclick = () => popupToggleStar(c.id);
+  // Title & creator
+  document.getElementById('popup-title').innerText   = c.title || 'Untitled';
+  const ownerHandle = c.owner_handle || 'unknown';
+  document.getElementById('popup-creator').innerHTML =
+    `by <a href="profile.html?u=${esc(ownerHandle)}" onclick="event.stopPropagation()">@${esc(ownerHandle)}</a> · ${timeAgo(c.created_at)}`;
+
+  // Meta
+  const frameCount = (c.data||[]).length;
+  const starCount  = globalStars.filter(s => s.receiver_hand === c.id).length;
+  document.getElementById('popup-meta').innerHTML = `
+    <span class="popup-meta-chip">🎞 ${frameCount} page${frameCount!==1?'s':''}</span>
+    <span class="popup-meta-chip">⭐ ${starCount}</span>
+    ${c.swipe_dir ? `<span class="popup-meta-chip">${c.swipe_dir==='vertical'?'↕ Vertical':'↔ Horizontal'}</span>` : ''}
+    <span class="popup-meta-chip">📅 ${exactDate(c.created_at).split(',')[0]}</span>`;
+
+  // Description
+  const descEl = document.getElementById('popup-desc');
+  descEl.innerText = c.description || '';
+  descEl.style.display = c.description ? 'block' : 'none';
+
+  // Tags
+  const tags = c.tags || [];
+  document.getElementById('popup-tags').innerHTML =
+    tags.map(t => `<span class="popup-tag">#${esc(t)}</span>`).join('');
+
+  // Progress
+  const prog = getProgress(c.id, frameCount);
+  const progWrap = document.getElementById('popup-progress-wrap');
+  if (prog) {
+    progWrap.style.display = 'block';
+    document.getElementById('popup-progress-fill').style.width  = prog.pct + '%';
+    document.getElementById('popup-progress-label').innerText   =
+      `Reading progress: page ${prog.frame} of ${prog.total} (${prog.pct}%)`;
+  } else {
+    progWrap.style.display = 'none';
   }
 
-  const btns = document.getElementById('popup-action-btns');
+  // Star state
+  const isMine = c.owner_handle === myProfile.handle;
+  activePopupStarred = false;
+  if (myProfile.handle !== 'guest' && !isMine) {
+    const { data: msg } = await _sb
+      .from('messages').select('id')
+      .eq('sender_handle', myProfile.handle)
+      .eq('receiver_hand', c.id)
+      .eq('reaction','⭐')
+      .maybeSingle();
+    activePopupStarred = !!msg;
+  }
+
+  // Build buttons
+  const btns = document.getElementById('popup-btns');
   btns.innerHTML = '';
 
   const readBtn = document.createElement('button');
-  readBtn.className = 'popup-read-btn';
-  readBtn.innerHTML = '▶ Read';
-  readBtn.onclick = () => { closePopup(); location.href = `reader.html?id=${c.id}`; };
+  readBtn.className = 'read-btn';
+  readBtn.innerHTML = prog ? '▶ Continue' : '▶ Read Now';
+  readBtn.onclick = () => {
+    closePopup();
+    const ratioParam = c.canvas_ratio?.w && c.canvas_ratio?.h
+      ? `&ratio=${c.canvas_ratio.w}:${c.canvas_ratio.h}` : '';
+    location.href = 'reader.html?id=' + encodeURIComponent(c.id) + ratioParam;
+  };
   btns.appendChild(readBtn);
+
+  if (!isMine && myProfile.handle !== 'guest') {
+    const starBtn = document.createElement('button');
+    starBtn.className = 'popup-icon-btn' + (activePopupStarred ? ' starred' : '');
+    starBtn.id        = 'popup-star-btn';
+    starBtn.innerHTML = activePopupStarred ? '⭐' : '☆';
+    starBtn.title     = activePopupStarred ? 'Remove star' : 'Star this comic';
+    starBtn.onclick   = () => popupToggleStar(c.id);
+    btns.appendChild(starBtn);
+  }
 
   const commentBtn = document.createElement('button');
   commentBtn.className = 'popup-icon-btn';
   commentBtn.innerHTML = '💬';
-  commentBtn.title = 'Comments';
-  commentBtn.onclick = () => { closePopup(); openCommentSheet(c.id); };
+  commentBtn.title     = 'Comments';
+  commentBtn.onclick   = () => openCommentSheet(c.id);
   btns.appendChild(commentBtn);
 
   const shareBtn = document.createElement('button');
   shareBtn.className = 'popup-icon-btn';
   shareBtn.innerHTML = '↗';
-  shareBtn.title = 'Share';
-  shareBtn.onclick = () => openShareSheet(c.id, c.title);
+  shareBtn.title     = 'Share';
+  shareBtn.onclick   = () => openShareSheet(c.id, c.title);
   btns.appendChild(shareBtn);
 
   if (isMine) {
     const editBtn = document.createElement('button');
     editBtn.className = 'popup-edit-btn';
     editBtn.innerHTML = '✏️ Edit';
-    editBtn.onclick = () => { closePopup(); localStorage.setItem('edit_comic_id', c.id); location.href = 'create.html'; };
+    editBtn.onclick   = () => {
+      closePopup();
+      localStorage.setItem('edit_comic_id', c.id);
+      location.href = 'create.html';
+    };
     btns.appendChild(editBtn);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'popup-delete-btn';
     delBtn.innerHTML = '🗑';
-    delBtn.title = 'Delete comic';
-    delBtn.onclick = () => deleteComic(c.id, c.title);
+    delBtn.title     = 'Delete comic';
+    delBtn.onclick   = () => deleteComic(c.id, c.title);
     btns.appendChild(delBtn);
   }
 
@@ -1043,16 +1135,19 @@ async function popupToggleStar(comicId) {
   if (myProfile.handle === 'guest') { showToast('Log in to star!'); return; }
   const btn = document.getElementById('popup-star-btn');
   if (activePopupStarred) {
-    await PBdb.deleteWhere('messages', PBFilter.and(
-      PBFilter.eq('sender_handle', myProfile.handle),
-      PBFilter.eq('receiver_hand', comicId),
-      PBFilter.eq('reaction', '⭐')
-    ));
+    await _sb.from('messages').delete()
+      .eq('sender_handle', myProfile.handle)
+      .eq('receiver_hand', comicId)
+      .eq('reaction','⭐');
     activePopupStarred = false;
     if (btn) { btn.classList.remove('starred'); btn.innerHTML = '☆'; }
     showToast('Star removed');
   } else {
-    await PBdb.insert('messages', { sender_handle: myProfile.handle, receiver_hand: comicId, content: '⭐', reaction: '⭐' });
+    await _sb.from('messages').insert([{
+      sender_handle: myProfile.handle,
+      receiver_hand: comicId,
+      content: '⭐', reaction: '⭐'
+    }]);
     activePopupStarred = true;
     if (btn) { btn.classList.add('starred'); btn.innerHTML = '⭐'; }
     showToast('⭐ Starred!');
@@ -1063,34 +1158,38 @@ async function popupToggleStar(comicId) {
 async function deleteComic(id, title) {
   if (!confirm(`Delete "${title}"? This removes it from Discover permanently.`)) return;
   closePopup();
-  await PBdb.delete('comics', id);
+  await _sb.from('comics').delete().eq('id', id);
   allComics = allComics.filter(c => c.id !== id);
   renderComics(allComics, globalStars);
 }
 
-// ── Comments ──
-let pendingReactionImg = null;
+// ── Comments ──────────────────────────────────────────────
+let pendingReactionImg = null; // {name, src} to insert
 
 function openCommentSheet(id) {
   activeComicId = id;
   pendingReactionImg = null;
   document.getElementById('comment-overlay').classList.add('open');
+  // Close reaction tray on open
   document.getElementById('reaction-tray').classList.remove('open');
   document.getElementById('reaction-toggle-btn').classList.remove('active');
   fetchComments();
   loadReactionTray();
 }
+
 function closeCommentSheet() {
   document.getElementById('comment-overlay').classList.remove('open');
   activeComicId = null;
   pendingReactionImg = null;
 }
+
 function toggleReactionTray() {
   const tray = document.getElementById('reaction-tray');
   const btn  = document.getElementById('reaction-toggle-btn');
   const isOpen = tray.classList.toggle('open');
   btn.classList.toggle('active', isOpen);
 }
+
 function loadReactionTray() {
   const grid = document.getElementById('reaction-grid');
   const images = JSON.parse(localStorage.getItem('cc-reaction-images') || '[]');
@@ -1104,13 +1203,16 @@ function loadReactionTray() {
     </button>
   `).join('');
 }
+
 function selectReactionImage(index) {
   const images = JSON.parse(localStorage.getItem('cc-reaction-images') || '[]');
   const img = images[index];
   if (!img) return;
   pendingReactionImg = img;
+  // Show preview in input
   document.getElementById('commentInput').placeholder = `📎 "${img.name}" selected — add text or post!`;
   document.getElementById('commentInput').value = '';
+  // Close tray
   document.getElementById('reaction-tray').classList.remove('open');
   document.getElementById('reaction-toggle-btn').classList.remove('active');
   showToast(`🎭 "${img.name}" selected`);
@@ -1119,39 +1221,45 @@ function selectReactionImage(index) {
 async function fetchComments() {
   const listEl = document.getElementById('commentList');
   listEl.innerHTML = '<div class="comment-empty">Loading…</div>';
-  try {
-    const comments = await PBdb.select('messages', {
-      filter: PBFilter.and(PBFilter.eq('receiver_hand', activeComicId), 'reaction=""'),
-      sort: '-created_at'
-    });
-    if (!comments.length) {
-      listEl.innerHTML = '<div class="comment-empty">No comments yet. Be first!</div>';
-      return;
-    }
-    listEl.innerHTML = '';
-    for (const m of comments) {
-      const p = await getCachedProfile(m.sender_handle);
-      const isImgReaction = m.content && m.content.startsWith('[IMG_REACTION]:');
-      let bodyHtml = '';
-      if (isImgReaction) {
-        const src = m.content.replace('[IMG_REACTION]:', '').trim();
-        bodyHtml = `<img src="${esc(src)}" class="comment-reaction-img" loading="lazy">`;
-        if (m.comment_text) bodyHtml += `<div style="margin-top:4px;">${esc(m.comment_text)}</div>`;
-      } else {
-        bodyHtml = `<div>${esc(m.content)}</div>`;
-      }
-      const item = document.createElement('div');
-      item.className = 'comment-item';
-      item.innerHTML = `
-        <img src="${esc(p?.pic || '')}" class="comment-avatar" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'" onerror="this.src=''">
-        <div class="comment-content">
-          <div class="comment-user" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'">@${esc(m.sender_handle)}</div>
-          ${bodyHtml}
-        </div>`;
-      listEl.appendChild(item);
-    }
-  } catch(e) {
+
+  const { data: comments, error } = await _sb
+    .from('messages')
+    .select('*')
+    .eq('receiver_hand', activeComicId)
+    .is('reaction', null)
+    .order('created_at', { ascending: false });
+
+  if (error) {
     listEl.innerHTML = '<div class="comment-empty">Could not load comments.</div>';
+    return;
+  }
+  if (!comments || !comments.length) {
+    listEl.innerHTML = '<div class="comment-empty">No comments yet. Be first!</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  for (const m of comments) {
+    const p = await getCachedProfile(m.sender_handle);
+    const isImgReaction = m.content && m.content.startsWith('[IMG_REACTION]:');
+    let bodyHtml = '';
+    if (isImgReaction) {
+      const src = m.content.replace('[IMG_REACTION]:', '').trim();
+      bodyHtml = `<img src="${esc(src)}" class="comment-reaction-img" loading="lazy">`;
+      if (m.comment_text) bodyHtml += `<div style="margin-top:4px;">${esc(m.comment_text)}</div>`;
+    } else {
+      bodyHtml = `<div>${esc(m.content)}</div>`;
+    }
+
+    const item = document.createElement('div');
+    item.className = 'comment-item';
+    item.innerHTML = `
+      <img src="${esc(p?.pic || '')}" class="comment-avatar" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'" onerror="this.src=''">
+      <div class="comment-content">
+        <div class="comment-user" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'">@${esc(m.sender_handle)}</div>
+        ${bodyHtml}
+      </div>`;
+    listEl.appendChild(item);
   }
 }
 
@@ -1159,21 +1267,34 @@ async function postComment() {
   const input = document.getElementById('commentInput');
   const text  = input.value.trim();
   if (!text && !pendingReactionImg) return;
-  if (!myProfile.handle || myProfile.handle === 'guest') { showToast('Log in to comment!'); return; }
+  if (!myProfile.handle || myProfile.handle === 'guest') {
+    showToast('Log in to comment!'); return;
+  }
+
   let content = text;
   let extraFields = {};
+
   if (pendingReactionImg) {
+    // Store the image src as a special comment type
     content = `[IMG_REACTION]:${pendingReactionImg.src}`;
     if (text) extraFields.comment_text = text;
   }
-  await PBdb.insert('messages', { sender_handle: myProfile.handle, receiver_hand: activeComicId, content, ...extraFields });
+
+  const { error } = await _sb.from('messages').insert([{
+    sender_handle: myProfile.handle,
+    receiver_hand: activeComicId,
+    content,
+    ...extraFields
+  }]);
+
+  if (error) { showToast('Error posting comment'); return; }
   input.value = '';
   input.placeholder = 'Add a comment…';
   pendingReactionImg = null;
   fetchComments();
 }
 
-// ── Search ──
+// ── Search ────────────────────────────────────────────────
 async function filterSearch() {
   const q = document.getElementById('tagSearch').value.toLowerCase().trim();
   const creatorSection = document.getElementById('creatorResultsSection');
@@ -1189,11 +1310,11 @@ async function filterSearch() {
   );
   renderComics(filtered, globalStars);
 
-  const profiles = await PBdb.select('users', {
-    filter: PBFilter.or(`handle~"${q}"`, `name~"${q}"`),
-    perPage: 8
-  });
-  if (profiles.length) {
+  const { data: profiles } = await _sb
+    .from('profiles').select('*')
+    .or(`handle.ilike.%${q}%,name.ilike.%${q}%`)
+    .limit(8);
+  if (profiles?.length) {
     creatorSection.style.display = 'block';
     document.getElementById('creatorResults').innerHTML = profiles.map(p => {
       const picHtml = p.pic
@@ -1209,7 +1330,7 @@ async function filterSearch() {
   }
 }
 
-// ── Tabs ──
+// ── Tabs ──────────────────────────────────────────────────
 function switchTab(type) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-'+type).classList.add('active');
@@ -1222,23 +1343,21 @@ function switchTab(type) {
 async function loadStories() {
   const feed = document.getElementById('storiesFeed');
   feed.innerHTML = '<div class="empty-feed">Loading stories…</div>';
-  try {
-    const stories = await PBdb.select('stories', { sort: '-created_at' });
-    if (!stories.length) { feed.innerHTML = '<div class="empty-feed">No stories yet. Be the first!</div>'; return; }
-    storiesLoaded = true;
-    feed.innerHTML = stories.map(s => `
-      <div class="story-card" onclick="location.href='story-reader.html?id=${esc(s.id)}'">
-        ${s.cover ? `<img src="${esc(s.cover)}" class="story-cover">` : `<div class="story-cover-placeholder">📖</div>`}
-        <div>
-          <div class="story-title">${esc(s.title)}</div>
-          <a href="profile.html?u=${esc(s.owner_handle)}" class="story-author" onclick="event.stopPropagation()">@${esc(s.owner_handle)}</a>
-          ${s.description ? `<div class="story-desc">${esc(s.description)}</div>` : ''}
-          <div class="story-meta"><span>📄 ${s.page_count||1} pages</span><span>${timeAgo(s.created_at)}</span></div>
-        </div>
-      </div>`).join('');
-  } catch(e) {
-    feed.innerHTML = '<div class="empty-feed">No stories yet. Be the first!</div>';
+  const { data: stories, error } = await _sb.from('stories').select('*').order('created_at', { ascending: false });
+  if (error || !stories?.length) {
+    feed.innerHTML = '<div class="empty-feed">No stories yet. Be the first!</div>'; return;
   }
+  storiesLoaded = true;
+  feed.innerHTML = stories.map(s => `
+    <div class="story-card" onclick="location.href='story-reader.html?id=${esc(s.id)}'">
+      ${s.cover ? `<img src="${esc(s.cover)}" class="story-cover">` : `<div class="story-cover-placeholder">📖</div>`}
+      <div>
+        <div class="story-title">${esc(s.title)}</div>
+        <a href="profile.html?u=${esc(s.owner_handle)}" class="story-author" onclick="event.stopPropagation()">@${esc(s.owner_handle)}</a>
+        ${s.description ? `<div class="story-desc">${esc(s.description)}</div>` : ''}
+        <div class="story-meta"><span>📄 ${s.page_count||1} pages</span><span>${timeAgo(s.created_at)}</span></div>
+      </div>
+    </div>`).join('');
 }
 
 function renderTeams(teams) {
@@ -1250,7 +1369,7 @@ function renderTeams(teams) {
     : '<div class="empty-feed" style="grid-column:1/-1;">No team projects yet.</div>';
 }
 
-// ── Share ──
+// ── Share (friend DM) ─────────────────────────────────────
 function openShareSheet(comicId, comicTitle) {
   shareComicId    = comicId;
   shareComicTitle = comicTitle;
@@ -1258,6 +1377,7 @@ function openShareSheet(comicId, comicTitle) {
   document.getElementById('shareOverlay').classList.add('open');
   loadShareFriends();
 }
+
 function closeShareSheet() {
   document.getElementById('shareOverlay').classList.remove('open');
   shareComicId = null; shareComicTitle = null;
@@ -1269,36 +1389,30 @@ async function loadShareFriends() {
   if (!myProfile.handle || myProfile.handle === 'guest') {
     list.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Log in to share.</div>'; return;
   }
-  try {
-    const conns = await PBdb.select('connections', {
-      filter: PBFilter.and(
-        PBFilter.or(PBFilter.eq('user_a', myProfile.handle), PBFilter.eq('user_b', myProfile.handle)),
-        PBFilter.eq('status', 'accepted')
-      )
-    });
-    if (!conns.length) {
-      list.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">No connections yet.</div>'; return;
-    }
-    list.innerHTML = '';
-    for (const conn of conns) {
-      const friendHandle = conn.user_a === myProfile.handle ? conn.user_b : conn.user_a;
-      const p = await getCachedProfile(friendHandle);
-      const row = document.createElement('div');
-      row.className = 'friend-row';
-      row.id = 'friend-row-' + friendHandle;
-      row.innerHTML = `
-        <div style="display:flex;align-items:center;gap:12px;">
-          <img src="${esc(p?.pic||'')}" class="friend-pic" onerror="this.style.display='none'">
-          <div>
-            <div class="friend-name">${esc(p?.name||friendHandle)}</div>
-            <div class="friend-handle">@${esc(friendHandle)}</div>
-          </div>
+  const { data: conns } = await _sb
+    .from('connections').select('*')
+    .or(`sender_handle.eq.${myProfile.handle},receiver_handle.eq.${myProfile.handle}`)
+    .eq('status','accepted');
+  if (!conns?.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">No connections yet.</div>'; return;
+  }
+  list.innerHTML = '';
+  for (const conn of conns) {
+    const friendHandle = conn.sender_handle === myProfile.handle ? conn.receiver_handle : conn.sender_handle;
+    const p = await getCachedProfile(friendHandle);
+    const row = document.createElement('div');
+    row.className = 'friend-row';
+    row.id = 'friend-row-' + friendHandle;
+    row.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;">
+        <img src="${esc(p?.pic||'')}" class="friend-pic" onerror="this.style.display='none'">
+        <div>
+          <div class="friend-name">${esc(p?.name||friendHandle)}</div>
+          <div class="friend-handle">@${esc(friendHandle)}</div>
         </div>
-        <button class="send-btn" onclick="sendShare('${esc(friendHandle)}')">Send</button>`;
-      list.appendChild(row);
-    }
-  } catch(e) {
-    list.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Could not load friends.</div>';
+      </div>
+      <button class="send-btn" onclick="sendShare('${esc(friendHandle)}')">Send</button>`;
+    list.appendChild(row);
   }
 }
 
@@ -1306,11 +1420,11 @@ async function sendShare(toHandle) {
   const btn = document.querySelector(`#friend-row-${toHandle} .send-btn`);
   if (btn) { btn.disabled = true; btn.innerText = '…'; }
   const readerUrl = `reader.html?id=${encodeURIComponent(shareComicId)}`;
-  await PBdb.insert('messages', {
+  await _sb.from('messages').insert([{
     sender_handle: myProfile.handle,
-    receiver_hand: toHandle,
+    receiver_handle: toHandle,
     content: `[SHARE]: ${shareComicTitle}! (Link: ${readerUrl})`
-  });
+  }]);
   if (btn) { btn.innerText = 'Sent ✓'; btn.style.background = '#32d74b'; btn.style.color = '#000'; }
   showToast('Shared!');
 }

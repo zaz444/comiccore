@@ -6,7 +6,8 @@
     <script src="theme.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComicCore | Squad Chat</title>
-        <style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -160,8 +161,9 @@
     </div>
 </div>
 
-<script src="pocketbase-api.js"></script>
 <script>
+    const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+
     const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const myHandle  = myProfile.handle;
     const activeSquadId = new URLSearchParams(window.location.search).get('id');
@@ -169,17 +171,17 @@
     async function init() {
         if (!activeSquadId || !myHandle) return showError();
 
-        let squad;
-        try { squad = await PBdb.getOne('team_tickets', activeSquadId); } catch(e) { return showError(); }
+        const { data: squad } = await _sb.from('team_tickets').select('*').eq('id', activeSquadId).single();
         if (!squad) return showError();
 
         const isOwner = squad.owner_handle === myHandle;
         if (!isOwner) {
-            const reqs = await PBdb.select('team_requests', {
-                filter: PBFilter.and(PBFilter.eq('ticket_id', activeSquadId), PBFilter.eq('sender_handle', myHandle)),
-                fields: 'status', perPage: 1
-            });
-            if (!reqs[0] || reqs[0].status !== 'accepted') return showError();
+            const { data: req } = await _sb.from('team_requests')
+                .select('status')
+                .eq('ticket_id', activeSquadId)
+                .eq('sender_handle', myHandle)
+                .single();
+            if (!req || req.status !== 'accepted') return showError();
         }
 
         document.getElementById('headerTitle').innerText = squad.team_name;
@@ -195,9 +197,12 @@
     }
 
     function setupRealtime() {
-        PBRealtime.subscribe('team_messages', msg => {
-            if (String(msg.ticket_id) === String(activeSquadId)) appendMessage(msg);
-        });
+        _sb.channel(`squad_chat_${activeSquadId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, payload => {
+                const m = payload.new;
+                if (String(m.ticket_id) === String(activeSquadId)) appendMessage(m);
+            })
+            .subscribe();
     }
 
     function isImg(text) {
@@ -214,16 +219,16 @@
     }
 
     async function loadMessages() {
-        const data = await PBdb.select('team_messages', {
-            filter: PBFilter.eq('ticket_id', activeSquadId),
-            sort: 'created_at'
-        });
+        const { data } = await _sb.from('team_messages')
+            .select('*')
+            .eq('ticket_id', activeSquadId)
+            .order('created_at', { ascending: true });
 
         const container = document.getElementById('chatContainer');
         container.innerHTML = '';
 
         let lastDate = null;
-        data.forEach(m => {
+        data?.forEach(m => {
             const msgDate = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
             if (msgDate !== lastDate) {
                 const div = document.createElement('div');
@@ -259,17 +264,17 @@
     }
 
     async function sendMessage() {
-        const input = document.getElementById('msgInput');
-        const val   = input.value.trim();
+        const input  = document.getElementById('msgInput');
+        const val    = input.value.trim();
         if (!val) return;
-        input.value = '';
+        input.value  = '';
         input.focus();
 
-        await PBdb.insert('team_messages', {
-            ticket_id:     activeSquadId,
-            sender_handle: myHandle,
-            content:       val
-        });
+        await _sb.from('team_messages').insert([{
+            ticket_id:      activeSquadId,
+            sender_handle:  myHandle,
+            content:        val
+        }]);
     }
 
     function esc(s) {

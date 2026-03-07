@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ComicCore - Mobile Creator</title>
-    <script src="pocketbase-api.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Shadows+Into+Light&family=Caveat:wght@700&family=Pacifico&family=Bebas+Neue&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -1086,6 +1086,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
+// ── SUPABASE ──
+const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
 // ── STATE ──
 let frames = [{ layers: [], background: '#ffffff' }];
@@ -1690,8 +1692,8 @@ let allSidebarMeta = [];
 async function loadMobSprites() {
     const grid = document.getElementById('mob-sprite-grid');
     grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
-    const data = await PBdb.select('sprites_library', { fields: 'id,name,tags,creator,created_at', sort: '-created_at' });
-    sidebarSprites = data;
+    const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
+    sidebarSprites = data || [];
     allSidebarMeta = sidebarSprites;
     renderMobSpriteGrid(sidebarSprites);
 }
@@ -1752,8 +1754,7 @@ async function sbFetchFull(id) {
     const fullCached = sbGetFullCache(id);
     if (fullCached) return { image_data: fullCached.img, actions: fullCached.actions };
 
-    const rows = await PBdb.select('sprites_library', { filter: PBFilter.eq('id', id), perPage: 1 });
-    const data = rows[0] || null;
+    const { data } = await _supabase.from('sprites_library').select('*').eq('id', id).single();
     if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {});
     return data;
 }
@@ -1765,8 +1766,8 @@ async function openLibrary() {
     const meta = sidebarSprites || sbLoadMetaCache();
     if (meta?.length) { renderLibraryGrid(grid, meta); return; }
     grid.innerHTML = "<p style='color:white;font-size:12px;'>Loading...</p>";
-    const data = await PBdb.select('sprites_library', { fields: 'id,name,tags,creator,created_at', sort: '-created_at' });
-    sidebarSprites = data;
+    const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
+    sidebarSprites = data || [];
     renderLibraryGrid(grid, sidebarSprites);
 }
 function renderLibraryGrid(grid, sprites) {
@@ -2191,16 +2192,15 @@ async function finalPublish() {
     if (!title) { alert('Please enter a title.'); return; }
     if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
     btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
-    const { user } = await PBAuth.getUser();
+    const { data: { user } } = await _supabase.auth.getUser();
     if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
-    const myProf = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
-    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, owner_handle: myProf.handle, updated_at: new Date().toISOString() };
-    try {
-        if (editingComicId) { await PBdb.update('comics', editingComicId, payload); }
-        else { await PBdb.insert('comics', { ...payload, created_at: new Date().toISOString() }); }
-    } catch(e) { alert('Error: ' + e.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
+    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
+    let error;
+    if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
+    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
+    if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
     alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
     location.href = 'discover.html';
@@ -2390,12 +2390,10 @@ async function openExportFramesTab() {
 // ── SAVE SPRITE TO PERSONAL ──
 async function saveSpriteToPersonal() {
     if (!activeLayer?.src) return;
-    const { user } = await PBAuth.getUser();
+    const { data:{user} } = await _supabase.auth.getUser();
     if (!user) { alert('Log in first'); return; }
-    try {
-        await PBdb.insert('user_sprites', { owner_handle: JSON.parse(localStorage.getItem('user_profile')||'{}').handle, image_data: activeLayer.src, name: activeLayer.nameTag || 'My Sprite', actions: {} });
-        alert('✓ Sprite saved!');
-    } catch(e) { alert(e.message); }
+    const { error } = await _supabase.from('personal_sprites').insert([{ user_id: user.id, src: activeLayer.src, name: activeLayer.nameTag || 'My Sprite', created_at: new Date().toISOString() }]);
+    alert(error ? error.message : '✓ Sprite saved!');
 }
 
 // ── AUTO SAVE ──
@@ -2406,7 +2404,7 @@ function applyPendingBg(pendingBg, pendingBgId) {
     if (pendingBgId) {
         localStorage.removeItem('pending_bg_id');
         currentImportType = 'bg';
-        PBdb.select('backgrounds_library', { filter: PBFilter.eq('id', pendingBgId), fields: 'image_data', perPage: 1 }).then(rows => { if (rows[0]?.image_data) showBgImportChoice(rows[0].image_data); });
+        _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single().then(({ data }) => { if (data?.image_data) showBgImportChoice(data.image_data); });
         return;
     }
     if (!pendingBg) return;
@@ -2434,8 +2432,8 @@ window.onload = function() {
     if (editComicId) {
         localStorage.removeItem('edit_comic_id'); editingComicId = editComicId;
         document.getElementById('publish-btn').innerText = 'UPDATE';
-        PBdb.getOne('comics', editComicId).then(data => {
-            if (!data) { alert('Could not load comic.'); return; }
+        _supabase.from('comics').select('*').eq('id', editComicId).single().then(({data,error}) => {
+            if (error||!data) { alert('Could not load comic.'); return; }
             frames = data.data || data.frames || [];
             const r = data.canvas_ratio || {w:1,h:1}; setRatio(r.w,r.h);
             document.getElementById('pub-title').value = data.title || '';

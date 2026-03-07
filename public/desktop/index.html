@@ -273,78 +273,83 @@
         <div class="bubble"></div>
     </div>
 
-    <script src="pocketbase-api.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        async function checkUser() {
-            const { user } = await PBAuth.getUser();
+        const SUPABASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co'; 
+        const SUPABASE_KEY = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        async function checkUser() {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            
             if (user) {
                 let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
 
-                // Refresh profile from PocketBase if handle is missing
                 if (!myProfile.handle) {
-                    try {
-                        const rows = await PBdb.select('users', {
-                            filter: PBFilter.eq('id', user.id),
-                            perPage: 1
-                        });
-                        if (rows[0]) {
-                            myProfile = { ...myProfile, ...rows[0] };
-                            localStorage.setItem('user_profile', JSON.stringify(myProfile));
-                        }
-                    } catch(_) {}
+                    const { data: freshProfile } = await supabaseClient
+                        .from('profiles')
+                        .select('*')
+                        .eq('permanent_id', user.id)
+                        .maybeSingle();
+
+                    if (freshProfile) {
+                        myProfile = { ...myProfile, ...freshProfile };
+                        localStorage.setItem('user_profile', JSON.stringify(myProfile));
+                    }
                 }
 
                 document.getElementById('user-display').innerText = myProfile.name || "New Creator";
                 if (myProfile.pic) document.getElementById('nav-pfp').src = myProfile.pic;
 
-                if (myProfile.handle) {
+                if (myProfile.permanent_id) {
                     const badge = document.getElementById('id-badge');
-                    badge.innerText = "@" + myProfile.handle;
+                    badge.innerText = "#" + myProfile.permanent_id;
                     badge.style.display = "inline-block";
                 }
 
                 if (localStorage.getItem('cc-privacy-team') === 'false')
                     document.getElementById('teams-btn').style.display = 'none';
 
-                checkTeamNotifications(myProfile.handle);
+                checkTeamNotifications(user.id);
             } else {
                 window.location.href = "login.html";
             }
         }
 
-        async function checkTeamNotifications(myHandle) {
-            if (!myHandle) return;
+
+        async function checkTeamNotifications(userId) {
             const teamsBtn = document.getElementById('teams-btn');
 
-            try {
-                // Check if I own any squads with pending requests
-                const myTickets = await PBdb.select('team_tickets', {
-                    filter: PBFilter.eq('owner_handle', myHandle),
-                    fields: 'id'
-                });
+            const { data: myTickets } = await supabaseClient
+                .from('team_tickets')
+                .select('id')
+                .eq('owner_id', userId);
+            
+            if (myTickets && myTickets.length > 0) {
+                const ticketIds = myTickets.map(t => t.id);
+                const { count: incomingCount } = await supabaseClient
+                    .from('team_requests')
+                    .select('*', { count: 'exact', head: true })
+                    .in('ticket_id', ticketIds)
+                    .eq('status', 'pending');
 
-                if (myTickets.length > 0) {
-                    const ticketIds = myTickets.map(t => t.id);
-                    const incomingCount = await PBdb.count('team_requests',
-                        PBFilter.and(PBFilter.inList('ticket_id', ticketIds), PBFilter.eq('status', 'pending'))
-                    );
-                    if (incomingCount > 0) {
-                        teamsBtn.classList.add('has-request');
-                        teamsBtn.innerText = "Squads (Join Request!)";
-                        return;
-                    }
+                if (incomingCount > 0) {
+                    teamsBtn.classList.add('has-request');
+                    teamsBtn.innerText = "Squads (Join Request!)";
+                    return;
                 }
+            }
 
-                // Check if any of my requests got accepted
-                const acceptedCount = await PBdb.count('team_requests',
-                    PBFilter.and(PBFilter.eq('sender_handle', myHandle), PBFilter.eq('status', 'accepted'))
-                );
-                if (acceptedCount > 0) {
-                    teamsBtn.classList.add('has-message');
-                    teamsBtn.innerText = "Squads (Request Accepted!)";
-                }
-            } catch(_) {}
+            const { count: acceptedCount } = await supabaseClient
+                .from('team_requests')
+                .select('*', { count: 'exact', head: true })
+                .eq('sender_id', userId)
+                .eq('status', 'accepted');
+
+            if (acceptedCount > 0) {
+                teamsBtn.classList.add('has-message');
+                teamsBtn.innerText = "Squads (Request Accepted!)";
+            }
         }
 
         window.addEventListener('keydown', (e) => {
@@ -360,12 +365,13 @@
             location.href = myProfile.handle ? `profile.html?u=${myProfile.handle}` : 'profile.html';
         }
 
-        function logout() {
-            PBAuth.signOut();
+        async function logout() {
+            await supabaseClient.auth.signOut();
             window.location.href = "login.html";
         }
 
         function openCreateFlow() {
+            // Check if there's an active draft to resume
             const resumeId = localStorage.getItem('active_draft_id');
             const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
             const found = resumeId && drafts.find(d => String(d.id) === String(resumeId));
@@ -416,8 +422,10 @@
             }
         }
 
+
         function applyDeviceMode() {
             const deviceMode = localStorage.getItem('cc-device-mode');
+            // Auto-detect on first visit if not set
             const mode = deviceMode || (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc');
             if (!deviceMode) localStorage.setItem('cc-device-mode', mode);
             if (mode === 'mobile') {
