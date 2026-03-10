@@ -269,6 +269,20 @@
 
 <script>
     const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+
+    // ── Storage bucket upload helper ──────────────────────
+    async function uploadToStorage(bucket, path, data) {
+        let blob = data;
+        if (typeof data === 'string' && data.startsWith('data:')) {
+            const res = await fetch(data);
+            blob = await res.blob();
+        }
+        const { error } = await _sb.storage.from(bucket).upload(path, blob, {
+            upsert: true, cacheControl: '3600'
+        });
+        if (error) { console.error('Storage upload error:', error); return null; }
+        return _sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+    }
     const TOPICS = ['Manga','Comics','Anime','Sprites','Art','Story','Sci-Fi','Horror','Fantasy','Action','Collab','Beginners'];
 
     let myHandle = '';
@@ -515,11 +529,19 @@
         if (!name) { document.getElementById('sq-name').focus(); return; }
         const btn = document.getElementById('create-btn');
         btn.innerText='Creating…'; btn.disabled=true;
+
+        // Upload pfp to bucket if it's a base64 image
+        let pfpUrl = newPfp || null;
+        if (newPfp && newPfp.startsWith('data:')) {
+            const tempId = Date.now();
+            pfpUrl = await uploadToStorage('squad-pfps', `squad_${myHandle}_${tempId}.jpg`, newPfp) || null;
+        }
+
         const { error } = await _sb.from('team_tickets').insert([{
             owner_handle: myHandle,
             team_name: name,
             description: document.getElementById('sq-desc').value.trim(),
-            pfp: newPfp || null,
+            pfp: pfpUrl,
             is_private: document.getElementById('sq-private').checked
         }]);
         btn.innerText='Create Squad'; btn.disabled=false;
@@ -576,10 +598,17 @@
     async function saveSquad() {
         const name = document.getElementById('edit-name').value.trim();
         if (!name) return;
+
+        // Upload pfp to bucket if it's a base64 image
+        let pfpUrl = editPfp || null;
+        if (editPfp && editPfp.startsWith('data:')) {
+            pfpUrl = await uploadToStorage('squad-pfps', `squad_${activeManageId}.jpg`, editPfp) || editPfp;
+        }
+
         await _sb.from('team_tickets').update({
             team_name: name,
             description: document.getElementById('edit-desc').value.trim(),
-            pfp: editPfp || null,
+            pfp: pfpUrl,
             is_private: document.getElementById('edit-private').checked
         }).eq('id', activeManageId);
         closeManageModal();

@@ -436,6 +436,20 @@
     <script>
 
         const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+
+        // ── Storage bucket upload helper ──────────────────────
+        async function uploadToStorage(bucket, path, data) {
+            let blob = data;
+            if (typeof data === 'string' && data.startsWith('data:')) {
+                const res = await fetch(data);
+                blob = await res.blob();
+            }
+            const { error } = await _supabase.storage.from(bucket).upload(path, blob, {
+                upsert: true, cacheControl: '3600'
+            });
+            if (error) { console.error('Storage upload error:', error); return null; }
+            return _supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+        }
         
         const SOCIAL_CONFIG = [
             { key: 'x', label: 'X (Twitter)', icon: '𝕏' },
@@ -789,13 +803,24 @@
                 if (val) socials[s.key] = val;
             });
 
+            // Upload images to storage buckets if they are base64, otherwise keep existing URL
+            let picUrl = pfpBase64;
+            if (pfpBase64 && pfpBase64.startsWith('data:')) {
+                picUrl = await uploadToStorage('avatars', `${myProfile.handle}/pfp.jpg`, pfpBase64) || pfpBase64;
+            }
+
+            let bannerUrl = bannerBase64;
+            if (bannerBase64 && bannerBase64.startsWith('data:')) {
+                bannerUrl = await uploadToStorage('avatars', `${myProfile.handle}/banner.jpg`, bannerBase64) || bannerBase64;
+            }
+
             const updated = {
                 ...myProfile,
-                handle: myProfile.handle,   // always keep handle in the local object
+                handle: myProfile.handle,
                 name: document.getElementById('edit-name').value,
                 bio: document.getElementById('edit-bio').value,
-                pic: pfpBase64,
-                banner: bannerBase64,
+                pic: picUrl,
+                banner: bannerUrl,
                 socials
             };
 

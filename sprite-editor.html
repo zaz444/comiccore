@@ -305,6 +305,20 @@ select.cbb{appearance:none;}
 // ══════════════════════════════════════════════════════════
 const _S = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
+// ── Storage bucket upload helper ──────────────────────
+async function uploadToStorage(bucket, path, data) {
+    let blob = data;
+    if (typeof data === 'string' && data.startsWith('data:')) {
+        const res = await fetch(data);
+        blob = await res.blob();
+    }
+    const { error } = await _S.storage.from(bucket).upload(path, blob, {
+        upsert: true, cacheControl: '3600'
+    });
+    if (error) { console.error('Storage upload error:', error); return null; }
+    return _S.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}
+
 // ── Global state ─────────────────────────────────────────
 let W=64,H=64,zoom=4;
 let tool='pencil',priCol='#ffffff',secCol='#000000',bsize=2;
@@ -648,7 +662,9 @@ async function remapAllPersonalSprites(){
     const cv=document.createElement('canvas');cv.width=img.naturalWidth;cv.height=img.naturalHeight;
     const c=cv.getContext('2d');c.drawImage(img,0,0);
     const id=c.getImageData(0,0,cv.width,cv.height);applyRemapToImageData(id);c.putImageData(id,0,0);
-    await _S.from('user_sprites').update({image_data:cv.toDataURL('image/png')}).eq('id',sp.id);
+    const newB64=cv.toDataURL('image/png');
+    const newUrl=await uploadToStorage('sprites',`${myHandle}/sprite_${sp.id}_recolor.png`,newB64);
+    await _S.from('user_sprites').update({image_data:newUrl||newB64}).eq('id',sp.id);
     count++;
   }
   toast(`✅ Recolored ${count} sprites!`,'var(--purple)');
@@ -894,8 +910,59 @@ function openPub(){document.getElementById('pub-modal').style.display='flex';}
 function closePub(){document.getElementById('pub-modal').style.display='none';}
 function openSave(){document.getElementById('save-modal').style.display='flex';}
 function closeSave(){document.getElementById('save-modal').style.display='none';}
-async function savePersonal(){if(!myHandle)return alert('Log in to save.');const name=document.getElementById('save-name').value.trim()||'Sprite';const ao={};actions.forEach(a=>{const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);ao[a.name]=t.toDataURL('image/png');});const{error}=await _S.from('user_sprites').insert([{owner_handle:myHandle,name,image_data:composite(aFidx),actions:ao}]);if(error)return alert('Error: '+error.message);closeSave();toast('✅ Saved!','var(--teal)');fetchLib();}
-async function publishSprite(){if(!myHandle)return alert('Log in.');const name=document.getElementById('pub-name').value.trim();if(!name)return alert('Name required!');const tags=document.getElementById('pub-tags').value.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);const btn=document.getElementById('pub-btn');btn.innerText='Publishing...';btn.disabled=true;const img=composite(aFidx);const ao={};actions.forEach(a=>{const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);ao[a.name]=t.toDataURL('image/png');});const[{error:e1},{error:e2}]=await Promise.all([_S.from('sprites_library').insert([{name,image_data:img,actions:ao,creator:myHandle,tags}]),_S.from('user_sprites').insert([{owner_handle:myHandle,name,image_data:img,actions:ao}])]);btn.innerText='PUBLISH';btn.disabled=false;if(e1)return alert('Error: '+e1.message);closePub();toast('✅ Published!','var(--accent)');fetchLib();}
+async function savePersonal(){
+    if(!myHandle)return alert('Log in to save.');
+    const name=document.getElementById('save-name').value.trim()||'Sprite';
+    const spriteId = `${myHandle}_${Date.now()}`;
+
+    // Upload main sprite image to storage
+    const mainB64 = composite(aFidx);
+    const imageUrl = await uploadToStorage('sprites', `${myHandle}/${spriteId}.png`, mainB64);
+    if(!imageUrl) return alert('Failed to upload sprite image.');
+
+    // Upload each action frame to storage, store URLs instead of base64
+    const ao={};
+    for(const a of actions){
+        const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);
+        const frameB64=t.toDataURL('image/png');
+        const frameUrl=await uploadToStorage('sprites',`${myHandle}/${spriteId}_${a.name}.png`,frameB64);
+        ao[a.name]=frameUrl||frameB64;
+    }
+
+    const{error}=await _S.from('user_sprites').insert([{owner_handle:myHandle,name,image_data:imageUrl,actions:ao}]);
+    if(error)return alert('Error: '+error.message);
+    closeSave();toast('✅ Saved!','var(--teal)');fetchLib();
+}
+async function publishSprite(){
+    if(!myHandle)return alert('Log in.');
+    const name=document.getElementById('pub-name').value.trim();
+    if(!name)return alert('Name required!');
+    const tags=document.getElementById('pub-tags').value.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
+    const btn=document.getElementById('pub-btn');btn.innerText='Publishing...';btn.disabled=true;
+    const spriteId=`${myHandle}_${Date.now()}`;
+
+    // Upload main sprite image to storage
+    const mainB64=composite(aFidx);
+    const imageUrl=await uploadToStorage('sprites',`${myHandle}/${spriteId}.png`,mainB64);
+    if(!imageUrl){btn.innerText='PUBLISH';btn.disabled=false;return alert('Failed to upload sprite.');}
+
+    // Upload each action frame to storage, store URLs instead of base64
+    const ao={};
+    for(const a of actions){
+        const t=document.createElement('canvas');t.width=W;t.height=H;drawFrameOn(a.snap,t);
+        const frameB64=t.toDataURL('image/png');
+        const frameUrl=await uploadToStorage('sprites',`${myHandle}/${spriteId}_${a.name}.png`,frameB64);
+        ao[a.name]=frameUrl||frameB64;
+    }
+
+    const[{error:e1}]=await Promise.all([
+        _S.from('sprites_library').insert([{name,image_data:imageUrl,actions:ao,creator:myHandle,tags}]),
+        _S.from('user_sprites').insert([{owner_handle:myHandle,name,image_data:imageUrl,actions:ao}])
+    ]);
+    btn.innerText='PUBLISH';btn.disabled=false;
+    if(e1)return alert('Error: '+e1.message);
+    closePub();toast('✅ Published!','var(--accent)');fetchLib();
+}
 
 // ── Import ─────────────────────────────────────────────────────
 function importImg(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const img=new Image();img.onload=()=>{saveSt();aL().ctx.clearRect(0,0,W,H);aL().ctx.drawImage(img,0,0,W,H);};img.src=e.target.result;};r.readAsDataURL(f);inp.value='';}
