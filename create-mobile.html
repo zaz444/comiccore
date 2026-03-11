@@ -125,6 +125,9 @@
     .bubble-style-whisper .bubble-tail { position: absolute; bottom: -16px; left: 36px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid #000; }
     .bubble-style-narrator { border: 3px solid #000; border-radius: 6px; background: #fffde7; box-shadow: 5px 5px 0 #000; border-left: 6px solid #000; }
     .bubble-style-narrator .bubble-tail { display: none; }
+    .bubble-style-electric { border: 3px solid #000; background: #e8f4ff; border-radius: 4px; position: relative; }
+    .bubble-style-electric::before { content: ''; position: absolute; inset: -6px; border: 3px solid #000; border-radius: 6px; background: transparent; clip-path: polygon(0% 15%, 6% 10%, 4% 0%, 12% 8%, 18% 3%, 16% 12%, 25% 6%, 22% 15%, 100% 15%, 100% 85%, 94% 90%, 96% 100%, 88% 92%, 82% 97%, 84% 88%, 75% 94%, 78% 85%, 0% 85%); }
+    .bubble-style-electric .bubble-tail { display: none; }
 
     /* ── BOTTOM TOOLBAR ── */
     #bottom-bar {
@@ -1031,25 +1034,25 @@
 <!-- BOTTOM BAR -->
 <div id="bottom-bar">
     <button class="bot-btn" onclick="openSheet('add')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/add.webp" class="bot-custom-icon" alt="add">Add
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475738268531294349/Untitled50_20260224001655.png?ex=699f3c9d&is=699deb1d&hm=3e952823d71a8451fd45b94c2a8e2f5b92e693d9ca2cb3e79869c1bb5a4945f2&=&format=webp&quality=lossless" class="bot-custom-icon" alt="add">Add
     </button>
     <button class="bot-btn" onclick="openSheet('sprites')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprites">Sprites
+        <img src="https://cdn.discordapp.com/attachments/1472088820584419450/1475305408464818337/IMG_1798.png?ex=699d00bb&is=699baf3b&hm=7564f665aa8167ab0088952702c05ee4dfe9b0446813b7e59552ac07ceea1f7d&" class="bot-custom-icon" alt="sprites">Sprites
     </button>
     <button class="bot-btn" onclick="openSheet('bg')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/bg.webp" class="bot-custom-icon" alt="bg">BG
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1476014886181011567/Untitled.png?ex=699f957b&is=699e43fb&hm=e0df44f7e1e168ec27e6204f00a5f2b985e41df4020cbbf0865ac8ab79ede02c&=&format=webp&quality=lossless" class="bot-custom-icon" alt="bg">BG
     </button>
     <button class="bot-btn" onclick="openSheet('layers')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/layers.webp" class="bot-custom-icon" alt="layers">Layers
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475735904231620699/Untitled50_20260224000728.png?ex=699f3a69&is=699de8e9&hm=a81ad82f44163fe2a2afbe9046d3ed4b0a81f5cd69f3fdcba041a94084b12c2b&=&format=webp&quality=lossless" class="bot-custom-icon" alt="layers">Layers
     </button>
     <button class="bot-btn" onclick="openSheet('frames')">
         <span class="bico">🎞</span>Frames
     </button>
     <button class="bot-btn" onclick="sbEditAction()">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/edit.webp" class="bot-custom-icon" alt="edit">Edit
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475740938910568600/Untitled50_20260224002716.png?ex=699f3f19&is=699ded99&hm=30eaf2b064268c3e30d7bea8fb0a52fcff552c42c5c1500ec8a89586b51cce0a&=&format=webp&quality=lossless" class="bot-custom-icon" alt="edit">Edit
     </button>
     <button class="bot-btn" onclick="openSheet('fx')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/fx.webp" class="bot-custom-icon" alt="fx">FX
+        <img src="https://media.discordapp.net/attachments/1472088820584419450/1475743931755925720/Untitled50_20260224003926.png?ex=699f41e3&is=699df063&hm=73efb25b11c45a422741bc6f84621181e94aa3d39f92e261ad2b5f836ddb3a66&=&format=webp&quality=lossless" class="bot-custom-icon" alt="fx">FX
     </button>
     <button class="bot-btn" id="onion-bot-btn" onclick="toggleOnionMobile()">
         <span class="bico">🧅</span>Onion
@@ -1303,22 +1306,26 @@ function render() {
             img.style.cssText = `width:${layer.w}px;display:block;user-select:none;`;
             if (layer.flipped) img.style.transform = `rotate(${layer.rotation||0}deg) scaleX(-1)`;
             else img.style.transform = `rotate(${layer.rotation||0}deg)`;
-            if (layer.blurType === 'soft') img.style.filter = `blur(${layer.blurAmt||4}px)`;
-            else if (layer.blurType === 'pixel') img.style.filter = `blur(0px)`;
-            if (layer.fxFilter && layer.fxFilter !== 'none') img.style.filter = (img.style.filter ? img.style.filter + ' ' : '') + layer.fxFilter;
+            const blurCSS = getSpriteFilterCSS(layer);
+            const lfCSS = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
+            const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ') || '';
+            if (combinedFilter) img.style.filter = combinedFilter;
             if (layer.fxOpacity !== undefined) img.style.opacity = layer.fxOpacity / 100;
             if (layer.nameTag) { const nt = document.createElement('div'); nt.className = 'sprite-nametag'; nt.innerText = layer.nameTag; el.appendChild(nt); }
             el.appendChild(img);
         } else if (layer.type === 'bubble' || layer.type === 'thinking') {
             const bub = document.createElement('div');
-            bub.className = 'speech-bubble bubble-style-' + (layer.bubbleStyle || 'round');
-            bub.style.cssText = `width:${layer.w||120}px;font-size:${layer.fontSize||18}px;font-family:${layer.fontFamily||'Inter, sans-serif'};`;
+            const bStyle = layer.bubbleStyle || 'round';
+            const bubBorder = layer.bubbleBorderColor || '#000';
+            const bubBg     = layer.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
+            const decoB = [layer.underline ? 'underline' : '', layer.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+            bub.className = 'speech-bubble bubble-style-' + bStyle;
+            bub.style.cssText = `width:${layer.w||120}px;font-size:${layer.fontSize||18}px;font-family:${layer.fontFamily||'Inter, sans-serif'};--bubble-border:${bubBorder};--bubble-bg:${bubBg};border-color:${bubBorder};background:${bubBg};`;
             if (layer.bold) bub.style.fontWeight = '900';
             if (layer.italic) bub.style.fontStyle = 'italic';
-            if (layer.underline) bub.style.textDecoration = 'underline';
+            bub.style.textDecoration = decoB;
+            bub.style.textAlign = layer.align || 'center';
             if (layer.color) bub.style.color = layer.color;
-            if (layer.bubbleBg) bub.style.backgroundColor = layer.bubbleBg;
-            if (layer.bubbleBorderColor) bub.style.borderColor = layer.bubbleBorderColor;
             bub.style.transform = `rotate(${layer.rotation||0}deg)`;
             if (layer.fxOpacity !== undefined) bub.style.opacity = layer.fxOpacity / 100;
             bub.innerText = layer.content || '';
@@ -1334,16 +1341,31 @@ function render() {
             t.innerText = layer.content || 'Text';
             el.appendChild(t);
         } else if (layer.type === 'subtitle') {
+            const nameColor   = layer.nameColor  || '#ff9500';
+            const dialogColor = layer.color || '#111';
+            const alignS  = layer.align  || 'left';
+            const boldW   = layer.bold   ? '900' : '700';
+            const italicS = layer.italic ? 'italic' : 'normal';
+            const ff      = layer.fontFamily || "'Inter', sans-serif";
+            const fs      = layer.fontSize || 16;
             const s = document.createElement('div');
-            s.style.cssText = `width:${layer.w||canvas.offsetWidth}px;background:rgba(0,0,0,0.75);color:#fff;font-size:${layer.fontSize||16}px;font-family:${layer.fontFamily||'Inter, sans-serif'};padding:8px 14px;text-align:center;transform:rotate(${layer.rotation||0}deg);`;
+            s.style.cssText = `width:${layer.w||canvas.offsetWidth}px;transform:rotate(${layer.rotation||0}deg);`;
+            s.innerHTML = `
+                <div style="background:${nameColor};color:#fff;font-size:${Math.max(10,fs*0.55)}px;font-weight:900;font-family:${ff};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;text-align:${alignS};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${layer.characterName || 'CHARACTER'}</div>
+                <div style="background:rgba(255,255,255,0.96);color:${dialogColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,0.1);border-top:none;">${layer.content || 'Dialogue...'}</div>
+            `;
             if (layer.fxOpacity !== undefined) s.style.opacity = layer.fxOpacity / 100;
-            s.innerText = layer.content || 'Subtitle';
             el.appendChild(s);
         }
 
         el.style.left = (layer.x || 0) + 'px';
-        el.style.top = (layer.y || 0) + 'px';
+        el.style.top  = (layer.y || 0) + 'px';
         el.style.position = 'absolute';
+        el.style.width = layer.w + 'px';
+        if (layer.type === 'img') {
+            el.style.height = (layer.h != null) ? layer.h + 'px' : 'auto';
+            el.style.overflow = 'visible';
+        }
 
         // Tap selects, drag moves — touchstart must stop propagation so viewport pinch isn't triggered
         el.addEventListener('touchstart', (e) => {
@@ -1361,10 +1383,20 @@ function render() {
             }
             e.preventDefault();
             e.stopPropagation();
+            if (layer.locked) return; // locked layers cannot be moved or selected
             selectLayerLight(layer);
             startTouchDrag(e, layer);
         }, { passive: false });
-        el.addEventListener('mousedown', (e) => { e.preventDefault(); selectLayer(layer); startDrag(e, layer); });
+        el.addEventListener('mousedown', (e) => { e.preventDefault(); if (!layer.locked) { selectLayer(layer); startDrag(e, layer); } });
+
+        // Show lock badge on locked layers
+        if (layer.locked) {
+            el.style.opacity = ((layer.fxOpacity != null ? layer.fxOpacity / 100 : 1) * 0.6) + '';
+            const lockBadge = document.createElement('div');
+            lockBadge.style.cssText = 'position:absolute;top:2px;right:2px;font-size:10px;background:rgba(0,0,0,0.6);border-radius:3px;padding:1px 3px;pointer-events:none;z-index:10;';
+            lockBadge.innerText = '🔒';
+            el.appendChild(lockBadge);
+        }
 
         // Double-tap: open transform sheet
         let lastTap = 0;
@@ -1632,8 +1664,10 @@ function renderMobLayers() {
         const item = document.createElement('div');
         item.className = 'mob-layer-item' + (layer === activeLayer ? ' active-l' : '');
         const ico = layer.type === 'img' ? '🖼' : layer.type === 'bubble' ? '💬' : layer.type === 'thinking' ? '💭' : layer.type === 'subtitle' ? '📋' : '✍️';
-        item.innerHTML = `<span style="font-size:20px;flex-shrink:0;">${ico}</span><div class="l-info"><div class="l-name">${layer.nameTag || (layer.content ? layer.content.substring(0,16) : (layer.type + ' ' + (i+1)))}</div><div class="l-type">${layer.type}</div></div>`;
-        item.onclick = () => { activeLayer = layer; render(); renderMobLayers(); };
+        const lockIcon = layer.locked ? ' 🔒' : '';
+        item.innerHTML = `<span style="font-size:20px;flex-shrink:0;">${ico}</span><div class="l-info"><div class="l-name">${layer.nameTag || (layer.content ? layer.content.substring(0,16) : (layer.type + ' ' + (i+1)))}${lockIcon}</div><div class="l-type">${layer.type}</div></div>`;
+        if (layer.locked) item.style.opacity = '0.5';
+        item.onclick = () => { if (!layer.locked) { activeLayer = layer; render(); renderMobLayers(); } };
         // Support both double-click (PC) and double-tap (mobile) to open transform
         item.ondblclick = () => openTransformSheet();
         let layerItemLastTap = 0;
@@ -1855,6 +1889,8 @@ const BUBBLE_STYLES = [
     { id: 'rect', label: 'Rect', ico: '⬜' },
     { id: 'cloud', label: 'Thought', ico: '💭' },
     { id: 'shout', label: 'Shout', ico: '⚡' },
+    { id: 'electric', label: 'Electric', ico: '🔌' },
+    { id: 'narrator', label: 'Narrator', ico: '📋' },
     { id: 'whisper', label: 'Whisper', ico: '🤫' },
     { id: 'narrator', label: 'Narrator', ico: '📋' },
     { id: 'spiky', label: 'Spiky', ico: '💥' },
@@ -2593,7 +2629,23 @@ function sbEditAction() { if (activeLayer) openTransformSheet(); else { const t=
 function editCurrentSpriteAction() { if (activeLayer?.packData) openActionModal(activeLayer.packData, true); }
 function copyLayer() { sbCopyLayer(); }
 function pasteLayer() { sbPasteLayer(); }
-function toggleSelectedLayerLock() {}
+function getSpriteFilterCSS(layer) {
+    if (!layer.blurType || layer.blurType === 'none') return '';
+    const amt = layer.blurAmt || 4;
+    if (layer.blurType === 'soft') return `blur(${amt}px)`;
+    if (layer.blurType === 'pixel') {
+        return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
+    }
+    return '';
+}
+
+function toggleSelectedLayerLock() {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.locked = !activeLayer.locked;
+    render();
+    renderMobLayers();
+}
 function setRatioForBg() {}
 
 // ══════════════════════════════════════

@@ -355,6 +355,49 @@ transition: .15s; flex-shrink: 0;
 .reaction-toggle-btn.active { border-color: #ff7a00; color: #ff7a00; background: rgba(255,122,0,.1); }
 
 /* Reaction image tray */
+/* ── Tenor-style reaction picker ── */
+.reaction-picker {
+  display: none; position: absolute; bottom: 60px; left: 0; right: 0;
+  background: #111; border: 1px solid #2a2a2c; border-radius: 16px 16px 0 0;
+  z-index: 100; max-height: 340px; display: none; flex-direction: column;
+  overflow: hidden;
+}
+.reaction-picker.open { display: flex; }
+.reaction-picker-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid #1e1e20; flex-shrink: 0;
+}
+.reaction-tab {
+  flex: 1; padding: 10px 6px; font-size: 12px; font-weight: 800; color: #555;
+  text-align: center; cursor: pointer; border-bottom: 2px solid transparent;
+  transition: .15s; background: none; border-top: none; border-left: none; border-right: none;
+  font-family: inherit;
+}
+.reaction-tab.active { color: #ff7a00; border-bottom-color: #ff7a00; }
+.reaction-search-wrap {
+  padding: 8px 12px; border-bottom: 1px solid #1e1e20; flex-shrink: 0;
+}
+.reaction-search {
+  width: 100%; background: #1a1a1c; border: 1px solid #2a2a2c; border-radius: 20px;
+  padding: 8px 14px; color: white; font-size: 13px; font-family: inherit; outline: none;
+  box-sizing: border-box;
+}
+.reaction-search:focus { border-color: #ff7a00; }
+.reaction-search::placeholder { color: #333; }
+.reaction-categories {
+  display: flex; gap: 8px; padding: 8px 12px; overflow-x: auto; flex-shrink: 0;
+  scrollbar-width: none;
+}
+.reaction-categories::-webkit-scrollbar { display: none; }
+.reaction-cat-btn {
+  padding: 5px 12px; border-radius: 20px; border: 1px solid #2a2a2c;
+  background: #1a1a1c; color: #888; font-size: 11px; font-weight: 800;
+  cursor: pointer; white-space: nowrap; font-family: inherit; transition: .15s; flex-shrink: 0;
+}
+.reaction-cat-btn.active { background: rgba(255,122,0,.15); border-color: #ff7a00; color: #ff7a00; }
+.reaction-grid-wrap { flex: 1; overflow-y: auto; padding: 8px 12px 12px; }
+.reaction-grid-wrap::-webkit-scrollbar { width: 3px; }
+.reaction-grid-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
 .reaction-tray {
 display: none; padding: 10px 0 4px;
 border-top: 1px solid #2c2c2e;
@@ -473,7 +516,7 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <!-- Loading Screen -->
 <div id="loading-screen">
-  <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/discoverimages/loading.gif" alt="Loading...">
+  <img src="https://media.discordapp.net/attachments/1472088820584419450/1475696543628656782/IMG_1899.gif?ex=699e6d01&is=699d1b81&hm=67222fde490cea1621bf751f5755e6d4188fbf1ea2db7be8292bef5258252ee5&=" alt="Loading...">
   <div class="loading-text">Loading ComicCore…</div>
 </div>
 
@@ -572,18 +615,37 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
     </div>
     <div class="comment-input-area">
       <!-- Reaction image tray -->
-      <div class="reaction-tray" id="reaction-tray">
-        <div class="reaction-tray-header">
-          <span class="reaction-tray-title">🎭 Reaction Images</span>
-          <a href="commentimagessource.html" class="reaction-tray-manage" style="display:none;">+ Manage</a>
+      <div class="reaction-picker" id="reaction-picker">
+        <div class="reaction-picker-tabs">
+          <button class="reaction-tab active" onclick="switchReactionTab('images')" id="tab-images">🎭 Reactions</button>
+          <button class="reaction-tab" onclick="switchReactionTab('search')" id="tab-search">🔍 Search</button>
         </div>
-        <div class="reaction-grid" id="reaction-grid">
-          <div class="reaction-tray-empty">No reaction images available.</div>
+        <!-- Images tab -->
+        <div id="reaction-panel-images">
+          <div class="reaction-categories" id="reaction-categories">
+            <button class="reaction-cat-btn active" onclick="filterReactions('all', this)">All</button>
+          </div>
+          <div class="reaction-grid-wrap">
+            <div class="reaction-grid" id="reaction-grid">
+              <div class="reaction-tray-empty">Loading reactions…</div>
+            </div>
+          </div>
+        </div>
+        <!-- Search tab -->
+        <div id="reaction-panel-search" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+          <div class="reaction-search-wrap">
+            <input class="reaction-search" id="reaction-search-input" placeholder="Search reactions…" oninput="searchReactions(this.value)">
+          </div>
+          <div class="reaction-grid-wrap">
+            <div class="reaction-grid" id="reaction-search-grid">
+              <div class="reaction-tray-empty">Type to search reactions</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="comment-input-row">
-        <button class="reaction-toggle-btn" id="reaction-toggle-btn" onclick="toggleReactionTray()" title="Reaction images">
-          <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/discoverimages/reaction.webp"
+        <button class="reaction-toggle-btn" id="reaction-toggle-btn" onclick="toggleReactionPicker()" title="Reaction images">
+          <img src="https://media.discordapp.net/attachments/1472088820584419450/1475346819994226749/Untitled46_20260222222117.png?ex=699d274c&is=699bd5cc&hm=9317e849430719f0271af119546a7589713dfe50a0da00da04de0dfadd430248&=&format=webp&quality=lossless"
                style="width:20px;height:20px;object-fit:cover;border-radius:4px;display:block;" alt="reactions">
         </button>
         <input id="commentInput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment()">
@@ -1183,40 +1245,118 @@ function closeCommentSheet() {
   pendingReactionImg = null;
 }
 
-function toggleReactionTray() {
-  const tray = document.getElementById('reaction-tray');
-  const btn  = document.getElementById('reaction-toggle-btn');
-  const isOpen = tray.classList.toggle('open');
+// ── Reaction Picker (Tenor-style) ──────────────────────────────
+const BASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/reactions/';
+
+// All reaction images from Supabase bucket
+const ALL_REACTIONS = [
+  { name: 'nuke the whole generation', src: BASE_URL + 'IMG_1823.webp', tags: ['rage','angry'] },
+  { name: 'who is this',               src: BASE_URL + 'IMG_1824.webp', tags: ['confused','who'] },
+  { name: 'sipping lex luthor',        src: BASE_URL + 'IMG_1825.webp', tags: ['sipping','smug'] },
+  { name: 'read',                      src: BASE_URL + 'IMG_1826.webp', tags: ['read','seen'] },
+  { name: 'sobbing man',               src: BASE_URL + 'IMG_1827.webp', tags: ['sad','crying'] },
+  { name: 'thinking',                  src: BASE_URL + 'IMG_1829.webp', tags: ['thinking','hmm'] },
+  { name: 'gem found',                 src: BASE_URL + 'IMG_1831.webp', tags: ['gem','wow'] },
+  { name: 'flight interested',         src: BASE_URL + 'IMG_1832.webp', tags: ['interested','nice'] },
+  { name: 'spongebob phone',           src: BASE_URL + 'IMG_1833.webp', tags: ['phone','calling'] },
+];
+
+// Auto-build categories from tags
+const CATEGORIES = ['All', 'Angry', 'Sad', 'Funny', 'Confused', 'Wow'];
+
+let reactionLoaded = false;
+let currentReactionFilter = 'all';
+
+function toggleReactionPicker() {
+  const picker = document.getElementById('reaction-picker');
+  const btn = document.getElementById('reaction-toggle-btn');
+  const isOpen = picker.classList.toggle('open');
   btn.classList.toggle('active', isOpen);
+  if (isOpen && !reactionLoaded) {
+    loadReactionGrid(ALL_REACTIONS);
+    buildCategoryBtns();
+    reactionLoaded = true;
+  }
 }
 
-function loadReactionTray() {
+function buildCategoryBtns() {
+  const wrap = document.getElementById('reaction-categories');
+  wrap.innerHTML = CATEGORIES.map((c, i) =>
+    `<button class="reaction-cat-btn ${i===0?'active':''}" onclick="filterReactions('${c.toLowerCase()}', this)">${c}</button>`
+  ).join('');
+}
+
+function filterReactions(cat, btn) {
+  currentReactionFilter = cat;
+  document.querySelectorAll('.reaction-cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtered = cat === 'all' ? ALL_REACTIONS
+    : ALL_REACTIONS.filter(r => r.tags.some(t => t.includes(cat)) || r.name.toLowerCase().includes(cat));
+  loadReactionGrid(filtered);
+}
+
+function loadReactionGrid(reactions) {
   const grid = document.getElementById('reaction-grid');
-  const images = JSON.parse(localStorage.getItem('cc-reaction-images') || '[]');
-  if (!images.length) {
-    grid.innerHTML = `<div class="reaction-tray-empty">No reaction images available.</div>`;
+  if (!reactions.length) {
+    grid.innerHTML = '<div class="reaction-tray-empty">No reactions found</div>';
     return;
   }
-  grid.innerHTML = images.map((img, i) => `
-    <button class="reaction-img-btn" title="${esc(img.name)}" onclick="selectReactionImage(${i})">
-      <img src="${esc(img.src)}" alt="${esc(img.name)}" loading="lazy">
+  grid.innerHTML = reactions.map(r => `
+    <button class="reaction-img-btn" title="${esc(r.name)}" onclick="selectReaction('${esc(r.src)}', '${esc(r.name)}')" style="aspect-ratio:1;">
+      <img src="${esc(r.src)}" alt="${esc(r.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">
     </button>
   `).join('');
 }
 
-function selectReactionImage(index) {
-  const images = JSON.parse(localStorage.getItem('cc-reaction-images') || '[]');
-  const img = images[index];
-  if (!img) return;
-  pendingReactionImg = img;
-  // Show preview in input
-  document.getElementById('commentInput').placeholder = `📎 "${img.name}" selected — add text or post!`;
-  document.getElementById('commentInput').value = '';
-  // Close tray
-  document.getElementById('reaction-tray').classList.remove('open');
-  document.getElementById('reaction-toggle-btn').classList.remove('active');
-  showToast(`🎭 "${img.name}" selected`);
+function searchReactions(query) {
+  const grid = document.getElementById('reaction-search-grid');
+  if (!query.trim()) {
+    grid.innerHTML = '<div class="reaction-tray-empty">Type to search reactions</div>';
+    return;
+  }
+  const q = query.toLowerCase();
+  const results = ALL_REACTIONS.filter(r =>
+    r.name.toLowerCase().includes(q) || r.tags.some(t => t.includes(q))
+  );
+  if (!results.length) {
+    grid.innerHTML = '<div class="reaction-tray-empty">No results for "' + esc(query) + '"</div>';
+    return;
+  }
+  grid.innerHTML = results.map(r => `
+    <button class="reaction-img-btn" title="${esc(r.name)}" onclick="selectReaction('${esc(r.src)}', '${esc(r.name)}')" style="aspect-ratio:1;">
+      <img src="${esc(r.src)}" alt="${esc(r.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">
+    </button>
+  `).join('');
 }
+
+function switchReactionTab(tab) {
+  document.getElementById('reaction-panel-images').style.display = tab === 'images' ? 'flex' : 'none';
+  document.getElementById('reaction-panel-search').style.display = tab === 'search' ? 'flex' : 'none';
+  document.getElementById('tab-images').classList.toggle('active', tab === 'images');
+  document.getElementById('tab-search').classList.toggle('active', tab === 'search');
+  if (tab === 'images') {
+    document.getElementById('reaction-panel-images').style.flexDirection = 'column';
+  }
+  if (tab === 'search') setTimeout(() => document.getElementById('reaction-search-input').focus(), 50);
+}
+
+function selectReaction(src, name) {
+  pendingReactionImg = { src, name };
+  document.getElementById('commentInput').placeholder = '📎 "' + name + '" — add text or post!';
+  document.getElementById('commentInput').value = '';
+  document.getElementById('reaction-picker').classList.remove('open');
+  document.getElementById('reaction-toggle-btn').classList.remove('active');
+  showToast('🎭 "' + name + '" selected');
+}
+
+// Keep old selectReactionImage for compatibility
+function selectReactionImage(index) {
+  const img = ALL_REACTIONS[index];
+  if (!img) return;
+  selectReaction(img.src, img.name);
+}
+
+function loadReactionTray() { /* legacy — no-op, replaced by picker */ }
 
 async function fetchComments() {
   const listEl = document.getElementById('commentList');
