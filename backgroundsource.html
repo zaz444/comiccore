@@ -268,6 +268,20 @@ const _supabase = supabase.createClient(
     'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
 );
 
+// ── Storage upload helper ──────────────────────────────────────────────────
+async function uploadToStorage(bucket, path, data) {
+    let blob = data;
+    if (typeof data === 'string' && data.startsWith('data:')) {
+        const res = await fetch(data);
+        blob = await res.blob();
+    }
+    const { error } = await _supabase.storage.from(bucket).upload(path, blob, {
+        upsert: true, cacheControl: '3600'
+    });
+    if (error) { console.error('Storage upload error:', error); return null; }
+    return _supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}
+
 // ── Auth — uses same key as profile.html & create.html ──
 const OWNER_HANDLE = 'jeffyplays';
 function getCurrentHandle() {
@@ -524,8 +538,20 @@ async function saveBackground() {
     }
 
     const handle = getCurrentHandle() || 'guest';
-    // Try full payload first; silently fall back if new columns don't exist yet
-    let error = await tryInsert({ name, image_data: b64, ratio: naturalRatio, uploaded_by: handle, is_official: false });
+
+    // Upload to storage bucket instead of storing base64 in DB
+    btn.innerText = 'Uploading…';
+    const safeHandle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const safeName = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const ext = isAnimated.user ? (b64.startsWith('data:image/gif') ? 'gif' : 'webp') : 'jpg';
+    const path = 'user/' + safeHandle + '/' + safeName + '_' + Date.now() + '.' + ext;
+    const imageUrl = await uploadToStorage('backgrounds', path, b64);
+    if (!imageUrl) {
+        btn.innerText = 'SAVE'; btn.disabled = false;
+        alert('Upload failed — please try again.'); return;
+    }
+
+    let error = await tryInsert({ name, image_data: imageUrl, ratio: naturalRatio, uploaded_by: handle, is_official: false });
 
     btn.innerText = 'SAVE'; btn.disabled = false;
     if (error) { alert(error.message); return; }
@@ -558,7 +584,18 @@ async function saveOfficialBackground() {
         btn.innerText = 'PUBLISH'; btn.disabled = false; alert('No image loaded.'); return;
     }
 
-    let error = await tryInsert({ name, image_data: b64, ratio: null, is_official: true, uploaded_by: null });
+    // Upload to storage bucket → backgrounds/official/
+    btn.innerText = 'Uploading…';
+    const safeName = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const ext = isAnimated.admin ? (b64.startsWith('data:image/gif') ? 'gif' : 'webp') : 'jpg';
+    const path = 'official/' + safeName + '_' + Date.now() + '.' + ext;
+    const imageUrl = await uploadToStorage('backgrounds', path, b64);
+    if (!imageUrl) {
+        btn.innerText = 'PUBLISH'; btn.disabled = false;
+        alert('Upload failed — please try again.'); return;
+    }
+
+    let error = await tryInsert({ name, image_data: imageUrl, ratio: null, is_official: true, uploaded_by: null });
 
     btn.innerText = 'PUBLISH'; btn.disabled = false;
     if (error) { alert(error.message); return; }
