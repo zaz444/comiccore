@@ -243,13 +243,14 @@
     let tagCounts = {};
     let activeTagFilter = null;
     let myHandle = null;
+    let isAdmin = false; // global so viewer can access it
 
     window.onload = async () => {
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         myHandle = user.handle || null;
 
         // Primary check: ask Supabase auth server directly for the real user UUID
-        let isAdmin = false;
+        isAdmin = false; // assign to global
         try {
             const { data: { user: authUser }, error } = await _supabase.auth.getUser();
             if (authUser) {
@@ -695,8 +696,6 @@
 
         const adminContainer = document.getElementById('admin-action-container');
         adminContainer.innerHTML = '';
-        const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
-        const isAdmin = checkIsAdmin(user);
 
         if (!isPersonal && isAdmin) {
             const delBtn = document.createElement('button');
