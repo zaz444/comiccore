@@ -209,6 +209,20 @@
     const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
     const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
+    // ── Storage bucket upload helper ──────────────────────────────────────
+    async function uploadToStorage(bucket, path, data) {
+        let blob = data;
+        if (typeof data === 'string' && data.startsWith('data:')) {
+            const res = await fetch(data);
+            blob = await res.blob();
+        }
+        const { error } = await _supabase.storage.from(bucket).upload(path, blob, {
+            upsert: true, cacheControl: '3600'
+        });
+        if (error) { console.error('Storage upload error:', error); return null; }
+        return _supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+    }
+
     const ADMIN_ID = "de0b7378-e779-4e0d-9e3d-b33bf643df3e";
 
     // ── Cache keys — declared early so all functions can reference them ──
@@ -309,23 +323,50 @@
     }
 
     async function uploadToDatabase() {
-        const name = document.getElementById('sprite-name').value;
+        const name = document.getElementById('sprite-name').value.trim();
         const tagsRaw = document.getElementById('sprite-tags').value;
         const tags = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
         const btn = document.getElementById('upload-btn');
         if (!name || !mainBase64) return alert("Character Name and Main Image required!");
 
         btn.disabled = true;
-        btn.innerText = "UPLOADING PACK...";
 
+        // Build safe folder name from character name
+        const safeName = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        const folderId = safeName + '_' + Date.now();
+
+        // 1. Upload main sprite image to storage bucket
+        btn.innerText = "UPLOADING MAIN IMAGE...";
+        const mainUrl = await uploadToStorage('sprites', safeName + '/main.png', mainBase64);
+        if (!mainUrl) {
+            alert("Failed to upload main image. Please try again.");
+            btn.disabled = false;
+            btn.innerText = "PUBLISH ASSET PACK";
+            return;
+        }
+
+        // 2. Upload each action frame to sprites/character_name/actions/action_name.png
+        const actionItems = document.querySelectorAll('.action-item');
         const actionsObj = {};
-        document.querySelectorAll('.action-item').forEach(item => {
-            const aName = item.querySelector('input').value || "Action";
-            if (item.dataset.base64) actionsObj[aName] = item.dataset.base64;
-        });
+        let i = 0;
+        for (const item of actionItems) {
+            const aName = item.querySelector('input').value.trim() || "Action";
+            if (item.dataset.base64) {
+                btn.innerText = "UPLOADING ACTIONS (" + (++i) + "/" + actionItems.length + ")...";
+                const safeAction = aName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                const actionUrl = await uploadToStorage(
+                    'sprites',
+                    safeName + '/actions/' + safeAction + '.png',
+                    item.dataset.base64
+                );
+                actionsObj[aName] = actionUrl || item.dataset.base64;
+            }
+        }
 
+        // 3. Save only URLs to database — no base64 stored
+        btn.innerText = "SAVING...";
         const { error } = await _supabase.from('sprites_library').insert([{
-            name, image_data: mainBase64, actions: actionsObj,
+            name, image_data: mainUrl, actions: actionsObj,
             creator: myHandle || "Guest", tags
         }]);
 
