@@ -1391,6 +1391,16 @@
                         <span class="sp-close-btn" onclick="toggleSidePanel('sprites')">✕</span>
                     </div>
                     <input class="sp-search" id="sb-sprite-search" placeholder="Search sprites..." oninput="filterSidebarSprites()">
+                    <div style="display:flex;align-items:center;gap:6px;margin:6px 0 4px;">
+                        <select id="sb-sprite-sort" onchange="filterSidebarSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;outline:none;font-family:inherit;">
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                            <option value="az">A → Z</option>
+                            <option value="za">Z → A</option>
+                            <option value="lastused">Last Used</option>
+                        </select>
+                    </div>
+                    <div id="sb-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
                     <div id="sb-sprite-grid">
                         <div class="sp-load-msg">Click to load sprites</div>
                     </div>
@@ -3981,6 +3991,7 @@
         if (cached) {
             sidebarSprites = cached;
             renderSidebarSprites(sidebarSprites);
+            buildSbTagChips(sidebarSprites);
         } else {
             grid.innerHTML = '<div class="sp-load-msg">Loading sprites...</div>';
         }
@@ -3999,6 +4010,7 @@
                 sidebarSprites = fresh;
                 sbSaveMetaCache(fresh);
                 renderSidebarSprites(sidebarSprites);
+                buildSbTagChips(sidebarSprites);
             }
         } catch(e) {
             if (!cached) grid.innerHTML = '<div class="sp-load-msg">Error loading sprites</div>';
@@ -4032,12 +4044,13 @@
             }
 
             div.onclick = async () => {
+                // Track last-used for sort
+                localStorage.setItem('sprite-used-' + pack.id, Date.now());
                 // Need full data (image_data + actions) before opening modal
                 const hasFull = pack.image_data && pack.actions !== undefined;
                 if (hasFull) {
                     openActionModal(pack);
                 } else {
-                    // Show quick loading state on the card
                     div.style.opacity = '0.5';
                     const full = await sbFetchFull(pack.id);
                     div.style.opacity = '';
@@ -4049,9 +4062,43 @@
         });
     }
 
+    function sortSpriteList(list, sort) {
+        if (sort === 'newest')   return [...list].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        if (sort === 'oldest')   return [...list].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+        if (sort === 'az')       return [...list].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+        if (sort === 'za')       return [...list].sort((a,b) => (b.name||'').localeCompare(a.name||''));
+        if (sort === 'lastused') return [...list].sort((a,b) => (parseInt(localStorage.getItem('sprite-used-'+b.id)||0)) - (parseInt(localStorage.getItem('sprite-used-'+a.id)||0)));
+        return list;
+    }
+
+    let sbActiveTag = null;
+
+    function buildSbTagChips(sprites) {
+        const wrap = document.getElementById('sb-tag-chips');
+        if (!wrap) return;
+        const counts = {};
+        sprites.forEach(s => (s.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
+        const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+        wrap.innerHTML = ['All', ...top10].map((t,i) =>
+            `<button onclick="setSbTag(${i===0?'null':JSON.stringify(t)})" style="padding:3px 9px;border-radius:12px;border:1px solid ${(i===0&&!sbActiveTag)||(sbActiveTag===t)?'#ff7a00':'#222'};background:${(i===0&&!sbActiveTag)||(sbActiveTag===t)?'rgba(255,122,0,.12)':'#111'};color:${(i===0&&!sbActiveTag)||(sbActiveTag===t)?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">${t}</button>`
+        ).join('');
+    }
+
+    function setSbTag(tag) {
+        sbActiveTag = tag;
+        filterSidebarSprites();
+    }
+
     function filterSidebarSprites() {
         if (!sidebarSprites) return;
-        renderSidebarSprites(sidebarSprites);
+        const q    = (document.getElementById('sb-sprite-search')?.value || '').toLowerCase().trim();
+        const sort = document.getElementById('sb-sprite-sort')?.value || 'newest';
+        let list   = [...sidebarSprites];
+        if (sbActiveTag) list = list.filter(s => (s.tags||[]).includes(sbActiveTag));
+        if (q) list = list.filter(s => s.name.toLowerCase().includes(q) || (s.tags||[]).some(t=>t.includes(q)));
+        list = sortSpriteList(list, sort);
+        renderSidebarSprites(list);
+        buildSbTagChips(sidebarSprites); // rebuild chips to reflect active state
     }
 
     function renderSidebarLayers() {
