@@ -2014,23 +2014,36 @@
         const onionOn = document.getElementById('onion-toggle').checked;
         if(onionOn && currentIdx > 0) {
             onionCanvas.style.display = 'block';
-            onionCtx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+            onionCtx.clearRect(0, 0, onionCanvas.width, onionCanvas.height);
             const prevFrameData = frames[currentIdx - 1];
-            onionCtx.globalAlpha = document.getElementById('onion-opacity').value;
+            const onionAlpha = parseFloat(document.getElementById('onion-opacity').value);
             prevFrameData.layers.forEach(l => {
                 if(l.type === 'img') {
                     const img = new Image();
                     img.src = l.src;
                     const draw = () => {
+                        // Use stored h if available; otherwise derive from actual
+                        // loaded image dimensions — fixes wrong size for sprites
+                        // like Balrog whose action frames have different aspect ratios
+                        let h;
+                        if (l.h != null) {
+                            h = l.h;
+                        } else if (img.naturalWidth > 0) {
+                            h = l.w * (img.naturalHeight / img.naturalWidth);
+                        } else {
+                            h = l.w;
+                        }
                         onionCtx.save();
-                        const h = (l.h != null) ? l.h : l.w * (img.naturalHeight / img.naturalWidth);
+                        onionCtx.globalAlpha = onionAlpha;
                         onionCtx.translate(l.x + l.w/2, l.y + h/2);
                         onionCtx.rotate((l.rotation || 0) * Math.PI / 180);
                         if(l.flipped) onionCtx.scale(-1, 1);
                         onionCtx.drawImage(img, -l.w/2, -h/2, l.w, h);
                         onionCtx.restore();
                     };
-                    if(img.complete) draw(); else img.onload = draw;
+                    // Always defer to onload — img.complete can be true but
+                    // naturalWidth still 0 for not-yet-decoded images
+                    if(img.complete && img.naturalWidth > 0) draw(); else img.onload = draw;
                 }
             });
         } else {

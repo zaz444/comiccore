@@ -1281,14 +1281,41 @@ function render() {
     const onionOn = document.getElementById('onion-toggle').checked;
     if (onionOn && currentIdx > 0) {
         onionCanvas.style.display = 'block';
-        onionCtx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+        onionCtx.clearRect(0, 0, onionCanvas.width, onionCanvas.height);
         const prevFrame = frames[currentIdx - 1];
-        onionCtx.globalAlpha = parseFloat(document.getElementById('onion-opacity').value);
+        const onionAlpha = parseFloat(document.getElementById('onion-opacity').value);
         prevFrame.layers.forEach(l => {
             if (l.type === 'img') {
-                const img = new Image(); img.src = l.src;
-                const draw = () => { onionCtx.save(); const h = (l.h != null) ? l.h : l.w * (img.naturalHeight / img.naturalWidth); onionCtx.translate(l.x+l.w/2,l.y+h/2); onionCtx.rotate((l.rotation||0)*Math.PI/180); if(l.flipped)onionCtx.scale(-1,1); onionCtx.drawImage(img,-l.w/2,-h/2,l.w,h); onionCtx.restore(); };
-                if (img.complete) draw(); else img.onload = draw;
+                const img = new Image();
+                img.src = l.src;
+                const draw = () => {
+                    // Derive height: use stored l.h if set, otherwise use the
+                    // actual loaded naturalWidth/Height ratio — critical for
+                    // sprites like Balrog whose action frames are smaller than
+                    // their idle pose (l.h is null, ratio must come from the image)
+                    let h;
+                    if (l.h != null) {
+                        h = l.h;
+                    } else if (img.naturalWidth > 0) {
+                        h = l.w * (img.naturalHeight / img.naturalWidth);
+                    } else {
+                        h = l.w; // square fallback
+                    }
+                    onionCtx.save();
+                    onionCtx.globalAlpha = onionAlpha;
+                    onionCtx.translate(l.x + l.w / 2, l.y + h / 2);
+                    onionCtx.rotate((l.rotation || 0) * Math.PI / 180);
+                    if (l.flipped) onionCtx.scale(-1, 1);
+                    onionCtx.drawImage(img, -l.w / 2, -h / 2, l.w, h);
+                    onionCtx.restore();
+                };
+                // Always defer to onload — even img.complete can have naturalWidth=0
+                // for cross-origin or not-yet-decoded images
+                if (img.complete && img.naturalWidth > 0) {
+                    draw();
+                } else {
+                    img.onload = draw;
+                }
             }
         });
     } else { onionCanvas.style.display = 'none'; }
@@ -1296,7 +1323,7 @@ function render() {
     f.layers.forEach((layer, idx) => {
         const el = document.createElement('div');
         el.className = 'layer' + (layer === activeLayer ? ' active' : '');
-        el.style.zIndex = idx;
+        el.style.zIndex = idx + 1; // +1 so layer 0 sits above bgLayer (z-index:0)
         el.dataset.layerId = layer.id;
 
         if (layer.type === 'img') {
@@ -2213,7 +2240,15 @@ function saveOffline(silent = false) {
         }
         localStorage.setItem('comic_drafts', JSON.stringify(drafts));
         if (!silent) { const t = document.createElement('div'); t.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;'; t.innerText='✓ Saved'; document.body.appendChild(t); setTimeout(()=>t.remove(), 1800); }
-    } catch(e) { if (!silent) alert('Save failed: storage may be full.'); }
+    } catch(e) {
+        if (!silent) {
+            const t = document.createElement('div');
+            t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#3a1a1a;color:#ff453a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #5a2a2a;white-space:nowrap;';
+            t.innerText = '⚠ Save failed: storage full — clear old drafts';
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+    }
     hasUnsavedChanges = false;
 }
 function goToDrafts() { saveOffline(true); location.href = 'my-comics.html'; }
