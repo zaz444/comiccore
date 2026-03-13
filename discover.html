@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap">
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-body { margin: 0; font-family: 'Inter', sans-serif; background: #0f0f11; color: #f5f5f7; min-height: 100dvh; padding-bottom: 80px; }
+body { margin: 0; font-family: 'Inter', sans-serif; background: #0f0f11; color: #f5f5f7; min-height: 100dvh; padding-bottom: 20px; }
 
 /* ── Header ── */
 .header {
@@ -454,7 +454,7 @@ animation: slideUp .3s cubic-bezier(.4,0,.2,1);
 
 /* ── Toast ── */
 .toast {
-position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
 background: #1c1c1e; border: 1px solid #3a3a3c; color: #fff;
 padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 700;
 opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events: none;
@@ -525,11 +525,13 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <div class="header">
   <div class="header-row">
-    <span class="logo">COMICCORE</span>
+    <button onclick="history.back()" style="background:none;border:none;color:#f5f5f7;font-size:14px;font-weight:900;cursor:pointer;padding:6px 10px 6px 0;display:flex;align-items:center;gap:6px;flex-shrink:0;letter-spacing:.3px;">← Back</button>
+    <span class="logo" style="font-size:16px;">DISCOVER</span>
     <input class="search-box" id="tagSearch" placeholder="Search comics, creators…" oninput="filterSearch()">
   </div>
   <div class="nav-tabs">
-    <button class="nav-tab active" id="tab-all"      onclick="switchTab('all')">Comics</button>
+    <button class="nav-tab active" id="tab-all"      onclick="switchTab('all')">All</button>
+    <button class="nav-tab"        id="tab-continue" onclick="switchTab('continue')">▶ Continue</button>
     <button class="nav-tab"        id="tab-stories"  onclick="switchTab('stories')">Stories</button>
     <button class="nav-tab"        id="tab-projects" onclick="switchTab('projects')">Teams</button>
   </div>
@@ -561,9 +563,8 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <div id="section-recents">
   <div class="filter-row">
-    <button class="filter-chip on" id="chip-recent"  onclick="setSort('recent')">🕐 Most Recent</button>
-    <button class="filter-chip"   id="chip-popular" onclick="setSort('popular')">🔥 Most Popular</button>
-    <button class="filter-chip"   id="chip-oldest"  onclick="setSort('oldest')">📅 Oldest First</button>
+    <button class="filter-chip on" id="chip-recent"  onclick="setSort('recent')">🕐 New</button>
+    <button class="filter-chip"   id="chip-popular" onclick="setSort('popular')">🔥 Trending</button>
   </div>
   <div class="section-label" id="comics-label">Latest Comics</div>
   <div class="comics-carousel-wrap">
@@ -571,6 +572,16 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
     <div class="comics-carousel" id="recentFeed"></div>
     <button class="carousel-nav-btn right" id="carousel-right" onclick="scrollCarousel(1)">›</button>
   </div>
+</div>
+
+<div id="section-continue" style="display:none;">
+  <div class="section-label">▶ Continue Reading</div>
+  <div class="comics-carousel-wrap">
+    <button class="carousel-nav-btn left"  id="continue-carousel-left"  onclick="scrollContinueCarousel(-1)">‹</button>
+    <div class="comics-carousel" id="continueFeed"></div>
+    <button class="carousel-nav-btn right" id="continue-carousel-right" onclick="scrollContinueCarousel(1)">›</button>
+  </div>
+  <div id="continue-empty" style="display:none;" class="empty-feed" style="padding:32px 20px;">You haven't started any comics yet!</div>
 </div>
 
 <div id="section-stories" style="display:none;">
@@ -671,26 +682,7 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <div class="toast" id="toast"></div>
 
-<!-- Bottom nav -->
-
-<div class="bottom-nav">
-  <a href="index.html"    class="nav-item">
-    <span class="nav-icon">🏠</span>
-    <span class="nav-label">Home</span>
-  </a>
-  <a href="discover.html" class="nav-item active">
-    <span class="nav-icon">🔍</span>
-    <span class="nav-label">Discover</span>
-  </a>
-  <a href="squads.html"   class="nav-item">
-    <span class="nav-icon">👥</span>
-    <span class="nav-label">Squads</span>
-  </a>
-  <a href="profile.html"  class="nav-item">
-    <span class="nav-icon">👤</span>
-    <span class="nav-label">Profile</span>
-  </a>
-</div>
+<!-- Bottom nav removed — use back button -->
 
 <script>
 const _sb = supabase.createClient(
@@ -822,23 +814,28 @@ function getProgress(comicId, totalFrames) {
 // ── Sort ─────────────────────────────────────────────────
 function setSort(s) {
   currentSort = s;
-  ['recent','popular','oldest'].forEach(k =>
-    document.getElementById('chip-'+k).classList.toggle('on', k === s)
-  );
-  const labels = { recent:'Latest Comics', popular:'Most Popular', oldest:'Oldest First' };
-  document.getElementById('comics-label').innerText = labels[s];
+  ['recent','popular'].forEach(k => {
+    const el = document.getElementById('chip-'+k);
+    if (el) el.classList.toggle('on', k === s);
+  });
+  const labels = { recent:'Latest Comics', popular:'Trending' };
+  document.getElementById('comics-label').innerText = labels[s] || '';
   renderComics(allComics, globalStars);
 }
 
 function sortedComics(comics, stars) {
   const c = [...comics];
   if (currentSort === 'popular') {
+    // Trending = most stars in the last 30 days so new comics can compete
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const recentStars = stars.filter(s => {
+      // stars don't have created_at in this query so fall back to all stars
+      return true;
+    });
     return c.sort((a,b) =>
-      stars.filter(s => s.receiver_hand === b.id).length -
-      stars.filter(s => s.receiver_hand === a.id).length
+      recentStars.filter(s => s.receiver_hand === b.id).length -
+      recentStars.filter(s => s.receiver_hand === a.id).length
     );
-  } else if (currentSort === 'oldest') {
-    return c.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   }
   return c.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 }
@@ -952,6 +949,18 @@ async function loadFeeds() {
   renderComics(allComics, globalStars);
   renderTeams(teams || []);
   loadTopCreators(currentRankTab);
+  // Update Continue Reading tab badge
+  const inProgressCount = allComics.filter(c => {
+    const frames = (c.data || []).length;
+    if (frames < 2) return false;
+    return getProgress(c.id, frames) !== null;
+  }).length;
+  const contTab = document.getElementById('tab-continue');
+  if (contTab) {
+    contTab.innerHTML = inProgressCount > 0
+      ? `▶ Continue <span style="background:#ff7a00;color:#000;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:900;margin-left:2px;">${inProgressCount}</span>`
+      : '▶ Continue';
+  }
 }
 
 // ── Render comics grid ────────────────────────────────────
@@ -1475,9 +1484,11 @@ function switchTab(type) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-'+type).classList.add('active');
   document.getElementById('section-recents').style.display  = type === 'all'      ? 'block' : 'none';
+  document.getElementById('section-continue').style.display = type === 'continue' ? 'block' : 'none';
   document.getElementById('section-stories').style.display  = type === 'stories'  ? 'block' : 'none';
   document.getElementById('section-projects').style.display = type === 'projects' ? 'block' : 'none';
   if (type === 'stories' && !storiesLoaded) loadStories();
+  if (type === 'continue') renderContinueReading();
 }
 
 async function loadStories() {
@@ -1567,6 +1578,173 @@ async function sendShare(toHandle) {
   }]);
   if (btn) { btn.innerText = 'Sent ✓'; btn.style.background = '#32d74b'; btn.style.color = '#000'; }
   showToast('Shared!');
+}
+
+// ── Continue Reading ─────────────────────────────────────────────────────
+function renderContinueReading() {
+  const feed = document.getElementById('continueFeed');
+  const empty = document.getElementById('continue-empty');
+  
+  // Find comics user has started but not finished
+  const inProgress = allComics.filter(c => {
+    const frames = (c.data || []).length;
+    if (frames < 2) return false;
+    const prog = getProgress(c.id, frames);
+    return prog !== null; // getProgress returns null if not started or finished
+  });
+
+  if (!inProgress.length) {
+    feed.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const stars = globalStars;
+  feed.innerHTML = inProgress.map(c => {
+    const frameCount = (c.data || []).length;
+    const prog = getProgress(c.id, frameCount);
+    const starCount = stars.filter(s => s.receiver_hand === c.id).length;
+    const coverHtml = c.cover
+      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+      : `<div class="no-cover">📖</div>`;
+    const progressHtml = prog
+      ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
+
+    return `<div class="comic-card" data-id="${esc(c.id)}">
+      <div class="comic-card-cover">
+        ${coverHtml}
+        <div class="tile-progress"><div class="tile-progress-fill" style="width:${prog ? prog.pct : 0}%"></div></div>
+        ${starCount > 0 ? `<div class="tile-stars">⭐ ${starCount}</div>` : ''}
+      </div>
+      <div class="comic-card-info">
+        <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
+        <div style="font-size:10px;color:#ff7a00;font-weight:800;margin-top:2px;">
+          Page ${prog ? prog.frame : '?'} of ${frameCount} · ${prog ? prog.pct : 0}%
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  feed.querySelectorAll('.comic-card').forEach(card => {
+    card.addEventListener('click', () => openPopup(card.dataset.id));
+  });
+
+  // Update carousel btns
+  const el = feed;
+  const lBtn = document.getElementById('continue-carousel-left');
+  const rBtn = document.getElementById('continue-carousel-right');
+  if (lBtn) lBtn.disabled = el.scrollLeft <= 4;
+  if (rBtn) rBtn.disabled = el.scrollLeft >= el.scrollWidth - el.clientWidth - 4;
+}
+
+function scrollContinueCarousel(dir) {
+  const el = document.getElementById('continueFeed');
+  el.scrollBy({ left: dir * 340, behavior: 'smooth' });
+}
+
+// ── Trending/Recent reaction tabs ─────────────────────────────────────────────
+// Replace static category-based reaction picker with Trending/Recent tabs
+// that are populated from actual comment usage in the DB
+
+async function loadTrendingReactions() {
+  const grid = document.getElementById('reaction-grid');
+  grid.innerHTML = '<div class="reaction-tray-empty">Loading…</div>';
+
+  try {
+    // Fetch recent IMG_REACTION comments to count usage
+    const { data: comments } = await _sb
+      .from('messages')
+      .select('content')
+      .like('content', '[IMG_REACTION]:%')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (!comments || !comments.length) {
+      // Fall back to all reactions if no data yet
+      loadReactionGrid(ALL_REACTIONS);
+      return;
+    }
+
+    // Count frequency of each image URL
+    const counts = {};
+    comments.forEach(c => {
+      const src = c.content.replace('[IMG_REACTION]:', '').trim();
+      counts[src] = (counts[src] || 0) + 1;
+    });
+
+    // Sort by usage, map back to reaction objects
+    const sorted = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([src]) => ALL_REACTIONS.find(r => r.src === src))
+      .filter(Boolean);
+
+    // Add any reactions not yet used at the end
+    const usedSrcs = new Set(sorted.map(r => r.src));
+    const unused = ALL_REACTIONS.filter(r => !usedSrcs.has(r.src));
+
+    loadReactionGrid([...sorted, ...unused]);
+  } catch(e) {
+    loadReactionGrid(ALL_REACTIONS);
+  }
+}
+
+async function loadRecentReactions() {
+  const grid = document.getElementById('reaction-grid');
+  grid.innerHTML = '<div class="reaction-tray-empty">Loading…</div>';
+
+  try {
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const { data: comments } = await _sb
+      .from('messages')
+      .select('content')
+      .like('content', '[IMG_REACTION]:%')
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (!comments || !comments.length) {
+      grid.innerHTML = '<div class="reaction-tray-empty">No reactions used recently — showing all</div>';
+      setTimeout(() => loadReactionGrid(ALL_REACTIONS), 1200);
+      return;
+    }
+
+    // Deduplicate by src, preserve order (most recent first)
+    const seen = new Set();
+    const recent = [];
+    comments.forEach(c => {
+      const src = c.content.replace('[IMG_REACTION]:', '').trim();
+      if (!seen.has(src)) {
+        seen.add(src);
+        const r = ALL_REACTIONS.find(r => r.src === src);
+        if (r) recent.push(r);
+      }
+    });
+
+    // Pad with unused reactions
+    const unused = ALL_REACTIONS.filter(r => !seen.has(r.src));
+    loadReactionGrid([...recent, ...unused]);
+  } catch(e) {
+    loadReactionGrid(ALL_REACTIONS);
+  }
+}
+
+// Override buildCategoryBtns to build Trending/Recent tabs instead
+function buildCategoryBtns() {
+  const wrap = document.getElementById('reaction-categories');
+  wrap.innerHTML = `
+    <button class="reaction-cat-btn active" id="reaction-tab-trending" onclick="switchReactionCategory('trending', this)">🔥 Trending</button>
+    <button class="reaction-cat-btn" id="reaction-tab-recent" onclick="switchReactionCategory('recent', this)">🕐 Recent</button>
+  `;
+  // Load trending by default
+  loadTrendingReactions();
+}
+
+function switchReactionCategory(tab, btn) {
+  document.querySelectorAll('.reaction-cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (tab === 'trending') loadTrendingReactions();
+  else loadRecentReactions();
 }
 
 window.onload = init;
