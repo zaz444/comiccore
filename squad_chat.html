@@ -123,6 +123,81 @@
             color: #2a2a2a; letter-spacing: 1px; text-transform: uppercase;
             padding: 4px 0;
         }
+
+        /* ── Avatars ── */
+        .msg-avatar {
+            width: 28px; height: 28px; border-radius: 8px;
+            background: #1a1a1a; object-fit: cover; flex-shrink: 0;
+            border: 1px solid #222; align-self: flex-end;
+        }
+        .mine .msg-avatar { display: none; }
+        .avatar-spacer { width: 28px; flex-shrink: 0; }
+
+        /* ── Timestamp ── */
+        .msg-time {
+            font-size: 9px; color: #2a2a2a; font-weight: 700;
+            margin-top: 3px; padding: 0 2px;
+        }
+        .mine .msg-time { text-align: right; }
+
+        /* ── Reaction images in chat ── */
+        .bubble-img { padding: 4px; }
+        .bubble-img img { width: 140px; border-radius: 12px; display: block; }
+
+        /* ── Delete button ── */
+        .msg-delete {
+            position: absolute; top: -8px; right: -8px;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #ff3b30; border: none; color: white;
+            font-size: 10px; cursor: pointer; display: none;
+            align-items: center; justify-content: center;
+            line-height: 1; z-index: 5;
+        }
+        .msg-wrapper:hover .msg-delete { display: flex; }
+
+        /* ── Expanding textarea input ── */
+        .msg-input {
+            flex: 1; background: #0f0f0f; border: 1px solid #1e1e1e;
+            border-radius: 22px; padding: 11px 16px; color: white;
+            font-size: 14px; font-family: inherit; outline: none; transition: .15s;
+            line-height: 1.4; resize: none; overflow: hidden; min-height: 44px;
+            max-height: 120px;
+        }
+        .msg-input:focus { border-color: #2a2a2a; }
+        .msg-input::placeholder { color: #2a2a2a; }
+
+        /* ── Reaction image picker in chat ── */
+        .chat-reaction-btn {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: #111; border: 1px solid #1e1e1e;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; flex-shrink: 0; transition: .15s;
+            font-size: 18px;
+        }
+        .chat-reaction-btn.active { border-color: #ff7a00; background: rgba(255,122,0,.1); }
+        .chat-reaction-picker {
+            position: absolute; bottom: 70px; left: 0; right: 0;
+            background: #111; border-top: 1px solid #1e1e1e;
+            display: none; flex-direction: column;
+            max-height: 260px; z-index: 20;
+        }
+        .chat-reaction-picker.open { display: flex; }
+        .chat-reaction-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 6px; padding: 12px; overflow-y: auto;
+        }
+        .chat-reaction-img-btn {
+            aspect-ratio: 1; background: #1a1a1a; border-radius: 8px;
+            overflow: hidden; border: 1.5px solid transparent;
+            cursor: pointer; transition: .15s; padding: 0;
+        }
+        .chat-reaction-img-btn:hover { border-color: #ff7a00; transform: scale(1.05); }
+        .chat-reaction-img-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .chat-reaction-label {
+            font-size: 9px; font-weight: 800; color: #444;
+            letter-spacing: 1px; text-transform: uppercase;
+            padding: 8px 12px 0;
+        }
     </style>
 </head>
 <body>
@@ -144,16 +219,22 @@
         <div id="chatPic"></div>
         <div class="header-info">
             <div class="header-name" id="headerTitle">…</div>
-            <div class="header-sub">Squad Chat</div>
+            <div class="header-sub" id="header-sub-text">Squad Chat</div>
         </div>
     </div>
 
     <div id="chatContainer"></div>
 
-    <div class="input-area">
-        <input class="msg-input" type="text" id="msgInput" placeholder="Message the squad…" autocomplete="off">
+    <!-- Reaction image picker -->
+    <div class="chat-reaction-picker" id="chatReactionPicker">
+        <div class="chat-reaction-label">Reactions</div>
+        <div class="chat-reaction-grid" id="chatReactionGrid"></div>
+    </div>
+
+    <div class="input-area" style="position:relative;">
+        <button class="chat-reaction-btn" id="chatReactionBtn" onclick="toggleChatReactionPicker()" title="Send a reaction image">🎭</button>
+        <textarea class="msg-input" id="msgInput" placeholder="Message the squad…" autocomplete="off" rows="1" oninput="autoResize(this)"></textarea>
         <button class="send-btn" onclick="sendMessage()" id="sendBtn">
-            <!-- Paper plane / send icon -->
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
             </svg>
@@ -168,14 +249,40 @@
     const myHandle  = myProfile.handle;
     const activeSquadId = new URLSearchParams(window.location.search).get('id');
 
+    // Profile picture cache
+    const picCache = {};
+    async function getPic(handle) {
+        if (picCache[handle] !== undefined) return picCache[handle];
+        const { data } = await _sb.from('profiles').select('pic').eq('handle', handle).maybeSingle();
+        picCache[handle] = data?.pic || '';
+        return picCache[handle];
+    }
+
+    // Reaction images from Supabase bucket
+    const BASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/reactions/';
+    const ALL_REACTIONS = [
+        { name: 'nuke the whole generation', src: BASE_URL + 'IMG_1823.webp' },
+        { name: 'who is this',               src: BASE_URL + 'IMG_1824.webp' },
+        { name: 'sipping lex luthor',        src: BASE_URL + 'IMG_1825.webp' },
+        { name: 'read',                      src: BASE_URL + 'IMG_1826.webp' },
+        { name: 'sobbing man',               src: BASE_URL + 'IMG_1827.webp' },
+        { name: 'thinking',                  src: BASE_URL + 'IMG_1829.webp' },
+        { name: 'gem found',                 src: BASE_URL + 'IMG_1831.webp' },
+        { name: 'flight interested',         src: BASE_URL + 'IMG_1832.webp' },
+        { name: 'spongebob phone',           src: BASE_URL + 'IMG_1833.webp' },
+    ];
+    let pendingReactionSrc = null;
+
+    let isSquadOwner = false;
+
     async function init() {
         if (!activeSquadId || !myHandle) return showError();
 
         const { data: squad } = await _sb.from('team_tickets').select('*').eq('id', activeSquadId).single();
         if (!squad) return showError();
 
-        const isOwner = squad.owner_handle === myHandle;
-        if (!isOwner) {
+        isSquadOwner = squad.owner_handle === myHandle;
+        if (!isSquadOwner) {
             const { data: req } = await _sb.from('team_requests')
                 .select('status')
                 .eq('ticket_id', activeSquadId)
@@ -185,6 +292,8 @@
         }
 
         document.getElementById('headerTitle').innerText = squad.team_name;
+        document.getElementById('header-sub-text').innerText =
+            isSquadOwner ? 'Squad Owner · Chat' : 'Squad Chat';
         if (squad.pfp) document.getElementById('chatPic').style.backgroundImage = `url(${squad.pfp})`;
 
         await loadMessages();
@@ -212,10 +321,16 @@
     }
 
     function buildBubble(m) {
-        if (isImg(m.content)) {
-            return `<div class="bubble" style="padding:4px;"><img src="${m.content}" style="width:100%;border-radius:14px;display:block;" loading="lazy"></div>`;
+        const content = m.content || '';
+        // IMG_REACTION format from comment system
+        if (content.startsWith('[IMG_REACTION]:')) {
+            const src = content.replace('[IMG_REACTION]:', '').trim();
+            return `<div class="bubble bubble-img"><img src="${esc(src)}" loading="lazy" onerror="this.style.display='none'"></div>`;
         }
-        return `<div class="bubble">${esc(m.content)}</div>`;
+        if (isImg(content)) {
+            return `<div class="bubble bubble-img"><img src="${esc(content)}" style="width:100%;border-radius:14px;display:block;" loading="lazy"></div>`;
+        }
+        return `<div class="bubble">${esc(content)}</div>`;
     }
 
     async function loadMessages() {
@@ -241,7 +356,7 @@
         });
     }
 
-    function appendMessage(m) {
+    async function appendMessage(m, prepend = false) {
         if (document.getElementById(`row-${m.id}`)) return;
         const isMine = m.sender_handle === myHandle;
         const container = document.getElementById('chatContainer');
@@ -250,31 +365,133 @@
         row.className = `msg-row ${isMine ? 'mine' : 'theirs'}`;
         row.id = `row-${m.id}`;
 
+        // Get avatar
+        const pic = await getPic(m.sender_handle);
+        const avatarHtml = isMine
+            ? `<div class="avatar-spacer"></div>`
+            : `<img class="msg-avatar" src="${esc(pic)}" onerror="this.style.display='none'" alt="">`;
+
+        // Timestamp
+        const time = m.created_at
+            ? new Date(m.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})
+            : '';
+
+        // Delete button — show for own messages or if owner
+        const canDelete = isMine || isSquadOwner;
+        const deleteBtn = canDelete && m.id
+            ? `<button class="msg-delete" onclick="deleteMessage('${m.id}')" title="Delete">✕</button>`
+            : '';
+
         const wrapper = document.createElement('div');
         wrapper.className = 'msg-wrapper';
         wrapper.innerHTML = `
+            ${deleteBtn}
             <div class="sender-name">@${esc(m.sender_handle)}</div>
             ${buildBubble(m)}
+            <div class="msg-time">${esc(time)}</div>
             ${m.reaction ? `<div class="reaction-badge">${m.reaction}</div>` : ''}
         `;
 
-        row.appendChild(wrapper);
+        if (isMine) {
+            row.appendChild(wrapper);
+            row.appendChild(document.createElement('div')); // spacer right
+        } else {
+            row.appendChild(avatarHtml ? (() => { const d = document.createElement('div'); d.innerHTML = avatarHtml; return d.firstChild; })() : document.createElement('div'));
+            row.appendChild(wrapper);
+        }
+
         container.appendChild(row);
         container.scrollTop = container.scrollHeight;
     }
 
     async function sendMessage() {
-        const input  = document.getElementById('msgInput');
-        const val    = input.value.trim();
-        if (!val) return;
-        input.value  = '';
-        input.focus();
+        const input = document.getElementById('msgInput');
+        const val   = input.value.trim();
+        if (!val && !pendingReactionSrc) return;
 
-        await _sb.from('team_messages').insert([{
-            ticket_id:      activeSquadId,
-            sender_handle:  myHandle,
-            content:        val
-        }]);
+        // Build content
+        let content = val;
+        if (pendingReactionSrc) {
+            content = `[IMG_REACTION]:${pendingReactionSrc}`;
+        }
+
+        input.value = '';
+        input.style.height = '44px';
+        input.focus();
+        pendingReactionSrc = null;
+        document.getElementById('chatReactionBtn').classList.remove('active');
+        closeChatReactionPicker();
+
+        // Optimistic UI — show immediately
+        const tempId = 'temp-' + Date.now();
+        const optimistic = {
+            id: tempId,
+            sender_handle: myHandle,
+            content,
+            created_at: new Date().toISOString()
+        };
+        await appendMessage(optimistic);
+
+        // Persist to DB
+        const { data, error } = await _sb.from('team_messages').insert([{
+            ticket_id:     activeSquadId,
+            sender_handle: myHandle,
+            content
+        }]).select().single();
+
+        // Replace temp row with real one once DB confirms
+        if (data && !error) {
+            const tempRow = document.getElementById(`row-${tempId}`);
+            if (tempRow) tempRow.id = `row-${data.id}`;
+        }
+    }
+
+    async function deleteMessage(id) {
+        if (!confirm('Delete this message?')) return;
+        const row = document.getElementById(`row-${id}`);
+        if (row) row.style.opacity = '0.3';
+        const { error } = await _sb.from('team_messages').delete().eq('id', id);
+        if (error) { if (row) row.style.opacity = '1'; return; }
+        if (row) row.remove();
+    }
+
+    // Auto-resize textarea
+    function autoResize(el) {
+        el.style.height = '44px';
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
+
+    // Reaction picker in chat
+    function buildChatReactionGrid() {
+        const grid = document.getElementById('chatReactionGrid');
+        grid.innerHTML = ALL_REACTIONS.map(r =>
+            `<button class="chat-reaction-img-btn" title="${esc(r.name)}" onclick="selectChatReaction('${esc(r.src)}')">
+                <img src="${esc(r.src)}" alt="${esc(r.name)}" loading="lazy">
+            </button>`
+        ).join('');
+    }
+
+    function toggleChatReactionPicker() {
+        const picker = document.getElementById('chatReactionPicker');
+        const btn    = document.getElementById('chatReactionBtn');
+        const isOpen = picker.classList.toggle('open');
+        btn.classList.toggle('active', isOpen);
+        if (isOpen && !document.getElementById('chatReactionGrid').children.length) {
+            buildChatReactionGrid();
+        }
+    }
+
+    function closeChatReactionPicker() {
+        document.getElementById('chatReactionPicker').classList.remove('open');
+        document.getElementById('chatReactionBtn').classList.remove('active');
+    }
+
+    function selectChatReaction(src) {
+        pendingReactionSrc = src;
+        closeChatReactionPicker();
+        // Show preview in input placeholder
+        document.getElementById('msgInput').placeholder = '📎 Reaction selected — tap send or add text';
+        document.getElementById('chatReactionBtn').classList.add('active');
     }
 
     function esc(s) {
@@ -285,6 +502,15 @@
     window.onload = init;
     document.getElementById('msgInput').addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    // Close reaction picker on outside tap
+    document.addEventListener('click', e => {
+        const picker = document.getElementById('chatReactionPicker');
+        const btn    = document.getElementById('chatReactionBtn');
+        if (picker && !picker.contains(e.target) && !btn.contains(e.target)) {
+            closeChatReactionPicker();
+        }
     });
 </script>
 </body>

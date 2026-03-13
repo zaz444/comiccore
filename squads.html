@@ -121,7 +121,13 @@
         .sq-btn-join:hover { opacity: .85; }
         .sq-btn-joined { background: rgba(255,255,255,.06); color: #555; border: 1px solid #1e1e1e !important; cursor: default; }
         .sq-btn-pending { background: #111; color: #444; border: 1px solid #1e1e1e !important; pointer-events: none; }
-        .sq-btn-chat { background: rgba(255,122,0,.12); color: #ff7a00; border: 1px solid rgba(255,122,0,.25) !important; }
+        .sq-btn-chat { background: rgba(255,122,0,.12); color: #ff7a00; border: 1px solid rgba(255,122,0,.25) !important; position: relative; }
+        .sq-unread-badge {
+            position: absolute; top: -6px; right: -6px;
+            background: #ff3b30; color: white; border-radius: 10px;
+            font-size: 9px; font-weight: 900; padding: 1px 5px;
+            min-width: 16px; text-align: center; pointer-events: none;
+        }
         .sq-btn-chat:hover { background: rgba(255,122,0,.22); }
         .sq-btn-manage { background: #111; color: #666; border: 1px solid #1e1e1e !important; }
         .sq-btn-manage:hover { border-color: #444 !important; color: #aaa; }
@@ -250,6 +256,15 @@
             <div class="sq-label" style="margin-bottom:8px;">Members</div>
             <div id="manage-members"><div style="font-size:12px;color:#333;padding:6px 0;">No members yet</div></div>
         </div>
+        <!-- Invite link -->
+        <div>
+            <div class="sq-label" style="margin-bottom:8px;">Invite Link</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input class="sq-input" id="invite-link-input" readonly style="font-size:11px;color:#666;flex:1;">
+                <button class="sq-btn-primary" style="padding:10px 14px;font-size:12px;white-space:nowrap;" onclick="copyInviteLink()">Copy</button>
+            </div>
+            <div style="font-size:10px;color:#333;margin-top:5px;font-weight:700;">Anyone with this link can join directly</div>
+        </div>
         <button class="sq-btn-primary" onclick="saveSquad()">Save Changes</button>
         <button class="sq-btn-danger" onclick="deleteSquad()">Delete Squad</button>
         <div class="sq-btn-ghost" onclick="closeManageModal()">Cancel</div>
@@ -308,6 +323,25 @@
 
         buildTopics();
         await Promise.all([loadSquads(), updateStats()]);
+
+        // Handle invite link auto-join: squads.html?join=squadId
+        const joinId = new URLSearchParams(location.search).get('join');
+        if (joinId) {
+            const squad = allSquads.find(s => String(s.id) === String(joinId));
+            if (squad) {
+                const alreadyIn = allAccepted.some(r => String(r.ticket_id) === String(joinId) && r.sender_handle === myHandle)
+                    || squad.owner_handle === myHandle;
+                if (!alreadyIn) {
+                    if (confirm(`Join "${squad.team_name}"?`)) {
+                        await joinSquad(joinId, squad.is_private);
+                    }
+                } else {
+                    location.href = `squad_chat.html?id=${joinId}`;
+                }
+            }
+            // Clean URL
+            history.replaceState({}, '', 'squads.html');
+        }
     }
 
     function buildTopics() {
@@ -330,11 +364,18 @@
     async function loadSquads() {
         const feed = document.getElementById('sq-feed');
         feed.innerHTML = `<div style="padding:20px 16px;display:flex;flex-direction:column;gap:10px;">${[1,2,3].map(()=>`<div class="sq-skeleton" style="height:90px;"></div>`).join('')}</div>`;
-        const [{ data: squads }, { data: reqs }, { data: accepted }] = await Promise.all([
+        const [{ data: squads }, { data: reqs }, { data: accepted }, { data: lastMsgs }] = await Promise.all([
             _sb.from('team_tickets').select('*').order('created_at', { ascending: false }),
             _sb.from('team_requests').select('*').eq('sender_handle', myHandle),
-            _sb.from('team_requests').select('ticket_id').eq('status', 'accepted')
+            _sb.from('team_requests').select('ticket_id, sender_handle').eq('status', 'accepted'),
+            _sb.from('team_messages').select('ticket_id, created_at, content').order('created_at', { ascending: false })
         ]);
+        // Build map of last message time per squad
+        const lastMsgMap = {};
+        (lastMsgs || []).forEach(m => {
+            if (!lastMsgMap[m.ticket_id]) lastMsgMap[m.ticket_id] = m;
+        });
+        window._lastMsgMap = lastMsgMap;
         allSquads = squads || [];
         myRequests = reqs || [];
         allAccepted = accepted || [];
@@ -393,7 +434,33 @@
             return;
         }
 
-        list.forEach(s => feed.appendChild(buildCard(s)));
+        list.forEach(s => {
+            feed.appendChild(buildCard(s));
+            // Hydrate member avatars async
+            hydrateMemberAvatars(s.id);
+        });
+        hydrateUnreadBadges();
+    }
+
+    async function hydrateMemberAvatars(squadId) {
+        const wrap = document.getElementById(`avatars-${squadId}`);
+        if (!wrap) return;
+        const members = allAccepted.filter(r => String(r.ticket_id) === String(squadId)).slice(0, 5);
+        if (!members.length) return;
+        const pics = await Promise.all(members.map(async m => {
+            const { data } = await _sb.from('profiles').select('pic,handle').eq('handle', m.sender_handle).maybeSingle();
+            return data;
+        }));
+        wrap.innerHTML = pics.filter(Boolean).map((p, i) =>
+            `<img src="${esc(p.pic||'')}" title="@${esc(p.handle)}"
+                style="width:20px;height:20px;border-radius:6px;object-fit:cover;border:1.5px solid #111;margin-left:${i===0?0:-6}px;background:#222;"
+                onerror="this.style.display='none'">`
+        ).join('');
+        // If more than 5 members
+        const total = allAccepted.filter(r => String(r.ticket_id) === String(squadId)).length;
+        if (total > 5) {
+            wrap.innerHTML += `<span style="font-size:9px;font-weight:800;color:#444;margin-left:4px;">+${total-5}</span>`;
+        }
     }
 
     function buildCard(s) {
@@ -418,16 +485,30 @@
         if (isOwner) {
             actions = `
                 <button class="sq-action-btn sq-btn-manage" onclick="event.stopPropagation();openManageModal('${s.id}')">Manage</button>
-                <button class="sq-action-btn sq-btn-chat" onclick="event.stopPropagation();location.href='squad_chat.html?id=${s.id}'">💬 Chat</button>`;
+                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${s.id}" onclick="event.stopPropagation();goToChat('${s.id}')">💬 Chat</button>`;
         } else if (isMember) {
             actions = `
                 <button class="sq-action-btn sq-btn-joined" style="border:1px solid #1e1e1e;">✓ Joined</button>
-                <button class="sq-action-btn sq-btn-chat" onclick="event.stopPropagation();location.href='squad_chat.html?id=${s.id}'">💬 Chat</button>
+                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${s.id}" onclick="event.stopPropagation();goToChat('${s.id}')">💬 Chat</button>
                 <button class="sq-action-btn sq-btn-leave" style="border:1px solid rgba(255,59,48,.25);" onclick="event.stopPropagation();leaveSquad('${s.id}')">Leave</button>`;
         } else if (isPending) {
             actions = `<button class="sq-action-btn sq-btn-pending" style="border:1px solid #1e1e1e;">Requested…</button>`;
         } else {
             actions = `<button class="sq-action-btn sq-btn-join" id="jbtn-${s.id}" onclick="event.stopPropagation();joinSquad('${s.id}',${!!s.is_private})">${s.is_private ? 'Request to Join' : 'Join'}</button>`;
+        }
+
+        const memberCount = allAccepted.filter(r=>String(r.ticket_id)===String(s.id)).length;
+        const lastMsg = (window._lastMsgMap || {})[String(s.id)];
+        let activityHtml = '';
+        if (lastMsg) {
+            const diff = Date.now() - new Date(lastMsg.created_at);
+            const mins = Math.floor(diff / 60000);
+            const hrs  = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+            const when = mins < 1 ? 'Just now' : mins < 60 ? mins+'m ago' : hrs < 24 ? hrs+'h ago' : days+'d ago';
+            const isActive = diff < 3600000; // active = message in last hour
+            activityHtml = `<span style="color:${isActive?'#32d74b':'#333'};font-size:10px;font-weight:800;">
+                ${isActive?'🟢':'⚫'} ${when}</span>`;
         }
 
         card.innerHTML = `
@@ -441,7 +522,11 @@
                 <div class="sq-card-owner">by @${esc(s.owner_handle)}</div>
                 ${s.description ? `<div class="sq-card-desc">${esc(s.description)}</div>` : ''}
                 ${topicsHtml}
-                <div class="sq-card-meta">👥 ${allAccepted.filter(r=>String(r.ticket_id)===String(s.id)).length} member${allAccepted.filter(r=>String(r.ticket_id)===String(s.id)).length!==1?'s':''}</div>
+                <div class="sq-card-meta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span>👥 ${memberCount} member${memberCount!==1?'s':''}</span>
+                    ${activityHtml}
+                </div>
+                <div class="sq-card-member-avatars" id="avatars-${s.id}" style="display:flex;gap:-6px;margin-top:6px;"></div>
             </div>
             <div class="sq-card-right">${actions}</div>`;
 
@@ -564,7 +649,18 @@
         if (s.pfp) { ep.style.backgroundImage=`url(${s.pfp})`; ep.innerText=''; ep.classList.add('has-img'); }
         else { ep.style.backgroundImage=''; ep.innerText='✎'; ep.classList.remove('has-img'); }
         await loadManageMembers(id);
+        // Populate invite link
+        const inviteUrl = `${location.origin}${location.pathname.replace('squads.html','')}squad_chat.html?id=${id}`;
+        document.getElementById('invite-link-input').value = inviteUrl;
         document.getElementById('manage-overlay').classList.add('open');
+    }
+
+    function copyInviteLink() {
+        const input = document.getElementById('invite-link-input');
+        navigator.clipboard.writeText(input.value).then(() => {
+            const btn = document.querySelector('[onclick="copyInviteLink()"]');
+            if (btn) { const orig = btn.innerText; btn.innerText = 'Copied!'; btn.style.background='#32d74b'; setTimeout(()=>{ btn.innerText=orig; btn.style.background=''; }, 2000); }
+        }).catch(() => { input.select(); document.execCommand('copy'); });
     }
 
     function closeManageModal() { document.getElementById('manage-overlay').classList.remove('open'); activeManageId = null; }
@@ -624,6 +720,34 @@
         await _sb.from('team_tickets').delete().eq('id', activeManageId);
         closeManageModal();
         await Promise.all([loadSquads(), updateStats()]);
+    }
+
+    function goToChat(squadId) {
+        // Save last-seen timestamp before navigating
+        localStorage.setItem(`sq-seen-${squadId}`, Date.now());
+        location.href = `squad_chat.html?id=${squadId}`;
+    }
+
+    function hydrateUnreadBadges() {
+        allSquads.forEach(s => {
+            const btn = document.getElementById(`chatbtn-${s.id}`);
+            if (!btn) return;
+            const lastSeen = parseInt(localStorage.getItem(`sq-seen-${s.id}`) || '0');
+            const lastMsg = (window._lastMsgMap || {})[String(s.id)];
+            if (!lastMsg) return;
+            const msgTime = new Date(lastMsg.created_at).getTime();
+            const isUnread = msgTime > lastSeen && lastMsg.content && lastMsg.sender_handle !== myHandle;
+            if (isUnread) {
+                // Remove old badge if any
+                const old = btn.querySelector('.sq-unread-badge');
+                if (old) old.remove();
+                const badge = document.createElement('span');
+                badge.className = 'sq-unread-badge';
+                badge.innerText = '●';
+                btn.style.position = 'relative';
+                btn.appendChild(badge);
+            }
+        });
     }
 
     window.onload = init;
