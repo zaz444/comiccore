@@ -2424,11 +2424,21 @@
             activeDraftId = newDraft.id;
             localStorage.setItem('active_draft_id', activeDraftId);
         }
-        localStorage.setItem('comic_drafts', JSON.stringify(drafts));
-        hasUnsavedChanges = false;
-        if (!silent) {
-            const btn = document.querySelector('.tb-btn[onclick*="saveOffline"]');
-            if (btn) { const orig = btn.innerText; btn.innerText = '✓ Saved!'; setTimeout(() => btn.innerText = orig, 1500); }
+        try {
+            localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+            hasUnsavedChanges = false;
+            if (!silent) {
+                const btn = document.querySelector('.tb-btn[onclick*="saveOffline"]');
+                if (btn) { const orig = btn.innerText; btn.innerText = '✓ Saved!'; setTimeout(() => btn.innerText = orig, 1500); }
+            }
+        } catch(e) {
+            if (!silent) {
+                const t = document.createElement('div');
+                t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#3a1a1a;color:#ff453a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #5a2a2a;white-space:nowrap;display:flex;align-items:center;gap:6px;';
+                t.innerHTML = '<img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/toast/storagefull.png" style="width:16px;height:16px;object-fit:contain;image-rendering:pixelated;"> Save failed: storage full — clear old drafts';
+                document.body.appendChild(t);
+                setTimeout(() => t.remove(), 3500);
+            }
         }
     }
 
