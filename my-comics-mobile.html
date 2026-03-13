@@ -166,6 +166,20 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
       <option value="alpha">A→Z</option>
       <option value="pages">Pages</option>
     </select>
+    <button onclick="location.href='offlines.html'" title="Manage storage" style="background:none;border:1px solid #222;color:#888;padding:6px 10px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">🗄 Vault</button>
+  </div>
+  <!-- Storage mini-bar -->
+  <div id="storage-mini" style="margin:0 16px 8px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <span style="font-size:10px;font-weight:800;color:#555;letter-spacing:.5px;">VAULT CAPACITY</span>
+      <span style="font-size:10px;font-weight:900;" id="storage-mini-pct">0%</span>
+    </div>
+    <div style="width:100%;height:4px;background:#1a1a1a;border-radius:4px;overflow:hidden;">
+      <div id="storage-mini-fill" style="height:100%;border-radius:4px;transition:.8s;"></div>
+    </div>
+    <div id="storage-mini-warn" style="display:none;margin-top:5px;font-size:10px;font-weight:800;color:#ff4444;">
+      ⚠ Storage nearly full — <a href="offlines.html" style="color:#ff4444;">open vault to free space</a>
+    </div>
   </div>
 
   <!-- Published toolbar -->
@@ -298,6 +312,7 @@ async function loadPublished() {
   published = data || [];
   document.getElementById('pub-count').innerText = published.length;
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+  updateStorageMini();
 }
 
 // ── Stats ─────────────────────────────────────────────────
@@ -539,6 +554,7 @@ async function confirmDelete() {
     localStorage.setItem('comic_drafts', JSON.stringify(drafts));
     document.getElementById('drafts-count').innerText = drafts.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+  updateStorageMini();
     if (String(localStorage.getItem('active_draft_id')) === String(deleteId)) {
       localStorage.removeItem('active_draft_id');
     }
@@ -550,6 +566,7 @@ async function confirmDelete() {
     published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+  updateStorageMini();
     renderStats(); renderPublished();
     toast('🗑 Comic removed from Discover');
   }
@@ -577,6 +594,28 @@ function confirmRename() {
 }
 
 // ── New Comic ─────────────────────────────────────────────
+function updateStorageMini() {
+  try {
+    const LIMIT = 5242880;
+    let total = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      total += ((localStorage.getItem(localStorage.key(i)) || '').length * 2);
+    }
+    const pct = Math.min(Math.round((total / LIMIT) * 100), 100);
+    const mini = document.getElementById('storage-mini');
+    const fill = document.getElementById('storage-mini-fill');
+    const pctEl = document.getElementById('storage-mini-pct');
+    const warn = document.getElementById('storage-mini-warn');
+    if (!mini) return;
+    mini.style.display = 'block';
+    fill.style.width = pct + '%';
+    fill.style.background = pct > 80 ? '#ff4444' : pct > 60 ? '#ff9800' : '#00d2ff';
+    pctEl.innerText = pct + '%';
+    pctEl.style.color = pct > 80 ? '#ff4444' : pct > 60 ? '#ff9800' : '#aaa';
+    warn.style.display = pct > 80 ? 'block' : 'none';
+  } catch(e) {}
+}
+
 function openNewSheet() {
   document.getElementById('new-sheet').classList.add('open');
 }

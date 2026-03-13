@@ -44,6 +44,8 @@
         .meter-label { font-size: 10px; font-weight: 800; color: var(--text-dim); display: flex; justify-content: space-between; margin-bottom: 8px; }
         .meter-track { width: 100%; height: 6px; background: #222; border-radius: 10px; overflow: hidden; }
         #meter-fill { width: 0%; height: 100%; background: var(--accent); transition: 1s cubic-bezier(0.17, 0.67, 0.83, 0.67); }
+        #storage-breakdown { margin-top: 12px; }
+        .breakdown-row { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; color: var(--text-dim); padding: 3px 0; }
 
         /* --- GRID --- */
         .grid {
@@ -136,6 +138,7 @@
         <div class="meter-track">
             <div id="meter-fill"></div>
         </div>
+        <div id="storage-breakdown"></div>
     </div>
 
     <div id="empty-view" style="display: none;">
@@ -196,23 +199,67 @@
         });
     }
 
+    function getKeySize(key) {
+        try { return ((localStorage.getItem(key) || '').length * 2); } catch(e) { return 0; }
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+        return (bytes/1048576).toFixed(2) + ' MB';
+    }
+
     function updateStorageMeter() {
         try {
-            const stringified = JSON.stringify(localStorage);
-            // 5MB is standard browser limit for localStorage
-            const size = stringified.length;
-            const percent = Math.min(Math.round((size / 5242880) * 100), 100);
-            
+            const LIMIT = 5242880; // 5MB standard limit
+            let totalSize = 0, draftSize = 0, spriteSize = 0, otherSize = 0;
+
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const sz = getKeySize(key);
+                totalSize += sz;
+                if (key === 'comic_drafts') draftSize += sz;
+                else if (key.startsWith('sb-full-') || key.startsWith('sb-meta') || key.startsWith('cc_sprites')) spriteSize += sz;
+                else otherSize += sz;
+            }
+
+            const percent = Math.min(Math.round((totalSize / LIMIT) * 100), 100);
             const fill = document.getElementById('meter-fill');
             fill.style.width = percent + '%';
             document.getElementById('usage-percent').innerText = percent + '%';
+            fill.style.background = percent > 80 ? '#ff4444' : percent > 60 ? '#ff9800' : 'var(--accent)';
 
-            // Change color if storage is nearly full
-            if (percent > 80) fill.style.background = "#ff4444";
-            else fill.style.background = "var(--accent)";
+            // Show breakdown
+            const breakdown = document.getElementById('storage-breakdown');
+            if (breakdown) {
+                const draftPct  = Math.round((draftSize  / LIMIT) * 100);
+                const spritePct = Math.round((spriteSize / LIMIT) * 100);
+                const otherPct  = Math.round((otherSize  / LIMIT) * 100);
+                breakdown.innerHTML = `
+                    <div class="breakdown-row"><span>📝 Drafts</span><span>${formatBytes(draftSize)} (${draftPct}%)</span></div>
+                    <div class="breakdown-row"><span>🎮 Sprite cache</span><span>${formatBytes(spriteSize)} (${spritePct}%)</span></div>
+                    <div class="breakdown-row"><span>⚙️ App data</span><span>${formatBytes(otherSize)} (${otherPct}%)</span></div>
+                    <div class="breakdown-row" style="border-top:1px solid #222;margin-top:6px;padding-top:6px;">
+                        <span style="color:var(--text-main);font-weight:900;">Total used</span>
+                        <span style="color:var(--accent);font-weight:900;">${formatBytes(totalSize)} / 5 MB</span>
+                    </div>
+                    ${spritePct > 5 ? '<button onclick="clearSpriteCache()" style="margin-top:10px;width:100%;padding:8px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#ff9800;font-size:11px;font-weight:800;cursor:pointer;">🧹 Clear Sprite Cache (free ' + formatBytes(spriteSize) + ')</button>' : ''}
+                `;
+            }
         } catch(e) {
             console.error("Storage calculation failed", e);
         }
+    }
+
+    function clearSpriteCache() {
+        if (!confirm('Clear sprite cache? Images will reload on next use.')) return;
+        const toRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('sb-full-') || key.startsWith('sb-meta') || key.startsWith('cc_sprites')) toRemove.push(key);
+        }
+        toRemove.forEach(k => localStorage.removeItem(k));
+        updateStorageMeter();
     }
 
     function openDraft(id) {
