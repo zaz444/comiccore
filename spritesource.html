@@ -95,15 +95,6 @@
         .tag-chip:hover { border-color: #555; color: white; }
         .tag-chip.active { background: var(--accent); color: #000; border-color: var(--accent); }
         .tag-chips-label { font-size: 9px; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
-        /* Sort row */
-        .sort-filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-        .sort-select {
-            background: #111; border: 1px solid #333; color: #aaa; padding: 7px 12px;
-            border-radius: 10px; font-size: 11px; font-weight: 700; outline: none;
-            cursor: pointer; font-family: inherit; transition: .15s;
-        }
-        .sort-select:focus { border-color: var(--accent); color: white; }
-        .sort-label { font-size: 9px; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1.5px; white-space: nowrap; }
 
         /* Your Sprites section */
         .section-header { display: flex; justify-content: space-between; align-items: center; margin: 30px 0 14px; border-top: 1px solid #222; padding-top: 24px; }
@@ -195,16 +186,6 @@
             autocomplete="off" spellcheck="false">
         <div class="suggest-drop" id="suggest-drop"></div>
     </div>
-    <div class="sort-filter-row">
-        <span class="sort-label">Sort</span>
-        <select class="sort-select" id="sprite-sort" onchange="filterSprites()">
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-            <option value="az">A → Z</option>
-            <option value="za">Z → A</option>
-            <option value="lastused">Last Used</option>
-        </select>
-    </div>
     <div class="tag-chips-label">🔥 Top Tags</div>
     <div class="tag-chips" id="tag-chips-row"></div>
 
@@ -245,7 +226,7 @@
     const ADMIN_ID = "de0b7378-e779-4e0d-9e3d-b33bf643df3e";
 
     // ── Cache keys — declared early so all functions can reference them ──
-    const META_CACHE_KEY = 'cc_sprites_meta_v2';
+    const META_CACHE_KEY = 'cc_sprites_meta_v3'; // bumped to bust stale image_data in meta
     const META_CACHE_TTL = 10 * 60 * 1000;
 
     // Check all possible field names Supabase / localStorage might use for the UUID
@@ -404,7 +385,10 @@
     // ── Caching & Lazy Loading ──
 
     function saveMetaCache(data) {
-        try { localStorage.setItem(META_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+        // Strip image_data — meta cache is lightweight only
+        // so stale cover images never get served from old cache entries
+        const lean = (data || []).map(({ id, name, tags, creator, created_at }) => ({ id, name, tags, creator, created_at }));
+        try { localStorage.setItem(META_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: lean })); } catch(e) {}
     }
 
     function loadMetaCache() {
@@ -504,16 +488,15 @@
         }
 
         const sprite = allSprites.find(s => s.id === id);
-        const hasImage = !!(sprite && sprite.image_data);
-        const fields = hasImage ? 'id, actions' : 'id, image_data, actions';
-        const { data } = await _supabase.from('sprites_library').select(fields).eq('id', id).single();
+        // Always fetch image_data fresh from DB — never trust meta cache's image_data
+        // which may be stale if the sprite was deleted and re-uploaded
+        const { data } = await _supabase.from('sprites_library').select('id, image_data, actions').eq('id', id).single();
         if (!data) return null;
-        if (sprite && data.image_data) sprite.image_data = data.image_data;
+        if (sprite) sprite.image_data = data.image_data;
         fullDataCache.set(id, data);
 
-        // Persist so next visit (and create.html / create-mobile) is instant
-        const imgToStore = data.image_data || sprite?.image_data;
-        if (imgToStore) setFullCache(id, imgToStore, data.actions);
+        // Persist to localStorage for create.html / create-mobile speed
+        if (data.image_data) setFullCache(id, data.image_data, data.actions);
 
         return data;
     }
@@ -670,41 +653,19 @@
 
     function filterSprites() {
         const query = document.getElementById('sprite-search').value.toLowerCase().trim();
-        const sort  = document.getElementById('sprite-sort')?.value || 'newest';
-        let filtered = [...allSprites];
-
-        // Tag filter
+        let filtered = allSprites;
         if (activeTagFilter) filtered = filtered.filter(s => (s.tags || []).includes(activeTagFilter));
-        // Search filter
         if (query) filtered = filtered.filter(s => s.name.toLowerCase().includes(query) || (s.tags || []).some(t => t.includes(query)));
-
-        // Sort
-        filtered = sortSpriteList(filtered, sort);
         renderPublicGrid(filtered);
         document.getElementById('sprite-count').innerText = filtered.length + ' packs';
-    }
-
-    function sortSpriteList(list, sort) {
-        // Last-used times stored as 'sprite-used-{id}' in localStorage
-        if (sort === 'newest') return [...list].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-        if (sort === 'oldest') return [...list].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-        if (sort === 'az')     return [...list].sort((a,b) => (a.name||'').localeCompare(b.name||''));
-        if (sort === 'za')     return [...list].sort((a,b) => (b.name||'').localeCompare(a.name||''));
-        if (sort === 'lastused') {
-            return [...list].sort((a,b) => {
-                const ta = parseInt(localStorage.getItem('sprite-used-' + a.id) || '0');
-                const tb = parseInt(localStorage.getItem('sprite-used-' + b.id) || '0');
-                return tb - ta; // most recently used first
-            });
-        }
-        return list;
     }
 
     function initAfterMetaFetch(rerender) {
         allTags = new Set(); tagCounts = {};
         allSprites.forEach(s => { (s.tags || []).forEach(t => { allTags.add(t); tagCounts[t] = (tagCounts[t] || 0) + 1; }); });
         renderTagChips();
-        filterSprites(); // uses current sort/filter state
+        if (rerender) { renderPublicGrid(allSprites); document.getElementById('sprite-count').innerText = allSprites.length + ' packs'; }
+        else { renderPublicGrid(allSprites); document.getElementById('sprite-count').innerText = allSprites.length + ' packs'; }
     }
 
     function renderPublicGrid(sprites) {
@@ -765,8 +726,6 @@
 
         document.getElementById('v-use-btn').onclick = async () => {
             const full = await fetchFullSprite(item.id);
-            // Track last-used for sort
-            localStorage.setItem('sprite-used-' + item.id, Date.now());
             localStorage.setItem('incoming_sprite_pack', JSON.stringify({ ...item, ...full }));
             location.href = 'create.html';
         };

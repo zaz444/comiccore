@@ -800,17 +800,7 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">Sprites <button class="sheet-close" onclick="closeSheet('sprites')">✕</button></div>
     <div class="sheet-body">
-        <input class="pub-input" id="mob-sprite-search" placeholder="Search sprites..." oninput="filterMobSprites()" style="margin-bottom:6px;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <select id="mob-sprite-sort" onchange="filterMobSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:7px 10px;border-radius:10px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="az">A → Z</option>
-                <option value="za">Z → A</option>
-                <option value="lastused">Last Used</option>
-            </select>
-        </div>
-        <div id="mob-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
+        <input class="pub-input" id="mob-sprite-search" placeholder="Search sprites..." oninput="filterMobSprites()" style="margin-bottom:10px;">
         <div id="mob-sprite-grid">
             <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load sprites...</div>
         </div>
@@ -1767,7 +1757,6 @@ async function loadMobSprites() {
     sidebarSprites = data || [];
     allSidebarMeta = sidebarSprites;
     renderMobSpriteGrid(sidebarSprites);
-    buildMobTagChips(allSidebarMeta);
 }
 
 function renderMobSpriteGrid(sprites) {
@@ -1778,7 +1767,6 @@ function renderMobSpriteGrid(sprites) {
         card.className = 'mob-sprite-card';
         card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
         card.onclick = async () => {
-            localStorage.setItem('sprite-used-' + pack.id, Date.now());
             const full = await sbFetchFull(pack.id);
             if (full) { closeSheet('sprites'); openActionModal({ ...pack, ...full }); }
         };
@@ -1798,42 +1786,10 @@ function renderMobSpriteGrid(sprites) {
     if (!sprites.length) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">No sprites found</div>';
 }
 
-function sortSpriteList(list, sort) {
-    if (sort === 'newest')   return [...list].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-    if (sort === 'oldest')   return [...list].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-    if (sort === 'az')       return [...list].sort((a,b) => (a.name||'').localeCompare(b.name||''));
-    if (sort === 'za')       return [...list].sort((a,b) => (b.name||'').localeCompare(a.name||''));
-    if (sort === 'lastused') return [...list].sort((a,b) => (parseInt(localStorage.getItem('sprite-used-'+b.id)||0)) - (parseInt(localStorage.getItem('sprite-used-'+a.id)||0)));
-    return list;
-}
-
-let mobActiveTag = null;
-
-function buildMobTagChips(sprites) {
-    const wrap = document.getElementById('mob-tag-chips');
-    if (!wrap) return;
-    const counts = {};
-    sprites.forEach(s => (s.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
-    const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
-    wrap.innerHTML = ['All', ...top10].map((t,i) =>
-        `<button onclick="setMobTag(${i===0?'null':JSON.stringify(t)})" style="padding:4px 10px;border-radius:12px;border:1px solid ${(i===0&&!mobActiveTag)||(mobActiveTag===t)?'#ff7a00':'#222'};background:${(i===0&&!mobActiveTag)||(mobActiveTag===t)?'rgba(255,122,0,.12)':'#111'};color:${(i===0&&!mobActiveTag)||(mobActiveTag===t)?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">${t}</button>`
-    ).join('');
-}
-
-function setMobTag(tag) {
-    mobActiveTag = tag;
-    filterMobSprites();
-}
-
 function filterMobSprites() {
-    const q    = document.getElementById('mob-sprite-search').value.toLowerCase().trim();
-    const sort = document.getElementById('mob-sprite-sort')?.value || 'newest';
-    let list   = [...allSidebarMeta];
-    if (mobActiveTag) list = list.filter(s => (s.tags||[]).includes(mobActiveTag));
-    if (q) list = list.filter(s => s.name.toLowerCase().includes(q) || (s.tags||[]).some(t=>t.includes(q)));
-    list = sortSpriteList(list, sort);
-    renderMobSpriteGrid(list);
-    buildMobTagChips(allSidebarMeta);
+    const q = document.getElementById('mob-sprite-search').value.toLowerCase();
+    const filtered = allSidebarMeta.filter(s => s.name.toLowerCase().includes(q) || (s.tags || '').toLowerCase().includes(q));
+    renderMobSpriteGrid(filtered);
 }
 
 // Sprite meta cache
@@ -1906,16 +1862,57 @@ function createActionOption(src, name) {
     div.innerHTML = `<img src="${src}"><strong>${name}</strong>`;
     return div;
 }
+// ── Trim transparent padding from a sprite image ──────────────────────
+function trimTransparentBounds(img) {
+    const ow = img.naturalWidth, oh = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = ow; c.height = oh;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    let data;
+    try { data = ctx.getImageData(0, 0, ow, oh).data; }
+    catch(e) { return { offsetX: 0, offsetY: 0, trimW: ow, trimH: oh }; }
+    let minX = ow, minY = oh, maxX = 0, maxY = 0;
+    for (let y = 0; y < oh; y++) {
+        for (let x = 0; x < ow; x++) {
+            if (data[(y * ow + x) * 4 + 3] > 8) {
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        }
+    }
+    if (minX > maxX || minY > maxY) return { offsetX: 0, offsetY: 0, trimW: ow, trimH: oh };
+    return { offsetX: minX, offsetY: minY, trimW: maxX - minX + 1, trimH: maxY - minY + 1 };
+}
+
 function handleActionSelect(img, pack, isEditing) {
     if (isEditing && activeLayer) {
         saveState();
         activeLayer.src = img;
-        // w and h are intentionally NOT touched — user's current size is preserved
+        // Re-trim the new action image, preserving the user's chosen scale
+        const layer = activeLayer;
+        const probe = new Image();
+        probe.crossOrigin = 'anonymous';
+        probe.onload = () => {
+            if (!probe.naturalWidth) return;
+            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+            const prevTrim = layer.trimData;
+            const scale = prevTrim ? (layer.w / prevTrim.trimW) : (layer.w / trimW);
+            layer.w = Math.round(trimW * scale);
+            layer.h = Math.round(trimH * scale);
+            layer.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+            render();
+        };
+        probe.onerror = () => render();
+        probe.src = img;
     } else {
         addSpriteToCanvas(img, pack);
     }
     closeActionModal(); render();
 }
+
 function addSpriteToCanvas(src, pack) {
     saveState();
     const cw = canvas.offsetWidth || 300;
@@ -1924,13 +1921,30 @@ function addSpriteToCanvas(src, pack) {
     const nl = { type: 'img', src, w: initW, h: initW, x: Math.round(cw * 0.3), y: Math.round(ch * 0.3), rotation: 0, flipped: false, packData: pack, id: Date.now() };
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
-    // Compute real h from natural ratio and lock it in
+
     const probe = new Image();
+    probe.crossOrigin = 'anonymous';
     probe.onload = () => {
-        if (probe.naturalWidth && probe.naturalHeight) {
-            nl.h = Math.round(initW * probe.naturalHeight / probe.naturalWidth);
-            render();
-        }
+        if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
+        const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+        const scale  = initW / trimW;
+        nl.w = Math.round(trimW * scale);
+        nl.h = Math.round(trimH * scale);
+        nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
+        nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+        nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+        render();
+    };
+    probe.onerror = () => {
+        // CORS fallback — ratio only
+        const fallback = new Image();
+        fallback.onload = () => {
+            if (fallback.naturalWidth && fallback.naturalHeight) {
+                nl.h = Math.round(initW * fallback.naturalHeight / fallback.naturalWidth);
+                render();
+            }
+        };
+        fallback.src = src;
     };
     probe.src = src;
 }
