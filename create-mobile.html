@@ -817,6 +817,28 @@
     </div>
 </div>
 
+<!-- EFFECTS SHEET -->
+<div id="sheet-effects" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">⚡ Effects <button class="sheet-close" onclick="closeSheet('effects')">✕</button></div>
+    <div class="sheet-body">
+        <input class="pub-input" id="mob-effect-search" placeholder="Search effects..." oninput="filterMobEffects()" style="margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <select id="mob-effect-sort" onchange="filterMobEffects()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:7px 10px;border-radius:10px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="az">A → Z</option>
+                <option value="za">Z → A</option>
+                <option value="lastused">Last Used</option>
+            </select>
+        </div>
+        <div id="mob-effect-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
+        <div id="mob-effect-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;overflow-y:auto;max-height:55vh;">
+            <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load effects...</div>
+        </div>
+    </div>
+</div>
+
 <!-- BACKGROUND SHEET -->
 <div id="sheet-bg" class="bottom-sheet">
     <div class="sheet-handle"></div>
@@ -1048,6 +1070,9 @@
     </button>
     <button class="bot-btn" onclick="openSheet('sprites')">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprites">Sprites
+    </button>
+    <button class="bot-btn" onclick="openSheet('effects'); if(!mobSidebarEffects) loadMobEffects()">
+        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/effectsource.webp" class="bot-custom-icon" alt="effects">Effects
     </button>
     <button class="bot-btn" onclick="openSheet('bg')">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/bg.webp" class="bot-custom-icon" alt="bg">BG
@@ -1818,6 +1843,171 @@ function setMobTag(tag) {
     mobActiveTag = tag;
     filterMobSprites();
 }
+
+
+// ── EFFECTS ──
+let mobSidebarEffects = null;
+let mobEffectActiveTag = null;
+
+const EFX_META_KEY = 'cc_effects_meta_v1';
+const EFX_META_TTL = 10 * 60 * 1000;
+const EFX_FULL_TTL = 30 * 60 * 1000;
+const EFX_CACHE_VER = 'v1';
+
+function efxSaveMetaCache(data) {
+    const lean = (data||[]).map(({id,name,tags,creator,created_at})=>({id,name,tags,creator,created_at}));
+    try { localStorage.setItem(EFX_META_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
+}
+function efxLoadMetaCache() {
+    try {
+        const raw = localStorage.getItem(EFX_META_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (Date.now()-p.ts > EFX_META_TTL) { localStorage.removeItem(EFX_META_KEY); return null; }
+        return p.data;
+    } catch(e) { return null; }
+}
+function efxGetImg(id) { try { return sessionStorage.getItem('cc_efx_'+id); } catch(e) { return null; } }
+function efxSetImg(id,url) { try { sessionStorage.setItem('cc_efx_'+id,url); } catch(e) {} }
+function efxGetFull(id) {
+    try {
+        const raw = localStorage.getItem('efx-full-'+id);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (p.v !== EFX_CACHE_VER || Date.now()-(p.ts||0) > EFX_FULL_TTL) { localStorage.removeItem('efx-full-'+id); return null; }
+        return p;
+    } catch(e) { return null; }
+}
+function efxSetFull(id,url) {
+    try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url,ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
+}
+
+async function loadMobEffects() {
+    const grid = document.getElementById('mob-effect-grid');
+    const cached = efxLoadMetaCache();
+    if (cached) {
+        mobSidebarEffects = cached;
+        renderMobEffectGrid(mobSidebarEffects);
+        buildMobEffectTagChips(mobSidebarEffects);
+    } else {
+        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
+    }
+    const { data } = await _supabase.from('effects_library').select('id,name,tags,creator,created_at').order('created_at',{ascending:false});
+    const fresh = data || [];
+    mobSidebarEffects = fresh;
+    efxSaveMetaCache(fresh);
+    renderMobEffectGrid(fresh);
+    buildMobEffectTagChips(fresh);
+}
+
+function buildMobEffectTagChips(effects) {
+    const wrap = document.getElementById('mob-effect-tag-chips');
+    if (!wrap) return;
+    const counts = {};
+    effects.forEach(e=>(e.tags||[]).forEach(t=>{ counts[t]=(counts[t]||0)+1; }));
+    const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+    wrap.innerHTML = ['All',...top10].map((t,i)=>
+        `<button onclick="setMobEffectTag(${i===0?'null':JSON.stringify(t)})" style="padding:4px 10px;border-radius:12px;border:1px solid ${(i===0&&!mobEffectActiveTag)||(mobEffectActiveTag===t)?'#ff7a00':'#222'};background:${(i===0&&!mobEffectActiveTag)||(mobEffectActiveTag===t)?'rgba(255,122,0,.12)':'#111'};color:${(i===0&&!mobEffectActiveTag)||(mobEffectActiveTag===t)?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">${t}</button>`
+    ).join('');
+}
+
+function setMobEffectTag(tag) { mobEffectActiveTag = tag; filterMobEffects(); }
+
+function filterMobEffects() {
+    const q    = document.getElementById('mob-effect-search').value.toLowerCase().trim();
+    const sort = document.getElementById('mob-effect-sort')?.value||'newest';
+    let list   = [...(mobSidebarEffects||[])];
+    if (mobEffectActiveTag) list = list.filter(e=>(e.tags||[]).includes(mobEffectActiveTag));
+    if (q) list = list.filter(e=>e.name.toLowerCase().includes(q)||(e.tags||[]).some(t=>t.includes(q)));
+    // Sort
+    if (sort==='newest')   list.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    if (sort==='oldest')   list.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+    if (sort==='az')       list.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    if (sort==='za')       list.sort((a,b)=>(b.name||'').localeCompare(a.name||''));
+    if (sort==='lastused') list.sort((a,b)=>(parseInt(localStorage.getItem('efx-used-'+b.id)||0))-(parseInt(localStorage.getItem('efx-used-'+a.id)||0)));
+    renderMobEffectGrid(list);
+    buildMobEffectTagChips(mobSidebarEffects||[]);
+}
+
+function renderMobEffectGrid(effects) {
+    const grid = document.getElementById('mob-effect-grid');
+    grid.innerHTML = '';
+    if (!effects.length) { grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">No effects found</div>'; return; }
+    effects.forEach(pack => {
+        const card = document.createElement('div');
+        card.className = 'mob-sprite-card'; // reuse sprite card CSS
+        const cachedSrc = pack.image_data || efxGetImg(pack.id);
+        card.innerHTML = cachedSrc
+            ? `<img src="${cachedSrc}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`
+            : `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
+
+        if (!cachedSrc) {
+            const obs = new IntersectionObserver(entries => {
+                if (!entries[0].isIntersecting) return;
+                obs.disconnect();
+                _supabase.from('effects_library').select('image_data').eq('id',pack.id).single().then(({data})=>{
+                    if (!data?.image_data) return;
+                    efxSetImg(pack.id, data.image_data);
+                    pack.image_data = data.image_data;
+                    const old = card.querySelector('div');
+                    if (old) { const img=document.createElement('img'); img.src=data.image_data; img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:8px;'; old.replaceWith(img); }
+                });
+            }, {root: grid});
+            obs.observe(card);
+        }
+
+        card.onclick = async () => {
+            localStorage.setItem('efx-used-'+pack.id, Date.now());
+            let imageData = pack.image_data || efxGetImg(pack.id);
+            if (!imageData) {
+                const fc = efxGetFull(pack.id);
+                if (fc) { imageData = fc.img; }
+                else {
+                    const {data} = await _supabase.from('effects_library').select('image_data').eq('id',pack.id).single();
+                    if (data?.image_data) { imageData = data.image_data; efxSetFull(pack.id, data.image_data); pack.image_data = data.image_data; }
+                }
+            }
+            if (imageData) { closeSheet('effects'); addEffectToCanvas(imageData, pack); }
+        };
+        grid.appendChild(card);
+    });
+}
+
+function addEffectToCanvas(src, pack) {
+    saveState();
+    const cw = canvas.offsetWidth || 300;
+    const ch = canvas.offsetHeight || 300;
+    const initW = Math.round(cw * 0.4);
+    const nl = {type:'img',src,w:initW,h:initW,x:Math.round(cw*0.3),y:Math.round(ch*0.3),rotation:0,flipped:false,effectData:pack,id:Date.now()};
+    frames[currentIdx].layers.push(nl);
+    activeLayer = nl;
+    const probe = new Image();
+    probe.crossOrigin = 'anonymous';
+    probe.onload = () => {
+        if (!probe.naturalWidth) { render(); return; }
+        const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+        const scale = initW / trimW;
+        nl.w = Math.round(trimW * scale);
+        nl.h = Math.round(trimH * scale);
+        nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
+        nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+        render();
+    };
+    probe.onerror = () => { const fb=new Image(); fb.onload=()=>{ nl.h=Math.round(initW*fb.naturalHeight/fb.naturalWidth); render(); }; fb.src=src; };
+    probe.src = src;
+}
+
+// Handle incoming_effect from effectssource.html
+(function checkIncomingEffect() {
+    const raw = localStorage.getItem('incoming_effect');
+    if (!raw) return;
+    localStorage.removeItem('incoming_effect');
+    try {
+        const effect = JSON.parse(raw);
+        if (effect?.image_data) addEffectToCanvas(effect.image_data, effect);
+    } catch(e) {}
+})();
+
 
 function filterMobSprites() {
     const q    = document.getElementById('mob-sprite-search').value.toLowerCase().trim();

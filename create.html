@@ -1441,6 +1441,11 @@
                     <span class="sb-icon"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" style="width:22px;height:22px;object-fit:contain;" alt="sprites"></span>Sprites
                 </button>
 
+                <!-- Effects -->
+                <button class="sb-icon-btn" data-panel="effects" onclick="toggleSidePanel('effects')">
+                    <span class="sb-icon"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/effectsource.webp" style="width:22px;height:22px;object-fit:contain;" alt="effects"></span>Effects
+                </button>
+
                 <!-- Add -->
                 <button class="sb-icon-btn" data-panel="add" onclick="toggleSidePanel('add')">
                     <span class="sb-icon"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/add.webp" class="sb-custom-icon" alt="add"></span>Add
@@ -1497,6 +1502,28 @@
                     <div id="sb-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
                     <div id="sb-sprite-grid">
                         <div class="sp-load-msg">Click to load sprites</div>
+                    </div>
+                </div>
+
+                <!-- ── Effects panel ── -->
+                <div class="sp-content" id="sp-effects">
+                    <div class="sp-header">
+                        Effects
+                        <span class="sp-close-btn" onclick="toggleSidePanel('effects')">✕</span>
+                    </div>
+                    <input class="sp-search" id="sb-effect-search" placeholder="Search effects..." oninput="filterSidebarEffects()">
+                    <div style="display:flex;align-items:center;gap:6px;margin:6px 0 4px;">
+                        <select id="sb-effect-sort" onchange="filterSidebarEffects()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;outline:none;font-family:inherit;">
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                            <option value="az">A → Z</option>
+                            <option value="za">Z → A</option>
+                            <option value="lastused">Last Used</option>
+                        </select>
+                    </div>
+                    <div id="sb-effect-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
+                    <div id="sb-effect-grid">
+                        <div class="sp-load-msg">Click to load effects</div>
                     </div>
                 </div>
 
@@ -4023,6 +4050,7 @@
         if (btn) btn.classList.add('active');
         // Panel-specific init
         if (name === 'sprites' && !sidebarSprites) loadSidebarSprites();
+        if (name === 'effects' && !sidebarEffects) loadSidebarEffects();
         if (name === 'layers') renderSidebarLayers();
     }
 
@@ -4220,6 +4248,194 @@
             grid.appendChild(div);
         });
     }
+
+
+    // ══════════════════════════════════════════════════════════
+    // EFFECTS SIDEBAR
+    // ══════════════════════════════════════════════════════════
+    let sidebarEffects = null;
+    let sbEffectActiveTag = null;
+
+    const EFX_ICON = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/effectsource.webp';
+    const EFX_META_KEY = 'cc_effects_meta_v1';
+    const EFX_META_TTL = 10 * 60 * 1000;
+    const EFX_FULL_TTL = 30 * 60 * 1000;
+    const EFX_CACHE_VER = 'v1';
+
+    function efxSaveMetaCache(data) {
+        const lean = (data||[]).map(({id,name,tags,creator,created_at}) => ({id,name,tags,creator,created_at}));
+        try { localStorage.setItem(EFX_META_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
+    }
+    function efxLoadMetaCache() {
+        try {
+            const raw = localStorage.getItem(EFX_META_KEY);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - p.ts > EFX_META_TTL) { localStorage.removeItem(EFX_META_KEY); return null; }
+            return p.data;
+        } catch(e) { return null; }
+    }
+    function efxGetImg(id) { try { return sessionStorage.getItem('cc_efx_'+id); } catch(e) { return null; } }
+    function efxSetImg(id,url) { try { sessionStorage.setItem('cc_efx_'+id,url); } catch(e) {} }
+    function efxGetFull(id) {
+        try {
+            const raw = localStorage.getItem('efx-full-'+id);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (p.v !== EFX_CACHE_VER || Date.now() - (p.ts||0) > EFX_FULL_TTL) { localStorage.removeItem('efx-full-'+id); return null; }
+            return p;
+        } catch(e) { return null; }
+    }
+    function efxSetFull(id,url) {
+        try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url,ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
+    }
+
+    async function loadSidebarEffects() {
+        const grid = document.getElementById('sb-effect-grid');
+        const cached = efxLoadMetaCache();
+        if (cached) {
+            sidebarEffects = cached;
+            renderSidebarEffects(sidebarEffects);
+            buildSbEffectTagChips(sidebarEffects);
+        } else {
+            grid.innerHTML = '<div class="sp-load-msg">Loading effects...</div>';
+        }
+        try {
+            const { data } = await _supabase.from('effects_library')
+                .select('id, name, tags, creator, created_at')
+                .order('created_at', {ascending: false});
+            const fresh = data || [];
+            const cachedIds = (sidebarEffects||[]).map(e=>e.id).join(',');
+            const freshIds  = fresh.map(e=>e.id).join(',');
+            if (freshIds !== cachedIds || !cached) {
+                sidebarEffects = fresh;
+                efxSaveMetaCache(fresh);
+                renderSidebarEffects(sidebarEffects);
+                buildSbEffectTagChips(sidebarEffects);
+            }
+        } catch(e) {
+            if (!cached) grid.innerHTML = '<div class="sp-load-msg">Error loading effects</div>';
+        }
+    }
+
+    function buildSbEffectTagChips(effects) {
+        const wrap = document.getElementById('sb-effect-tag-chips');
+        if (!wrap) return;
+        const counts = {};
+        effects.forEach(e => (e.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
+        const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+        wrap.innerHTML = ['All',...top10].map((t,i) =>
+            `<button onclick="setSbEffectTag(${i===0?'null':JSON.stringify(t)})" style="padding:3px 9px;border-radius:12px;border:1px solid ${(i===0&&!sbEffectActiveTag)||(sbEffectActiveTag===t)?'#ff7a00':'#222'};background:${(i===0&&!sbEffectActiveTag)||(sbEffectActiveTag===t)?'rgba(255,122,0,.12)':'#111'};color:${(i===0&&!sbEffectActiveTag)||(sbEffectActiveTag===t)?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">${t}</button>`
+        ).join('');
+    }
+
+    function setSbEffectTag(tag) { sbEffectActiveTag = tag; filterSidebarEffects(); }
+
+    function sortEffectList(list, sort) {
+        if (sort==='newest')   return [...list].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+        if (sort==='oldest')   return [...list].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+        if (sort==='az')       return [...list].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+        if (sort==='za')       return [...list].sort((a,b)=>(b.name||'').localeCompare(a.name||''));
+        if (sort==='lastused') return [...list].sort((a,b)=>(parseInt(localStorage.getItem('efx-used-'+b.id)||0))-(parseInt(localStorage.getItem('efx-used-'+a.id)||0)));
+        return list;
+    }
+
+    function filterSidebarEffects() {
+        if (!sidebarEffects) return;
+        const q    = (document.getElementById('sb-effect-search')?.value||'').toLowerCase().trim();
+        const sort = document.getElementById('sb-effect-sort')?.value||'newest';
+        let list   = [...sidebarEffects];
+        if (sbEffectActiveTag) list = list.filter(e=>(e.tags||[]).includes(sbEffectActiveTag));
+        if (q) list = list.filter(e=>e.name.toLowerCase().includes(q)||(e.tags||[]).some(t=>t.includes(q)));
+        list = sortEffectList(list, sort);
+        renderSidebarEffects(list);
+        buildSbEffectTagChips(sidebarEffects);
+    }
+
+    function renderSidebarEffects(effects) {
+        const grid = document.getElementById('sb-effect-grid');
+        if (!effects.length) { grid.innerHTML = '<div class="sp-load-msg">No effects found</div>'; return; }
+        grid.innerHTML = '';
+        effects.forEach(pack => {
+            const div = document.createElement('div');
+            div.className = 'sb-sprite-card'; // reuse sprite card CSS
+            div.dataset.eid = pack.id;
+            const cachedSrc = pack.image_data || efxGetImg(pack.id);
+            if (cachedSrc) {
+                div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${pack.name}</span>`;
+            } else {
+                div.innerHTML = `<div class="sb-skeleton"></div><span>${pack.name}</span>`;
+                // Lazy load
+                const obs = new IntersectionObserver(entries => {
+                    if (!entries[0].isIntersecting) return;
+                    obs.disconnect();
+                    const cached2 = efxGetImg(pack.id);
+                    if (cached2) { const old=div.querySelector('div'); if(old){const img=document.createElement('img');img.src=cached2;img.className='sb-loaded';old.replaceWith(img);} return; }
+                    _supabase.from('effects_library').select('image_data').eq('id',pack.id).single().then(({data})=>{
+                        if (!data?.image_data) return;
+                        efxSetImg(pack.id, data.image_data);
+                        efxSetFull(pack.id, data.image_data);
+                        pack.image_data = data.image_data;
+                        const old = div.querySelector('div');
+                        if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
+                    });
+                }, { root: document.getElementById('sb-effect-grid'), rootMargin: '200px 0px' });
+                obs.observe(div);
+            }
+            div.onclick = async () => {
+                localStorage.setItem('efx-used-'+pack.id, Date.now());
+                let imageData = pack.image_data || efxGetImg(pack.id);
+                if (!imageData) {
+                    const cached = efxGetFull(pack.id);
+                    if (cached) { imageData = cached.img; }
+                    else {
+                        div.style.opacity = '0.5';
+                        const {data} = await _supabase.from('effects_library').select('image_data').eq('id',pack.id).single();
+                        div.style.opacity = '';
+                        if (data?.image_data) { imageData = data.image_data; efxSetFull(pack.id, data.image_data); pack.image_data = data.image_data; }
+                    }
+                }
+                if (imageData) addEffectToCanvas(imageData, pack);
+            };
+            grid.appendChild(div);
+        });
+    }
+
+    function addEffectToCanvas(src, pack) {
+        saveState();
+        const TARGET_W = 200;
+        const nl = { type:'img', src, w:TARGET_W, h:TARGET_W, x:100, y:100, rotation:0, flipped:false, effectData:pack, id:Date.now() };
+        frames[currentIdx].layers.push(nl);
+        activeLayer = nl;
+        const probe = new Image();
+        probe.crossOrigin = 'anonymous';
+        probe.onload = () => {
+            if (!probe.naturalWidth) { render(); return; }
+            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+            const scale = TARGET_W / trimW;
+            nl.w = Math.round(trimW * scale);
+            nl.h = Math.round(trimH * scale);
+            nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
+            nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+            render();
+        };
+        probe.onerror = () => {
+            const fb = new Image(); fb.onload = () => { nl.h = Math.round(TARGET_W*fb.naturalHeight/fb.naturalWidth); render(); }; fb.src = src;
+        };
+        probe.src = src;
+    }
+
+    // Handle incoming_effect from effectssource.html
+    (function checkIncomingEffect() {
+        const raw = localStorage.getItem('incoming_effect');
+        if (!raw) return;
+        localStorage.removeItem('incoming_effect');
+        try {
+            const effect = JSON.parse(raw);
+            if (effect?.image_data) addEffectToCanvas(effect.image_data, effect);
+        } catch(e) {}
+    })();
+
 
     function sortSpriteList(list, sort) {
         if (sort === 'newest')   return [...list].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
