@@ -239,7 +239,7 @@ window.onload = async () => {
   myHandle = profile.handle || null;
   myName = profile.name || 'Creator';
 
-  loadDrafts();
+  await loadDrafts();
   await loadPublished();
   renderStats();
   renderDrafts();
@@ -247,7 +247,36 @@ window.onload = async () => {
 };
 
 // ── Load data ─────────────────────────────────────────────
-function loadDrafts() {
+async function loadDrafts() {
+  // Load from Supabase if logged in
+  if (myHandle) {
+    try {
+      const { data: sbDrafts } = await _sb.from('drafts')
+        .select('id, title, data, canvas_ratio, updated_at, created_at')
+        .eq('owner_handle', myHandle)
+        .order('updated_at', { ascending: false });
+      if (sbDrafts) {
+        // Also merge any remaining localStorage drafts (offline/legacy)
+        const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+        // Normalize Supabase drafts to match localStorage shape
+        const normalized = sbDrafts.map(d => ({
+          id: d.id,
+          title: d.title || 'Untitled',
+          data: d.data,
+          ratio: d.canvas_ratio || { w:1, h:1 },
+          lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
+          _source: 'supabase'
+        }));
+        // Merge: prefer Supabase, append localStorage-only drafts
+        const sbIds = new Set(sbDrafts.map(d => String(d.id)));
+        const lsOnly = lsDrafts.filter(d => !sbIds.has(String(d.id)));
+        drafts = [...normalized, ...lsOnly];
+        document.getElementById('drafts-count').innerText = drafts.length;
+        return;
+      }
+    } catch(e) { console.warn('Could not load Supabase drafts', e); }
+  }
+  // Fallback: localStorage only
   drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
   document.getElementById('drafts-count').innerText = drafts.length;
 }
@@ -473,8 +502,15 @@ async function confirmDelete() {
   const deleteType = pendingDeleteType;
   closeDel();
   if (deleteType === 'draft') {
+    const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
+    if (draftToDelete?._source === 'supabase' || String(deleteId).includes('-')) {
+      await _sb.from('drafts').delete().eq('id', deleteId);
+    } else {
+      const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+      localStorage.setItem('comic_drafts', JSON.stringify(lsDrafts.filter(d => String(d.id) !== String(deleteId))));
+      if (localStorage.getItem('active_draft_id') == deleteId) localStorage.removeItem('active_draft_id');
+    }
     drafts = drafts.filter(d => String(d.id) !== String(deleteId));
-    localStorage.setItem('comic_drafts', JSON.stringify(drafts));
     document.getElementById('drafts-count').innerText = drafts.length;
     renderStats(); renderDrafts();
     toast('🗑 Draft deleted');
@@ -496,14 +532,20 @@ function openRename(id, currentTitle) {
   setTimeout(() => document.getElementById('rename-inp').focus(), 100);
 }
 function closeRename() { document.getElementById('rename-sheet').style.display = 'none'; }
-function confirmRename() {
+async function confirmRename() {
   const newTitle = document.getElementById('rename-inp').value.trim();
   if (!newTitle) return;
   closeRename();
   const idx = drafts.findIndex(d => d.id == renameTargetId);
   if (idx >= 0) {
     drafts[idx].title = newTitle;
-    localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+    if (drafts[idx]._source === 'supabase' || String(renameTargetId).includes('-')) {
+      await _sb.from('drafts').update({ title: newTitle }).eq('id', renameTargetId);
+    } else {
+      const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+      const lsIdx = lsDrafts.findIndex(d => d.id == renameTargetId);
+      if (lsIdx >= 0) { lsDrafts[lsIdx].title = newTitle; localStorage.setItem('comic_drafts', JSON.stringify(lsDrafts)); }
+    }
     renderDrafts();
     toast('✅ Renamed!');
   }

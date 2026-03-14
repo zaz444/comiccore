@@ -290,7 +290,7 @@ window.onload = async () => {
   myHandle = profile.handle || null;
   myName = profile.name || 'Creator';
 
-  loadDrafts();
+  await loadDrafts();
   await loadPublished();
   renderStats();
   renderDrafts();
@@ -298,7 +298,29 @@ window.onload = async () => {
 };
 
 // ── Load data ─────────────────────────────────────────────
-function loadDrafts() {
+async function loadDrafts() {
+  if (myHandle) {
+    try {
+      const { data: sbDrafts } = await _sb.from('drafts')
+        .select('id, title, data, canvas_ratio, updated_at, created_at')
+        .eq('owner_handle', myHandle)
+        .order('updated_at', { ascending: false });
+      if (sbDrafts) {
+        const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+        const normalized = sbDrafts.map(d => ({
+          id: d.id, title: d.title || 'Untitled', data: d.data,
+          ratio: d.canvas_ratio || { w:1, h:1 },
+          lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
+          _source: 'supabase'
+        }));
+        const sbIds = new Set(sbDrafts.map(d => String(d.id)));
+        const lsOnly = lsDrafts.filter(d => !sbIds.has(String(d.id)));
+        drafts = [...normalized, ...lsOnly];
+        document.getElementById('drafts-count').innerText = drafts.length;
+        return;
+      }
+    } catch(e) { console.warn('Could not load Supabase drafts', e); }
+  }
   drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
   document.getElementById('drafts-count').innerText = drafts.length;
 }
@@ -550,14 +572,18 @@ async function confirmDelete() {
   const deleteType = pendingDeleteType;
   closeDelSheet();
   if (deleteType === 'draft') {
+    const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
+    if (draftToDelete?._source === 'supabase' || String(deleteId).includes('-')) {
+      await _sb.from('drafts').delete().eq('id', deleteId);
+    } else {
+      const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+      localStorage.setItem('comic_drafts', JSON.stringify(lsDrafts.filter(d => String(d.id) !== String(deleteId))));
+      if (String(localStorage.getItem('active_draft_id')) === String(deleteId)) localStorage.removeItem('active_draft_id');
+    }
     drafts = drafts.filter(d => String(d.id) !== String(deleteId));
-    localStorage.setItem('comic_drafts', JSON.stringify(drafts));
     document.getElementById('drafts-count').innerText = drafts.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
-  updateStorageMini();
-    if (String(localStorage.getItem('active_draft_id')) === String(deleteId)) {
-      localStorage.removeItem('active_draft_id');
-    }
+    updateStorageMini();
     renderStats(); renderDrafts();
     toast('🗑 Draft deleted');
   } else {
@@ -580,14 +606,20 @@ function openRenameSheet(id, currentTitle) {
   setTimeout(() => document.getElementById('rename-inp').focus(), 150);
 }
 function closeRenameSheet() { document.getElementById('rename-sheet').classList.remove('open'); }
-function confirmRename() {
+async function confirmRename() {
   const newTitle = document.getElementById('rename-inp').value.trim();
   if (!newTitle) return;
   closeRenameSheet();
   const idx = drafts.findIndex(d => d.id == renameTargetId);
   if (idx >= 0) {
     drafts[idx].title = newTitle;
-    localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+    if (drafts[idx]._source === 'supabase' || String(renameTargetId).includes('-')) {
+      await _sb.from('drafts').update({ title: newTitle }).eq('id', renameTargetId);
+    } else {
+      const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+      const lsIdx = lsDrafts.findIndex(d => d.id == renameTargetId);
+      if (lsIdx >= 0) { lsDrafts[lsIdx].title = newTitle; localStorage.setItem('comic_drafts', JSON.stringify(lsDrafts)); }
+    }
     renderDrafts();
     toast('✅ Renamed!');
   }

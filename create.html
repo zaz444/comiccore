@@ -1749,7 +1749,7 @@
             }
         }
 
-        window.onload = function() {
+        window.onload = async function() {
         // ── MOBILE REDIRECT: send touch devices to create-mobile.html ──
         var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
         if (isMobile) {
@@ -1779,14 +1779,28 @@
 
         const resumeId = localStorage.getItem('active_draft_id');
         if (resumeId) {
+            // Try Supabase first (UUID format), then localStorage
+            if (resumeId.includes('-')) {
+                // Supabase UUID
+                const { data: sbDraft } = await _supabase.from('drafts')
+                    .select('*').eq('id', resumeId).single().catch(() => ({ data: null }));
+                if (sbDraft) {
+                    frames = sbDraft.data || [];
+                    activeDraftId = resumeId;
+                    const savedRatio = sbDraft.canvas_ratio || { w: 1, h: 1 };
+                    setRatio(savedRatio.w, savedRatio.h);
+                    applyPendingBg(pendingBg, pendingBgId);
+                    return;
+                }
+            }
+            // localStorage fallback
             const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-            const found = drafts.find(d => d.id == resumeId);
+            const found  = drafts.find(d => d.id == resumeId);
             if (found) {
                 frames = found.data;
                 activeDraftId = resumeId;
                 const savedRatio = found.ratio || { w: 1, h: 1 };
                 setRatio(savedRatio.w, savedRatio.h);
-                // ✅ FIX: process pending background even when resuming a draft
                 applyPendingBg(pendingBg, pendingBgId);
                 return;
             }
@@ -2595,25 +2609,67 @@
     function undo() { if (history.length > 0) { redoStack.push(JSON.stringify(frames)); frames = JSON.parse(history.pop()); render(); } }
     function redo() { if (redoStack.length > 0) { history.push(JSON.stringify(frames)); frames = JSON.parse(redoStack.pop()); render(); } }
 
-    function saveOffline(silent = false) {
+    // ── saveDraft: Supabase-first, localStorage fallback ──────────────────
+    async function saveOffline(silent = false) {
+        const ratio = canvasRatio || { w: 1, h: 1 };
+        const now   = new Date().toISOString();
+
+        // Try Supabase if logged in
+        const { data: { user } } = await _supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+        const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+
+        if (user && handle) {
+            try {
+                if (activeDraftId && activeDraftId.toString().includes('-')) {
+                    // UUID — it's a Supabase draft, update it
+                    await _supabase.from('drafts').update({
+                        data: frames, canvas_ratio: ratio, updated_at: now
+                    }).eq('id', activeDraftId);
+                } else {
+                    // New draft or old numeric localStorage id — insert to Supabase
+                    const title = silent ? 'Untitled' : (activeDraftId ? 'Untitled' : (prompt('Draft Name:', 'New Comic') || 'Untitled'));
+                    const { data: inserted } = await _supabase.from('drafts').insert([{
+                        owner_handle: handle,
+                        title,
+                        data: frames,
+                        canvas_ratio: ratio,
+                        updated_at: now
+                    }]).select('id').single();
+                    if (inserted) {
+                        activeDraftId = inserted.id;
+                        localStorage.setItem('active_draft_id', activeDraftId);
+                        // Remove from localStorage now that it's in Supabase
+                        const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+                        const cleaned  = lsDrafts.filter(d => d.id != activeDraftId);
+                        localStorage.setItem('comic_drafts', JSON.stringify(cleaned));
+                    }
+                }
+                hasUnsavedChanges = false;
+                if (!silent) {
+                    const btn = document.querySelector('.tb-btn[onclick*="saveOffline"]');
+                    if (btn) { const orig = btn.innerText; btn.innerText = '✓ Saved!'; setTimeout(() => btn.innerText = orig, 1500); }
+                }
+                return;
+            } catch(e) { console.warn('Supabase save failed, falling back to localStorage', e); }
+        }
+
+        // ── localStorage fallback (offline / not logged in) ──
         let drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
         if (activeDraftId) {
             const idx = drafts.findIndex(d => d.id == activeDraftId);
             if (idx !== -1) {
                 drafts[idx].data = frames;
-                drafts[idx].ratio = canvasRatio || { w: 1, h: 1 };
+                drafts[idx].ratio = ratio;
                 drafts[idx].lastModified = new Date().toLocaleString();
             } else {
-                // Draft was deleted elsewhere, re-add it
-                drafts.push({ id: activeDraftId, title: 'Untitled', data: frames, ratio: canvasRatio || { w: 1, h: 1 }, lastModified: new Date().toLocaleString() });
+                drafts.push({ id: activeDraftId, title: 'Untitled', data: frames, ratio, lastModified: new Date().toLocaleString() });
             }
         } else {
-            // First save — ask for name unless silent
-            let title = silent ? 'Untitled' : (prompt("Draft Name:", "New Comic") || "Untitled");
-            const newDraft = { id: Date.now(), title, data: frames, ratio: canvasRatio || { w: 1, h: 1 }, lastModified: new Date().toLocaleString() };
-            drafts.push(newDraft);
-            activeDraftId = newDraft.id;
-            localStorage.setItem('active_draft_id', activeDraftId);
+            const title = silent ? 'Untitled' : (prompt('Draft Name:', 'New Comic') || 'Untitled');
+            const id    = Date.now();
+            drafts.push({ id, title, data: frames, ratio, lastModified: new Date().toLocaleString() });
+            activeDraftId = id;
+            localStorage.setItem('active_draft_id', id);
         }
         try {
             localStorage.setItem('comic_drafts', JSON.stringify(drafts));
