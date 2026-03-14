@@ -1572,9 +1572,9 @@
                         <button id="sb-bg-tab-official" onclick="setSbBgTab('official')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
                         <button id="sb-bg-tab-mine" onclick="setSbBgTab('mine')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
                     </div>
-                    <div id="sb-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;overflow-y:auto;flex:1;"></div>
+                    <div id="sb-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;overflow-y:auto;max-height:calc(100vh - 280px);padding-right:2px;align-content:start;"></div>
                     <div style="border-top:1px solid #1e1e1e;padding-top:8px;margin-top:6px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-                        <button class="sp-action-btn" onclick="triggerImport('bg')">
+                        <button class="sp-action-btn" onclick="toggleSidePanel('background'); triggerImport('bg')">
                             <span class="sp-action-icon">📷</span> Upload from Device
                         </button>
                         <button class="sp-action-btn" onclick="openBgPanel()">
@@ -4329,14 +4329,11 @@
             card.appendChild(img);
             card.appendChild(lbl);
             card.onclick = () => {
-                saveState();
-                frames[currentIdx].background = bg.image_data;
-                frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
-                // Sync sliders
-                ['bg-scale','bg-scale-num'].forEach(id => { const el=document.getElementById(id); if(el) el.value=100; });
-                ['bg-x','bg-x-num','bg-y','bg-y-num','bg-rotate'].forEach(id => { const el=document.getElementById(id); if(el) el.value=0; });
-                render();
-                toggleSidePanel('background'); // close panel after selecting
+                // Close panel first so the crop/fixed choice modal is visible
+                toggleSidePanel('background');
+                // Show crop/fixed import choice — same as when uploading from device
+                currentImportType = 'bg';
+                showBgImportChoice(bg.image_data);
             };
             grid.appendChild(card);
         });
@@ -4467,7 +4464,7 @@
                     _supabase.from('effects_library').select('image_data').eq('id',pack.id).single().then(({data})=>{
                         if (!data?.image_data) return;
                         efxSetImg(pack.id, data.image_data);
-                        efxSetFull(pack.id, data.image_data);
+                        efxSetFull(pack.id, data.image_data, data.actions);
                         pack.image_data = data.image_data;
                         const old = div.querySelector('div');
                         if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
