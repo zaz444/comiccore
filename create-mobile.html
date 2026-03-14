@@ -1887,8 +1887,8 @@ function efxGetFull(id) {
         return p;
     } catch(e) { return null; }
 }
-function efxSetFull(id,url) {
-    try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url,ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
+function efxSetFull(id, url, actions) {
+    try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url, actions:actions||{}, ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
 }
 
 async function loadMobEffects() {
@@ -1967,19 +1967,48 @@ function renderMobEffectGrid(effects) {
 
         card.onclick = async () => {
             localStorage.setItem('efx-used-'+pack.id, Date.now());
-            let imageData = pack.image_data || efxGetImg(pack.id);
-            if (!imageData) {
-                const fc = efxGetFull(pack.id);
-                if (fc) { imageData = fc.img; }
-                else {
-                    const {data} = await _supabase.from('effects_library').select('image_data').eq('id',pack.id).single();
-                    if (data?.image_data) { imageData = data.image_data; efxSetFull(pack.id, data.image_data); pack.image_data = data.image_data; }
+            const cached = efxGetFull(pack.id);
+            if (cached) {
+                closeSheet('effects');
+                openMobEffectModal({ ...pack, image_data: cached.img, actions: cached.actions });
+            } else {
+                card.style.opacity = '0.5';
+                const { data } = await _supabase.from('effects_library')
+                    .select('id, image_data, actions').eq('id', pack.id).single();
+                card.style.opacity = '';
+                if (data) {
+                    efxSetFull(pack.id, data.image_data, data.actions);
+                    pack.image_data = data.image_data;
+                    closeSheet('effects');
+                    openMobEffectModal({ ...pack, ...data });
                 }
             }
-            if (imageData) { closeSheet('effects'); addEffectToCanvas(imageData, pack); }
         };
         grid.appendChild(card);
     });
+}
+
+function openMobEffectModal(pack) {
+    // Wire action modal to place effects instead of sprites
+    document.getElementById('pack-title').innerText = pack.name;
+    const grid = document.getElementById('action-selector-list');
+    grid.innerHTML = '';
+
+    // Cover as default
+    const main = createActionOption(pack.image_data, 'Cover');
+    main.onclick = () => { addEffectToCanvas(pack.image_data, pack); closeActionModal(); };
+    grid.appendChild(main);
+
+    // Individual effects
+    let actions = pack.actions;
+    if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) { actions = {}; }
+    Object.entries(actions || {}).forEach(([name, img]) => {
+        const opt = createActionOption(img, name);
+        opt.onclick = () => { addEffectToCanvas(img, pack); closeActionModal(); };
+        grid.appendChild(opt);
+    });
+
+    document.getElementById('action-modal').style.display = 'flex';
 }
 
 function addEffectToCanvas(src, pack) {
