@@ -844,7 +844,15 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">Background <button class="sheet-close" onclick="closeSheet('bg')">✕</button></div>
     <div class="sheet-body">
-        <button class="bg-action-btn" onclick="openBackgroundSource();closeSheet('bg')"><span style="font-size:22px;">🖼</span>Background Library</button>
+        <!-- Inline BG library -->
+        <input class="pub-input" id="mob-bg-search" placeholder="Search backgrounds..." oninput="filterMobBgs()" style="margin-bottom:6px;">
+        <div style="display:flex;gap:4px;margin-bottom:8px;">
+            <button id="mob-bg-tab-official" onclick="setMobBgTab('official')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
+            <button id="mob-bg-tab-mine" onclick="setMobBgTab('mine')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
+        </div>
+        <div id="mob-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:200px;overflow-y:auto;margin-bottom:10px;">
+            <div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">Tap to load...</div>
+        </div>
         <button class="bg-action-btn" onclick="triggerImport('bg');closeSheet('bg')"><span style="font-size:22px;">📷</span>Upload Local Image</button>
         <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 10px;">Adjust</div>
         <div class="bg-slider-row">
@@ -1169,6 +1177,7 @@ function openSheet(name) {
     document.getElementById('sheet-overlay').classList.add('open');
     document.getElementById('sheet-' + name).classList.add('open');
     if (name === 'sprites' && !sidebarSprites) loadMobSprites();
+    if (name === 'bg') loadMobBgs();
     if (name === 'layers') renderMobLayers();
     if (name === 'frames') renderMobFrames();
     if (name === 'bg') syncBgSliders();
@@ -2007,6 +2016,76 @@ function addEffectToCanvas(src, pack) {
         if (effect?.image_data) addEffectToCanvas(effect.image_data, effect);
     } catch(e) {}
 })();
+
+
+
+// ── INLINE BACKGROUND LIBRARY (mobile) ──
+let mobBgTab = 'official';
+let mobBgOfficial = null;
+let mobBgMine = null;
+let mobBgLoaded = false;
+
+async function loadMobBgs() {
+    if (mobBgLoaded) { renderMobBgGrid(); return; }
+    const grid = document.getElementById('mob-bg-grid');
+    if (grid) grid.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">Loading…</div>';
+
+    const { data: offData } = await _supabase.from('backgrounds_library')
+        .select('id, name, image_data').eq('is_official', true).order('id', { ascending: false });
+    mobBgOfficial = offData || [];
+
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const handle  = profile.handle;
+    if (handle) {
+        const { data: mineData } = await _supabase.from('backgrounds_library')
+            .select('id, name, image_data').eq('uploaded_by', handle).order('id', { ascending: false });
+        mobBgMine = mineData || [];
+    } else { mobBgMine = []; }
+
+    mobBgLoaded = true;
+    renderMobBgGrid();
+}
+
+function setMobBgTab(tab) {
+    mobBgTab = tab;
+    const offBtn  = document.getElementById('mob-bg-tab-official');
+    const mineBtn = document.getElementById('mob-bg-tab-mine');
+    if (offBtn)  { offBtn.style.borderColor  = tab==='official'?'#ff7a00':'#222'; offBtn.style.background  = tab==='official'?'rgba(255,122,0,.12)':'#111'; offBtn.style.color  = tab==='official'?'#ff7a00':'#555'; }
+    if (mineBtn) { mineBtn.style.borderColor = tab==='mine'?'#ff7a00':'#222'; mineBtn.style.background = tab==='mine'?'rgba(255,122,0,.12)':'#111'; mineBtn.style.color = tab==='mine'?'#ff7a00':'#555'; }
+    renderMobBgGrid();
+}
+
+function filterMobBgs() { renderMobBgGrid(); }
+
+function renderMobBgGrid() {
+    const grid = document.getElementById('mob-bg-grid');
+    if (!grid) return;
+    const q    = (document.getElementById('mob-bg-search')?.value || '').toLowerCase().trim();
+    const list = mobBgTab === 'official' ? (mobBgOfficial || []) : (mobBgMine || []);
+    const filtered = q ? list.filter(b => (b.name||'').toLowerCase().includes(q)) : list;
+    if (!filtered.length) { grid.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">' + (mobBgTab==='mine'?'No saved backgrounds':'No official backgrounds') + '</div>'; return; }
+    grid.innerHTML = '';
+    filtered.forEach(bg => {
+        const card = document.createElement('div');
+        card.style.cssText = 'aspect-ratio:16/9;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;position:relative;background:#0a0a0a;';
+        const img = document.createElement('img');
+        img.src = bg.image_data; img.loading = 'lazy';
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:rgba(0,0,0,.75);font-size:9px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        lbl.innerText = bg.name || 'Untitled';
+        card.appendChild(img); card.appendChild(lbl);
+        card.onclick = () => {
+            saveState();
+            frames[currentIdx].background = bg.image_data;
+            frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
+            syncBgSliders();
+            render();
+            closeSheet('bg');
+        };
+        grid.appendChild(card);
+    });
+}
 
 
 function filterMobSprites() {
