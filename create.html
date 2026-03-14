@@ -917,6 +917,100 @@
     /* Prevent scrollbar flicker */
     #work-area::-webkit-scrollbar { display: none; }
 
+
+    /* ── Move BG Modal ── */
+    #move-bg-modal {
+        position: fixed;
+        bottom: 0; left: 50%; transform: translateX(-50%);
+        width: 100%; max-width: 560px;
+        background: #141416;
+        border: 1px solid #2a2a2c;
+        border-radius: 20px 20px 0 0;
+        z-index: 4000;
+        flex-direction: column;
+        gap: 0;
+        overflow: hidden;
+        box-shadow: 0 -8px 40px rgba(0,0,0,0.7);
+        animation: slideUp .25s cubic-bezier(.4,0,.2,1);
+    }
+    #move-bg-modal.open { display: flex !important; }
+    #move-bg-modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid #1e1e20;
+        font-size: 11px; font-weight: 900; color: #f5f5f7;
+        letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    #move-bg-reset {
+        background: #1a1a1c; border: 1px solid #2a2a2c; color: #666;
+        padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 800;
+        cursor: pointer; font-family: inherit; transition: .15s;
+    }
+    #move-bg-reset:hover { border-color: #444; color: #aaa; }
+    #move-bg-done {
+        background: var(--accent); border: none; color: #000;
+        padding: 6px 14px; border-radius: 8px; font-size: 11px; font-weight: 900;
+        cursor: pointer; font-family: inherit; transition: .15s;
+    }
+    #move-bg-done:hover { opacity: .85; }
+    #move-bg-modal-close {
+        background: none; border: none; color: #444; font-size: 18px;
+        cursor: pointer; padding: 2px 6px; line-height: 1; font-family: inherit;
+        transition: .15s;
+    }
+    #move-bg-modal-close:hover { color: #f5f5f7; }
+    #move-bg-viewport {
+        padding: 14px 16px 10px;
+    }
+    #move-bg-frame {
+        width: 100%; aspect-ratio: 16/9; border-radius: 12px;
+        overflow: hidden; position: relative; background: #0a0a0c;
+        border: 1px solid #2a2a2c; cursor: grab;
+    }
+    #move-bg-frame:active { cursor: grabbing; }
+    #move-bg-frame-inner {
+        width: 100%; height: 100%; background-size: cover;
+        background-position: center; background-repeat: no-repeat;
+        transition: background-position .1s;
+    }
+    #move-bg-hint {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+        background: rgba(0,0,0,0.7); color: white; padding: 8px 16px;
+        border-radius: 20px; font-size: 11px; font-weight: 800;
+        pointer-events: none; transition: opacity .4s; letter-spacing: .3px;
+        backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.1);
+    }
+    #move-bg-controls {
+        padding: 0 16px 20px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .move-bg-row {
+        display: flex; align-items: center; gap: 10px;
+    }
+    .move-bg-row label {
+        font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase;
+        letter-spacing: 1.5px; width: 14px; flex-shrink: 0;
+    }
+    .move-bg-row input[type=range] {
+        flex: 1; accent-color: var(--accent); height: 4px; cursor: pointer;
+    }
+    .move-bg-num {
+        width: 46px; background: #1a1a1c; border: 1px solid #2a2a2c;
+        color: #aaa; padding: 5px 6px; border-radius: 8px;
+        font-size: 11px; font-weight: 700; text-align: center;
+        outline: none; font-family: inherit;
+    }
+    .move-bg-num:focus { border-color: var(--accent); color: white; }
+    #mbg-pan-canvas-btn {
+        width: 100%; padding: 11px; margin-top: 2px;
+        background: rgba(0,210,255,0.08); border: 1.5px solid rgba(0,210,255,0.25);
+        color: var(--teal); border-radius: 12px; font-weight: 900;
+        font-size: 12px; cursor: pointer; font-family: inherit;
+        letter-spacing: .3px; transition: .15s;
+    }
+    #mbg-pan-canvas-btn:hover { background: rgba(0,210,255,0.15); }
+    #mbg-pan-canvas-btn.active {
+        background: var(--teal); color: #000; border-color: var(--teal);
+    }
 </style></head>
 <body>
 
@@ -1065,13 +1159,13 @@
     </div>
     <div class="bg-slider-row">
         <span>X Pos</span>
-        <input type="range" id="bg-x" min="-50" max="50" value="0" oninput="applyBgTransform()">
-        <input type="number" class="bg-num-input" id="bg-x-num" min="-50" max="50" value="0" oninput="document.getElementById('bg-x').value=this.value; applyBgTransform()">
+        <input type="range" id="bg-x" min="-100" max="100" value="0" oninput="applyBgTransform()">
+        <input type="number" class="bg-num-input" id="bg-x-num" min="-100" max="100" value="0" oninput="document.getElementById('bg-x').value=this.value; applyBgTransform()">
     </div>
     <div class="bg-slider-row">
         <span>Y Pos</span>
-        <input type="range" id="bg-y" min="-50" max="50" value="0" oninput="applyBgTransform()">
-        <input type="number" class="bg-num-input" id="bg-y-num" min="-50" max="50" value="0" oninput="document.getElementById('bg-y').value=this.value; applyBgTransform()">
+        <input type="range" id="bg-y" min="-100" max="100" value="0" oninput="applyBgTransform()">
+        <input type="number" class="bg-num-input" id="bg-y-num" min="-100" max="100" value="0" oninput="document.getElementById('bg-y').value=this.value; applyBgTransform()">
     </div>
     <div style="font-size:10px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; margin-top:4px;">Filter</div>
     <div class="filter-row" id="filter-row"></div>
@@ -2027,52 +2121,51 @@
         // ── Build dedicated bg-layer div ──
         const bgLayer = document.createElement('div');
         bgLayer.id = 'cc-bg-layer';
-        bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
+        // overflow:visible so panning/zooming reveals full image beyond frame edges
+        bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible;';
         if (filterCSS) bgLayer.style.filter = filterCSS;
 
         if (isImageUrl) {
             canvas.style.backgroundColor = 'transparent';
+            // Use an oversized inner div (300% canvas) so the full image is always
+            // available when user pans or zooms out — no more empty cropped edges
+            const inner = document.createElement('div');
+            const oversize = 3; // inner div is 3x canvas size, centered
+            const offsetPct = -(oversize - 1) / 2 * 100; // -100% to center a 300% div
+            const bgSizePct = scale * oversize; // scale relative to the oversized div
+            const bgPosX = 50 + xOff;
+            const bgPosY = 50 + yOff;
             if (isAnimated) {
-                // GIF/WebP animated: use <img> so animation plays
-                const img = document.createElement('img');
-                img.className = 'bg-gif';
-                img.src = bg;
-                const scaleF = scale / 100;
-                const posX = 50 + xOff;
-                const posY = 50 + yOff;
-                img.style.cssText = `position:absolute;width:${scale}%;height:auto;min-height:${scale}%;
-                    object-fit:cover;pointer-events:none;
-                    left:${posX}%;top:${posY}%;
-                    transform:translate(-50%,-50%) rotate(${rotate}deg);
-                    transform-origin:center center;`;
-                bgLayer.appendChild(img);
-            } else if (rotate !== 0) {
-                const bgDiv = document.createElement('div');
-                bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;
-                    background:url(${bg});background-size:${scale * 2.2}%;
-                    background-position:center;background-repeat:no-repeat;
+                inner.style.cssText = `position:absolute;
+                    left:${offsetPct}%;top:${offsetPct}%;
+                    width:${oversize * 100}%;height:${oversize * 100}%;
+                    display:flex;align-items:center;justify-content:center;
                     transform:rotate(${rotate}deg);transform-origin:center center;`;
-                bgLayer.appendChild(bgDiv);
+                const img = document.createElement('img');
+                img.src = bg;
+                img.style.cssText = `width:${scale}%;height:auto;min-height:${scale}%;
+                    object-fit:contain;pointer-events:none;
+                    transform:translate(${xOff * oversize}%, ${yOff * oversize}%);`;
+                inner.appendChild(img);
             } else {
-                bgLayer.style.background = `url(${bg})`;
-                bgLayer.style.backgroundSize = scale + '%';
-                bgLayer.style.backgroundPosition = (50 + xOff) + '% ' + (50 + yOff) + '%';
-                bgLayer.style.backgroundRepeat = 'no-repeat';
+                inner.style.cssText = `position:absolute;
+                    left:${offsetPct}%;top:${offsetPct}%;
+                    width:${oversize * 100}%;height:${oversize * 100}%;
+                    background:url(${bg}) no-repeat;
+                    background-size:${bgSizePct / oversize}%;
+                    background-position:${bgPosX}% ${bgPosY}%;
+                    transform:rotate(${rotate}deg);transform-origin:center center;`;
             }
+            bgLayer.appendChild(inner);
         } else if (isGradient) {
             canvas.style.backgroundColor = 'transparent';
-            if (rotate !== 0) {
-                const bgDiv = document.createElement('div');
-                bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;
-                    background:${bg};background-size:cover;background-position:center;
-                    transform:rotate(${rotate}deg);transform-origin:center center;`;
-                bgLayer.appendChild(bgDiv);
-            } else {
-                bgLayer.style.background = bg;
-                bgLayer.style.backgroundSize = 'cover';
-            }
+            const inner = document.createElement('div');
+            inner.style.cssText = `position:absolute;top:-100%;left:-100%;width:300%;height:300%;
+                background:${bg};background-size:cover;background-position:center;
+                transform:rotate(${rotate}deg);transform-origin:center center;`;
+            bgLayer.appendChild(inner);
         } else {
-            // Solid color
+            // Solid color — no overflow needed
             canvas.style.backgroundColor = bg;
         }
 
@@ -2341,8 +2434,8 @@
             const cropCX     = (cropData.x + cropData.width  / 2) / naturalW * 100;
             const cropCY     = (cropData.y + cropData.height / 2) / naturalH * 100;
             // Convert to bgSettings x/y (0 = center, -50 = left/top, +50 = right/bottom)
-            const bgX        = Math.round(Math.max(-50, Math.min(50, cropCX - 50)));
-            const bgY        = Math.round(Math.max(-50, Math.min(50, cropCY - 50)));
+            const bgX        = Math.round(Math.max(-100, Math.min(100, cropCX - 50)));
+            const bgY        = Math.round(Math.max(-100, Math.min(100, cropCY - 50)));
             // Scale: how much of the image width the crop box takes up
             const bgScale    = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
             saveState();
@@ -4775,38 +4868,36 @@
 <!-- ── Move BG Modal ── -->
 <div id="move-bg-modal" style="display:none;">
     <div id="move-bg-modal-header">
-        <h3>✋ MOVE BACKGROUND</h3>
-        <div style="display:flex;gap:10px;align-items:center;">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:15px;">🖼</span>
+            <span>PAN BACKGROUND</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
             <button id="move-bg-reset" onclick="resetMoveBg()">Reset</button>
-            <button id="move-bg-done" onclick="closeMoveBgModal()">Done ✓</button>
+            <button id="move-bg-done" onclick="closeMoveBgModal()">✓ Done</button>
             <button id="move-bg-modal-close" onclick="closeMoveBgModal()">✕</button>
         </div>
     </div>
     <div id="move-bg-viewport">
         <div id="move-bg-frame">
             <div id="move-bg-frame-inner"></div>
-            <div id="move-bg-hint">✋ Drag to pan background</div>
-        </div>
-        <div id="move-bg-instructions" style="font-size:11px;color:#555;font-weight:700;text-align:center;margin-top:10px;letter-spacing:0.3px;">
-            Drag the preview above — or use the sliders below
+            <div id="move-bg-hint">✋ Drag to pan</div>
         </div>
     </div>
     <div id="move-bg-controls">
         <div class="move-bg-row">
             <label>X</label>
-            <input type="range" id="mbg-x-range" min="-50" max="50" value="0" oninput="onMoveBgInput('x', this.value)">
-            <input type="number" class="move-bg-num" id="mbg-x-num" min="-50" max="50" value="0" oninput="onMoveBgInput('x', this.value)">
+            <input type="range" id="mbg-x-range" min="-100" max="100" value="0" oninput="onMoveBgInput('x', this.value)">
+            <input type="number" class="move-bg-num" id="mbg-x-num" min="-100" max="100" value="0" oninput="onMoveBgInput('x', this.value)">
         </div>
         <div class="move-bg-row">
             <label>Y</label>
-            <input type="range" id="mbg-y-range" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
-            <input type="number" class="move-bg-num" id="mbg-y-num" min="-50" max="50" value="0" oninput="onMoveBgInput('y', this.value)">
+            <input type="range" id="mbg-y-range" min="-100" max="100" value="0" oninput="onMoveBgInput('y', this.value)">
+            <input type="number" class="move-bg-num" id="mbg-y-num" min="-100" max="100" value="0" oninput="onMoveBgInput('y', this.value)">
         </div>
-        <div style="display:flex;gap:8px;margin-top:4px;">
-            <button id="mbg-pan-canvas-btn" onclick="togglePanOnCanvas()" style="flex:1;padding:10px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-size:11px;letter-spacing:0.3px;">
-                🖼 Pan on Comic Canvas
-            </button>
-        </div>
+        <button id="mbg-pan-canvas-btn" onclick="togglePanOnCanvas()">
+            ✋ Pan Directly on Canvas
+        </button>
     </div>
 </div>
 
@@ -4888,7 +4979,7 @@
         const overlay = document.getElementById('bg-drag-overlay');
         if (overlay) { overlay.style.display = 'none'; isPanningOnCanvas = false; }
         const btn = document.getElementById('mbg-pan-canvas-btn');
-        if (btn) { btn.style.borderColor = 'rgba(0,180,255,0.3)'; btn.style.background = '#111'; btn.innerText = '🖼 Pan on Comic Canvas'; }
+        if (btn) { btn.classList.remove('active'); btn.innerText = '✋ Pan Directly on Canvas'; }
         const modal = document.getElementById('move-bg-modal');
         modal.classList.remove('open');
         modal.style.display = 'none';
@@ -4903,7 +4994,6 @@
         const btn = document.getElementById('mbg-pan-canvas-btn');
         const modal = document.getElementById('move-bg-modal');
         if (isPanningOnCanvas) {
-            // Hide modal, show canvas overlay so user can drag directly on the comic
             modal.style.display = 'none';
             modal.classList.remove('open');
             if (overlay) overlay.style.display = 'block';
@@ -4949,7 +5039,7 @@
     };
 
     window.onMoveBgInput = function(axis, val) {
-        const v = clamp(parseFloat(val) || 0, -50, 50);
+        const v = clamp(parseFloat(val) || 0, -100, 100);
         if (axis === 'x') mbgX = v; else mbgY = v;
         syncMoveBgFrame();
         commitMoveBg();

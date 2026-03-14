@@ -837,12 +837,12 @@
         </div>
         <div class="bg-slider-row">
             <span>X Offset</span>
-            <input type="range" id="mob-bg-x" min="-50" max="50" value="0" oninput="updateMobBg()">
+            <input type="range" id="mob-bg-x" min="-100" max="100" value="0" oninput="updateMobBg()">
             <span class="bg-val" id="mob-bg-x-v">0</span>
         </div>
         <div class="bg-slider-row">
             <span>Y Offset</span>
-            <input type="range" id="mob-bg-y" min="-50" max="50" value="0" oninput="updateMobBg()">
+            <input type="range" id="mob-bg-y" min="-100" max="100" value="0" oninput="updateMobBg()">
             <span class="bg-val" id="mob-bg-y-v">0</span>
         </div>
         <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 8px;">Filter</div>
@@ -1247,40 +1247,34 @@ function render() {
     const scale = s.scale ?? 100, rotate = s.rotate ?? 0, xOff = s.x ?? 0, yOff = s.y ?? 0, filter = s.filter || 'none';
     const filterCSS = filter === 'none' ? '' : filter;
 
-    // Build dedicated bg-layer div so filter never leaks into sprites
+    // Build dedicated bg-layer div — overflow:visible so pan/zoom shows full image
     const bgLayer = document.createElement('div');
     bgLayer.id = 'cc-bg-layer';
-    bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
+    bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible;';
     if (filterCSS) bgLayer.style.filter = filterCSS;
 
     if (isImg) {
         canvas.style.backgroundColor = 'transparent';
+        const inner = document.createElement('div');
+        const oversize = 3;
+        const offsetPct = -(oversize - 1) / 2 * 100;
+        const bgPosX = 50 + xOff;
+        const bgPosY = 50 + yOff;
         if (isAnimated) {
+            inner.style.cssText = `position:absolute;left:${offsetPct}%;top:${offsetPct}%;width:${oversize*100}%;height:${oversize*100}%;display:flex;align-items:center;justify-content:center;transform:rotate(${rotate}deg);transform-origin:center center;`;
             const img = document.createElement('img');
             img.src = bg;
-            const posX = 50 + xOff, posY = 50 + yOff;
-            img.style.cssText = `position:absolute;width:${scale}%;height:auto;min-height:${scale}%;object-fit:cover;pointer-events:none;left:${posX}%;top:${posY}%;transform:translate(-50%,-50%) rotate(${rotate}deg);transform-origin:center center;`;
-            bgLayer.appendChild(img);
-        } else if (rotate !== 0) {
-            const bgDiv = document.createElement('div');
-            bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;background:url(${bg});background-size:${scale*2.2}%;background-position:center;background-repeat:no-repeat;transform:rotate(${rotate}deg);transform-origin:center center;`;
-            bgLayer.appendChild(bgDiv);
+            img.style.cssText = `width:${scale}%;height:auto;min-height:${scale}%;object-fit:contain;pointer-events:none;transform:translate(${xOff*oversize}%,${yOff*oversize}%);`;
+            inner.appendChild(img);
         } else {
-            bgLayer.style.background = `url(${bg})`;
-            bgLayer.style.backgroundSize = scale + '%';
-            bgLayer.style.backgroundPosition = (50 + xOff) + '% ' + (50 + yOff) + '%';
-            bgLayer.style.backgroundRepeat = 'no-repeat';
+            inner.style.cssText = `position:absolute;left:${offsetPct}%;top:${offsetPct}%;width:${oversize*100}%;height:${oversize*100}%;background:url(${bg}) no-repeat;background-size:${scale/oversize}%;background-position:${bgPosX}% ${bgPosY}%;transform:rotate(${rotate}deg);transform-origin:center center;`;
         }
+        bgLayer.appendChild(inner);
     } else if (isGrad) {
         canvas.style.backgroundColor = 'transparent';
-        if (rotate !== 0) {
-            const bgDiv = document.createElement('div');
-            bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;background:${bg};background-size:cover;background-position:center;transform:rotate(${rotate}deg);transform-origin:center center;`;
-            bgLayer.appendChild(bgDiv);
-        } else {
-            bgLayer.style.background = bg;
-            bgLayer.style.backgroundSize = 'cover';
-        }
+        const inner = document.createElement('div');
+        inner.style.cssText = `position:absolute;top:-100%;left:-100%;width:300%;height:300%;background:${bg};background-size:cover;background-position:center;transform:rotate(${rotate}deg);transform-origin:center center;`;
+        bgLayer.appendChild(inner);
     } else {
         canvas.style.backgroundColor = bg;
     }
