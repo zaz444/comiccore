@@ -2440,6 +2440,9 @@
             const bgScale    = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
             saveState();
             frames[currentIdx].background = pendingBgImageSrc || frames[currentIdx].background;
+            // Clear filter when new background is cropped in
+            if (frames[currentIdx].bgSettings) frames[currentIdx].bgSettings.filter = 'none';
+            document.querySelectorAll('.filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
             frames[currentIdx].bgSettings = {
                 scale: bgScale, rotate: 0, x: bgX, y: bgY,
                 filter: frames[currentIdx].bgSettings?.filter || 'none'
@@ -2696,11 +2699,17 @@
         const src = pendingBgImageSrc;
         pendingBgImageSrc = null;
         if (!src) return;
-        // Store the ORIGINAL full image — no rasterization — so Move Background can pan freely
         saveState();
         frames[currentIdx].background = src;
-        // Reset bgSettings so image is centered/fitted by default
+        // Always reset bgSettings when a new background is applied
+        // so old pan/zoom/filter from previous background don't carry over
         frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
+        // Sync the bg-edit panel sliders to reflect clean state
+        const syncInputs = { 'bg-scale': 100, 'bg-scale-num': 100, 'bg-x': 0, 'bg-x-num': 0, 'bg-y': 0, 'bg-y-num': 0, 'bg-rotate': 0 };
+        Object.entries(syncInputs).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
+        const rotVal = document.getElementById('bg-rotate-val');
+        if (rotVal) rotVal.innerText = '0°';
+        document.querySelectorAll('.filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
         render();
     }
     function toggleDrawer() { document.getElementById('frame-drawer').classList.toggle('open'); }
@@ -5034,6 +5043,20 @@
 
     window.resetMoveBg = function() {
         mbgX = 0; mbgY = 0;
+        // Also reset scale and rotation so Reset is a full reset
+        if (frames[currentIdx].bgSettings) {
+            frames[currentIdx].bgSettings.scale  = 100;
+            frames[currentIdx].bgSettings.rotate = 0;
+        }
+        // Sync the bg-edit panel sliders
+        const scaleEl = document.getElementById('bg-scale');
+        const scaleNum = document.getElementById('bg-scale-num');
+        const rotateEl = document.getElementById('bg-rotate');
+        if (scaleEl) scaleEl.value = 100;
+        if (scaleNum) scaleNum.value = 100;
+        if (rotateEl) rotateEl.value = 0;
+        const rotateVal = document.getElementById('bg-rotate-val');
+        if (rotateVal) rotateVal.innerText = '0°';
         syncMoveBgFrame();
         commitMoveBg();
     };

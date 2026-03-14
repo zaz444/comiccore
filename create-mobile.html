@@ -2096,7 +2096,14 @@ function syncBgSliders() {
         filterRow.appendChild(chip);
     });
 }
-function resetBgSettings() { saveState(); frames[currentIdx].background = '#ffffff'; frames[currentIdx].bgSettings = {}; render(); syncBgSliders(); }
+function resetBgSettings() {
+    saveState();
+    // Reset transform only — preserve the background image itself
+    frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
+    syncBgSliders();
+    document.querySelectorAll('#mob-bg-filter-row .filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
+    render();
+}
 
 // ── BG DRAG-TO-PAN (mobile) ──
 let mobBgDragActive = false;
@@ -2172,11 +2179,15 @@ function bgChoiceCrop() { closeBgChoiceModal(); const t = document.getElementByI
 function bgChoiceFixed() {
     closeBgChoiceModal();
     if (!_bgChoiceSrc) return;
-    // Store ORIGINAL full image — no rasterization — so Move Background can pan freely
     saveState();
     frames[currentIdx].background = _bgChoiceSrc;
+    // Always reset bgSettings when a new background is applied
     frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
     _bgChoiceSrc = null;
+    // Sync sliders to clean state
+    syncBgSliders();
+    // Reset filter chips
+    document.querySelectorAll('#mob-bg-filter-row .filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     render();
 }
 
