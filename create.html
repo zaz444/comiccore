@@ -1375,8 +1375,7 @@
     <button class="menu-item" onclick="triggerImport('bg')">📷 Local Background</button>
     <button class="menu-item" onclick="openMultiImport()">🗂️ Multi-Frame Import</button>
     <hr style="width:100%; border:0; border-top:1px solid #333;">
-    <button class="menu-item" onclick="openBubblePicker('speech')">💬 Speech Bubble</button>
-    <button class="menu-item" onclick="openBubblePicker('thinking')">💭 Thinking Bubble</button>
+    <button class="menu-item" onclick="openBubblePicker('speech')">💬 Add Bubble</button>
     <button class="menu-item" onclick="addText('plain')">✍️ Plain Text</button>
 </div>
 
@@ -1536,10 +1535,7 @@
                     <div class="sp-add-scroll">
                         <div class="sp-section-label">Text</div>
                         <button class="sp-action-btn" onclick="openBubblePicker('speech'); toggleSidePanel('add')">
-                            <span class="sp-action-icon">💬</span> Speech Bubble
-                        </button>
-                        <button class="sp-action-btn" onclick="openBubblePicker('thinking'); toggleSidePanel('add')">
-                            <span class="sp-action-icon">💭</span> Thinking Bubble
+                            <span class="sp-action-icon">💬</span> Add Bubble
                         </button>
                         <button class="sp-action-btn" onclick="addText('plain'); toggleSidePanel('add')">
                             <span class="sp-action-icon">✍️</span> Plain Text
@@ -2852,8 +2848,8 @@
 
     function openBubblePicker(mode) {
         _bubblePickerMode = mode;
-        _bubblePickerSelected = (mode === 'thinking') ? 'cloud' : 'round';
-        document.getElementById('bubble-picker-title').textContent = mode === 'thinking' ? '💭 Choose Thinking Style' : '💬 Choose Speech Style';
+        _bubblePickerSelected = _bubblePickerSelected || 'round';
+        document.getElementById('bubble-picker-title').textContent = '💬 Add Bubble';
         document.getElementById('bubble-picker-text').value = '';
 
         const grid = document.getElementById('bubble-style-grid');
@@ -2862,10 +2858,13 @@
             const card = document.createElement('div');
             card.style.cssText = `background:#111;border:2px solid ${_bubblePickerSelected===s.id?'var(--accent)':'#333'};border-radius:14px;padding:10px 6px;cursor:pointer;text-align:center;transition:0.15s;`;
             card.innerHTML = `<div style="width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;">${s.svg}</div><div style="font-size:10px;color:#aaa;font-weight:800;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.label}</div>`;
+            card.dataset.bid = s.id;
             card.onclick = () => {
                 _bubblePickerSelected = s.id;
-                openBubblePicker(mode); // re-render to update selection
-                document.getElementById('bubble-picker-modal').style.display = 'flex'; // keep open
+                // Update borders without re-rendering everything
+                grid.querySelectorAll('[data-bid]').forEach(c => {
+                    c.style.borderColor = c.dataset.bid === _bubblePickerSelected ? 'var(--accent)' : '#333';
+                });
             };
             grid.appendChild(card);
         });
@@ -2884,7 +2883,7 @@
         if (!txt) { document.getElementById('bubble-picker-text').focus(); return; }
         closeBubblePicker();
         saveState();
-        const type = _bubblePickerMode === 'thinking' ? 'thinking' : 'bubble';
+        const type = _bubblePickerSelected === 'cloud' ? 'thinking' : 'bubble';
         const nl = {
             type, content: txt,
             bubbleStyle: _bubblePickerSelected,
@@ -5198,7 +5197,7 @@
 <div id="bubble-picker-modal" class="overlay-full" style="z-index:4000;">
     <div class="modal-content" style="max-width:440px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-            <h2 style="margin:0;font-size:18px;" id="bubble-picker-title">Choose Bubble Style</h2>
+            <h2 style="margin:0;font-size:18px;" id="bubble-picker-title">💬 Add Bubble</h2>
             <button onclick="closeBubblePicker()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;line-height:1;">✕</button>
         </div>
         <div id="bubble-style-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;"></div>

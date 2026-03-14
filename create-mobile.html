@@ -675,7 +675,7 @@
 <div id="bubble-picker-modal" class="overlay-full">
     <div class="modal-content">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-            <h2 style="margin:0;font-size:16px;" id="bubble-picker-title">Choose Bubble Style</h2>
+            <h2 style="margin:0;font-size:16px;" id="bubble-picker-title">Add Bubble</h2>
             <button onclick="closeBubblePicker()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;">✕</button>
         </div>
         <div id="bubble-style-grid"></div>
@@ -781,8 +781,7 @@
     <div class="sheet-body">
         <div class="add-section-label">Text & Bubbles</div>
         <div class="add-grid">
-            <button class="add-btn" onclick="openBubblePicker('speech');closeSheet('add')"><span class="add-ico">💬</span>Speech</button>
-            <button class="add-btn" onclick="openBubblePicker('thinking');closeSheet('add')"><span class="add-ico">💭</span>Thinking</button>
+            <button class="add-btn" onclick="openBubblePicker('speech');closeSheet('add')"><span class="add-ico">💬</span>Bubble</button>
             <button class="add-btn" onclick="addText('plain');closeSheet('add')"><span class="add-ico">✍️</span>Plain Text</button>
             <button class="add-btn" onclick="addSubtitle();closeSheet('add')"><span class="add-ico">📋</span>Subtitle Bar</button>
         </div>
@@ -2296,16 +2295,15 @@ function addSubtitle() {
 
 // ── BUBBLE PICKER ──
 const BUBBLE_STYLES = [
-    { id: 'round', label: 'Speech', ico: '💬' },
-    { id: 'chat', label: 'Chat', ico: '🗨' },
-    { id: 'rect', label: 'Rect', ico: '⬜' },
-    { id: 'cloud', label: 'Thought', ico: '💭' },
-    { id: 'shout', label: 'Shout', ico: '⚡' },
-    { id: 'electric', label: 'Electric', ico: '🔌' },
-    { id: 'narrator', label: 'Narrator', ico: '📋' },
-    { id: 'whisper', label: 'Whisper', ico: '🤫' },
-    { id: 'narrator', label: 'Narrator', ico: '📋' },
-    { id: 'spiky', label: 'Spiky', ico: '💥' },
+    { id: 'round',    label: 'Classic',  ico: '💬' },
+    { id: 'chat',     label: 'Modern',   ico: '🗨'  },
+    { id: 'rect',     label: 'Sharp',    ico: '⬜'  },
+    { id: 'whisper',  label: 'Whisper',  ico: '🤫'  },
+    { id: 'shout',    label: 'Shout',    ico: '📢'  },
+    { id: 'spiky',    label: 'Burst',    ico: '💥'  },
+    { id: 'electric', label: 'Electric', ico: '⚡'  },
+    { id: 'narrator', label: 'Narrator', ico: '📋'  },
+    { id: 'cloud',    label: 'Cloud',    ico: '💭'  },
 ];
 let selectedBubbleStyle = 'round';
 let currentBubbleMode = 'speech';
@@ -2313,7 +2311,7 @@ let currentBubbleMode = 'speech';
 function openBubblePicker(mode) {
     currentBubbleMode = mode;
     selectedBubbleStyle = 'round';
-    document.getElementById('bubble-picker-title').innerText = mode === 'thinking' ? 'Thinking Bubble' : 'Speech Bubble';
+    document.getElementById('bubble-picker-title').innerText = 'Add Bubble';
     document.getElementById('bubble-picker-text').value = '';
     const grid = document.getElementById('bubble-style-grid');
     grid.innerHTML = '';
@@ -2331,7 +2329,8 @@ function confirmBubblePicker() {
     const text = document.getElementById('bubble-picker-text').value || 'Hello!';
     saveState();
     const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
-    const nl = { type: currentBubbleMode === 'thinking' ? 'thinking' : 'bubble', content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw*0.5), rotation: 0, id: Date.now() };
+    const bubbleType = selectedBubbleStyle === 'cloud' ? 'thinking' : 'bubble';
+    const nl = { type: bubbleType, content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw*0.5), rotation: 0, id: Date.now() };
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
     closeBubblePicker();
