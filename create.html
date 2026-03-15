@@ -2689,7 +2689,8 @@
     }
 
     function goToDrafts() {
-        saveOffline(true); // silent auto-save before leaving
+        _exitDestination = 'offlines.html';
+        if (hasUnsavedChanges) { document.getElementById('exit-confirm-modal').style.display = 'flex'; return; }
         location.href = 'offlines.html';
     }
 
@@ -2810,10 +2811,30 @@
         }
         render();
     }
+    let _exitDestination = 'index.html';
+
     function handleExit() {
-        // Save silently in background then navigate immediately
-        try { saveOffline(true); } catch(e) {}
-        location.href = 'index.html';
+        _exitDestination = 'index.html';
+        if (hasUnsavedChanges) {
+            document.getElementById('exit-confirm-modal').style.display = 'flex';
+        } else {
+            location.href = _exitDestination;
+        }
+    }
+
+    async function exitSaveAndLeave() {
+        document.getElementById('exit-confirm-modal').style.display = 'none';
+        await saveOffline(false);
+        location.href = _exitDestination;
+    }
+
+    function exitLeaveWithoutSaving() {
+        document.getElementById('exit-confirm-modal').style.display = 'none';
+        location.href = _exitDestination;
+    }
+
+    function exitCancelLeave() {
+        document.getElementById('exit-confirm-modal').style.display = 'none';
     }
     function flipHorizontal() { if(activeLayer) { saveState(); activeLayer.flipped = !activeLayer.flipped; render(); } }
     function createActionOption(src, name) { const div = document.createElement('div'); div.className = 'action-option'; div.innerHTML = `<img src="${src}"><span>${name}</span>`; return div; }
@@ -5515,6 +5536,21 @@
     });
 })();
 </script>
+
+
+<!-- ── SAVE BEFORE LEAVING MODAL ── -->
+<div id="exit-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+    <div style="background:#111;border:1px solid #2a2a2a;border-radius:20px;padding:28px 24px;max-width:320px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.8);">
+        <div style="font-size:32px;margin-bottom:12px;">💾</div>
+        <div style="font-size:17px;font-weight:900;color:#f5f5f7;margin-bottom:8px;">Save before leaving?</div>
+        <div style="font-size:12px;color:#666;font-weight:600;margin-bottom:24px;line-height:1.5;">You have unsaved changes.<br>Save your draft to keep your work.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <button onclick="exitSaveAndLeave()" style="width:100%;padding:14px;background:#ff7a00;color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;">💾 Save & Leave</button>
+            <button onclick="exitLeaveWithoutSaving()" style="width:100%;padding:14px;background:#1a1a1a;color:#ff453a;border:1px solid #2a1a1a;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;">Leave without saving</button>
+            <button onclick="exitCancelLeave()" style="width:100%;padding:12px;background:transparent;color:#555;border:1px solid #222;border-radius:12px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;">Cancel</button>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

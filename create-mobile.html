@@ -759,10 +759,11 @@
 <!-- Multi-import -->
 <div id="multi-import-modal" class="overlay-full">
     <div class="modal-content">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <h2 style="margin:0;font-size:16px;color:var(--teal);">Multi-Frame Import</h2>
             <span onclick="closeMultiImport()" style="cursor:pointer;font-size:22px;">✕</span>
         </div>
+        <p style="color:#555;font-size:11px;margin:0 0 10px;">Each image becomes one frame. Match your canvas ratio (<span id="multi-ratio-hint" style="color:var(--accent);font-weight:800;">1:1</span>).</p>
         <div class="multi-drop-zone" id="multi-drop-zone" onclick="document.getElementById('multi-file-input').click()">
             <div style="font-size:28px;margin-bottom:8px;">🗂️</div>
             <div style="font-weight:700;color:#aaa;font-size:13px;">Tap to choose images</div>
@@ -2599,20 +2600,51 @@ document.getElementById('apply-crop-btn').onclick = () => {
 
 // ── MULTI IMPORT ──
 let multiFiles = [];
-function openMultiImport() { document.getElementById('multi-import-modal').style.display='flex'; multiFiles=[]; document.getElementById('multi-preview-grid').innerHTML=''; document.getElementById('multi-confirm-btn').disabled=true; }
-function closeMultiImport() { document.getElementById('multi-import-modal').style.display='none'; }
-document.getElementById('multi-file-input').addEventListener('change', (e) => {
-    const files = Array.from(e.target.files);
+function openMultiImport() {
     multiFiles = [];
     document.getElementById('multi-preview-grid').innerHTML = '';
+    document.getElementById('multi-confirm-btn').disabled = true;
+    document.getElementById('multi-ratio-warning').style.display = 'none';
+    if (canvasRatio) document.getElementById('multi-ratio-hint').innerText = canvasRatio.w + ':' + canvasRatio.h;
+    document.getElementById('multi-import-modal').style.display = 'flex';
+}
+function closeMultiImport() { document.getElementById('multi-import-modal').style.display = 'none'; }
+document.getElementById('multi-file-input').addEventListener('change', (e) => {
+    const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    multiFiles = [];
     const grid = document.getElementById('multi-preview-grid');
-    files.forEach((file, i) => {
+    grid.innerHTML = '';
+    let ratioWarning = false;
+    files.forEach((file) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
-            multiFiles.push({ order: i, src: ev.target.result });
-            const thumb = document.createElement('div'); thumb.className = 'multi-thumb'; thumb.style.backgroundImage = `url(${ev.target.result})`;
-            const badge = document.createElement('div'); badge.className = 'order-badge'; badge.innerText = i + 1; thumb.appendChild(badge);
-            grid.appendChild(thumb);
+            const dataUrl = ev.target.result;
+            const img = new Image();
+            img.onload = () => {
+                const imgR = img.naturalWidth / img.naturalHeight;
+                const canvR = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
+                if (Math.abs(imgR - canvR) > 0.05) {
+                    ratioWarning = true;
+                    document.getElementById('multi-ratio-warning').style.display = 'block';
+                    document.getElementById('multi-ratio-warning').innerText = '⚠️ Some images have a different aspect ratio and will be cropped to fit.';
+                }
+            };
+            img.src = dataUrl;
+            multiFiles.push({ dataUrl, name: file.name });
+            multiFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+            // Re-render preview
+            grid.innerHTML = '';
+            multiFiles.forEach((f, i) => {
+                const div = document.createElement('div');
+                div.className = 'multi-thumb';
+                div.style.backgroundImage = 'url(' + f.dataUrl + ')';
+                const badge = document.createElement('div');
+                badge.className = 'order-badge';
+                badge.innerText = i + 1;
+                div.appendChild(badge);
+                grid.appendChild(div);
+            });
             document.getElementById('multi-confirm-btn').disabled = false;
         };
         reader.readAsDataURL(file);
@@ -2623,12 +2655,18 @@ function confirmMultiImport() {
     if (!multiFiles.length) return;
     saveState();
     const mode = document.getElementById('multi-insert-mode').value;
-    const sorted = multiFiles.sort((a,b) => a.order - b.order);
-    const newFrames = sorted.map(f => ({ layers: [], background: f.src, bgSettings: { scale: 100 } }));
+    const newFrames = multiFiles.map(f => ({
+        layers: [], background: f.dataUrl,
+        bgSettings: { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' }
+    }));
     if (mode === 'replace') { frames = newFrames; currentIdx = 0; }
     else if (mode === 'append') { frames.splice(currentIdx + 1, 0, ...newFrames); currentIdx++; }
-    else { for (let i = 0; i < newFrames.length; i++) { if (currentIdx + i < frames.length) frames[currentIdx + i] = newFrames[i]; else frames.push(newFrames[i]); } }
-    activeLayer = null; closeMultiImport(); render();
+    else if (mode === 'from-current') { frames.splice(currentIdx, frames.length - currentIdx, ...newFrames); }
+    multiFiles = [];
+    activeLayer = null;
+    closeMultiImport();
+    render();
+    renderMobFrames();
 }
 
 // ── SAVE / DRAFTS ──
@@ -2701,7 +2739,24 @@ async function saveOffline(silent = false) {
     hasUnsavedChanges = false;
 }
 function goToDrafts() { saveOffline(true); location.href = 'my-comics.html'; }
-function handleExit() { if (hasUnsavedChanges) { if (confirm('Save before leaving?')) saveOffline(true); } location.href = 'index.html'; }
+let _exitDestination = 'index.html';
+function handleExit() {
+    _exitDestination = 'index.html';
+    if (hasUnsavedChanges) { document.getElementById('exit-confirm-modal').style.display = 'flex'; }
+    else { location.href = _exitDestination; }
+}
+async function exitSaveAndLeave() {
+    document.getElementById('exit-confirm-modal').style.display = 'none';
+    await saveOffline(false);
+    location.href = _exitDestination;
+}
+function exitLeaveWithoutSaving() {
+    document.getElementById('exit-confirm-modal').style.display = 'none';
+    location.href = _exitDestination;
+}
+function exitCancelLeave() {
+    document.getElementById('exit-confirm-modal').style.display = 'none';
+}
 
 // ── PUBLISH ──
 function openPublishModal() { document.getElementById('publish-modal').style.display='flex'; }
@@ -3549,6 +3604,21 @@ document.addEventListener('gesturechange', function(e) {
     });
 })();
 </script>
+
+
+<!-- ── SAVE BEFORE LEAVING MODAL ── -->
+<div id="exit-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+    <div style="background:#111;border:1px solid #2a2a2a;border-radius:22px;padding:28px 22px;max-width:300px;width:88%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.8);">
+        <div style="font-size:36px;margin-bottom:12px;">💾</div>
+        <div style="font-size:18px;font-weight:900;color:#f5f5f7;margin-bottom:8px;">Save before leaving?</div>
+        <div style="font-size:12px;color:#666;font-weight:600;margin-bottom:24px;line-height:1.6;">You have unsaved changes.<br>Save your draft to keep your work.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <button onclick="exitSaveAndLeave()" style="width:100%;padding:15px;background:#ff7a00;color:#000;border:none;border-radius:14px;font-weight:900;font-size:15px;cursor:pointer;font-family:inherit;">💾 Save & Leave</button>
+            <button onclick="exitLeaveWithoutSaving()" style="width:100%;padding:14px;background:#1a1a1a;color:#ff453a;border:1px solid #2a1a1a;border-radius:14px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;">Leave without saving</button>
+            <button onclick="exitCancelLeave()" style="width:100%;padding:12px;background:transparent;color:#555;border:1px solid #222;border-radius:14px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;">Cancel</button>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
