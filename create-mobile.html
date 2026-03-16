@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ComicCore - Mobile Creator</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="idb.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Shadows+Into+Light&family=Caveat:wght@700&family=Pacifico&family=Bebas+Neue&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -1890,19 +1889,19 @@ function efxLoadMetaCache() {
         return p.data;
     } catch(e) { return null; }
 }
-async function efxGetImg(id) { return await idb.get('cc_efx_'+id); }
-async function efxSetImg(id,url) { await idb.set('cc_efx_'+id, url); }
-async function efxGetFull(id) {
+function efxGetImg(id) { try { return sessionStorage.getItem('cc_efx_'+id); } catch(e) { return null; } }
+function efxSetImg(id,url) { try { sessionStorage.setItem('cc_efx_'+id,url); } catch(e) {} }
+function efxGetFull(id) {
     try {
-        const raw = await idb.get('efx-full-'+id);
+        const raw = localStorage.getItem('efx-full-'+id);
         if (!raw) return null;
         const p = JSON.parse(raw);
-        if (p.v !== EFX_CACHE_VER || Date.now()-(p.ts||0) > EFX_FULL_TTL) { await idb.remove('efx-full-'+id); return null; }
+        if (p.v !== EFX_CACHE_VER || Date.now()-(p.ts||0) > EFX_FULL_TTL) { localStorage.removeItem('efx-full-'+id); return null; }
         return p;
     } catch(e) { return null; }
 }
-async function efxSetFull(id, url, actions) {
-    await idb.set('efx-full-'+id, {img:url, actions:actions||{}, ts:Date.now(), v:EFX_CACHE_VER});
+function efxSetFull(id, url, actions) {
+    try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url, actions:actions||{}, ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
 }
 
 async function loadMobEffects() {
@@ -2144,17 +2143,17 @@ function sbSaveMetaCache(data) { try { localStorage.setItem('sb-meta-cache', JSO
 function sbLoadMetaCache() { try { const c = JSON.parse(localStorage.getItem('sb-meta-cache')); if (c && Date.now() - c.ts < 600000) return c.data; } catch(e) {} return null; }
 
 const SB_FULL_TTL = 30 * 60 * 1000; // 30 minutes
-async function sbGetFullCache(id) {
+function sbGetFullCache(id) {
     try {
-        const raw = await idb.get('sb-full-' + id);
+        const raw = localStorage.getItem('sb-full-' + id);
         if (!raw) return null;
         const p = JSON.parse(raw);
-        if (Date.now() - (p.ts || 0) > SB_FULL_TTL) { await idb.remove('sb-full-' + id); return null; }
+        if (Date.now() - (p.ts || 0) > SB_FULL_TTL) { localStorage.removeItem('sb-full-' + id); return null; }
         return p;
     } catch(e) { return null; }
 }
-async function sbSetFullCache(id, imageData, actions) {
-    await idb.set('sb-full-' + id, { img: imageData, actions: actions || {}, ts: Date.now() });
+function sbSetFullCache(id, imageData, actions) {
+    try { localStorage.setItem('sb-full-' + id, JSON.stringify({ img: imageData, actions: actions || {}, ts: Date.now() })); } catch(e) {}
 }
 
 async function sbFetchFull(id) {
