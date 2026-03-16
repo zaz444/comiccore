@@ -157,6 +157,7 @@
     </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="idb.js"></script>
 <script>
     const _sb = supabase.createClient(
         'https://mmycqeejhguzhtzkyjaj.supabase.co',
@@ -246,54 +247,58 @@
         return (bytes/1048576).toFixed(2) + ' MB';
     }
 
-    function updateStorageMeter() {
+    async function updateStorageMeter() {
         try {
-            const LIMIT = 5242880; // 5MB standard limit
-            let totalSize = 0, draftSize = 0, spriteSize = 0, otherSize = 0;
-
+            // localStorage (small keys only now — drafts are in Supabase, images in IndexedDB)
+            let lsSize = 0, otherSize = 0;
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 const sz = getKeySize(key);
-                totalSize += sz;
-                if (key === 'comic_drafts') draftSize += sz;
-                else if (key.startsWith('sb-full-') || key.startsWith('sb-meta') || key.startsWith('cc_sprites')) spriteSize += sz;
-                else otherSize += sz;
+                lsSize += sz;
+                if (!key.startsWith('sb-full-') && !key.startsWith('efx-full-') && !key.startsWith('cc_simg_') && !key.startsWith('cc_efx_') && key !== 'comic_drafts') otherSize += sz;
             }
 
-            const percent = Math.min(Math.round((totalSize / LIMIT) * 100), 100);
-            const fill = document.getElementById('meter-fill');
-            fill.style.width = percent + '%';
-            document.getElementById('usage-percent').innerText = percent + '%';
-            fill.style.background = percent > 80 ? '#ff4444' : percent > 60 ? '#ff9800' : 'var(--accent)';
+            // IndexedDB (image cache) — use browser estimate
+            const idbBytes = typeof idb !== 'undefined' ? await idb.estimateSize() : 0;
 
-            // Show breakdown
             const breakdown = document.getElementById('storage-breakdown');
+            const fill = document.getElementById('meter-fill');
+
+            // Show idb usage as % of 500MB soft cap for display
+            const DISPLAY_CAP = 500 * 1024 * 1024;
+            const pct = Math.min(Math.round((idbBytes / DISPLAY_CAP) * 100), 100);
+            fill.style.width = Math.max(pct, 1) + '%';
+            fill.style.background = pct > 80 ? '#ff4444' : pct > 50 ? '#ff9800' : 'var(--accent)';
+            document.getElementById('usage-percent').innerText = formatBytes(idbBytes);
+
             if (breakdown) {
-                const draftPct  = Math.round((draftSize  / LIMIT) * 100);
-                const spritePct = Math.round((spriteSize / LIMIT) * 100);
-                const otherPct  = Math.round((otherSize  / LIMIT) * 100);
                 breakdown.innerHTML = `
-                    <div class="breakdown-row"><span>📝 Drafts</span><span>${formatBytes(draftSize)} (${draftPct}%)</span></div>
-                    <div class="breakdown-row"><span>🎮 Sprite cache</span><span>${formatBytes(spriteSize)} (${spritePct}%)</span></div>
-                    <div class="breakdown-row"><span>⚙️ App data</span><span>${formatBytes(otherSize)} (${otherPct}%)</span></div>
+                    <div class="breakdown-row"><span>🖼 Image cache (IndexedDB)</span><span>${formatBytes(idbBytes)}</span></div>
+                    <div class="breakdown-row"><span>⚙️ App data (localStorage)</span><span>${formatBytes(otherSize)}</span></div>
                     <div class="breakdown-row" style="border-top:1px solid #222;margin-top:6px;padding-top:6px;">
-                        <span style="color:var(--text-main);font-weight:900;">Total used</span>
-                        <span style="color:var(--accent);font-weight:900;">${formatBytes(totalSize)} / 5 MB</span>
+                        <span style="color:#f5f5f7;font-weight:900;">Total used</span>
+                        <span style="color:var(--accent);font-weight:900;">${formatBytes(idbBytes + lsSize)} · No hard limit ☁</span>
                     </div>
-                    ${spritePct > 5 ? '<button onclick="clearSpriteCache()" style="margin-top:10px;width:100%;padding:8px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#ff9800;font-size:11px;font-weight:800;cursor:pointer;">🧹 Clear Sprite Cache (free ' + formatBytes(spriteSize) + ')</button>' : ''}
+                    <button onclick="clearSpriteCache()" style="margin-top:10px;width:100%;padding:8px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#ff9800;font-size:11px;font-weight:800;cursor:pointer;">🧹 Clear Image Cache (${formatBytes(idbBytes)})</button>
                 `;
             }
-        } catch(e) {
-            console.error("Storage calculation failed", e);
-        }
+        } catch(e) { console.error("Storage meter failed", e); }
     }
 
-    function clearSpriteCache() {
-        if (!confirm('Clear sprite cache? Images will reload on next use.')) return;
+    async function clearSpriteCache() {
+        if (!confirm('Clear image cache? Images will reload on next use.')) return;
+        // Clear IndexedDB image cache
+        if (typeof idb !== 'undefined') {
+            await idb.clearPrefix('sb-full-');
+            await idb.clearPrefix('efx-full-');
+            await idb.clearPrefix('cc_simg_');
+            await idb.clearPrefix('cc_efx_');
+        }
+        // Also clear any old localStorage cache keys
         const toRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key.startsWith('sb-full-') || key.startsWith('sb-meta') || key.startsWith('cc_sprites')) toRemove.push(key);
+            if (key.startsWith('sb-full-') || key.startsWith('efx-full-') || key.startsWith('cc_sprites') || key.startsWith('cc_effects')) toRemove.push(key);
         }
         toRemove.forEach(k => localStorage.removeItem(k));
         updateStorageMeter();
