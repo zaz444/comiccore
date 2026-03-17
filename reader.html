@@ -582,40 +582,36 @@ function renderFrame(anim = false) {
   if (isBgImage) {
     cf.style.backgroundColor = 'transparent';
     if (isBgAnimated) {
-      // GIF/WebP-anim: must use <img> — background-image freezes GIF animation
+      // GIF/WebP-anim: must use <img> so animation plays.
+      // Mirror create.html animated path: width=scale%, translate to (50+x)% (50+y)% of container.
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
       const img = document.createElement('img');
       img.src = bg;
-      const posX = 50 + xOff, posY = 50 + yOff;
-      img.style.cssText = `position:absolute;width:${scale}%;height:auto;min-height:${scale}%;` +
-        `object-fit:cover;pointer-events:none;` +
-        `left:${posX}%;top:${posY}%;` +
-        `transform:translate(-50%,-50%) rotate(${rotate}deg);transform-origin:center center;`;
-      bgLayer.appendChild(img);
-    } else if (rotate !== 0) {
-      const bgDiv = document.createElement('div');
-      bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;` +
-        `background:url(${bg});background-size:${scale * 2.2}%;` +
-        `background-position:center;background-repeat:no-repeat;` +
-        `transform:rotate(${rotate}deg);transform-origin:center center;`;
-      bgLayer.appendChild(bgDiv);
+      img.style.cssText = `position:absolute;width:${scale}%;height:auto;top:50%;left:50%;` +
+        `transform-origin:0 0;` +
+        `transform:translate(calc(-50% + ${xOff * scale / 100}%),calc(-50% + ${yOff * scale / 100}%)) rotate(${rotate}deg);` +
+        `pointer-events:none;`;
+      wrapper.appendChild(img);
+      bgLayer.appendChild(wrapper);
     } else {
-      bgLayer.style.background           = `url(${bg})`;
-      bgLayer.style.backgroundSize       = scale + '%';
-      bgLayer.style.backgroundPosition   = (50 + xOff) + '% ' + (50 + yOff) + '%';
-      bgLayer.style.backgroundRepeat     = 'no-repeat';
+      // Static image — use background-image CSS.
+      // background-size: scale% auto  preserves natural AR (same as create.html + frameToCanvas)
+      // background-position: (50+x)% (50+y)%  is the standard CSS position formula
+      // For rotation we apply it on the bgLayer div itself.
+      bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')}")`;
+      bgLayer.style.backgroundRepeat   = 'no-repeat';
+      bgLayer.style.backgroundSize     = `${scale}% auto`;
+      bgLayer.style.backgroundPosition = `${50 + xOff}% ${50 + yOff}%`;
+      bgLayer.style.transform          = rotate ? `rotate(${rotate}deg)` : '';
+      bgLayer.style.transformOrigin    = 'center center';
     }
   } else if (isBgGradient) {
     cf.style.backgroundColor = 'transparent';
-    if (rotate !== 0) {
-      const bgDiv = document.createElement('div');
-      bgDiv.style.cssText = `position:absolute;top:-60%;left:-60%;width:220%;height:220%;` +
-        `background:${bg};background-size:cover;background-position:center;` +
-        `transform:rotate(${rotate}deg);transform-origin:center center;`;
-      bgLayer.appendChild(bgDiv);
-    } else {
-      bgLayer.style.background     = bg;
-      bgLayer.style.backgroundSize = 'cover';
-    }
+    bgLayer.style.background      = bg;
+    bgLayer.style.backgroundSize  = 'cover';
+    bgLayer.style.transform       = rotate ? `rotate(${rotate}deg)` : '';
+    bgLayer.style.transformOrigin = 'center center';
   } else {
     // Solid color — no bgLayer needed for color, but still insert empty one for z-index consistency
     cf.style.backgroundColor = bg;
@@ -707,9 +703,19 @@ function renderFrame(anim = false) {
       // Tail: shown only for styles that use one (same logic as create.html)
       const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
       if (showTail) {
-        const tail = document.createElement('div');
-        tail.className = 'bubble-tail';
-        bubble.appendChild(tail);
+        if (l.tailFlip) {
+          // Right-side tail: wrap in a horizontal-flip container
+          const flipWrap = document.createElement('div');
+          flipWrap.style.cssText = 'position:absolute;inset:0;transform:scaleX(-1);pointer-events:none;';
+          const tail = document.createElement('div');
+          tail.className = 'bubble-tail';
+          flipWrap.appendChild(tail);
+          bubble.appendChild(flipWrap);
+        } else {
+          const tail = document.createElement('div');
+          tail.className = 'bubble-tail';
+          bubble.appendChild(tail);
+        }
       }
 
       // Thought dots: shown for cloud/thinking bubbles
