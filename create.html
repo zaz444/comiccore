@@ -2060,7 +2060,7 @@
                         const img = div.querySelector('div');
                         if (img) { const el = document.createElement('img'); el.src = full.image_data; img.replaceWith(el); }
                     });
-                }, { root: grid });
+                }, { root: null, rootMargin: '0px' });
                 observer.observe(div);
             }
             grid.appendChild(div);
@@ -4558,27 +4558,23 @@
     let sbLazyQueue = [];
     let sbLazyTimer = null;
 
-    let sbObserver = null;
-    function getSbObserver() {
-        if (sbObserver) return sbObserver;
-        const grid = document.getElementById('sb-sprite-grid');
-        sbObserver = new IntersectionObserver(entries => {
-            entries.forEach(entry => {
-                if (!entry.isIntersecting) return;
-                sbObserver.unobserve(entry.target);
-                const id = entry.target.dataset.sid;
-                if (!id) return;
-                const cached = sbGetImg(id);
-                if (cached) {
-                    sbApplyImg(entry.target, cached);
-                } else {
-                    sbLazyQueue.push(id);
-                    sbScheduleBatch();
-                }
-            });
-        }, { root: grid, rootMargin: '200px 0px' });
-        return sbObserver;
-    }
+    // root: null = viewport. Avoids zero-bounding-box issues when the sidebar
+    // panel has width:0 or overflow:hidden during transitions.
+    const sbObserver = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            sbObserver.unobserve(entry.target);
+            const id = entry.target.dataset.sid;
+            if (!id) return;
+            const cached = sbGetImg(id);
+            if (cached) {
+                sbApplyImg(entry.target, cached);
+            } else {
+                sbLazyQueue.push(id);
+                sbScheduleBatch();
+            }
+        });
+    }, { root: null, rootMargin: '0px' });
 
     function sbScheduleBatch() {
         if (sbLazyTimer) return;
@@ -4669,7 +4665,7 @@
                 div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${pack.name}</span>`;
             } else {
                 div.innerHTML = `<div class="sb-skeleton"></div><span>${pack.name}</span>`;
-                getSbObserver().observe(div);
+                sbObserver.observe(div);
             }
 
             div.onclick = async () => {
@@ -5002,7 +4998,7 @@
                         const old = div.querySelector('div');
                         if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
                     });
-                }, { root: document.getElementById('sb-effect-grid'), rootMargin: '200px 0px' });
+                }, { root: null, rootMargin: '0px' });
                 obs.observe(div);
             }
             div.onclick = async () => {

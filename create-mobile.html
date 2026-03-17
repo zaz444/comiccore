@@ -1926,8 +1926,6 @@ function renderMobSpriteGrid(sprites) {
             const full = await sbFetchFull(pack.id);
             if (full) { closeSheet('sprites'); openActionModal({ ...pack, ...full }); }
         };
-        // Append first so the card is inside the root before observing
-        grid.appendChild(card);
         // Lazy load image
         const observer = new IntersectionObserver(entries => {
             if (!entries[0].isIntersecting) return;
@@ -1937,7 +1935,8 @@ function renderMobSpriteGrid(sprites) {
                 const old = card.querySelector('div');
                 if (old) { const img = document.createElement('img'); img.src = full.image_data; old.replaceWith(img); }
             });
-        }, { root: grid });
+        }, { root: null, rootMargin: '0px' });
+        grid.appendChild(card);
         observer.observe(card);
     });
     if (!sprites.length) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">No sprites found</div>';
@@ -2078,7 +2077,7 @@ function renderMobEffectGrid(effects) {
                     const old = card.querySelector('div');
                     if (old) { const img=document.createElement('img'); img.src=data.image_data; img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:8px;'; old.replaceWith(img); }
                 });
-            }, {root: grid});
+            }, { root: null, rootMargin: '0px' });
             grid.appendChild(card);
             obs.observe(card);
         } else {
