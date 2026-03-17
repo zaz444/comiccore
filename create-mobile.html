@@ -857,16 +857,59 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">Background <button class="sheet-close" onclick="closeSheet('bg')">✕</button></div>
     <div class="sheet-body">
-        <!-- Inline BG library -->
-        <input class="pub-input" id="mob-bg-search" placeholder="Search backgrounds..." oninput="filterMobBgs()" style="margin-bottom:6px;">
-        <div style="display:flex;gap:4px;margin-bottom:8px;">
-            <button id="mob-bg-tab-official" onclick="setMobBgTab('official')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
-            <button id="mob-bg-tab-mine" onclick="setMobBgTab('mine')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
+        <!-- Main tabs: Images / Colors / Gradients -->
+        <div style="display:flex;gap:4px;margin-bottom:10px;">
+            <button class="mob-bg-main-tab active" id="mob-bg-main-images" onclick="setMobBgMainTab('images')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">🖼 Images</button>
+            <button class="mob-bg-main-tab" id="mob-bg-main-colors" onclick="setMobBgMainTab('colors')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">🎨 Colors</button>
+            <button class="mob-bg-main-tab" id="mob-bg-main-gradients" onclick="setMobBgMainTab('gradients')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">🌈 Grad</button>
         </div>
-        <div id="mob-bg-grid" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;margin-bottom:10px;">
-            <div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">Tap to load...</div>
+
+        <!-- IMAGES pane -->
+        <div id="mob-bg-pane-images" style="display:flex;flex-direction:column;gap:6px;">
+            <input class="pub-input" id="mob-bg-search" placeholder="Search backgrounds..." oninput="filterMobBgs()" style="margin-bottom:2px;">
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                <button id="mob-bg-tab-official" onclick="setMobBgTab('official')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
+                <button id="mob-bg-tab-mine" onclick="setMobBgTab('mine')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
+            </div>
+            <div id="mob-bg-grid" style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;margin-bottom:6px;">
+                <div style="color:#555;font-size:12px;padding:16px;text-align:center;">Tap to load...</div>
+            </div>
+            <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:18px;">📷</span>Upload (Auto-fit)</button>
+            <button class="bg-action-btn" onclick="closeSheet('bg');triggerBgCropImport()"><span style="font-size:18px;">✂️</span>Upload & Crop</button>
         </div>
-        <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:22px;">📷</span>Upload Local Image</button>
+
+        <!-- COLORS pane -->
+        <div id="mob-bg-pane-colors" style="display:none;flex-direction:column;gap:10px;">
+            <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;">Preset Colors</div>
+            <div id="mob-color-swatches" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;"></div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+                <input type="color" id="mob-custom-color" value="#ffffff" style="width:44px;height:38px;border:none;border-radius:8px;cursor:pointer;">
+                <button onclick="applyMobBgColor(document.getElementById('mob-custom-color').value)" style="flex:1;padding:10px;background:#ff7a00;color:#000;border:none;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit;">Apply</button>
+            </div>
+        </div>
+
+        <!-- GRADIENTS pane -->
+        <div id="mob-bg-pane-gradients" style="display:none;flex-direction:column;gap:10px;">
+            <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;">Preset Gradients</div>
+            <div id="mob-gradient-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:160px;overflow-y:auto;"></div>
+            <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;margin-top:2px;">Custom</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input type="color" id="mob-grad-c1" value="#ff7a00" style="width:36px;height:34px;border:none;border-radius:8px;cursor:pointer;">
+                <span style="color:#444;font-size:13px;">→</span>
+                <input type="color" id="mob-grad-c2" value="#9b59b6" style="width:36px;height:34px;border:none;border-radius:8px;cursor:pointer;">
+                <select id="mob-grad-dir" style="flex:1;padding:7px;background:#111;border:1px solid #333;color:#aaa;border-radius:8px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
+                    <option value="to right">→ Right</option>
+                    <option value="to bottom">↓ Down</option>
+                    <option value="to bottom right">↘ Diagonal</option>
+                    <option value="135deg">↗ 135°</option>
+                    <option value="circle">◎ Radial</option>
+                </select>
+            </div>
+            <div id="mob-grad-preview" style="width:100%;height:36px;border-radius:8px;border:1px solid #222;"></div>
+            <button onclick="applyMobCustomGradient()" style="width:100%;padding:10px;background:#ff7a00;color:#000;border:none;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit;">Apply Gradient</button>
+        </div>
+
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 8px;">Adjust</div>
         <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 10px;">Adjust</div>
         <div class="bg-slider-row">
             <span>Scale</span>
@@ -2067,6 +2110,108 @@ let mobBgOfficial = null;
 let mobBgMine = null;
 let mobBgLoaded = false;
 
+
+// ── Mobile BG: Colors + Gradients ──────────────────────────────────────
+const MOB_PRESET_COLORS = [
+    '#ffffff','#f5f5f0','#cccccc','#888888','#444444','#222222','#111111','#000000',
+    '#1a1a2e','#16213e','#0f3460','#533483','#e94560',
+    '#ff6b6b','#ff9f43','#feca57','#48dbfb','#0abde3',
+    '#1dd1a1','#10ac84','#2ecc71','#3498db','#9b59b6',
+    '#e67e22','#e74c3c','#f8c291','#778ca3',
+];
+const MOB_PRESET_GRADIENTS = [
+    { name:'Sunset',      css:'linear-gradient(to bottom right, #f8771f, #eb3349)' },
+    { name:'Ocean',       css:'linear-gradient(to bottom, #2193b0, #6dd5ed)' },
+    { name:'Forest',      css:'linear-gradient(to bottom right, #134e5e, #71b280)' },
+    { name:'Purple Haze', css:'linear-gradient(135deg, #360033, #0b8793)' },
+    { name:'Peach',       css:'linear-gradient(to right, #ed4264, #ffedbc)' },
+    { name:'Midnight',    css:'linear-gradient(to bottom, #0f0c29, #302b63, #24243e)' },
+    { name:'Candy',       css:'linear-gradient(to right, #d53369, #cbad6d)' },
+    { name:'Aurora',      css:'linear-gradient(135deg, #00c6ff, #0072ff)' },
+    { name:'Fire',        css:'linear-gradient(to top, #f12711, #f5af19)' },
+    { name:'Mint',        css:'linear-gradient(to right, #00b09b, #96c93d)' },
+    { name:'Rose Gold',   css:'linear-gradient(135deg, #f093fb, #f5576c)' },
+    { name:'Night Sky',   css:'linear-gradient(to bottom, #0a0a0a, #1a1a4e, #2d2d8f)' },
+    { name:'Lemon',       css:'linear-gradient(to bottom right, #f7ff00, #db36a4)' },
+    { name:'Steel',       css:'linear-gradient(to right, #485563, #29323c)' },
+    { name:'Violet',      css:'linear-gradient(135deg, #7f00ff, #e100ff)' },
+    { name:'Cosmic',      css:'radial-gradient(circle, #1a1a2e 0%, #16213e 50%, #0f3460 100%)' },
+    { name:'Neon',        css:'linear-gradient(135deg, #08f1ff, #ff00c1)' },
+    { name:'Lava',        css:'radial-gradient(circle at 50% 120%, #ff4500, #1a0000)' },
+    { name:'Fog',         css:'linear-gradient(to bottom, #d7d2cc, #304352)' },
+    { name:'Spring',      css:'linear-gradient(to bottom right, #a8ff78, #78ffd6)' },
+];
+
+let mobBgMainTab = 'images';
+
+function setMobBgMainTab(tab) {
+    mobBgMainTab = tab;
+    ['images','colors','gradients'].forEach(t => {
+        const btn  = document.getElementById('mob-bg-main-' + t);
+        const pane = document.getElementById('mob-bg-pane-' + t);
+        if (btn)  {
+            const active = t === tab;
+            btn.style.borderColor = active ? '#ff7a00' : '#222';
+            btn.style.background  = active ? 'rgba(255,122,0,.12)' : '#111';
+            btn.style.color       = active ? '#ff7a00' : '#555';
+        }
+        if (pane) pane.style.display = t === tab ? 'flex' : 'none';
+    });
+    if (tab === 'colors')    renderMobColors();
+    if (tab === 'gradients') renderMobGradients();
+    if (tab === 'images')    loadMobBgs();
+}
+
+function renderMobColors() {
+    const grid = document.getElementById('mob-color-swatches');
+    if (!grid) return;
+    grid.innerHTML = MOB_PRESET_COLORS.map(c =>
+        `<div onclick="applyMobBgColor('${c}')" style="aspect-ratio:1;border-radius:7px;background:${c};cursor:pointer;border:2px solid #1e1e1e;" onmouseover="this.style.borderColor='#ff7a00'" onmouseout="this.style.borderColor='#1e1e1e'"></div>`
+    ).join('');
+}
+
+function applyMobBgColor(color) {
+    saveState();
+    frames[currentIdx].background = color;
+    frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
+    render();
+    closeSheet('bg');
+}
+
+function renderMobGradients() {
+    const grid = document.getElementById('mob-gradient-grid');
+    if (!grid) return;
+    grid.innerHTML = MOB_PRESET_GRADIENTS.map(g =>
+        `<div onclick="applyMobBgColor('${g.css.replace(/'/g,"\'")}')" style="height:48px;border-radius:10px;background:${g.css};cursor:pointer;border:2px solid #1e1e1e;position:relative;" onmouseover="this.style.borderColor='#ff7a00'" onmouseout="this.style.borderColor='#1e1e1e'"><div style="position:absolute;bottom:4px;left:6px;font-size:9px;font-weight:900;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.8);">${g.name}</div></div>`
+    ).join('');
+    const update = () => {
+        const c1  = document.getElementById('mob-grad-c1')?.value || '#ff7a00';
+        const c2  = document.getElementById('mob-grad-c2')?.value || '#9b59b6';
+        const dir = document.getElementById('mob-grad-dir')?.value || 'to right';
+        const css = dir === 'circle' ? `radial-gradient(circle,${c1},${c2})` : `linear-gradient(${dir},${c1},${c2})`;
+        const prev = document.getElementById('mob-grad-preview');
+        if (prev) prev.style.background = css;
+    };
+    ['mob-grad-c1','mob-grad-c2','mob-grad-dir'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.oninput = update;
+    });
+    update();
+}
+
+function applyMobCustomGradient() {
+    const c1  = document.getElementById('mob-grad-c1')?.value || '#ff7a00';
+    const c2  = document.getElementById('mob-grad-c2')?.value || '#9b59b6';
+    const dir = document.getElementById('mob-grad-dir')?.value || 'to right';
+    const css = dir === 'circle' ? `radial-gradient(circle,${c1},${c2})` : `linear-gradient(${dir},${c1},${c2})`;
+    applyMobBgColor(css);
+}
+
+function triggerBgCropImport() {
+    currentImportType = 'bg_crop';
+    document.getElementById('img-input').click();
+}
+
 async function loadMobBgs() {
     if (mobBgLoaded) { renderMobBgGrid(); return; }
     const grid = document.getElementById('mob-bg-grid');
@@ -2118,9 +2263,12 @@ function renderMobBgGrid() {
         lbl.innerText = bg.name || 'Untitled';
         card.appendChild(img); card.appendChild(lbl);
         card.onclick = () => {
+            saveState();
+            frames[currentIdx].background = bg.image_data;
+            frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
+            syncBgSliders();
+            render();
             closeSheet('bg');
-            // Show crop/fixed import choice
-            showBgImportChoice(bg.image_data);
         };
         grid.appendChild(card);
     });
@@ -2481,7 +2629,16 @@ function setupMobBgDrag() {
 
 // BG import choice
 let _bgChoiceSrc = null;
-function showBgImportChoice(src) { _bgChoiceSrc = src; document.getElementById('bg-choice-preview').src = src; document.getElementById('bg-import-choice-modal').style.display = 'flex'; }
+function showBgImportChoice(src) {
+    // Auto-apply as fixed/centered — no modal
+    _bgChoiceSrc = src;
+    bgChoiceFixed();
+}
+function showBgImportChoiceModal(src) {
+    _bgChoiceSrc = src;
+    document.getElementById('bg-choice-preview').src = src;
+    document.getElementById('bg-import-choice-modal').style.display = 'flex';
+}
 function closeBgChoiceModal() { document.getElementById('bg-import-choice-modal').style.display = 'none'; }
 function bgChoiceCrop() { closeBgChoiceModal(); const t = document.getElementById('crop-target'); t.src = _bgChoiceSrc; document.getElementById('crop-modal').style.display = 'flex'; if (cropper) cropper.destroy(); const r = canvasRatio || { w:1, h:1 }; cropper = new Cropper(t, { aspectRatio: r.w / r.h, viewMode: 1 }); }
 function bgChoiceFixed() {
@@ -2545,7 +2702,13 @@ document.getElementById('img-input').addEventListener('change', (e) => {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-        if (currentImportType === 'bg') { currentImportType = 'bg'; showBgImportChoice(ev.target.result); }
+        if (currentImportType === 'bg_crop') {
+            currentImportType = 'bg';
+            _bgChoiceSrc = ev.target.result;
+            bgChoiceCrop();
+        } else if (currentImportType === 'bg') {
+            showBgImportChoice(ev.target.result);
+        }
         else { saveState(); const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300; const nl={type:'img',src:ev.target.result,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()}; frames[currentIdx].layers.push(nl); activeLayer=nl; render(); }
     };
     reader.readAsDataURL(file);

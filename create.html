@@ -763,6 +763,8 @@
         width: 280px; height: 100%; display: none; flex-direction: column; overflow: hidden;
     }
     .sp-content.active { display: flex; }
+    .sb-bg-main-tab { flex:1; padding:5px 3px; border-radius:8px; border:1px solid #222; background:#111; color:#555; font-size:10px; font-weight:800; cursor:pointer; font-family:inherit; transition:.15s; }
+    .sb-bg-main-tab.active { background:rgba(255,122,0,.12); border-color:#ff7a00; color:#ff7a00; }
     .sp-header {
         padding: 12px 14px 10px; font-size: 10px; font-weight: 900; color: var(--accent);
         letter-spacing: 2px; text-transform: uppercase; border-bottom: 1px solid #1a1a1a;
@@ -1566,19 +1568,66 @@
                         🖼 Background
                         <span class="sp-close-btn" onclick="toggleSidePanel('background')">✕</span>
                     </div>
-                    <input class="sp-search" id="sb-bg-search" placeholder="Search backgrounds..." oninput="filterSidebarBgs()" style="margin-bottom:6px;">
-                    <div style="display:flex;gap:4px;margin-bottom:6px;flex-shrink:0;">
-                        <button id="sb-bg-tab-official" onclick="setSbBgTab('official')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
-                        <button id="sb-bg-tab-mine" onclick="setSbBgTab('mine')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
+                    <!-- Tab row: Images / Colors / Gradients -->
+                    <div style="display:flex;gap:3px;margin-bottom:8px;flex-shrink:0;">
+                        <button class="sb-bg-main-tab active" id="sb-bg-main-images" onclick="setSbBgMainTab('images')">🖼 Images</button>
+                        <button class="sb-bg-main-tab" id="sb-bg-main-colors" onclick="setSbBgMainTab('colors')">🎨 Colors</button>
+                        <button class="sb-bg-main-tab" id="sb-bg-main-gradients" onclick="setSbBgMainTab('gradients')">🌈 Gradients</button>
                     </div>
-                    <div id="sb-bg-grid" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:calc(100vh - 280px);padding-right:2px;"></div>
-                    <div style="border-top:1px solid #1e1e1e;padding-top:8px;margin-top:6px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-                        <button class="sp-action-btn" onclick="toggleSidePanel('background'); triggerImport('bg')">
-                            <span class="sp-action-icon">📷</span> Upload from Device
-                        </button>
-                        <button class="sp-action-btn" onclick="openBgPanel()">
-                            <span class="sp-action-icon">🎚</span> Edit Transform & Filters
-                        </button>
+
+                    <!-- IMAGES tab -->
+                    <div id="sb-bg-pane-images" style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;">
+                        <input class="sp-search" id="sb-bg-search" placeholder="Search backgrounds..." oninput="filterSidebarBgs()" style="margin-bottom:2px;">
+                        <div style="display:flex;gap:3px;flex-shrink:0;">
+                            <button id="sb-bg-tab-official" onclick="setSbBgTab('official')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
+                            <button id="sb-bg-tab-mine" onclick="setSbBgTab('mine')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
+                        </div>
+                        <div id="sb-bg-grid" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1;padding-right:2px;"></div>
+                        <div style="border-top:1px solid #1e1e1e;padding-top:6px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+                            <button class="sp-action-btn" onclick="toggleSidePanel('background'); triggerImport('bg')">
+                                <span class="sp-action-icon">📷</span> Upload (Auto-fit)
+                            </button>
+                            <button class="sp-action-btn" onclick="toggleSidePanel('background'); triggerBgCropImport()">
+                                <span class="sp-action-icon">✂️</span> Upload & Crop
+                            </button>
+                            <button class="sp-action-btn" onclick="openBgPanel()">
+                                <span class="sp-action-icon">🎚</span> Edit Transform & Filters
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- COLORS tab -->
+                    <div id="sb-bg-pane-colors" style="display:none;flex-direction:column;gap:10px;overflow-y:auto;flex:1;">
+                        <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;">Preset Colors</div>
+                        <div id="sb-color-swatches" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;"></div>
+                        <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;margin-top:4px;">Custom Color</div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="color" id="sb-custom-color" value="#ffffff" style="width:44px;height:36px;border:none;border-radius:8px;cursor:pointer;background:none;">
+                            <button onclick="applySbBgColor(document.getElementById('sb-custom-color').value)" style="flex:1;padding:9px;background:#ff7a00;color:#000;border:none;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">Apply Color</button>
+                        </div>
+                    </div>
+
+                    <!-- GRADIENTS tab -->
+                    <div id="sb-bg-pane-gradients" style="display:none;flex-direction:column;gap:10px;overflow-y:auto;flex:1;">
+                        <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;">Preset Gradients</div>
+                        <div id="sb-gradient-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;"></div>
+                        <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;margin-top:4px;">Custom Gradient</div>
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <div style="display:flex;gap:6px;align-items:center;">
+                                <input type="color" id="sb-grad-c1" value="#ff7a00" style="width:36px;height:32px;border:none;border-radius:6px;cursor:pointer;">
+                                <span style="color:#444;font-size:11px;font-weight:800;">→</span>
+                                <input type="color" id="sb-grad-c2" value="#9b59b6" style="width:36px;height:32px;border:none;border-radius:6px;cursor:pointer;">
+                                <select id="sb-grad-dir" style="flex:1;padding:6px;background:#111;border:1px solid #333;color:#aaa;border-radius:8px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
+                                    <option value="to right">→ Right</option>
+                                    <option value="to bottom">↓ Down</option>
+                                    <option value="to bottom right">↘ Diagonal</option>
+                                    <option value="135deg">↗ 135°</option>
+                                    <option value="circle">◎ Radial</option>
+                                </select>
+                            </div>
+                            <div id="sb-grad-preview" style="width:100%;height:40px;border-radius:8px;border:1px solid #222;"></div>
+                            <button onclick="applySbCustomGradient()" style="width:100%;padding:9px;background:#ff7a00;color:#000;border:none;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">Apply Gradient</button>
+                        </div>
                     </div>
                 </div>
 
@@ -2433,6 +2482,12 @@
     function goToFrame(idx) { currentIdx = idx; render(); }
     function deleteFrame() { if (frames.length > 1) { saveState(); frames.splice(currentIdx, 1); if (currentIdx >= frames.length) currentIdx = frames.length - 1; render(); } }
 
+    function triggerBgCropImport() {
+        // Override showBgImportChoice to show crop modal instead of auto-applying
+        currentImportType = 'bg_crop';
+        document.getElementById('img-input').click();
+    }
+
     function triggerImport(type) { currentImportType = type; document.getElementById('img-input').click(); toggleMenu('plus-menu'); }
     
     document.getElementById('img-input').onchange = (e) => {
@@ -2440,8 +2495,13 @@
         if(!file) return;
         const reader = new FileReader();
         reader.onload = (ev) => {
-            if (currentImportType === 'bg') {
-                // Show Crop / Fixed Import choice for background uploads
+            if (currentImportType === 'bg_crop') {
+                // User explicitly chose crop
+                currentImportType = 'bg';
+                pendingBgImageSrc = ev.target.result;
+                bgChoiceCrop();
+            } else if (currentImportType === 'bg') {
+                // Auto-apply fixed/centered — no modal
                 showBgImportChoice(ev.target.result);
             } else {
                 document.getElementById('crop-modal').style.display = 'flex';
@@ -2751,6 +2811,13 @@
     let pendingBgImageSrc = null;
 
     function showBgImportChoice(src) {
+        // Auto-apply as fixed/centered — no modal needed
+        // User can still crop via the "Crop" button in the choice modal if they want
+        pendingBgImageSrc = src;
+        bgChoiceFixed();
+    }
+    function showBgImportChoiceModal(src) {
+        // Only called if user explicitly wants to choose
         pendingBgImageSrc = src;
         document.getElementById('bg-choice-preview').src = src;
         document.getElementById('bg-import-choice-modal').style.display = 'flex';
@@ -4335,7 +4402,98 @@
     // ══════════════════════════════════════════════════════════
     // BACKGROUND SIDEBAR (inline library)
     // ══════════════════════════════════════════════════════════
-    let sbBgTab = 'official'; // 'official' | 'mine'
+
+    // ── BG Sidebar: Colors + Gradients ──────────────────────────────────
+    const SB_PRESET_COLORS = [
+        '#ffffff','#f5f5f0','#cccccc','#888888','#444444','#222222','#111111','#000000',
+        '#1a1a2e','#16213e','#0f3460','#533483','#e94560',
+        '#ff6b6b','#ff9f43','#feca57','#48dbfb','#0abde3',
+        '#1dd1a1','#10ac84','#2ecc71','#3498db','#9b59b6',
+        '#e67e22','#e74c3c','#f8c291','#778ca3',
+    ];
+    const SB_PRESET_GRADIENTS = [
+        { name:'Sunset',      css:'linear-gradient(to bottom right, #f8771f, #eb3349)' },
+        { name:'Ocean',       css:'linear-gradient(to bottom, #2193b0, #6dd5ed)' },
+        { name:'Forest',      css:'linear-gradient(to bottom right, #134e5e, #71b280)' },
+        { name:'Purple Haze', css:'linear-gradient(135deg, #360033, #0b8793)' },
+        { name:'Peach',       css:'linear-gradient(to right, #ed4264, #ffedbc)' },
+        { name:'Midnight',    css:'linear-gradient(to bottom, #0f0c29, #302b63, #24243e)' },
+        { name:'Candy',       css:'linear-gradient(to right, #d53369, #cbad6d)' },
+        { name:'Aurora',      css:'linear-gradient(135deg, #00c6ff, #0072ff)' },
+        { name:'Fire',        css:'linear-gradient(to top, #f12711, #f5af19)' },
+        { name:'Mint',        css:'linear-gradient(to right, #00b09b, #96c93d)' },
+        { name:'Rose Gold',   css:'linear-gradient(135deg, #f093fb, #f5576c)' },
+        { name:'Night Sky',   css:'linear-gradient(to bottom, #0a0a0a, #1a1a4e, #2d2d8f)' },
+        { name:'Lemon',       css:'linear-gradient(to bottom right, #f7ff00, #db36a4)' },
+        { name:'Steel',       css:'linear-gradient(to right, #485563, #29323c)' },
+        { name:'Violet',      css:'linear-gradient(135deg, #7f00ff, #e100ff)' },
+        { name:'Spring',      css:'linear-gradient(to bottom right, #a8ff78, #78ffd6)' },
+        { name:'Cosmic',      css:'radial-gradient(circle, #1a1a2e 0%, #16213e 50%, #0f3460 100%)' },
+        { name:'Neon',        css:'linear-gradient(135deg, #08f1ff, #ff00c1)' },
+        { name:'Lava',        css:'radial-gradient(circle at 50% 120%, #ff4500, #1a0000)' },
+        { name:'Fog',         css:'linear-gradient(to bottom, #d7d2cc, #304352)' },
+    ];
+    let sbBgMainTab = 'images';
+
+    function setSbBgMainTab(tab) {
+        sbBgMainTab = tab;
+        ['images','colors','gradients'].forEach(t => {
+            const btn  = document.getElementById('sb-bg-main-' + t);
+            const pane = document.getElementById('sb-bg-pane-' + t);
+            if (btn)  btn.classList.toggle('active', t === tab);
+            if (pane) pane.style.display = t === tab ? 'flex' : 'none';
+        });
+        if (tab === 'colors')    renderSbColors();
+        if (tab === 'gradients') renderSbGradients();
+        if (tab === 'images')    loadSidebarBgs();
+    }
+
+    function renderSbColors() {
+        const grid = document.getElementById('sb-color-swatches');
+        if (!grid) return;
+        grid.innerHTML = SB_PRESET_COLORS.map(c =>
+            `<div onclick="applySbBgColor('${c}')" title="${c}" style="width:100%;aspect-ratio:1;border-radius:8px;background:${c};cursor:pointer;border:2px solid #1e1e1e;transition:.1s;" onmouseover="this.style.borderColor='#ff7a00'" onmouseout="this.style.borderColor='#1e1e1e'"></div>`
+        ).join('');
+    }
+
+    function applySbBgColor(color) {
+        saveState();
+        frames[currentIdx].background = color;
+        frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
+        render();
+        toggleSidePanel('background');
+    }
+
+    function renderSbGradients() {
+        const grid = document.getElementById('sb-gradient-grid');
+        if (!grid) return;
+        grid.innerHTML = SB_PRESET_GRADIENTS.map(g =>
+            `<div onclick="applySbBgColor('${g.css.replace(/'/g,"\'")}')" title="${g.name}" style="height:50px;border-radius:10px;background:${g.css};cursor:pointer;border:2px solid #1e1e1e;transition:.1s;position:relative;" onmouseover="this.style.borderColor='#ff7a00'" onmouseout="this.style.borderColor='#1e1e1e'"><div style="position:absolute;bottom:4px;left:6px;font-size:9px;font-weight:900;color:rgba(255,255,255,.8);text-shadow:0 1px 3px rgba(0,0,0,.8);">${g.name}</div></div>`
+        ).join('');
+        const updatePreview = () => {
+            const c1 = document.getElementById('sb-grad-c1')?.value || '#ff7a00';
+            const c2 = document.getElementById('sb-grad-c2')?.value || '#9b59b6';
+            const dir = document.getElementById('sb-grad-dir')?.value || 'to right';
+            const css = dir === 'circle' ? `radial-gradient(circle,${c1},${c2})` : `linear-gradient(${dir},${c1},${c2})`;
+            const prev = document.getElementById('sb-grad-preview');
+            if (prev) prev.style.background = css;
+        };
+        ['sb-grad-c1','sb-grad-c2','sb-grad-dir'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.oninput = updatePreview;
+        });
+        updatePreview();
+    }
+
+    function applySbCustomGradient() {
+        const c1  = document.getElementById('sb-grad-c1')?.value || '#ff7a00';
+        const c2  = document.getElementById('sb-grad-c2')?.value || '#9b59b6';
+        const dir = document.getElementById('sb-grad-dir')?.value || 'to right';
+        const css = dir === 'circle' ? `radial-gradient(circle,${c1},${c2})` : `linear-gradient(${dir},${c1},${c2})`;
+        applySbBgColor(css);
+    }
+
+        let sbBgTab = 'official'; // 'official' | 'mine'
     let sbBgOfficial = null;
     let sbBgMine = null;
 
