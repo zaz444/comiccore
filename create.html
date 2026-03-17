@@ -93,7 +93,7 @@
 
     #onion-skin-canvas {
         position: absolute; inset: 0; pointer-events: none; z-index: 5;
-        display: none;
+        display: none; width: 100%; height: 100%;
     }
 
     /* Dedicated background layer — filter applied here, NOT on canvas root */
@@ -1295,6 +1295,11 @@
                 <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;">BORDER</span>
                 <input type="color" id="bubble-border-color" value="#000000" oninput="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" style="flex:1;height:28px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
             </div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:2px;">
+                <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;white-space:nowrap;">Tail</span>
+                <button id="bubble-tail-left-btn" onclick="setBubbleTailFlip(false)" style="flex:1;padding:6px 4px;border-radius:7px;border:1.5px solid var(--accent);background:rgba(255,122,0,.15);color:var(--accent);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">◀ Left</button>
+                <button id="bubble-tail-right-btn" onclick="setBubbleTailFlip(true)"  style="flex:1;padding:6px 4px;border-radius:7px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
+            </div>
         </div>
     </div>
 
@@ -1582,7 +1587,7 @@
                             <button id="sb-bg-tab-official" onclick="setSbBgTab('official')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
                             <button id="sb-bg-tab-mine" onclick="setSbBgTab('mine')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
                         </div>
-                        <div id="sb-bg-grid" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1;padding-right:2px;"></div>
+                        <div id="sb-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;overflow-y:auto;flex:1;padding-right:2px;align-content:start;"></div>
                         <div style="border-top:1px solid #1e1e1e;padding-top:6px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
                             <button class="sp-action-btn" onclick="toggleSidePanel('background'); triggerImport('bg')">
                                 <span class="sp-action-icon">📷</span> Upload (Auto-fit)
@@ -1652,8 +1657,10 @@
         <!-- CANVAS VIEWPORT -->
         <div id="viewport">
             <div id="canvas-container">
-                <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
                 <div id="comic-frame" onclick="deselectLayer(event)">
+                    <!-- Onion skin canvas lives INSIDE comic-frame so it stacks above the
+                         background (z:0) but below layers (z:10) correctly -->
+                    <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
                     <div id="bg-drag-overlay"><div class="drag-hint">✋ Drag to pan background</div></div>
                 </div>
                 <div id="global-frame-indicator">FRAME 1</div>
@@ -1725,6 +1732,24 @@
 <script>
     const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
+    // Safe localStorage wrapper — silently handles QuotaExceededError
+    // so a full storage never crashes click handlers or other UI flows
+    function lsSet(key, value) {
+        try { localStorage.setItem(key, value); } catch(e) {
+            // Storage full — evict oldest sprite-used-* and last-used tracking keys to free space
+            try {
+                const toDelete = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && (k.startsWith('sprite-used-') || k.startsWith('efx-used-') || k.startsWith('sb-full-'))) toDelete.push(k);
+                }
+                // Delete oldest half
+                toDelete.slice(0, Math.max(1, Math.floor(toDelete.length / 2))).forEach(k => localStorage.removeItem(k));
+                localStorage.setItem(key, value);
+            } catch(e2) { /* still full, give up gracefully */ }
+        }
+    }
+
     let frames = [{ layers: [], background: '#ffffff' }];
     let currentIdx = 0;
     let history = []; 
@@ -1764,11 +1789,11 @@
     function openBackgroundSource() {
         // Preserve ratio so cropper uses correct aspect ratio on return
         if (canvasRatio) {
-            localStorage.setItem('cc-bg-ratio-filter', JSON.stringify(canvasRatio));
-            localStorage.setItem('cc-active-ratio', JSON.stringify(canvasRatio));
+            lsSet('cc-bg-ratio-filter', JSON.stringify(canvasRatio));
+            lsSet('cc-active-ratio', JSON.stringify(canvasRatio));
         }
         // Preserve all frames + current index so nothing resets on return
-        localStorage.setItem('cc-pending-frames', JSON.stringify({ frames, currentIdx }));
+        lsSet('cc-pending-frames', JSON.stringify({ frames, currentIdx }));
         location.href = 'backgroundsource.html';
     }
 
@@ -1931,22 +1956,29 @@
 
     function startDrag(e, layer) {
         saveState();
-        let startX = e.clientX - layer.x;
-        let startY = e.clientY - layer.y;
+        // Convert viewport client coords → canvas-local px (accounts for zoom)
+        function toLocal(clientX, clientY) {
+            const r = canvas.getBoundingClientRect();
+            const s = r.width / canvas.offsetWidth;
+            return { x: (clientX - r.left) / s, y: (clientY - r.top) / s };
+        }
+        const startLocal = toLocal(e.clientX, e.clientY);
+        const startLayerX = layer.x;
+        const startLayerY = layer.y;
         let moved = false;
         const move = (me) => {
             if (!moved) { moved = true; closeFtbPanel(); hideFloatToolbar(); }
-            const canvasRect = canvas.getBoundingClientRect();
-            const rawX = me.clientX - startX;
-            const rawY = me.clientY - startY;
+            const cur = toLocal(me.clientX, me.clientY);
+            const rawX = startLayerX + (cur.x - startLocal.x);
+            const rawY = startLayerY + (cur.y - startLocal.y);
             if (layer.type === 'img') {
                 // Images can go up to halfway outside the frame on any edge
                 const layerW = layer.w || 100;
                 const layerH = layer.h || layerW;
                 const halfW = layerW / 2;
                 const halfH = layerH / 2;
-                layer.x = Math.min(Math.max(rawX, -halfW), canvasRect.width - halfW);
-                layer.y = Math.min(Math.max(rawY, -halfH), canvasRect.height - halfH);
+                layer.x = Math.min(Math.max(rawX, -halfW), canvas.offsetWidth  - halfW);
+                layer.y = Math.min(Math.max(rawY, -halfH), canvas.offsetHeight - halfH);
             } else {
                 // Text, bubbles, subtitles — completely free movement, no clamping
                 layer.x = rawX;
@@ -2084,8 +2116,14 @@
                 const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
                 const prevTrim = layer.trimData;
                 const scale = prevTrim ? (layer.w / prevTrim.trimW) : (layer.w / trimW);
+                // Preserve the bottom-left corner position so the new action
+                // sits exactly where the old one did without jumping/recentering
+                const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
+                const oldLeft   = layer.x;
                 layer.w = Math.round(trimW * scale);
                 layer.h = Math.round(trimH * scale);
+                layer.x = oldLeft;              // left edge stays fixed
+                layer.y = oldBottom - layer.h;  // bottom edge stays fixed
                 layer.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
                 render();
             };
@@ -2169,12 +2207,12 @@
     }
 
     function render() {
-        // Clear canvas children EXCEPT the bg-drag-overlay and onion canvas
-        // We rebuild everything including #cc-bg-layer
-        const dragOverlay = document.getElementById('bg-drag-overlay');
-        canvas.innerHTML = "";
-        // Re-add drag overlay (innerHTML cleared it)
-        canvas.appendChild(dragOverlay);
+        // Preserve the onion-skin canvas and drag overlay — both live inside comic-frame
+        // and must survive the innerHTML clear below.
+        const onionCanvasEl = document.getElementById('onion-skin-canvas');
+        const dragOverlay   = document.getElementById('bg-drag-overlay');
+        if (onionCanvasEl && onionCanvasEl.parentNode === canvas) onionCanvasEl.remove();
+        if (dragOverlay    && dragOverlay.parentNode    === canvas) dragOverlay.remove();
 
         const f = frames[currentIdx];
         const bg = f.background || '#ffffff';
@@ -2217,36 +2255,39 @@
 
         if (isImageUrl) {
             canvas.style.backgroundColor = 'transparent';
-            // Use an oversized inner div (300% canvas) so the full image is always
-            // available when user pans or zooms out — no more empty cropped edges
-            const inner = document.createElement('div');
-            const oversize = 3; // inner div is 3x canvas size, centered
-            const offsetPct = -(oversize - 1) / 2 * 100; // -100% to center a 300% div
-            const bgSizePct = scale * oversize; // scale relative to the oversized div
-            const bgPosX = 50 + xOff;
-            const bgPosY = 50 + yOff;
             if (isAnimated) {
-                inner.style.cssText = `position:absolute;
-                    left:${offsetPct}%;top:${offsetPct}%;
-                    width:${oversize * 100}%;height:${oversize * 100}%;
-                    display:flex;align-items:center;justify-content:center;
-                    transform:rotate(${rotate}deg);transform-origin:center center;`;
+                // GIF/WebP: use <img> element so animation plays.
+                // Scale = image displayed width as % of canvas width (preserves AR).
+                // Translate using CSS background-position convention: (50+x)% (50+y)%.
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
                 const img = document.createElement('img');
                 img.src = bg;
-                img.style.cssText = `width:${scale}%;height:auto;min-height:${scale}%;
-                    object-fit:contain;pointer-events:none;
-                    transform:translate(${xOff * oversize}%, ${yOff * oversize}%);`;
-                inner.appendChild(img);
+                // We can't know AR until loaded, so we use a sizing trick:
+                // width: scale%, height: auto preserves AR.
+                // Then translate by (xOff)% of container and rotate around centre.
+                img.style.cssText = `
+                    position:absolute;
+                    width:${scale}%; height:auto;
+                    top:50%; left:50%;
+                    transform-origin:0 0;
+                    transform:translate(calc(-50% + ${xOff * scale / 100}%), calc(-50% + ${yOff * scale / 100}%)) rotate(${rotate}deg);
+                    pointer-events:none;`;
+                wrapper.appendChild(img);
+                bgLayer.appendChild(wrapper);
             } else {
-                inner.style.cssText = `position:absolute;
-                    left:${offsetPct}%;top:${offsetPct}%;
-                    width:${oversize * 100}%;height:${oversize * 100}%;
-                    background:url(${bg}) no-repeat;
-                    background-size:${bgSizePct / oversize}%;
-                    background-position:${bgPosX}% ${bgPosY}%;
-                    transform:rotate(${rotate}deg);transform-origin:center center;`;
+                // Static image — use background-image CSS so it matches frameToCanvas exactly.
+                // background-size: ${scale}% auto  → displayed width = canvas.width * scale/100, AR preserved
+                // background-position: ${50+xOff}% ${50+yOff}%  → CSS standard position formula
+                // rotate via transform on bgLayer itself.
+                bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')}")`;
+                bgLayer.style.backgroundRepeat   = 'no-repeat';
+                bgLayer.style.backgroundSize     = `${scale}% auto`;
+                bgLayer.style.backgroundPosition = `${50 + xOff}% ${50 + yOff}%`;
+                bgLayer.style.transform          = `rotate(${rotate}deg)`;
+                bgLayer.style.transformOrigin    = 'center center';
+                bgLayer.style.overflow           = 'hidden';
             }
-            bgLayer.appendChild(inner);
         } else if (isGradient) {
             canvas.style.backgroundColor = 'transparent';
             const inner = document.createElement('div');
@@ -2259,7 +2300,13 @@
             canvas.style.backgroundColor = bg;
         }
 
-        canvas.insertBefore(bgLayer, canvas.firstChild);
+        // Now clear the canvas and rebuild fresh, then restore preserved elements
+        canvas.innerHTML = '';
+        canvas.appendChild(bgLayer);
+        // Onion canvas sits at z-index:5 — above bg (0) but below layers (10)
+        if (onionCanvasEl) canvas.appendChild(onionCanvasEl);
+        // Drag overlay always on top of bg but below any modal overlays
+        if (dragOverlay) canvas.appendChild(dragOverlay);
 
         const onionOn = document.getElementById('onion-toggle').checked;
         if(onionOn && currentIdx > 0) {
@@ -2321,14 +2368,20 @@
                     const isCloud = bStyle === 'cloud';
                     const thoughtDots = isCloud ? '<div class="thought-dot-1"></div><div class="thought-dot-2"></div><div class="thought-dot-3"></div>' : '';
                     const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
+                    // tailFlip: true = flip tail to the right side of the bubble
+                    const tailFlipStyle = l.tailFlip ? 'position:absolute;bottom:0;left:0;right:0;height:0;transform:scaleX(-1);transform-origin:center;' : '';
                     // Border/bg overrides stored on layer
                     const bubBorder = l.bubbleBorderColor || '#000';
                     const bubBg     = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
                     const inlineStyle = `--bubble-border:${bubBorder}; --bubble-bg:${bubBg}; border-color:${bubBorder}; background:${bubBg};`;
+                    // Wrap the tail in a flip container when tailFlip is set
+                    const tailEl = showTail ? (l.tailFlip
+                        ? `<div style="position:absolute;inset:0;transform:scaleX(-1);pointer-events:none;"><div class="bubble-tail"></div></div>`
+                        : '<div class="bubble-tail"></div>') : '';
                     el.innerHTML = `
                         <div class="speech-bubble bubble-style-${bStyle}" style="${inlineStyle} font-size:${fs}px; font-family:${ff}; color:${textColor}; font-weight:${boldW}; font-style:${italicS}; text-align:${alignS}; text-decoration:${decoB};">
                             ${l.content}
-                            ${showTail ? '<div class="bubble-tail"></div>' : ''}
+                            ${tailEl}
                             ${thoughtDots}
                         </div>`;
                 } else if (l.type === 'subtitle') {
@@ -2654,6 +2707,12 @@
                     document.getElementById('bubble-bg-color').value = activeLayer.bubbleBg || '#ffffff';
                     document.getElementById('bubble-border-color').value = activeLayer.bubbleBorderColor || '#000000';
                     populateBubbleMiniGrid();
+                    // Sync tail flip buttons
+                    const tf = !!activeLayer.tailFlip;
+                    const lBtn = document.getElementById('bubble-tail-left-btn');
+                    const rBtn = document.getElementById('bubble-tail-right-btn');
+                    if (lBtn) { lBtn.style.borderColor=tf?'#333':'var(--accent)'; lBtn.style.background=tf?'#111':'rgba(255,122,0,.15)'; lBtn.style.color=tf?'#666':'var(--accent)'; }
+                    if (rBtn) { rBtn.style.borderColor=tf?'var(--accent)':'#333'; rBtn.style.background=tf?'rgba(255,122,0,.15)':'#111'; rBtn.style.color=tf?'var(--accent)':'#666'; }
                 }
             }
         }
@@ -2696,11 +2755,11 @@
                     }]).select('id').single();
                     if (inserted) {
                         activeDraftId = inserted.id;
-                        localStorage.setItem('active_draft_id', activeDraftId);
+                        lsSet('active_draft_id', activeDraftId);
                         // Remove from localStorage now that it's in Supabase
                         const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
                         const cleaned  = lsDrafts.filter(d => d.id != activeDraftId);
-                        localStorage.setItem('comic_drafts', JSON.stringify(cleaned));
+                        lsSet('comic_drafts', JSON.stringify(cleaned));
                     }
                 }
                 hasUnsavedChanges = false;
@@ -2728,10 +2787,10 @@
             const id    = Date.now();
             drafts.push({ id, title, data: frames, ratio, lastModified: new Date().toLocaleString() });
             activeDraftId = id;
-            localStorage.setItem('active_draft_id', id);
+            lsSet('active_draft_id', id);
         }
         try {
-            localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+            lsSet('comic_drafts', JSON.stringify(drafts));
             hasUnsavedChanges = false;
             if (!silent) {
                 const btn = document.querySelector('.tb-btn[onclick*="saveOffline"]');
@@ -2921,6 +2980,7 @@
 
     let _bubblePickerMode = 'speech';
     let _bubblePickerSelected = 'round';
+    let _bubbleTailFlip = false; // false=left tail, true=right tail
 
     function populateBubbleMiniGrid() {
         if (!activeLayer) return;
@@ -2937,11 +2997,37 @@
         });
     }
 
+    function setBubbleTailFlip(flipped) {
+        if (!activeLayer) return;
+        saveState();
+        activeLayer.tailFlip = flipped;
+        // Update button highlight
+        const lBtn = document.getElementById('bubble-tail-left-btn');
+        const rBtn = document.getElementById('bubble-tail-right-btn');
+        if (lBtn) {
+            lBtn.style.borderColor  = flipped ? '#333' : 'var(--accent)';
+            lBtn.style.background   = flipped ? '#111' : 'rgba(255,122,0,.15)';
+            lBtn.style.color        = flipped ? '#666' : 'var(--accent)';
+        }
+        if (rBtn) {
+            rBtn.style.borderColor  = flipped ? 'var(--accent)' : '#333';
+            rBtn.style.background   = flipped ? 'rgba(255,122,0,.15)' : '#111';
+            rBtn.style.color        = flipped ? 'var(--accent)' : '#666';
+        }
+        render();
+    }
+
     function openBubblePicker(mode) {
         _bubblePickerMode = mode;
         _bubblePickerSelected = _bubblePickerSelected || 'round';
+        _bubbleTailFlip = false;
         document.getElementById('bubble-picker-title').textContent = '💬 Add Bubble';
         document.getElementById('bubble-picker-text').value = '';
+        // Reset tail direction buttons
+        const tLeft  = document.getElementById('bpick-tail-left');
+        const tRight = document.getElementById('bpick-tail-right');
+        if (tLeft)  { tLeft.style.background='rgba(255,122,0,.18)'; tLeft.style.borderColor='var(--accent)'; tLeft.style.color='var(--accent)'; }
+        if (tRight) { tRight.style.background='#111'; tRight.style.borderColor='#333'; tRight.style.color='#666'; }
 
         const grid = document.getElementById('bubble-style-grid');
         grid.innerHTML = '';
@@ -2956,6 +3042,10 @@
                 grid.querySelectorAll('[data-bid]').forEach(c => {
                     c.style.borderColor = c.dataset.bid === _bubblePickerSelected ? 'var(--accent)' : '#333';
                 });
+                // Show/hide tail direction row based on whether this style has a tail
+                const hasTail = !['spiky','shout','electric','narrator','cloud'].includes(s.id);
+                const tailRow = document.getElementById('bubble-tail-row');
+                if (tailRow) tailRow.style.display = hasTail ? 'flex' : 'none';
             };
             grid.appendChild(card);
         });
@@ -2978,10 +3068,12 @@
         const nl = {
             type, content: txt,
             bubbleStyle: _bubblePickerSelected,
-            x: Math.round((canvas.getBoundingClientRect().width - 180) / 2),
-            y: Math.round(canvas.getBoundingClientRect().height / 2 - 60),
+            tailFlip: _bubbleTailFlip,
+            x: Math.round((canvas.offsetWidth - 180) / 2),
+            y: Math.round(canvas.offsetHeight / 2 - 60),
             w: 180, fontSize: 22, fontFamily: "'Inter', sans-serif", id: Date.now()
         };
+        _bubbleTailFlip = false; // reset for next time
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
         render();
@@ -2996,17 +3088,58 @@
     function addText(mode) { 
         if (mode === 'standard') { openBubblePicker('speech'); return; }
         if (mode === 'thinking') { openBubblePicker('thinking'); return; }
-        const txt = prompt("Enter text:"); 
-        if(txt) { 
-            saveState(); 
-            const nl = { 
-                type: 'text', 
-                content: txt, x: Math.round((canvas.getBoundingClientRect().width - 180) / 2), y: Math.round(canvas.getBoundingClientRect().height / 2 - 60), w: 180, 
-                fontSize: 28, fontFamily: "'Inter', sans-serif", id: Date.now() 
-            };
-            frames[currentIdx].layers.push(nl); 
-            activeLayer = nl; render(); 
-        } 
+        // Open the inline text entry modal instead of a blocking prompt()
+        openTextEntryModal();
+    }
+
+    function openTextEntryModal() {
+        let modal = document.getElementById('text-entry-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'text-entry-modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
+            modal.innerHTML = `
+                <div style="background:#1c1c1e;border:1px solid #333;border-radius:20px;padding:24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:14px;font-weight:900;color:var(--accent);letter-spacing:1px;">✍️ ADD TEXT</span>
+                        <button onclick="document.getElementById('text-entry-modal').remove()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+                    </div>
+                    <textarea id="text-entry-input" placeholder="Type your text here..." rows="3"
+                        style="background:#111;border:1px solid #333;color:#fff;border-radius:10px;padding:10px 12px;font-size:15px;font-family:'Inter',sans-serif;resize:none;outline:none;line-height:1.4;"
+                        onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){confirmTextEntry();}"></textarea>
+                    <div style="display:flex;gap:8px;">
+                        <button onclick="document.getElementById('text-entry-modal').remove()" style="flex:1;padding:12px;background:#2c2c2e;color:#aaa;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+                        <button onclick="confirmTextEntry()" style="flex:2;padding:12px;background:var(--accent);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;">Add Text ↵</button>
+                    </div>
+                    <div style="font-size:10px;color:#444;text-align:center;">Ctrl+Enter to confirm</div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('text-entry-input')?.focus(), 80);
+    }
+
+    function confirmTextEntry() {
+        const input = document.getElementById('text-entry-input');
+        if (!input) return;
+        const txt = input.value.trim();
+        document.getElementById('text-entry-modal')?.remove();
+        if (!txt) return;
+        saveState();
+        const nl = {
+            type: 'text',
+            content: txt,
+            x: Math.round((canvas.offsetWidth - 180) / 2),
+            y: Math.round(canvas.offsetHeight / 2 - 40),
+            w: 180,
+            fontSize: 28,
+            fontFamily: "'Inter', sans-serif",
+            id: Date.now()
+        };
+        frames[currentIdx].layers.push(nl);
+        activeLayer = nl;
+        render();
+        setTimeout(() => showFloatToolbar(nl), 30);
     }
     
     
@@ -3015,22 +3148,22 @@
     let bgClipboard = null;
 
     function copyLayer() {
-        if (!activeLayer) return alert("Select a layer first!");
+        if (!activeLayer) { showKbFlash('Select a layer first'); return; }
         layerClipboard = JSON.parse(JSON.stringify(activeLayer));
-        alert("Layer copied!");
+        showKbFlash('📄 Layer copied!');
     }
 
     function pasteLayer() {
-        if (!layerClipboard) return alert("Nothing copied yet!");
+        if (!layerClipboard) { showKbFlash('Nothing copied yet'); return; }
         saveState();
         const pasted = JSON.parse(JSON.stringify(layerClipboard));
         pasted.id = Date.now();
-        const canvasRect = canvas.getBoundingClientRect();
-        pasted.x = Math.min((pasted.x || 0) + 20, canvasRect.width  - (pasted.w || 100));
-        pasted.y = Math.min((pasted.y || 0) + 20, canvasRect.height - (pasted.w || 100));
+        pasted.x = Math.min((pasted.x || 0) + 20, canvas.offsetWidth  - (pasted.w || 100));
+        pasted.y = Math.min((pasted.y || 0) + 20, canvas.offsetHeight - (pasted.w || 100));
         frames[currentIdx].layers.push(pasted);
         activeLayer = pasted;
         render();
+        showKbFlash('📋 Layer pasted!');
     }
 
     // ── Background copy/paste ──
@@ -3067,26 +3200,24 @@
     function centerLayer() {
         if (!activeLayer) return;
         saveState();
-        const canvasRect = canvas.getBoundingClientRect();
         const layerW = activeLayer.w || 100;
         const layerH = activeLayer.h || (activeLayer.fontSize ? activeLayer.fontSize * 2 : layerW);
-        activeLayer.x = Math.round((canvasRect.width  - layerW) / 2);
-        activeLayer.y = Math.round((canvasRect.height - layerH) / 2);
+        activeLayer.x = Math.round((canvas.offsetWidth  - layerW) / 2);
+        activeLayer.y = Math.round((canvas.offsetHeight - layerH) / 2);
         render();
     }
 
     function alignLayer(hAlign, vAlign) {
         if (!activeLayer) return;
         saveState();
-        const canvasRect = canvas.getBoundingClientRect();
         const layerW = activeLayer.w || 100;
         const layerH = activeLayer.h || (activeLayer.fontSize ? activeLayer.fontSize * 2 : layerW);
         if (hAlign === 'left')   activeLayer.x = 0;
-        if (hAlign === 'center') activeLayer.x = Math.round((canvasRect.width - layerW) / 2);
-        if (hAlign === 'right')  activeLayer.x = Math.round(canvasRect.width - layerW);
+        if (hAlign === 'center') activeLayer.x = Math.round((canvas.offsetWidth - layerW) / 2);
+        if (hAlign === 'right')  activeLayer.x = Math.round(canvas.offsetWidth - layerW);
         if (vAlign === 'top')    activeLayer.y = 0;
-        if (vAlign === 'middle') activeLayer.y = Math.round((canvasRect.height - layerH) / 2);
-        if (vAlign === 'bottom') activeLayer.y = Math.round(canvasRect.height - layerH);
+        if (vAlign === 'middle') activeLayer.y = Math.round((canvas.offsetHeight - layerH) / 2);
+        if (vAlign === 'bottom') activeLayer.y = Math.round(canvas.offsetHeight - layerH);
         render();
     }
 
@@ -3155,13 +3286,14 @@
 
     function setRatio(w, h) {
         canvasRatio = { w, h };
-        localStorage.setItem('cc-active-ratio', JSON.stringify({ w, h }));
+        lsSet('cc-active-ratio', JSON.stringify({ w, h }));
         const cw = w >= h ? BASE_SIZE : Math.round(BASE_SIZE * w / h);
         const ch = h >= w ? BASE_SIZE : Math.round(BASE_SIZE * h / w);
         canvas.style.width  = cw + 'px';
         canvas.style.height = ch + 'px';
-        onionCanvas.setAttribute('width',  cw);
-        onionCanvas.setAttribute('height', ch);
+        // Onion canvas must exactly match the frame pixel size
+        onionCanvas.width  = cw;
+        onionCanvas.height = ch;
         onionCanvas.style.width  = cw + 'px';
         onionCanvas.style.height = ch + 'px';
         render();
@@ -3305,24 +3437,79 @@
 
     function ftbDelete() {
         if (!activeLayer) return;
-        if (!confirm('Delete this layer?')) return;
-        frames[currentIdx].layers = frames[currentIdx].layers.filter(l => l !== activeLayer);
-        activeLayer = null;
-        hideFloatToolbar();
-        render();
+        // Quick inline confirmation toast instead of blocking confirm()
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:#1c1c1e;border:1px solid #ff453a;color:#fff;padding:14px 18px;border-radius:14px;z-index:9500;display:flex;gap:12px;align-items:center;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.7);';
+        toast.innerHTML = `<span>Delete this layer?</span>
+            <button onclick="this.closest('[style]').remove()" style="background:#333;color:#aaa;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;">No</button>
+            <button id="ftb-del-confirm-btn" style="background:#ff453a;color:#fff;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:900;">Delete</button>`;
+        document.body.appendChild(toast);
+        document.getElementById('ftb-del-confirm-btn').onclick = () => {
+            toast.remove();
+            if (!activeLayer) return;
+            frames[currentIdx].layers = frames[currentIdx].layers.filter(l => l !== activeLayer);
+            activeLayer = null;
+            hideFloatToolbar();
+            render();
+        };
+        setTimeout(() => { if (toast.isConnected) toast.remove(); }, 4000);
     }
 
     function ftbMore() {
         if (!activeLayer) return;
+        openInlineTextEditModal(activeLayer);
+    }
+
+    function openInlineTextEditModal(layer) {
+        let modal = document.getElementById('inline-text-edit-modal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'inline-text-edit-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
+        const isSubtitle = layer.type === 'subtitle';
+        const extraRow = isSubtitle ? `
+            <div style="display:flex;flex-direction:column;gap:6px;">
+                <label style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">Character Name</label>
+                <input id="ite-char-name" value="${(layer.characterName||'CHARACTER').replace(/"/g,'&quot;')}"
+                    style="background:#111;border:1px solid #333;color:var(--accent);border-radius:8px;padding:8px 10px;font-size:13px;font-weight:700;font-family:inherit;outline:none;">
+            </div>` : '';
+        modal.innerHTML = `
+            <div style="background:#1c1c1e;border:1px solid #333;border-radius:20px;padding:24px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:14px;font-weight:900;color:var(--accent);letter-spacing:1px;">✏️ EDIT TEXT</span>
+                    <button onclick="document.getElementById('inline-text-edit-modal').remove()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+                </div>
+                ${extraRow}
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <label style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">${isSubtitle?'Dialogue':'Text'}</label>
+                    <textarea id="ite-content" rows="4"
+                        style="background:#111;border:1px solid #333;color:#fff;border-radius:10px;padding:10px 12px;font-size:15px;font-family:'Inter',sans-serif;resize:vertical;outline:none;line-height:1.4;"
+                        onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){confirmInlineTextEdit();}">${(layer.content||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button onclick="document.getElementById('inline-text-edit-modal').remove()" style="flex:1;padding:12px;background:#2c2c2e;color:#aaa;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+                    <button onclick="confirmInlineTextEdit()" style="flex:2;padding:12px;background:var(--accent);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;">Apply ✓</button>
+                </div>
+                <div style="font-size:10px;color:#444;text-align:center;">Ctrl+Enter to apply</div>
+            </div>`;
+        document.body.appendChild(modal);
+        // Populate textarea AFTER insertion (avoids HTML-entity issues with innerHTML)
+        document.getElementById('ite-content').value = layer.content || '';
+        if (isSubtitle) document.getElementById('ite-char-name').value = layer.characterName || 'CHARACTER';
+        setTimeout(() => document.getElementById('ite-content')?.focus(), 80);
+    }
+
+    function confirmInlineTextEdit() {
+        if (!activeLayer) return;
+        const contentEl = document.getElementById('ite-content');
+        if (!contentEl) return;
+        saveState();
+        activeLayer.content = contentEl.value;
         if (activeLayer.type === 'subtitle') {
-            const charName = prompt('Character name:', activeLayer.characterName || 'CHARACTER');
-            if (charName !== null) activeLayer.characterName = charName.toUpperCase();
-            const dialogue = prompt('Dialogue:', activeLayer.content || '');
-            if (dialogue !== null) activeLayer.content = dialogue;
-        } else {
-            const newText = prompt('Edit text:', activeLayer.content || '');
-            if (newText !== null) activeLayer.content = newText;
+            const charEl = document.getElementById('ite-char-name');
+            if (charEl) activeLayer.characterName = charEl.value.toUpperCase();
         }
+        document.getElementById('inline-text-edit-modal')?.remove();
         render();
         showFloatToolbar(activeLayer);
     }
@@ -3360,22 +3547,32 @@
         const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
 
         if (isBgImage) {
-            // Draw background image, respecting bgSettings scale/position
+            // Draw background image, respecting bgSettings scale/position.
+            // This mirrors the CSS `background-size: scale%; background-position: (50+x)% (50+y)%`
+            // behaviour used in the editor's render() so the export matches WYSIWYG.
             await new Promise(res => {
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
                     const s      = f.bgSettings || {};
-                    const scale  = (s.scale  ?? 100) / 100;
-                    const xOff   = ((s.x ?? 0) / 100) * offW;
-                    const yOff   = ((s.y ?? 0) / 100) * offH;
-                    const rotate = ((s.rotate ?? 0) * Math.PI) / 180;
-                    const drawW  = offW * scale;
-                    const drawH  = offH * scale;
+                    // scale% of canvas width (matching CSS background-size semantics)
+                    const scalePercent = (s.scale ?? 100) / 100;
+                    const rotate       = ((s.rotate ?? 0) * Math.PI) / 180;
+                    // Preserve the image's natural aspect ratio (the CSS does this automatically)
+                    const imgAR = img.naturalWidth / img.naturalHeight;
+                    const drawW = offW * scalePercent;
+                    const drawH = drawW / imgAR;
+                    // CSS background-position formula: pos = (containerSize - imageSize) * fraction
+                    const bgPosXfrac = (50 + (s.x ?? 0)) / 100;
+                    const bgPosYfrac = (50 + (s.y ?? 0)) / 100;
+                    const posX = (offW - drawW) * bgPosXfrac;
+                    const posY = (offH - drawH) * bgPosYfrac;
                     ctx.save();
-                    ctx.translate(offW / 2 + xOff, offH / 2 + yOff);
+                    // Rotate around canvas centre (mirrors CSS transform-origin:center on the bg div)
+                    ctx.translate(offW / 2, offH / 2);
                     ctx.rotate(rotate);
-                    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+                    ctx.translate(-offW / 2, -offH / 2);
+                    ctx.drawImage(img, posX, posY, drawW, drawH);
                     ctx.restore();
                     res();
                 };
@@ -3448,29 +3645,101 @@
                     img.src = l.src;
                 });
             } else {
-                // Text / bubble layers
-                const fs = (l.fontSize || 28) * scaleX;
+                // ── Text / bubble / thinking / subtitle layers ──
+                // Render via SVG foreignObject → Image so the exported frame matches
+                // the actual CSS-rendered appearance seen in the editor exactly.
+                const bx = Math.round(l.x * scaleX);
+                const by = Math.round(l.y * scaleY);
+                const bw = Math.round(l.w * scaleX);
+                const fs = Math.round((l.fontSize || 28) * scaleX);
                 const ff = l.fontFamily || "'Inter', sans-serif";
-                ctx.save();
-                ctx.font = `${l.bold ? '900' : '700'} ${fs}px ${ff}`;
-                ctx.fillStyle = l.color || '#000';
-                ctx.textAlign = l.align || 'left';
-                // Simple bubble box
+                const boldW = l.bold ? '900' : '800';
+                const italicS = l.italic ? 'italic' : 'normal';
+                const deco  = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+                const alignS = l.align || 'center';
+                const textColor = l.color || '#000';
+
+                let innerHtml = '';
                 if (l.type === 'bubble' || l.type === 'thinking') {
-                    const bx = l.x * scaleX, by = l.y * scaleY;
-                    const bw = l.w * scaleX;
-                    ctx.fillStyle = '#fff';
-                    ctx.strokeStyle = '#000';
-                    ctx.lineWidth = 2 * scaleX;
-                    ctx.beginPath();
-                    ctx.roundRect(bx, by, bw, fs * 2, 12 * scaleX);
-                    ctx.fill(); ctx.stroke();
-                    ctx.fillStyle = l.color || '#000';
-                    ctx.fillText(l.content || '', bx + 10 * scaleX, by + fs * 1.3, bw - 20 * scaleX);
+                    const bStyle = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
+                    const bubBg  = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
+                    const bubBorder = l.bubbleBorderColor || '#000';
+                    const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
+                    const isCloud  = bStyle === 'cloud';
+                    const tailFlipped = l.tailFlip ? 'transform:scaleX(-1);' : '';
+                    const thoughtDots = isCloud
+                        ? `<div style="position:absolute;width:12px;height:12px;bottom:-20px;left:24px;background:${bubBg};border:3px solid ${bubBorder};border-radius:50%;"></div>
+                           <div style="position:absolute;width:8px;height:8px;bottom:-32px;left:18px;background:${bubBg};border:2.5px solid ${bubBorder};border-radius:50%;"></div>
+                           <div style="position:absolute;width:5px;height:5px;bottom:-40px;left:13px;background:${bubBg};border:2px solid ${bubBorder};border-radius:50%;"></div>` : '';
+
+                    // Build tail HTML for styles that have a tail
+                    let tailHtml = '';
+                    if (showTail) {
+                        if (bStyle === 'round' || bStyle === 'whisper') {
+                            tailHtml = `<div style="position:absolute;bottom:-20px;left:28px;width:0;height:0;border-left:12px solid transparent;border-right:4px solid transparent;border-top:20px solid ${bubBorder};${tailFlipped}">
+                                <div style="position:absolute;top:-19px;left:-9px;width:0;height:0;border-left:8px solid transparent;border-right:2px solid transparent;border-top:16px solid ${bubBg};"></div></div>`;
+                        } else if (bStyle === 'chat') {
+                            tailHtml = `<div style="position:absolute;bottom:-18px;right:24px;width:0;height:0;border-left:14px solid transparent;border-top:18px solid ${bubBorder};${tailFlipped}">
+                                <div style="position:absolute;top:-17px;left:-11px;width:0;height:0;border-left:10px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
+                        } else if (bStyle === 'rect') {
+                            tailHtml = `<div style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:18px solid ${bubBorder};">
+                                <div style="position:absolute;top:-17px;left:-9px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
+                        }
+                    }
+
+                    // Clip-path shapes
+                    const clipPaths = {
+                        spiky:    'polygon(50% 0%,58% 16%,72% 8%,73% 24%,87% 18%,84% 34%,99% 33%,90% 46%,100% 56%,84% 58%,90% 72%,74% 70%,73% 85%,59% 77%,50% 90%,41% 77%,27% 85%,26% 70%,10% 72%,16% 58%,0% 56%,10% 46%,1% 33%,16% 34%,13% 18%,27% 24%,28% 8%,42% 16%)',
+                        shout:    'polygon(5% 10%,20% 0%,35% 10%,50% 0%,65% 10%,80% 0%,95% 10%,100% 30%,95% 50%,100% 70%,95% 90%,80% 100%,65% 90%,50% 100%,35% 90%,20% 100%,5% 90%,0% 70%,5% 50%,0% 30%)',
+                        electric: 'polygon(8% 0%,92% 0%,100% 8%,100% 92%,92% 100%,65% 100%,60% 115%,52% 100%,8% 100%,0% 92%,0% 8%)',
+                    };
+                    const clipStyle = clipPaths[bStyle] ? `clip-path:${clipPaths[bStyle]};` : '';
+                    const borderRadius = bStyle === 'cloud' ? '50%' : bStyle === 'chat' ? '18px' : bStyle === 'rect' ? '4px' : bStyle === 'narrator' ? '6px' : '999px';
+                    const extraBorder = bStyle === 'narrator' ? `border-left:6px solid ${bubBorder};` : '';
+
+                    innerHtml = `<div style="font-family:${ff};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};text-decoration:${deco};color:${textColor};text-align:${alignS};background:${bubBg};border:3.5px solid ${bubBorder};border-radius:${borderRadius};padding:14px 18px;position:relative;overflow:visible;word-wrap:break-word;line-height:1.35;box-sizing:border-box;width:${bw}px;${clipStyle}${extraBorder}">
+                        ${l.content || ''}${tailHtml}${thoughtDots}</div>`;
+                } else if (l.type === 'subtitle') {
+                    const nameColor = l.nameColor || '#ff9500';
+                    const subFs  = Math.round(fs * 0.55);
+                    innerHtml = `<div style="width:${bw}px;box-sizing:border-box;">
+                        <div style="background:${nameColor};color:#fff;font-size:${Math.max(10,subFs)}px;font-weight:900;font-family:${ff};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;text-align:${alignS};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.characterName || 'CHARACTER'}</div>
+                        <div style="background:rgba(255,255,255,0.96);color:${textColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,0.1);border-top:none;box-sizing:border-box;">${l.content || ''}</div>
+                    </div>`;
                 } else {
-                    ctx.fillText(l.content || '', l.x * scaleX, (l.y + (l.fontSize || 28)) * scaleY, l.w * scaleX);
+                    // Plain text
+                    innerHtml = `<div style="font-family:${ff};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};text-decoration:${deco};color:${textColor};text-align:${alignS};white-space:pre-wrap;word-wrap:break-word;line-height:1.3;width:${bw}px;box-sizing:border-box;">${(l.content || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
                 }
-                ctx.restore();
+
+                // Render HTML into an image via SVG foreignObject, then draw onto canvas
+                await new Promise(res => {
+                    try {
+                        const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${bw + 60}" height="${offH}">
+                            <foreignObject width="${bw + 60}" height="${offH}">
+                                <div xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;overflow:visible;">${innerHtml}</div>
+                            </foreignObject>
+                        </svg>`;
+                        const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+                        const url  = URL.createObjectURL(blob);
+                        const img  = new Image();
+                        img.onload = () => {
+                            ctx.drawImage(img, bx, by);
+                            URL.revokeObjectURL(url);
+                            res();
+                        };
+                        img.onerror = () => {
+                            // Fallback: plain fillText
+                            ctx.save();
+                            ctx.font = `${boldW} ${fs}px ${ff}`;
+                            ctx.fillStyle = textColor;
+                            ctx.fillText(l.content || '', bx, by + fs, bw);
+                            ctx.restore();
+                            URL.revokeObjectURL(url);
+                            res();
+                        };
+                        img.src = url;
+                    } catch(e) { res(); }
+                });
             }
         }
         return offscreen;
@@ -3619,10 +3888,46 @@
     }
 
     function addSubtitle() {
-        const charName = prompt('Character name:', 'CHARACTER');
-        if (charName === null) return;
-        const dialogue = prompt('Dialogue:', 'What they say...');
-        if (dialogue === null) return;
+        // Open text-entry modal pre-configured for subtitle mode
+        let modal = document.getElementById('subtitle-entry-modal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'subtitle-entry-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
+        modal.innerHTML = `
+            <div style="background:#1c1c1e;border:1px solid #333;border-radius:20px;padding:24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:14px;font-weight:900;color:var(--accent);letter-spacing:1px;">📋 ADD SUBTITLE</span>
+                    <button onclick="document.getElementById('subtitle-entry-modal').remove()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <label style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">Character Name</label>
+                    <input id="sub-char-input" value="CHARACTER" placeholder="CHARACTER"
+                        style="background:#111;border:1px solid #333;color:var(--accent);border-radius:8px;padding:8px 10px;font-size:13px;font-weight:700;font-family:inherit;outline:none;">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <label style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">Dialogue</label>
+                    <textarea id="sub-dialogue-input" placeholder="What they say..." rows="3"
+                        style="background:#111;border:1px solid #333;color:#fff;border-radius:10px;padding:10px 12px;font-size:14px;font-family:'Inter',sans-serif;resize:none;outline:none;line-height:1.4;"
+                        onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){confirmSubtitleEntry();}"></textarea>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button onclick="document.getElementById('subtitle-entry-modal').remove()" style="flex:1;padding:12px;background:#2c2c2e;color:#aaa;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+                    <button onclick="confirmSubtitleEntry()" style="flex:2;padding:12px;background:var(--accent);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;">Add Subtitle ↵</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        setTimeout(() => document.getElementById('sub-char-input')?.focus(), 80);
+    }
+
+    function confirmSubtitleEntry() {
+        const charEl = document.getElementById('sub-char-input');
+        const diagEl = document.getElementById('sub-dialogue-input');
+        if (!charEl || !diagEl) return;
+        const charName = charEl.value.trim() || 'CHARACTER';
+        const dialogue = diagEl.value.trim();
+        document.getElementById('subtitle-entry-modal')?.remove();
+        if (!dialogue) return;
         saveState();
         const nl = {
             type: 'subtitle',
@@ -3630,17 +3935,18 @@
             content: dialogue,
             color: '#111',
             nameColor: '#ff9500',
-            x: Math.round((canvas.getBoundingClientRect().width  * 0.1)),
-            y: Math.round((canvas.getBoundingClientRect().height * 0.75)),
-            w: Math.round((canvas.getBoundingClientRect().width  * 0.8)),
+            x: Math.round(canvas.offsetWidth  * 0.1),
+            y: Math.round(canvas.offsetHeight * 0.75),
+            w: Math.round(canvas.offsetWidth  * 0.8),
             fontSize: 20,
             fontFamily: "'Inter', sans-serif",
             bold: false, italic: false, align: 'left',
+            id: Date.now(),
         };
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
         render();
-        setTimeout(() => showFloatToolbar(nl), 20);
+        setTimeout(() => showFloatToolbar(nl), 30);
     }
 
     // ═══════════════════════════════════════
@@ -3921,7 +4227,7 @@
             image_data: activeLayer.src,
             actions: activeLayer.packData?.actions || {}
         };
-        localStorage.setItem('save_sprite_to_personal', JSON.stringify(pack));
+        lsSet('save_sprite_to_personal', JSON.stringify(pack));
         // Save directly via supabase without navigating away
         _supabase.from('user_sprites').insert([{
             owner_handle: profile.handle,
@@ -4380,7 +4686,7 @@
 
             div.onclick = async () => {
                 // Track last-used for sort
-                localStorage.setItem('sprite-used-' + pack.id, Date.now());
+                lsSet('sprite-used-' + pack.id, Date.now());
                 // Need full data (image_data + actions) before opening modal
                 const hasFull = pack.image_data && pack.actions !== undefined;
                 if (hasFull) {
@@ -4549,7 +4855,7 @@
         grid.innerHTML = '';
         filtered.forEach(bg => {
             const card = document.createElement('div');
-            card.style.cssText = 'width:100%;height:64px;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;transition:.15s;position:relative;background:#0a0a0a;flex-shrink:0;';
+            card.style.cssText = 'aspect-ratio:16/10;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;transition:.15s;position:relative;background:#0a0a0a;flex-shrink:0;';
             card.onmouseover = () => card.style.borderColor = '#ff7a00';
             card.onmouseout  = () => card.style.borderColor = '#1e1e1e';
 
@@ -4587,7 +4893,7 @@
     const EFX_META_KEY = 'cc_effects_meta_v1';
     const EFX_META_TTL = 10 * 60 * 1000;
     const EFX_FULL_TTL = 30 * 60 * 1000;
-    const EFX_CACHE_VER = 'v1';
+    const EFX_CACHE_VER = 'v2';
 
     function efxSaveMetaCache(data) {
         const lean = (data||[]).map(({id,name,tags,creator,created_at}) => ({id,name,tags,creator,created_at}));
@@ -4698,11 +5004,13 @@
                     obs.disconnect();
                     const cached2 = efxGetImg(pack.id);
                     if (cached2) { const old=div.querySelector('div'); if(old){const img=document.createElement('img');img.src=cached2;img.className='sb-loaded';old.replaceWith(img);} return; }
-                    _supabase.from('effects_library').select('image_data').eq('id',pack.id).single().then(({data})=>{
+                    // Fetch image_data AND actions so the full cache is populated correctly
+                    _supabase.from('effects_library').select('image_data,actions').eq('id',pack.id).single().then(({data})=>{
                         if (!data?.image_data) return;
                         efxSetImg(pack.id, data.image_data);
-                        efxSetFull(pack.id, data.image_data, data.actions);
+                        efxSetFull(pack.id, data.image_data, data.actions || {});
                         pack.image_data = data.image_data;
+                        if (data.actions) pack.actions = data.actions;
                         const old = div.querySelector('div');
                         if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
                     });
@@ -4710,7 +5018,7 @@
                 obs.observe(div);
             }
             div.onclick = async () => {
-                localStorage.setItem('efx-used-'+pack.id, Date.now());
+                lsSet('efx-used-'+pack.id, Date.now());
                 // Fetch full pack data then open effect picker modal
                 const cached = efxGetFull(pack.id);
                 if (cached) {
@@ -4742,10 +5050,12 @@
         main.onclick = () => { addEffectToCanvas(pack.image_data, pack); closeActionModal(); };
         grid.appendChild(main);
 
-        // Individual effects in the pack
+        // Individual effects in the pack — handle both Object and Array formats
         let actions = pack.actions;
         if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) { actions = {}; }
-        const items = Object.entries(actions || {});
+        const items = Array.isArray(actions)
+            ? actions.map((img, i) => [`Effect ${i+1}`, img])
+            : Object.entries(actions || {});
         items.forEach(([name, img]) => {
             const opt = createActionOption(img, name);
             opt.onclick = () => { addEffectToCanvas(img, pack); closeActionModal(); };
@@ -4963,8 +5273,8 @@
                 saveState();
                 const copy = JSON.parse(JSON.stringify(activeLayer));
                 copy.id = Date.now();
-                copy.x = Math.min((copy.x || 0) + 15, canvas.getBoundingClientRect().width  - (copy.w || 100));
-                copy.y = Math.min((copy.y || 0) + 15, canvas.getBoundingClientRect().height - (copy.w || 100));
+                copy.x = Math.min((copy.x || 0) + 15, canvas.offsetWidth  - (copy.w || 100));
+                copy.y = Math.min((copy.y || 0) + 15, canvas.offsetHeight - (copy.w || 100));
                 frames[currentIdx].layers.push(copy);
                 activeLayer = copy;
                 render();
@@ -5085,7 +5395,7 @@
         }
         const hex = Math.round(opacity * 255).toString(16).padStart(2, '0');
         styleEl.textContent = `.layer.active { outline: 2px solid #ff7a00${hex} !important; outline-offset: 1px; }`;
-        localStorage.setItem('cc-sel-opacity', val);
+        lsSet('cc-sel-opacity', val);
     }
 
     function toggleEditorPrefs() {
@@ -5368,10 +5678,10 @@
             <span style="font-weight:700;font-size:15px;">Aa</span>
         </button>
         <div class="ftb-pill-sep"></div>
+        <button class="ftb-pill-btn" onclick="ftbMore()" title="Edit text" style="font-size:12px;font-weight:800;gap:3px;">✏️ Edit</button>
+        <div class="ftb-pill-sep"></div>
         <button class="ftb-pill-btn" onclick="ftbDuplicate()" title="Duplicate">⧉</button>
         <button class="ftb-pill-btn" onclick="ftbDelete()" style="color:#ff453a;" title="Delete">🗑</button>
-        <div class="ftb-pill-sep"></div>
-        <button class="ftb-pill-btn" onclick="ftbMore()" title="Edit text">•••</button>
     </div>
 </div>
 
@@ -5382,7 +5692,15 @@
             <h2 style="margin:0;font-size:18px;" id="bubble-picker-title">💬 Add Bubble</h2>
             <button onclick="closeBubblePicker()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;line-height:1;">✕</button>
         </div>
-        <div id="bubble-style-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;"></div>
+        <div id="bubble-style-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;"></div>
+        <!-- Tail direction row — only visible for speech bubbles with tails -->
+        <div id="bubble-tail-row" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+            <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;">Tail →</span>
+            <button id="bpick-tail-left"  onclick="_bubbleTailFlip=false; document.getElementById('bpick-tail-left').style.background='rgba(255,122,0,.18)'; document.getElementById('bpick-tail-left').style.borderColor='var(--accent)'; document.getElementById('bpick-tail-left').style.color='var(--accent)'; document.getElementById('bpick-tail-right').style.background='#111'; document.getElementById('bpick-tail-right').style.borderColor='#333'; document.getElementById('bpick-tail-right').style.color='#666';"
+                style="flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.18);color:var(--accent);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">◀ Left</button>
+            <button id="bpick-tail-right" onclick="_bubbleTailFlip=true; document.getElementById('bpick-tail-right').style.background='rgba(255,122,0,.18)'; document.getElementById('bpick-tail-right').style.borderColor='var(--accent)'; document.getElementById('bpick-tail-right').style.color='var(--accent)'; document.getElementById('bpick-tail-left').style.background='#111'; document.getElementById('bpick-tail-left').style.borderColor='#333'; document.getElementById('bpick-tail-left').style.color='#666';"
+                style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
+        </div>
         <input id="bubble-picker-text" class="pub-input" placeholder="Enter text..." style="margin-bottom:12px;">
         <button onclick="confirmBubblePicker()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;">Add Bubble ↵</button>
     </div>

@@ -70,7 +70,8 @@
         touch-action: none;
     }
     canvas#onion-skin-canvas {
-        position: absolute; inset: 0; pointer-events: none; z-index: 5; display: none;
+        position: absolute; inset: 0; pointer-events: none; z-index: 5;
+        display: none; width: 100%; height: 100%;
     }
     #global-frame-indicator {
         position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
@@ -692,7 +693,15 @@
             <button onclick="closeBubblePicker()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;">✕</button>
         </div>
         <div id="bubble-style-grid"></div>
-        <input id="bubble-picker-text" class="pub-input" placeholder="Enter text...">
+        <!-- Tail direction row -->
+        <div id="mob-bubble-tail-row" style="display:flex;gap:8px;align-items:center;margin:10px 0 4px;">
+            <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;">Tail</span>
+            <button id="mob-bpick-tail-left"  onclick="mobBubbleTailFlip=false; document.getElementById('mob-bpick-tail-left').style.background='rgba(255,122,0,.18)'; document.getElementById('mob-bpick-tail-left').style.borderColor='var(--accent)'; document.getElementById('mob-bpick-tail-left').style.color='var(--accent)'; document.getElementById('mob-bpick-tail-right').style.background='#111'; document.getElementById('mob-bpick-tail-right').style.borderColor='#333'; document.getElementById('mob-bpick-tail-right').style.color='#666';"
+                style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.18);color:var(--accent);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">◀ Left</button>
+            <button id="mob-bpick-tail-right" onclick="mobBubbleTailFlip=true; document.getElementById('mob-bpick-tail-right').style.background='rgba(255,122,0,.18)'; document.getElementById('mob-bpick-tail-right').style.borderColor='var(--accent)'; document.getElementById('mob-bpick-tail-right').style.color='var(--accent)'; document.getElementById('mob-bpick-tail-left').style.background='#111'; document.getElementById('mob-bpick-tail-left').style.borderColor='#333'; document.getElementById('mob-bpick-tail-left').style.color='#666';"
+                style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
+        </div>
+        <input id="bubble-picker-text" class="pub-input" placeholder="Enter text..." style="margin-top:8px;">
         <button onclick="confirmBubblePicker()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;">Add Bubble</button>
     </div>
 </div>
@@ -1070,6 +1079,12 @@
                     <span style="font-size:10px;font-weight:900;color:#555;">BORDER</span>
                     <input type="color" id="bubble-border-color" value="#000000" oninput="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" onchange="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
                 </div>
+                <!-- Tail direction -->
+                <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
+                    <span style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;">Tail</span>
+                    <button id="mob-tail-left-btn"  onclick="mobSetBubbleTailFlip(false)" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.15);color:var(--accent);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">◀ Left</button>
+                    <button id="mob-tail-right-btn" onclick="mobSetBubbleTailFlip(true)"  style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
+                </div>
             </div>
         </div>
 
@@ -1117,8 +1132,9 @@
 <!-- CANVAS VIEWPORT -->
 <div id="viewport" onclick="handleViewportClick(event)">
     <div id="canvas-container">
-        <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
         <div id="comic-frame" onclick="deselectLayer(event)">
+            <!-- Onion canvas lives INSIDE comic-frame: above bg (z:0), below layers (z:10) -->
+            <canvas id="onion-skin-canvas" width="900" height="900"></canvas>
             <div id="bg-drag-overlay" style="display:none;position:absolute;inset:0;z-index:200;cursor:grab;background:transparent;border:2px dashed rgba(0,180,255,0.45);box-sizing:border-box;">
                 <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.72);color:#00b4ff;font-size:11px;font-weight:900;padding:5px 14px;border-radius:20px;pointer-events:none;white-space:nowrap;">✋ Drag to pan</div>
             </div>
@@ -1191,6 +1207,20 @@
 // ── SUPABASE ──
 const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
 
+function lsSet(key, value) {
+    try { localStorage.setItem(key, value); } catch(e) {
+        try {
+            const toDelete = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && (k.startsWith('sprite-used-') || k.startsWith('efx-used-') || k.startsWith('sb-full-'))) toDelete.push(k);
+            }
+            toDelete.slice(0, Math.max(1, Math.floor(toDelete.length / 2))).forEach(k => localStorage.removeItem(k));
+            localStorage.setItem(key, value);
+        } catch(e2) { /* still full, give up gracefully */ }
+    }
+}
+
 // ── STATE ──
 let frames = [{ layers: [], background: '#ffffff' }];
 let currentIdx = 0;
@@ -1214,7 +1244,7 @@ const onionCtx = onionCanvas.getContext('2d');
 // ── RATIO + CANVAS SIZE ──
 function setRatio(w, h) {
     canvasRatio = { w, h };
-    localStorage.setItem('cc-active-ratio', JSON.stringify({ w, h }));
+    lsSet('cc-active-ratio', JSON.stringify({ w, h }));
     const vp = document.getElementById('viewport');
     const vpW = vp.clientWidth - 24;
     const vpH = vp.clientHeight - 24;
@@ -1286,7 +1316,20 @@ function syncTransformSheet() {
     }
     const isBubble = ['bubble','thinking'].includes(activeLayer.type);
     document.getElementById('bubble-style-change-row').style.display = isBubble ? 'block' : 'none';
-    if (isBubble) renderBubbleMiniGrid();
+    if (isBubble) {
+        renderBubbleMiniGrid();
+        // Sync bubble color pickers
+        const bgColor = document.getElementById('bubble-bg-color');
+        const borderColor = document.getElementById('bubble-border-color');
+        if (bgColor) bgColor.value = activeLayer.bubbleBg || '#ffffff';
+        if (borderColor) borderColor.value = activeLayer.bubbleBorderColor || '#000000';
+        // Sync tail flip buttons
+        const tf = !!activeLayer.tailFlip;
+        const lBtn = document.getElementById('mob-tail-left-btn');
+        const rBtn = document.getElementById('mob-tail-right-btn');
+        if (lBtn) { lBtn.style.borderColor=tf?'#333':'var(--accent)'; lBtn.style.background=tf?'#111':'rgba(255,122,0,.15)'; lBtn.style.color=tf?'#666':'var(--accent)'; }
+        if (rBtn) { rBtn.style.borderColor=tf?'var(--accent)':'#333'; rBtn.style.background=tf?'rgba(255,122,0,.15)':'#111'; rBtn.style.color=tf?'var(--accent)':'#666'; }
+    }
 
     // Show Swap button only for sprite layers that have packData (i.e. from the sprite library)
     const swapBtn = document.getElementById('ts-swap-btn');
@@ -1319,7 +1362,13 @@ function isAnimatedBg(src) {
 
 // ── RENDER ──
 function render() {
+    // Preserve onion canvas and drag overlay before clearing
+    const onionCanvasEl = document.getElementById('onion-skin-canvas');
+    const dragOverlay   = document.getElementById('bg-drag-overlay');
+    if (onionCanvasEl && onionCanvasEl.parentNode === canvas) onionCanvasEl.remove();
+    if (dragOverlay    && dragOverlay.parentNode    === canvas) dragOverlay.remove();
     canvas.innerHTML = '';
+
     const f = frames[currentIdx];
     const bg = f.background || '#ffffff';
     const isImg = bg.startsWith('http') || bg.startsWith('data:image');
@@ -1337,29 +1386,34 @@ function render() {
     const scale = s.scale ?? 100, rotate = s.rotate ?? 0, xOff = s.x ?? 0, yOff = s.y ?? 0, filter = s.filter || 'none';
     const filterCSS = filter === 'none' ? '' : filter;
 
-    // Build dedicated bg-layer div — overflow:visible so pan/zoom shows full image
+    // Build dedicated bg-layer div
     const bgLayer = document.createElement('div');
     bgLayer.id = 'cc-bg-layer';
-    bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:visible;';
+    bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
     if (filterCSS) bgLayer.style.filter = filterCSS;
 
     if (isImg) {
         canvas.style.backgroundColor = 'transparent';
-        const inner = document.createElement('div');
-        const oversize = 3;
-        const offsetPct = -(oversize - 1) / 2 * 100;
-        const bgPosX = 50 + xOff;
-        const bgPosY = 50 + yOff;
         if (isAnimated) {
-            inner.style.cssText = `position:absolute;left:${offsetPct}%;top:${offsetPct}%;width:${oversize*100}%;height:${oversize*100}%;display:flex;align-items:center;justify-content:center;transform:rotate(${rotate}deg);transform-origin:center center;`;
+            // Animated GIF/WebP — use <img> so animation plays
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
             const img = document.createElement('img');
             img.src = bg;
-            img.style.cssText = `width:${scale}%;height:auto;min-height:${scale}%;object-fit:contain;pointer-events:none;transform:translate(${xOff*oversize}%,${yOff*oversize}%);`;
-            inner.appendChild(img);
+            img.style.cssText = `position:absolute;width:${scale}%;height:auto;top:50%;left:50%;transform-origin:0 0;transform:translate(calc(-50% + ${xOff * scale / 100}%),calc(-50% + ${yOff * scale / 100}%)) rotate(${rotate}deg);pointer-events:none;`;
+            wrapper.appendChild(img);
+            bgLayer.appendChild(wrapper);
         } else {
-            inner.style.cssText = `position:absolute;left:${offsetPct}%;top:${offsetPct}%;width:${oversize*100}%;height:${oversize*100}%;background:url(${bg}) no-repeat;background-size:${scale/oversize}%;background-position:${bgPosX}% ${bgPosY}%;transform:rotate(${rotate}deg);transform-origin:center center;`;
+            // Static image — use background-image CSS (matches frameToCanvas export exactly)
+            // background-size: scale% auto  preserves aspect ratio just like the canvas export
+            // background-position: (50+x)% (50+y)%  is the standard CSS position formula
+            bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')}")`;
+            bgLayer.style.backgroundRepeat   = 'no-repeat';
+            bgLayer.style.backgroundSize     = `${scale}% auto`;
+            bgLayer.style.backgroundPosition = `${50 + xOff}% ${50 + yOff}%`;
+            bgLayer.style.transform          = `rotate(${rotate}deg)`;
+            bgLayer.style.transformOrigin    = 'center center';
         }
-        bgLayer.appendChild(inner);
     } else if (isGrad) {
         canvas.style.backgroundColor = 'transparent';
         const inner = document.createElement('div');
@@ -1369,7 +1423,10 @@ function render() {
         canvas.style.backgroundColor = bg;
     }
 
+    // Re-insert preserved elements in correct z-order
     canvas.appendChild(bgLayer);
+    if (onionCanvasEl) canvas.appendChild(onionCanvasEl); // z-index:5 — above bg, below layers
+    if (dragOverlay)   canvas.appendChild(dragOverlay);
 
     // onion skin
     const onionOn = document.getElementById('onion-toggle').checked;
@@ -1450,7 +1507,18 @@ function render() {
             bub.style.transform = `rotate(${layer.rotation||0}deg)`;
             if (layer.fxOpacity !== undefined) bub.style.opacity = layer.fxOpacity / 100;
             bub.innerText = layer.content || '';
-            const tail = document.createElement('div'); tail.className = 'bubble-tail'; bub.appendChild(tail);
+            const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
+            if (showTail) {
+                if (layer.tailFlip) {
+                    // Wrap tail in a flipping container
+                    const flipWrap = document.createElement('div');
+                    flipWrap.style.cssText = 'position:absolute;inset:0;transform:scaleX(-1);pointer-events:none;';
+                    const tail = document.createElement('div'); tail.className = 'bubble-tail';
+                    flipWrap.appendChild(tail); bub.appendChild(flipWrap);
+                } else {
+                    const tail = document.createElement('div'); tail.className = 'bubble-tail'; bub.appendChild(tail);
+                }
+            }
             if (layer.type === 'thinking') {
                 [1,2,3].forEach(n => { const dot = document.createElement('div'); dot.className = 'thought-dot-' + n; bub.appendChild(dot); });
             }
@@ -1694,21 +1762,27 @@ function startTouchPinchResize(e, layer) {
 }
 function startDrag(e, layer) {
     saveState();
-    const cR0 = canvas.getBoundingClientRect();
-    let startX = e.clientX - cR0.left - layer.x, startY = e.clientY - cR0.top - layer.y;
+    // Convert client coords to canvas-local px (handles viewport zoom/scale)
+    function toLocal(clientX, clientY) {
+        const r = canvas.getBoundingClientRect();
+        const sx = r.width  / canvas.offsetWidth;
+        const sy = r.height / canvas.offsetHeight;
+        return { x: (clientX - r.left) / sx, y: (clientY - r.top) / sy };
+    }
+    const origin = toLocal(e.clientX, e.clientY);
+    const startLayerX = layer.x, startLayerY = layer.y;
     let moved = false;
     const move = (me) => {
         moved = true;
-        const cR = canvas.getBoundingClientRect();
-        const rawX = me.clientX - cR.left - startX;
-        const rawY = me.clientY - cR.top - startY;
+        const cur = toLocal(me.clientX, me.clientY);
+        const rawX = startLayerX + (cur.x - origin.x);
+        const rawY = startLayerY + (cur.y - origin.y);
         if (layer.type === 'img') {
             const lW = layer.w || 100;
             const lH = layer.h || lW;
-            layer.x = Math.min(Math.max(rawX, -lW / 2), cR.width - lW / 2);
-            layer.y = Math.min(Math.max(rawY, -lH / 2), cR.height - lH / 2);
+            layer.x = Math.min(Math.max(rawX, -lW / 2), canvas.offsetWidth  - lW / 2);
+            layer.y = Math.min(Math.max(rawY, -lH / 2), canvas.offsetHeight - lH / 2);
         } else {
-            // Text, bubbles, subtitles — completely free movement
             layer.x = rawX;
             layer.y = rawY;
         }
@@ -1862,7 +1936,7 @@ function renderMobSpriteGrid(sprites) {
         card.className = 'mob-sprite-card';
         card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
         card.onclick = async () => {
-            localStorage.setItem('sprite-used-' + pack.id, Date.now());
+            lsSet('sprite-used-' + pack.id, Date.now());
             const full = await sbFetchFull(pack.id);
             if (full) { closeSheet('sprites'); openActionModal({ ...pack, ...full }); }
         };
@@ -2022,7 +2096,7 @@ function renderMobEffectGrid(effects) {
         }
 
         card.onclick = async () => {
-            localStorage.setItem('efx-used-'+pack.id, Date.now());
+            lsSet('efx-used-'+pack.id, Date.now());
             const cached = efxGetFull(pack.id);
             if (cached) {
                 closeSheet('effects');
@@ -2368,8 +2442,13 @@ function handleActionSelect(img, pack, isEditing) {
             const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
             const prevTrim = layer.trimData;
             const scale = prevTrim ? (layer.w / prevTrim.trimW) : (layer.w / trimW);
+            // Anchor bottom-left so the sprite stays planted in the same visual spot
+            const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
+            const oldLeft   = layer.x;
             layer.w = Math.round(trimW * scale);
             layer.h = Math.round(trimH * scale);
+            layer.x = oldLeft;
+            layer.y = oldBottom - layer.h;
             layer.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
             render();
         };
@@ -2469,19 +2548,34 @@ const BUBBLE_STYLES = [
 ];
 let selectedBubbleStyle = 'round';
 let currentBubbleMode = 'speech';
+let mobBubbleTailFlip = false;
 
 function openBubblePicker(mode) {
     currentBubbleMode = mode;
     selectedBubbleStyle = 'round';
+    mobBubbleTailFlip = false;
     document.getElementById('bubble-picker-title').innerText = 'Add Bubble';
     document.getElementById('bubble-picker-text').value = '';
+    // Reset tail buttons
+    const tL = document.getElementById('mob-bpick-tail-left');
+    const tR = document.getElementById('mob-bpick-tail-right');
+    if (tL) { tL.style.background='rgba(255,122,0,.18)'; tL.style.borderColor='var(--accent)'; tL.style.color='var(--accent)'; }
+    if (tR) { tR.style.background='#111'; tR.style.borderColor='#333'; tR.style.color='#666'; }
     const grid = document.getElementById('bubble-style-grid');
     grid.innerHTML = '';
     BUBBLE_STYLES.forEach(s => {
         const btn = document.createElement('button');
         btn.className = 'bubble-preview-btn' + (s.id === selectedBubbleStyle ? ' selected' : '');
         btn.innerHTML = `<span class="bpico">${s.ico}</span><span>${s.label}</span>`;
-        btn.onclick = () => { selectedBubbleStyle = s.id; grid.querySelectorAll('.bubble-preview-btn').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); };
+        btn.onclick = () => {
+            selectedBubbleStyle = s.id;
+            grid.querySelectorAll('.bubble-preview-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            // Show/hide tail direction row
+            const hasTail = !['spiky','shout','electric','narrator','cloud'].includes(s.id);
+            const tailRow = document.getElementById('mob-bubble-tail-row');
+            if (tailRow) tailRow.style.display = hasTail ? 'flex' : 'none';
+        };
         grid.appendChild(btn);
     });
     document.getElementById('bubble-picker-modal').style.display = 'flex';
@@ -2492,7 +2586,8 @@ function confirmBubblePicker() {
     saveState();
     const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
     const bubbleType = selectedBubbleStyle === 'cloud' ? 'thinking' : 'bubble';
-    const nl = { type: bubbleType, content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw*0.5), rotation: 0, id: Date.now() };
+    const nl = { type: bubbleType, content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, tailFlip: mobBubbleTailFlip, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw*0.5), rotation: 0, id: Date.now() };
+    mobBubbleTailFlip = false;
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
     closeBubblePicker();
@@ -2511,10 +2606,21 @@ function renderBubbleMiniGrid() {
     });
 }
 
+function mobSetBubbleTailFlip(flipped) {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.tailFlip = flipped;
+    const lBtn = document.getElementById('mob-tail-left-btn');
+    const rBtn = document.getElementById('mob-tail-right-btn');
+    if (lBtn) { lBtn.style.borderColor=flipped?'#333':'var(--accent)'; lBtn.style.background=flipped?'#111':'rgba(255,122,0,.15)'; lBtn.style.color=flipped?'#666':'var(--accent)'; }
+    if (rBtn) { rBtn.style.borderColor=flipped?'var(--accent)':'#333'; rBtn.style.background=flipped?'rgba(255,122,0,.15)':'#111'; rBtn.style.color=flipped?'var(--accent)':'#666'; }
+    render();
+}
+
 // ── BACKGROUND ──
 function openBackgroundSource() {
-    if (canvasRatio) { localStorage.setItem('cc-bg-ratio-filter', JSON.stringify(canvasRatio)); localStorage.setItem('cc-active-ratio', JSON.stringify(canvasRatio)); }
-    localStorage.setItem('cc-pending-frames', JSON.stringify({ frames, currentIdx }));
+    if (canvasRatio) { lsSet('cc-bg-ratio-filter', JSON.stringify(canvasRatio)); lsSet('cc-active-ratio', JSON.stringify(canvasRatio)); }
+    lsSet('cc-pending-frames', JSON.stringify({ frames, currentIdx }));
     location.href = 'backgroundsource.html';
 }
 function updateMobBg() {
@@ -2854,9 +2960,9 @@ async function saveOffline(silent = false) {
                     }]).select('id').single();
                     if (inserted) {
                         activeDraftId = inserted.id;
-                        localStorage.setItem('active_draft_id', activeDraftId);
+                        lsSet('active_draft_id', activeDraftId);
                         const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-                        localStorage.setItem('comic_drafts', JSON.stringify(lsDrafts.filter(d => d.id != activeDraftId)));
+                        lsSet('comic_drafts', JSON.stringify(lsDrafts.filter(d => d.id != activeDraftId)));
                     }
                 }
                 hasUnsavedChanges = false;
@@ -2881,10 +2987,10 @@ async function saveOffline(silent = false) {
         } else {
             const id = Date.now();
             activeDraftId = id;
-            localStorage.setItem('active_draft_id', id);
+            lsSet('active_draft_id', id);
             drafts.push({ id, data: frames, ratio, updated: Date.now() });
         }
-        localStorage.setItem('comic_drafts', JSON.stringify(drafts));
+        lsSet('comic_drafts', JSON.stringify(drafts));
         hasUnsavedChanges = false;
         if (!silent) {
             const t = document.createElement('div');
@@ -2955,81 +3061,159 @@ function switchExportTab(tab) {
     if (tab === 'frames') openExportFramesTab();
 }
 async function renderFrameToCanvas(frame, cw, ch) {
-    var tmp = document.createElement('canvas');
+    const tmp = document.createElement('canvas');
     tmp.width = cw; tmp.height = ch;
-    var ctx = tmp.getContext('2d');
-    var bg = frame.background || '#ffffff';
-    var s = frame.bgSettings || {};
-    var scale = s.scale != null ? s.scale : 100;
-    var xOff = s.x != null ? s.x : 0;
-    var yOff = s.y != null ? s.y : 0;
-    var rot = s.rotate != null ? s.rotate : 0;
-    var isImg = bg.indexOf('http') === 0 || bg.indexOf('data:image') === 0;
-    await new Promise(function(res) {
+    const ctx = tmp.getContext('2d');
+    const bg = frame.background || '#ffffff';
+    const s = frame.bgSettings || {};
+    const scale  = s.scale  ?? 100;
+    const xOff   = s.x      ?? 0;
+    const yOff   = s.y      ?? 0;
+    const rot    = s.rotate ?? 0;
+    const isImg  = bg.startsWith('http') || bg.startsWith('data:image');
+    const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+
+    // ── Background ──
+    await new Promise(res => {
         if (isImg) {
-            var img = new Image(); img.crossOrigin = 'anonymous'; img.src = bg;
-            var draw = function() {
+            const img = new Image(); img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                // Mirror CSS: background-size: scale% auto (preserves AR)
+                // background-position: (50+x)% (50+y)%
+                const imgAR   = img.naturalWidth / img.naturalHeight;
+                const drawW   = cw * scale / 100;
+                const drawH   = drawW / imgAR;
+                const posXfrac = (50 + xOff) / 100;
+                const posYfrac = (50 + yOff) / 100;
+                const posX = (cw - drawW) * posXfrac;
+                const posY = (ch - drawH) * posYfrac;
                 ctx.save();
-                ctx.translate(cw/2 + xOff*cw/100, ch/2 + yOff*ch/100);
+                ctx.translate(cw / 2, ch / 2);
                 ctx.rotate(rot * Math.PI / 180);
-                var sc = scale / 100;
-                var iw = img.naturalWidth || cw, ih = img.naturalHeight || ch;
-                var ar = iw/ih, cr = cw/ch;
-                var dw, dh;
-                if (ar > cr) { dh = ch*sc*1.1; dw = dh*ar; } else { dw = cw*sc*1.1; dh = dw/ar; }
-                ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+                ctx.translate(-cw / 2, -ch / 2);
+                ctx.drawImage(img, posX, posY, drawW, drawH);
                 ctx.restore(); res();
             };
-            if (img.complete && img.naturalWidth) draw();
-            else { img.onload = draw; img.onerror = function() { ctx.fillStyle='#fff'; ctx.fillRect(0,0,cw,ch); res(); }; }
-        } else { ctx.fillStyle = bg; ctx.fillRect(0,0,cw,ch); res(); }
+            img.onerror = () => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch); res(); };
+            img.src = bg;
+        } else if (isGrad) {
+            // Render CSS gradient via SVG foreignObject
+            const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${cw}" height="${ch}">
+                <foreignObject width="100%" height="100%">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:${cw}px;height:${ch}px;background:${bg.replace(/"/g,"'")};">
+                    </div>
+                </foreignObject>
+            </svg>`;
+            const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+            const url  = URL.createObjectURL(blob);
+            const img  = new Image();
+            img.onload = () => { ctx.drawImage(img, 0, 0, cw, ch); URL.revokeObjectURL(url); res(); };
+            img.onerror = () => { ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, cw, ch); URL.revokeObjectURL(url); res(); };
+            img.src = url;
+        } else {
+            ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch); res();
+        }
     });
-    for (var li = 0; li < frame.layers.length; li++) {
-        var layer = frame.layers[li];
+
+    // ── Layers ──
+    for (const layer of frame.layers) {
         if (layer.type === 'img') {
-            await (function(lyr) {
-                return new Promise(function(res) {
-                    var img = new Image(); img.crossOrigin = 'anonymous'; img.src = lyr.src;
-                    var draw = function() {
-                        var iw = img.naturalWidth||1, ih = img.naturalHeight||1;
-                        var lw = lyr.w||100, lh = (lyr.h != null) ? lyr.h : lw*(ih/iw);
-                        var cx = (lyr.x||0)+lw/2, cy = (lyr.y||0)+lh/2;
-                        ctx.save();
-                        ctx.globalAlpha = lyr.fxOpacity != null ? lyr.fxOpacity/100 : 1;
-                        ctx.translate(cx, cy);
-                        ctx.rotate((lyr.rotation||0)*Math.PI/180);
-                        if (lyr.flipped) ctx.scale(-1,1);
-                        ctx.drawImage(img,-lw/2,-lh/2,lw,lh);
-                        ctx.restore(); res();
-                    };
-                    if (img.complete && img.naturalWidth) draw();
-                    else { img.onload=draw; img.onerror=res; }
-                });
-            })(layer);
-        } else if (layer.type==='text'||layer.type==='bubble'||layer.type==='thinking'||layer.type==='subtitle') {
-            ctx.save();
-            ctx.globalAlpha = layer.fxOpacity != null ? layer.fxOpacity/100 : 1;
-            var lx=layer.x||0, ly=layer.y||0, fw=layer.w||160;
-            var fs=layer.fontSize||(layer.type==='subtitle'?16:22);
-            var ff=(layer.fontFamily||'Inter, sans-serif').replace(/['"]/g,'');
-            ctx.font=(layer.bold?'900':'700')+' '+fs+'px '+ff;
-            if (layer.type==='subtitle') {
-                ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(lx,ly,fw,fs+20); ctx.fillStyle='#fff';
-            } else if (layer.type==='bubble'||layer.type==='thinking') {
-                ctx.fillStyle=layer.bubbleBg||'#fff';
-                ctx.strokeStyle=layer.bubbleBorderColor||'#000'; ctx.lineWidth=3;
-                ctx.beginPath();
-                if (ctx.roundRect) ctx.roundRect(lx,ly,fw,fs+28,12); else ctx.rect(lx,ly,fw,fs+28);
-                ctx.fill(); ctx.stroke();
-                ctx.fillStyle=layer.color||'#000';
-            } else { ctx.fillStyle=layer.color||'#000'; }
-            ctx.textAlign=layer.align||'left';
-            var textContent = layer.content || '';
-            var textLines = textContent.split('\n');
-            for (var tli=0; tli<textLines.length; tli++) {
-                ctx.fillText(textLines[tli], lx+8, ly+fs+14+tli*(fs+4));
+            await new Promise(res => {
+                const img = new Image(); img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    const iw = img.naturalWidth || 1, ih = img.naturalHeight || 1;
+                    const lw = layer.w || 100;
+                    const lh = layer.h != null ? layer.h : lw * (ih / iw);
+                    const cx = (layer.x || 0) + lw / 2, cy = (layer.y || 0) + lh / 2;
+                    ctx.save();
+                    ctx.globalAlpha = layer.fxOpacity != null ? layer.fxOpacity / 100 : 1;
+                    ctx.translate(cx, cy);
+                    ctx.rotate((layer.rotation || 0) * Math.PI / 180);
+                    if (layer.flipped) ctx.scale(-1, 1);
+                    ctx.drawImage(img, -lw / 2, -lh / 2, lw, lh);
+                    ctx.restore(); res();
+                };
+                img.onerror = res;
+                img.src = layer.src;
+            });
+        } else {
+            // Text / bubble / thinking / subtitle — render via SVG foreignObject for fidelity
+            const bx = layer.x || 0, by = layer.y || 0;
+            const bw = layer.w || 160;
+            const fs = layer.fontSize || (layer.type === 'subtitle' ? 16 : 22);
+            const ff = layer.fontFamily || "'Inter', sans-serif";
+            const boldW    = layer.bold   ? '900' : '800';
+            const italicS  = layer.italic ? 'italic' : 'normal';
+            const deco     = [layer.underline ? 'underline' : '', layer.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+            const alignS   = layer.align  || 'center';
+            const textColor = layer.color || '#000';
+
+            let innerHtml = '';
+            if (layer.type === 'bubble' || layer.type === 'thinking') {
+                const bStyle    = layer.bubbleStyle || (layer.type === 'thinking' ? 'cloud' : 'round');
+                const bubBg     = layer.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
+                const bubBorder = layer.bubbleBorderColor || '#000';
+                const showTail  = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
+                const isCloud   = bStyle === 'cloud';
+
+                const thoughtDots = isCloud
+                    ? `<div style="position:absolute;width:12px;height:12px;bottom:-20px;left:24px;background:${bubBg};border:3px solid ${bubBorder};border-radius:50%;"></div>
+                       <div style="position:absolute;width:8px;height:8px;bottom:-32px;left:18px;background:${bubBg};border:2.5px solid ${bubBorder};border-radius:50%;"></div>
+                       <div style="position:absolute;width:5px;height:5px;bottom:-40px;left:13px;background:${bubBg};border:2px solid ${bubBorder};border-radius:50%;"></div>` : '';
+
+                let tailHtml = '';
+                if (showTail) {
+                    const tailFlipStyle = layer.tailFlip ? 'transform:scaleX(-1);transform-origin:center;' : '';
+                    if (bStyle === 'round' || bStyle === 'whisper') {
+                        tailHtml = `<div style="position:absolute;bottom:-20px;left:28px;width:0;height:0;border-left:12px solid transparent;border-right:4px solid transparent;border-top:20px solid ${bubBorder};${tailFlipStyle}"><div style="position:absolute;top:-19px;left:-9px;width:0;height:0;border-left:8px solid transparent;border-right:2px solid transparent;border-top:16px solid ${bubBg};"></div></div>`;
+                    } else if (bStyle === 'chat') {
+                        tailHtml = `<div style="position:absolute;bottom:-18px;right:24px;width:0;height:0;border-left:14px solid transparent;border-top:18px solid ${bubBorder};${tailFlipStyle}"><div style="position:absolute;top:-17px;left:-11px;width:0;height:0;border-left:10px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
+                    } else if (bStyle === 'rect') {
+                        tailHtml = `<div style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:18px solid ${bubBorder};"><div style="position:absolute;top:-17px;left:-9px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
+                    }
+                }
+
+                const clipPaths = {
+                    spiky:    'polygon(50% 0%,58% 16%,72% 8%,73% 24%,87% 18%,84% 34%,99% 33%,90% 46%,100% 56%,84% 58%,90% 72%,74% 70%,73% 85%,59% 77%,50% 90%,41% 77%,27% 85%,26% 70%,10% 72%,16% 58%,0% 56%,10% 46%,1% 33%,16% 34%,13% 18%,27% 24%,28% 8%,42% 16%)',
+                    shout:    'polygon(5% 10%,20% 0%,35% 10%,50% 0%,65% 10%,80% 0%,95% 10%,100% 30%,95% 50%,100% 70%,95% 90%,80% 100%,65% 90%,50% 100%,35% 90%,20% 100%,5% 90%,0% 70%,5% 50%,0% 30%)',
+                    electric: 'polygon(8% 0%,92% 0%,100% 8%,100% 92%,92% 100%,65% 100%,60% 115%,52% 100%,8% 100%,0% 92%,0% 8%)',
+                };
+                const clipStyle     = clipPaths[bStyle] ? `clip-path:${clipPaths[bStyle]};` : '';
+                const borderRadius  = bStyle === 'cloud' ? '50%' : bStyle === 'chat' ? '18px' : bStyle === 'rect' ? '4px' : bStyle === 'narrator' ? '6px' : '999px';
+                const extraBorder   = bStyle === 'narrator' ? `border-left:6px solid ${bubBorder};` : '';
+
+                innerHtml = `<div style="font-family:${ff};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};text-decoration:${deco};color:${textColor};text-align:${alignS};background:${bubBg};border:3.5px solid ${bubBorder};border-radius:${borderRadius};padding:14px 18px;position:relative;overflow:visible;word-wrap:break-word;line-height:1.35;box-sizing:border-box;width:${bw}px;${clipStyle}${extraBorder}">${layer.content || ''}${tailHtml}${thoughtDots}</div>`;
+            } else if (layer.type === 'subtitle') {
+                const nameColor = layer.nameColor || '#ff9500';
+                const subFs = Math.round(fs * 0.55);
+                innerHtml = `<div style="width:${bw}px;box-sizing:border-box;"><div style="background:${nameColor};color:#fff;font-size:${Math.max(10,subFs)}px;font-weight:900;font-family:${ff};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${layer.characterName || 'CHARACTER'}</div><div style="background:rgba(255,255,255,0.96);color:${textColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,0.1);border-top:none;box-sizing:border-box;">${layer.content || ''}</div></div>`;
+            } else {
+                innerHtml = `<div style="font-family:${ff};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};text-decoration:${deco};color:${textColor};text-align:${alignS};white-space:pre-wrap;word-wrap:break-word;line-height:1.3;width:${bw}px;box-sizing:border-box;">${(layer.content || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
             }
-            ctx.restore();
+
+            await new Promise(res => {
+                try {
+                    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${bw + 60}" height="${ch}">
+                        <foreignObject width="${bw + 60}" height="${ch}">
+                            <div xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;overflow:visible;">${innerHtml}</div>
+                        </foreignObject>
+                    </svg>`;
+                    const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+                    const url  = URL.createObjectURL(blob);
+                    const img  = new Image();
+                    img.onload = () => { ctx.drawImage(img, bx, by); URL.revokeObjectURL(url); res(); };
+                    img.onerror = () => {
+                        // Plain text fallback
+                        ctx.save();
+                        ctx.font = `${boldW} ${fs}px ${ff.replace(/['"]/g,'')}`;
+                        ctx.fillStyle = textColor;
+                        ctx.fillText(layer.content || '', bx, by + fs, bw);
+                        ctx.restore();
+                        URL.revokeObjectURL(url); res();
+                    };
+                    img.src = url;
+                } catch(e) { res(); }
+            });
         }
     }
     return tmp;
@@ -3262,7 +3446,7 @@ function openDraftsModal() {
             var all = [];
             try { all = JSON.parse(localStorage.getItem('comic_drafts') || '[]'); } catch(ex) {}
             all = all.filter(function(d){ return String(d.id) !== String(draft.id); });
-            localStorage.setItem('comic_drafts', JSON.stringify(all));
+            lsSet('comic_drafts', JSON.stringify(all));
             if (String(draft.id) === String(activeDraftId)) {
                 localStorage.removeItem('active_draft_id');
                 activeDraftId = null;
@@ -3283,7 +3467,7 @@ function openDraftsModal() {
             if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
             frames = JSON.parse(JSON.stringify(draft.data || [{ layers:[], background:'#ffffff' }]));
             activeDraftId = draft.id;
-            localStorage.setItem('active_draft_id', String(draft.id));
+            lsSet('active_draft_id', String(draft.id));
             var r = draft.ratio || {w:1,h:1};
             setRatio(r.w, r.h);
             currentIdx = 0;
