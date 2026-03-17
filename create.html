@@ -4558,21 +4558,27 @@
     let sbLazyQueue = [];
     let sbLazyTimer = null;
 
-    const sbObserver = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
-            if (!entry.isIntersecting) return;
-            sbObserver.unobserve(entry.target);
-            const id = entry.target.dataset.sid;
-            if (!id) return;
-            const cached = sbGetImg(id);
-            if (cached) {
-                sbApplyImg(entry.target, cached);
-            } else {
-                sbLazyQueue.push(id);
-                sbScheduleBatch();
-            }
-        });
-    }, { root: document.getElementById('sb-sprite-grid'), rootMargin: '200px 0px' });
+    let sbObserver = null;
+    function getSbObserver() {
+        if (sbObserver) return sbObserver;
+        const grid = document.getElementById('sb-sprite-grid');
+        sbObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                sbObserver.unobserve(entry.target);
+                const id = entry.target.dataset.sid;
+                if (!id) return;
+                const cached = sbGetImg(id);
+                if (cached) {
+                    sbApplyImg(entry.target, cached);
+                } else {
+                    sbLazyQueue.push(id);
+                    sbScheduleBatch();
+                }
+            });
+        }, { root: grid, rootMargin: '200px 0px' });
+        return sbObserver;
+    }
 
     function sbScheduleBatch() {
         if (sbLazyTimer) return;
@@ -4663,7 +4669,7 @@
                 div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${pack.name}</span>`;
             } else {
                 div.innerHTML = `<div class="sb-skeleton"></div><span>${pack.name}</span>`;
-                sbObserver.observe(div);
+                getSbObserver().observe(div);
             }
 
             div.onclick = async () => {
