@@ -2051,6 +2051,7 @@
                 if (full) { closeLibrary(); openActionModal({ ...pack, ...full }); }
             };
             // Lazy-load image if not cached
+            grid.appendChild(div);
             if (!cachedSrc) {
                 const observer = new IntersectionObserver(entries => {
                     if (!entries[0].isIntersecting) return;
@@ -2063,7 +2064,6 @@
                 }, { root: null, rootMargin: '0px' });
                 observer.observe(div);
             }
-            grid.appendChild(div);
         });
     }
 
@@ -4558,8 +4558,6 @@
     let sbLazyQueue = [];
     let sbLazyTimer = null;
 
-    // root: null = viewport. Avoids zero-bounding-box issues when the sidebar
-    // panel has width:0 or overflow:hidden during transitions.
     const sbObserver = new IntersectionObserver(entries => {
         entries.forEach(entry => {
             if (!entry.isIntersecting) return;
@@ -4665,7 +4663,6 @@
                 div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${pack.name}</span>`;
             } else {
                 div.innerHTML = `<div class="sb-skeleton"></div><span>${pack.name}</span>`;
-                sbObserver.observe(div);
             }
 
             div.onclick = async () => {
@@ -4684,6 +4681,8 @@
             };
 
             grid.appendChild(div);
+            // Observe AFTER appending so the element has a position in the document
+            if (!pack.image_data && !sbGetImg(pack.id)) sbObserver.observe(div);
         });
     }
 
@@ -4982,24 +4981,6 @@
                 div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${pack.name}</span>`;
             } else {
                 div.innerHTML = `<div class="sb-skeleton"></div><span>${pack.name}</span>`;
-                // Lazy load
-                const obs = new IntersectionObserver(entries => {
-                    if (!entries[0].isIntersecting) return;
-                    obs.disconnect();
-                    const cached2 = efxGetImg(pack.id);
-                    if (cached2) { const old=div.querySelector('div'); if(old){const img=document.createElement('img');img.src=cached2;img.className='sb-loaded';old.replaceWith(img);} return; }
-                    // Fetch image_data AND actions so the full cache is populated correctly
-                    _supabase.from('effects_library').select('image_data,actions').eq('id',pack.id).single().then(({data})=>{
-                        if (!data?.image_data) return;
-                        efxSetImg(pack.id, data.image_data);
-                        efxSetFull(pack.id, data.image_data, data.actions || {});
-                        pack.image_data = data.image_data;
-                        if (data.actions) pack.actions = data.actions;
-                        const old = div.querySelector('div');
-                        if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
-                    });
-                }, { root: null, rootMargin: '0px' });
-                obs.observe(div);
             }
             div.onclick = async () => {
                 localStorage.setItem('efx-used-'+pack.id, Date.now());
@@ -5020,6 +5001,25 @@
                 }
             };
             grid.appendChild(div);
+            // Observe AFTER appending so the element has a position in the document
+            if (!cachedSrc) {
+                const obs = new IntersectionObserver(entries => {
+                    if (!entries[0].isIntersecting) return;
+                    obs.disconnect();
+                    const cached2 = efxGetImg(pack.id);
+                    if (cached2) { const old=div.querySelector('div'); if(old){const img=document.createElement('img');img.src=cached2;img.className='sb-loaded';old.replaceWith(img);} return; }
+                    _supabase.from('effects_library').select('image_data,actions').eq('id',pack.id).single().then(({data})=>{
+                        if (!data?.image_data) return;
+                        efxSetImg(pack.id, data.image_data);
+                        efxSetFull(pack.id, data.image_data, data.actions || {});
+                        pack.image_data = data.image_data;
+                        if (data.actions) pack.actions = data.actions;
+                        const old = div.querySelector('div');
+                        if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
+                    });
+                }, { root: null, rootMargin: '0px' });
+                obs.observe(div);
+            }
         });
     }
 
