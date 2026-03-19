@@ -850,6 +850,10 @@
         border-radius: 8px; border: 1.5px solid transparent; background: #191919; transition: 0.12s;
         font-size: 11px; font-weight: 700; color: #666;
     }
+    .sb-layer-drag { color: #333; cursor: grab; font-size: 14px; flex-shrink: 0; padding: 0 2px; }
+    .sb-layer-drag:hover { color: #555; }
+    .sb-layer-item.sb-dragging { opacity: 0.3; border-color: var(--accent); }
+    .sb-layer-item.sb-drag-over { border-color: #00d2ff; background: rgba(0,210,255,.06); }
     .sb-layer-item:hover { border-color: #2a2a2a; color: #aaa; }
     .sb-layer-item.active-l { border-color: var(--accent); color: var(--accent); background: rgba(255,122,0,0.07); }
     .sb-layer-item.multi-l { border-color: var(--teal); background: rgba(0,210,255,0.07); color: var(--teal); }
@@ -1423,6 +1427,9 @@
 
         <!-- Right actions -->
         <button class="tb-btn" onclick="saveOffline(false)">💾 Save</button>
+                <span id="save-indicator" style="font-size:10px;font-weight:800;color:#3a3;letter-spacing:.3px;"></span>
+                <button class="tb-btn" id="panel-border-btn" onclick="togglePanelBorder()" title="Toggle comic panel border (P)">🔲 Border</button>
+                <button class="tb-btn" onclick="document.getElementById('kb-ref-modal').style.display='flex'" title="Keyboard shortcuts (?)">⌨️</button>
         <button class="tb-btn teal-btn" onclick="goToDrafts()">📂 Drafts</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="openExportModal()">Export</button>
@@ -1969,8 +1976,19 @@
         const move = (me) => {
             if (!moved) { moved = true; closeFtbPanel(); hideFloatToolbar(); }
             const cur = toLocal(me.clientX, me.clientY);
-            const rawX = startLayerX + (cur.x - startLocal.x);
-            const rawY = startLayerY + (cur.y - startLocal.y);
+            let rawX = startLayerX + (cur.x - startLocal.x);
+            let rawY = startLayerY + (cur.y - startLocal.y);
+            // Shift = constrain to axis
+            if (me.shiftKey) {
+                const dx = Math.abs(rawX - startLayerX), dy = Math.abs(rawY - startLayerY);
+                if (dx > dy) rawY = startLayerY; else rawX = startLayerX;
+            }
+            // Snap to center
+            if (layer.type === 'img') {
+                const lw = layer.w || 100, lh = layer.h || lw;
+                const snapped = snapLayerPos(rawX, rawY, lw, lh);
+                rawX = snapped.x; rawY = snapped.y;
+            }
             if (layer.type === 'img') {
                 // Images can go up to halfway outside the frame on any edge
                 const layerW = layer.w || 100;
@@ -1986,7 +2004,9 @@
             }
             render();
         };
-        const up = () => { 
+        const up = () => {
+            if (window._snapH) window._snapH.style.display = 'none';
+            if (window._snapV) window._snapV.style.display = 'none';
             window.removeEventListener('mousemove', move);
             window.removeEventListener('mouseup', up);
             // Re-show toolbar after drag ends if it's a text layer
@@ -2282,8 +2302,8 @@
                 // rotate via transform on bgLayer itself.
                 bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')}")`;
                 bgLayer.style.backgroundRepeat   = 'no-repeat';
-                bgLayer.style.backgroundSize     = `${scale}% auto`;
-                bgLayer.style.backgroundPosition = `${50 + xOff}% ${50 + yOff}%`;
+                bgLayer.style.backgroundSize     = scale === 'cover' ? 'cover' : `${scale}% auto`;
+                bgLayer.style.backgroundPosition = scale === 'cover' ? 'center center' : `${50 + xOff}% ${50 + yOff}%`;
                 bgLayer.style.transform          = `rotate(${rotate}deg)`;
                 bgLayer.style.transformOrigin    = 'center center';
                 bgLayer.style.overflow           = 'hidden';
@@ -2913,7 +2933,7 @@
         frames[currentIdx].background = src;
         // Always reset bgSettings when a new background is applied
         // so old pan/zoom/filter from previous background don't carry over
-        frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
+        frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };
         // Sync the bg-edit panel sliders to reflect clean state
         const syncInputs = { 'bg-scale': 100, 'bg-scale-num': 100, 'bg-x': 0, 'bg-x-num': 0, 'bg-y': 0, 'bg-y-num': 0, 'bg-rotate': 0 };
         Object.entries(syncInputs).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
@@ -5140,46 +5160,104 @@
         buildSbTagChips(sidebarSprites); // rebuild chips to reflect active state
     }
 
+    let _sbDragLayerIdx = null;
+
     function renderSidebarLayers() {
         const container = document.getElementById('sb-layer-list');
         if (!container) return;
         container.innerHTML = '';
         const layerIcons = { img: '🖼', bubble: '💬', thinking: '💭', text: '✍️', subtitle: '📋' };
-        [...frames[currentIdx].layers].reverse().forEach((l) => {
+        const f = frames[currentIdx];
+
+        [...f.layers].reverse().forEach((l, ri) => {
+            const realIdx = f.layers.length - 1 - ri;
             const item = document.createElement('div');
             item.className = 'sb-layer-item';
+            item.dataset.layerIdx = realIdx;
             const isActive = activeLayer?.id === l.id;
             const isInSel = selectedLayers.some(s => s.id === l.id);
             if (isActive) item.classList.add('active-l');
             if (isInSel) item.classList.add('multi-l');
             if (l.locked) item.classList.add('locked-l');
-            const icon = layerIcons[l.type] || '▫️';
-            const label = l.nameTag || (l.content ? l.content.substring(0, 18) : (l.type.toUpperCase()));
+
+            const icon  = layerIcons[l.type] || '▫️';
+            const label = l.nameTag || (l.content ? l.content.substring(0,18) : l.type.toUpperCase());
+
+            // Drag handle
+            const handle = document.createElement('span');
+            handle.className = 'sb-layer-drag';
+            handle.innerHTML = '⠿';
+            handle.title = 'Drag to reorder';
+            handle.draggable = true;
+
+            // Label span (double-click to rename)
+            const labelEl = document.createElement('span');
+            labelEl.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+            labelEl.innerText = label;
+            labelEl.ondblclick = (e) => {
+                e.stopPropagation();
+                const newName = prompt('Rename layer:', label);
+                if (newName !== null) { l.nameTag = newName.trim() || undefined; renderSidebarLayers(); }
+            };
+
             // Lock button
             const lockBtn = document.createElement('button');
             lockBtn.className = 'lock-btn';
-            lockBtn.title = l.locked ? 'Unlock layer' : 'Lock layer';
+            lockBtn.title = l.locked ? 'Unlock' : 'Lock';
             lockBtn.innerText = l.locked ? '🔒' : '🔓';
             lockBtn.onclick = (e) => { e.stopPropagation(); toggleLayerLock(l.id); };
 
-            item.innerHTML = '<span class="sb-layer-icon">' + icon + '</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + label + '</span>';
+            item.appendChild(handle);
+            item.innerHTML += '<span class="sb-layer-icon">' + icon + '</span>';
+            item.appendChild(labelEl);
             item.appendChild(lockBtn);
+
             item.onclick = (e) => {
-                if (e.target === lockBtn) return;
-                if (l.locked) return; // Don't select locked layers
+                if (e.target === lockBtn || e.target === handle || e.target === labelEl && e.detail > 1) return;
+                if (l.locked) return;
                 if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                    const idx = selectedLayers.findIndex(s => s.id === l.id);
-                    if (idx === -1) selectedLayers.push(l); else selectedLayers.splice(idx, 1);
-                } else {
-                    selectedLayers = [l];
-                    activeLayer = l;
-                }
-                render();
-                renderSidebarLayers();
+                    const sidx = selectedLayers.findIndex(s => s.id === l.id);
+                    if (sidx === -1) selectedLayers.push(l); else selectedLayers.splice(sidx, 1);
+                } else { selectedLayers = [l]; activeLayer = l; }
+                render(); renderSidebarLayers();
                 if (typeof updateFxHint === 'function') updateFxHint();
             };
+
+            // Drag-to-reorder
+            handle.addEventListener('dragstart', (e) => {
+                _sbDragLayerIdx = realIdx;
+                item.classList.add('sb-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                container.querySelectorAll('.sb-layer-item').forEach(el => el.classList.remove('sb-drag-over'));
+                item.classList.add('sb-drag-over');
+            });
+            item.addEventListener('dragleave', () => item.classList.remove('sb-drag-over'));
+            item.addEventListener('drop', (e) => {
+                e.preventDefault();
+                item.classList.remove('sb-drag-over');
+                const targetIdx = parseInt(item.dataset.layerIdx);
+                if (_sbDragLayerIdx !== null && targetIdx !== _sbDragLayerIdx) {
+                    saveState();
+                    const [moved] = f.layers.splice(_sbDragLayerIdx, 1);
+                    f.layers.splice(targetIdx, 0, moved);
+                    activeLayer = moved;
+                    render(); renderSidebarLayers();
+                }
+                _sbDragLayerIdx = null;
+            });
+            handle.addEventListener('dragend', () => {
+                _sbDragLayerIdx = null;
+                container.querySelectorAll('.sb-layer-item').forEach(el => {
+                    el.classList.remove('sb-dragging'); el.classList.remove('sb-drag-over');
+                });
+            });
+
             container.appendChild(item);
         });
+
         if (!container.children.length) {
             container.innerHTML = '<div style="text-align:center;padding:20px;color:#333;font-size:11px;font-weight:700;">No layers yet</div>';
         }
@@ -5215,16 +5293,193 @@
         pasteLayer();
     }
 
-    // Auto-refresh sidebar layers when render() runs
+    // ── Debounced render — one redraw per animation frame ──
     const _origRender = render;
-    render = function() {
-        _origRender();
-        if (activeSidePanel === 'layers') renderSidebarLayers();
+    let _renderRaf = null;
+    const _debouncedRender = function() {
+        if (_renderRaf) return;
+        _renderRaf = requestAnimationFrame(() => {
+            _renderRaf = null;
+            _origRender();
+            renderSidebarLayers();
+        });
     };
+    render = _debouncedRender;
+    // Legacy alias for places that need immediate render (export etc.)
+    window._renderImmediate = _origRender;
+    // No-op compat — sidebar now refreshed by debounced render
+    const _NOOP_compat = function() { /* handled by debounce */ };
+
+
+    // ══════════════════════════════════════════════════════
+    // RIGHT-CLICK CONTEXT MENU
+    // ══════════════════════════════════════════════════════
+    (function() {
+        const menu = document.getElementById('desktop-ctx-menu');
+        function closeCtx() { menu.style.display = 'none'; }
+
+        document.addEventListener('click', closeCtx);
+        document.addEventListener('contextmenu', e => {
+            // Only on canvas layers
+            const layerEl = e.target.closest('.layer-el, .speech-bubble, [data-layer-id]');
+            if (!layerEl && e.target.id !== 'comic-frame' && !e.target.closest('#comic-frame')) return;
+            if (!activeLayer && e.target.id === 'comic-frame') return;
+            e.preventDefault();
+            // Position menu
+            const mw = 185, mh = 280;
+            menu.style.left = Math.min(e.clientX, window.innerWidth  - mw - 8) + 'px';
+            menu.style.top  = Math.min(e.clientY, window.innerHeight - mh - 8) + 'px';
+            menu.style.display = 'block';
+            // Show/hide edit text option
+            const editEl = document.getElementById('dctx-edit');
+            if (editEl) editEl.style.display = activeLayer && ['bubble','thinking','text','subtitle'].includes(activeLayer.type) ? 'flex' : 'none';
+            // Lock state
+            const lockEl = document.getElementById('dctx-lock');
+            if (lockEl) lockEl.innerText = activeLayer?.locked ? '🔓 Unlock Layer' : '🔒 Lock Layer';
+            setTimeout(() => document.addEventListener('click', closeCtx, { once: true }), 50);
+        });
+
+        window.ctxEditText = () => {
+            closeCtx();
+            if (!activeLayer) return;
+            const newText = prompt('Edit text:', activeLayer.content || '');
+            if (newText !== null) { saveState(); activeLayer.content = newText; render(); }
+        };
+        window.ctxDuplicate = () => {
+            closeCtx();
+            if (!activeLayer) return;
+            saveState();
+            const copy = JSON.parse(JSON.stringify(activeLayer));
+            copy.id = Date.now(); copy.x = (copy.x||0)+15; copy.y = (copy.y||0)+15;
+            frames[currentIdx].layers.push(copy);
+            activeLayer = copy; render();
+        };
+        window.ctxBringForward = () => { closeCtx(); moveLayerZ(1); };
+        window.ctxSendBack    = () => { closeCtx(); moveLayerZ(-1); };
+        window.ctxFlip = () => {
+            closeCtx();
+            if (!activeLayer) return;
+            saveState(); activeLayer.flipped = !activeLayer.flipped; render();
+        };
+        window.ctxToggleLock = () => {
+            closeCtx();
+            if (!activeLayer) return;
+            toggleLayerLock(activeLayer.id);
+        };
+        window.ctxDelete = () => {
+            closeCtx();
+            if (!activeLayer) return;
+            deleteLayer();
+        };
+    })();
+
+    // ══════════════════════════════════════════════════════
+    // SNAP GUIDES (center + edges)
+    // ══════════════════════════════════════════════════════
+    (function() {
+        // Inject snap guide elements into canvas container
+        // Guides go inside canvas-container so they move/scale with canvas
+        const cc = document.getElementById('canvas-container');
+        if (!cc) return;
+        cc.style.position = 'relative';
+        const mkGuide = (id, horiz) => {
+            const g = document.createElement('div');
+            g.id = id;
+            g.style.cssText = `position:absolute;pointer-events:none;z-index:9000;display:none;background:rgba(0,210,255,0.65);${horiz ? 'left:0;right:0;height:1px;' : 'top:0;bottom:0;width:1px;'}transition:none;`;
+            cc.appendChild(g);
+            return g;
+        };
+        window._snapH = mkGuide('snap-guide-h', true);
+        window._snapV = mkGuide('snap-guide-v', false);
+    })();
+
+    function snapLayerPos(rawX, rawY, layerW, layerH) {
+        const SNAP = 10;
+        const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+        let sx = rawX, sy = rawY;
+        const snapH = window._snapH, snapV = window._snapV;
+        if (snapH) snapH.style.display = 'none';
+        if (snapV) snapV.style.display = 'none';
+        // Center X
+        if (Math.abs(rawX - (cw - layerW) / 2) < SNAP) {
+            sx = (cw - layerW) / 2;
+            if (snapV) { snapV.style.display = 'block'; snapV.style.left = (cw/2) + 'px'; }
+        }
+        // Center Y
+        if (Math.abs(rawY - (ch - layerH) / 2) < SNAP) {
+            sy = (ch - layerH) / 2;
+            if (snapH) { snapH.style.display = 'block'; snapH.style.top = (ch/2) + 'px'; }
+        }
+        return { x: sx, y: sy };
+    }
+
+    // ══════════════════════════════════════════════════════
+    // COMIC PANEL BORDER TOGGLE
+    // ══════════════════════════════════════════════════════
+    let _panelBorderOn = false;
+    function togglePanelBorder() {
+        _panelBorderOn = !_panelBorderOn;
+        const el = document.getElementById('comic-frame');
+        if (el) el.style.outline = _panelBorderOn ? '4px solid #000' : '';
+        const btn = document.getElementById('panel-border-btn');
+        if (btn) {
+            btn.style.background = _panelBorderOn ? 'rgba(255,122,0,.15)' : '';
+            btn.style.color = _panelBorderOn ? 'var(--accent)' : '';
+        }
+        showKbFlash(_panelBorderOn ? '🔲 Panel border ON' : '⬜ Panel border OFF');
+    }
+
+    // ══════════════════════════════════════════════════════
+    // AUTOSAVE INDICATOR
+    // ══════════════════════════════════════════════════════
+    let _lastSaveTime = null;
+    (function() {
+        // Patch saveOffline to track last save time
+        const _origSaveOffline = saveOffline;
+        saveOffline = async function(silent) {
+            const result = await _origSaveOffline.apply(this, arguments);
+            _lastSaveTime = Date.now();
+            updateSaveIndicator();
+            return result;
+        };
+        // Update "Saved X min ago" label
+        setInterval(updateSaveIndicator, 30000);
+    })();
+
+    function updateSaveIndicator() {
+        const el = document.getElementById('save-indicator');
+        if (!el) return;
+        if (!_lastSaveTime) { el.innerText = ''; return; }
+        const mins = Math.round((Date.now() - _lastSaveTime) / 60000);
+        el.innerText = mins < 1 ? '✓ Just saved' : `✓ Saved ${mins}m ago`;
+        el.style.color = mins > 10 ? '#ff9500' : '#3a3';
+    }
+
+    // ══════════════════════════════════════════════════════
+    // LAYER RENAME (double-click layer name in panel)
+    // ══════════════════════════════════════════════════════
+    // Handled in renderSidebarLayers patch below
+
 
     // ══════════════════════════════════════
     // KEYBOARD SHORTCUTS
     // ══════════════════════════════════════
+    // Space key for pan
+    let _spaceDown = false;
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            _spaceDown = true;
+            document.getElementById('viewport').style.cursor = 'grab';
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('keyup', e => {
+        if (e.code === 'Space') {
+            _spaceDown = false;
+            document.getElementById('viewport').style.cursor = '';
+        }
+    });
+
     document.addEventListener('keydown', e => {
         // Never intercept when typing in an input/textarea/select
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
@@ -5319,6 +5574,14 @@
         }
 
         // ── Escape: close panels ──
+        // ── ? — show keyboard shortcuts reference ──
+        if (e.key === '?') {
+            e.preventDefault();
+            const m = document.getElementById('kb-ref-modal');
+            if (m) m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+            return;
+        }
+
         if (e.key === 'Escape') {
             if (activeSidePanel) toggleSidePanel(activeSidePanel);
             return;
@@ -5328,6 +5591,67 @@
         if (e.key === 'h' || e.key === 'H') {
             const app = document.getElementById('cc-app');
             if (app.style.visibility === 'hidden') showEditorUI(); else hideEditorUI();
+            return;
+        }
+
+        // ── [ / ] — send back / bring forward ──
+        if (e.key === '[') { e.preventDefault(); moveLayerZ(-1); showKbFlash('⬇ Sent back'); return; }
+        if (e.key === ']') { e.preventDefault(); moveLayerZ(1);  showKbFlash('⬆ Brought forward'); return; }
+
+        // ── F — fit canvas to screen ──
+        if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            const vp = document.getElementById('viewport');
+            const cc = document.getElementById('canvas-container');
+            if (vp && cc) {
+                const vpW = vp.clientWidth - 80, vpH = vp.clientHeight - 80;
+                const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+                const scale = Math.min(vpW / cw, vpH / ch, 1);
+                if (typeof setViewportScale === 'function') setViewportScale(scale);
+                else if (typeof vpScale !== 'undefined') { vpScale = scale; cc.style.transform = `scale(${scale})`; }
+            }
+            showKbFlash('🔲 Fit to screen');
+            return;
+        }
+
+        // ── Tab — cycle to next layer ──
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const layers = frames[currentIdx].layers;
+            if (!layers.length) return;
+            const idx = layers.findIndex(l => l.id === activeLayer?.id);
+            activeLayer = layers[(idx + 1) % layers.length];
+            render();
+            showKbFlash(`Layer: ${activeLayer.nameTag || activeLayer.type}`);
+            return;
+        }
+
+        // ── P — toggle panel border ──
+        if (e.key === 'p' || e.key === 'P') {
+            e.preventDefault();
+            togglePanelBorder();
+            return;
+        }
+
+        // ── Ctrl+G — duplicate frame ──
+        if (ctrl && e.key === 'g') {
+            e.preventDefault();
+            duplicateFrame();
+            showKbFlash('⧉ Frame duplicated!');
+            return;
+        }
+
+        // ── Ctrl+L — toggle layers panel ──
+        if (ctrl && e.key === 'l') {
+            e.preventDefault();
+            toggleSidePanel('layers');
+            return;
+        }
+
+        // ── Ctrl+B — toggle BG panel ──
+        if (ctrl && e.key === 'b') {
+            e.preventDefault();
+            toggleSidePanel('background');
             return;
         }
     });
@@ -6027,6 +6351,65 @@
         </div>
     </div>
 </div>
+
+
+<!-- ── KEYBOARD SHORTCUTS REFERENCE ── -->
+<div id="kb-ref-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99998;align-items:center;justify-content:center;backdrop-filter:blur(4px);">
+    <div style="background:#111;border:1px solid #222;border-radius:20px;padding:28px 32px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.8);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h2 style="margin:0;font-size:16px;font-weight:900;color:#f5f5f7;">⌨️ Keyboard Shortcuts</h2>
+            <span onclick="document.getElementById('kb-ref-modal').style.display='none'" style="cursor:pointer;color:#555;font-size:20px;">✕</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:12px;">
+            <div style="color:#666;font-weight:900;text-transform:uppercase;letter-spacing:1px;font-size:9px;grid-column:span 2;margin-top:8px;padding-bottom:4px;border-bottom:1px solid #1e1e1e;">History</div>
+            <div style="color:#aaa;">Ctrl+Z</div><div style="color:#555;">Undo</div>
+            <div style="color:#aaa;">Ctrl+Y / Ctrl+Shift+Z</div><div style="color:#555;">Redo</div>
+            <div style="color:#666;font-weight:900;text-transform:uppercase;letter-spacing:1px;font-size:9px;grid-column:span 2;margin-top:8px;padding-bottom:4px;border-bottom:1px solid #1e1e1e;">Layers</div>
+            <div style="color:#aaa;">Ctrl+C / Ctrl+V</div><div style="color:#555;">Copy / Paste layer</div>
+            <div style="color:#aaa;">Ctrl+D</div><div style="color:#555;">Duplicate layer</div>
+            <div style="color:#aaa;">Delete</div><div style="color:#555;">Delete layer</div>
+            <div style="color:#aaa;">[ / ]</div><div style="color:#555;">Send back / Bring forward</div>
+            <div style="color:#aaa;">Tab</div><div style="color:#555;">Cycle to next layer</div>
+            <div style="color:#aaa;">Shift+drag</div><div style="color:#555;">Lock to horizontal or vertical axis</div>
+            <div style="color:#666;font-weight:900;text-transform:uppercase;letter-spacing:1px;font-size:9px;grid-column:span 2;margin-top:8px;padding-bottom:4px;border-bottom:1px solid #1e1e1e;">Frames</div>
+            <div style="color:#aaa;">→ / ←</div><div style="color:#555;">Next / Previous frame</div>
+            <div style="color:#aaa;">Ctrl+G</div><div style="color:#555;">Duplicate frame</div>
+            <div style="color:#666;font-weight:900;text-transform:uppercase;letter-spacing:1px;font-size:9px;grid-column:span 2;margin-top:8px;padding-bottom:4px;border-bottom:1px solid #1e1e1e;">View</div>
+            <div style="color:#aaa;">Scroll wheel</div><div style="color:#555;">Zoom in / out</div>
+            <div style="color:#aaa;">Space+drag</div><div style="color:#555;">Pan canvas</div>
+            <div style="color:#aaa;">F</div><div style="color:#555;">Fit canvas to screen</div>
+            <div style="color:#aaa;">Ctrl+0</div><div style="color:#555;">Reset zoom</div>
+            <div style="color:#aaa;">H</div><div style="color:#555;">Flip horizontal</div>
+            <div style="color:#aaa;">P</div><div style="color:#555;">Toggle panel border</div>
+            <div style="color:#666;font-weight:900;text-transform:uppercase;letter-spacing:1px;font-size:9px;grid-column:span 2;margin-top:8px;padding-bottom:4px;border-bottom:1px solid #1e1e1e;">Panels</div>
+            <div style="color:#aaa;">Ctrl+L</div><div style="color:#555;">Toggle layers panel</div>
+            <div style="color:#aaa;">Ctrl+B</div><div style="color:#555;">Toggle BG panel</div>
+            <div style="color:#aaa;">Escape</div><div style="color:#555;">Deselect / close panel</div>
+            <div style="color:#aaa;">?</div><div style="color:#555;">Show this reference</div>
+        </div>
+    </div>
+</div>
+<!-- ── RIGHT-CLICK CONTEXT MENU ── -->
+<div id="desktop-ctx-menu" style="display:none;position:fixed;z-index:99999;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:5px;box-shadow:0 8px 32px rgba(0,0,0,.85);min-width:180px;">
+    <div class="dctx-item" id="dctx-edit" onclick="ctxEditText()">✏️ Edit Text</div>
+    <div class="dctx-item" onclick="ctxDuplicate()">📄 Duplicate</div>
+    <div class="dctx-sep"></div>
+    <div class="dctx-item" onclick="ctxBringForward()">⬆ Bring Forward <span class="dctx-kb">]</span></div>
+    <div class="dctx-item" onclick="ctxSendBack()">⬇ Send Back <span class="dctx-kb">[</span></div>
+    <div class="dctx-sep"></div>
+    <div class="dctx-item" onclick="ctxFlip()">↔ Flip Horizontal</div>
+    <div class="dctx-item" id="dctx-lock" onclick="ctxToggleLock()">🔒 Lock Layer</div>
+    <div class="dctx-sep"></div>
+    <div class="dctx-item dctx-danger" onclick="ctxDelete()">🗑 Delete Layer</div>
+</div>
+<style>
+.dctx-item { padding:8px 14px; font-size:12px; font-weight:700; color:#ccc; border-radius:7px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+.dctx-item:hover { background:#2a2a2a; color:white; }
+.dctx-item.dctx-danger { color:#ff453a; }
+.dctx-item.dctx-danger:hover { background:#2a1010; }
+.dctx-sep { height:1px; background:#2a2a2a; margin:4px 0; }
+.dctx-kb { font-size:10px; color:#444; font-weight:900; background:#222; padding:1px 6px; border-radius:4px; }
+</style>
 
 </body>
 </html>

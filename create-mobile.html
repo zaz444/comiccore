@@ -307,6 +307,10 @@
     .mob-layer-item .l-type { font-size: 10px; color: #666; margin-top: 1px; }
     .mob-layer-item .l-del { background: none; border: none; color: #444; cursor: pointer; font-size: 16px; padding: 4px; }
     .mob-layer-item .l-del:active { color: var(--danger); }
+    .mob-layer-item .l-drag-handle { color: #333; font-size: 18px; cursor: grab; padding: 4px 6px; flex-shrink: 0; touch-action: none; user-select: none; }
+    .mob-layer-item.dragging { opacity: 0.35; border-color: var(--accent); transform: scale(0.97); }
+    .mob-layer-item.drag-over { border-color: #00d2ff; background: rgba(0,210,255,0.08); transform: translateY(-2px); }
+    .mob-layer-item.drag-over-below { border-bottom: 2px solid #00d2ff; }
 
     /* ── FRAMES SHEET ── */
     .frames-top { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -452,6 +456,10 @@
 
     /* Crop modal */
     #crop-modal { z-index: 700; }
+
+    /* ── Unsaved indicator ── */
+    #unsaved-dot { width:7px;height:7px;border-radius:50%;background:#ff7a00;display:none;margin-left:4px;flex-shrink:0;animation:pulse-dot 1.5s infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.7)} }
 
     /* ── FX Panel as sheet ── */
     .fx-sheet-section { margin-bottom: 14px; }
@@ -982,7 +990,7 @@
 </div>
 
 <!-- FX SHEET -->
-<div id="sheet-fx" class="bottom-sheet">
+<div id="sheet-fx" class="bottom-sheet" style="max-height:45vh;">
     <div class="sheet-handle"></div>
     <div class="sheet-title">🎨 FX <button class="sheet-close" onclick="closeSheet('fx')">✕</button></div>
     <div class="sheet-body">
@@ -1117,7 +1125,7 @@
     <button class="tb-btn" onclick="undo()" title="Undo">↩</button>
     <button class="tb-btn" onclick="redo()" title="Redo">↪</button>
     <div class="tb-spacer"></div>
-    <span id="frame-counter">1 / 1</span>
+    <span id="frame-counter">1 / 1</span><div id="unsaved-dot"></div>
     <div class="tb-spacer"></div>
     <button class="tb-btn" onclick="saveOffline(false)">💾</button>
     <button class="tb-btn" onclick="openDraftsModal()" title="Drafts">📂</button>
@@ -1361,7 +1369,88 @@ function isAnimatedBg(src) {
 }
 
 // ── RENDER ──
+
+// ── LAYER CONTEXT MENU ──────────────────────────────────────────────────
+let _ctxMenuTimer = null;
+let _ctxMenuLayer = null;
+
+function showCtxMenu(x, y, layer) {
+    _ctxMenuLayer = layer;
+    const menu = document.getElementById('layer-ctx-menu');
+    menu.style.display = 'block';
+    // Position so it doesn't go off screen
+    const mw = 170, mh = 200;
+    menu.style.left = Math.min(x, window.innerWidth  - mw - 10) + 'px';
+    menu.style.top  = Math.min(y, window.innerHeight - mh - 10) + 'px';
+    // Close on outside tap
+    setTimeout(() => document.addEventListener('touchstart', closeCtxMenu, { once: true }), 50);
+}
+
+function closeCtxMenu() {
+    document.getElementById('layer-ctx-menu').style.display = 'none';
+    _ctxMenuLayer = null;
+}
+
+function ctxDuplicate() {
+    closeCtxMenu();
+    if (!_ctxMenuLayer) return;
+    saveState();
+    const copy = JSON.parse(JSON.stringify(_ctxMenuLayer));
+    copy.id = Date.now(); copy.x += 20; copy.y += 20;
+    frames[currentIdx].layers.push(copy);
+    activeLayer = copy; render();
+}
+function ctxBringForward() {
+    closeCtxMenu();
+    if (!_ctxMenuLayer) return;
+    saveState();
+    const layers = frames[currentIdx].layers;
+    const idx = layers.indexOf(_ctxMenuLayer);
+    if (idx < layers.length - 1) { [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]]; render(); }
+}
+function ctxSendBack() {
+    closeCtxMenu();
+    if (!_ctxMenuLayer) return;
+    saveState();
+    const layers = frames[currentIdx].layers;
+    const idx = layers.indexOf(_ctxMenuLayer);
+    if (idx > 0) { [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]]; render(); }
+}
+function ctxFlip() {
+    closeCtxMenu();
+    if (!_ctxMenuLayer) return;
+    saveState();
+    _ctxMenuLayer.flipped = !_ctxMenuLayer.flipped; render();
+}
+function openTextEdit(layer) {
+    // Double-tap on text/bubble — open quick edit prompt
+    const newText = prompt('Edit text:', layer.content || '');
+    if (newText !== null) {
+        saveState();
+        layer.content = newText;
+        render();
+    }
+}
+
+function ctxDelete() {
+    closeCtxMenu();
+    if (!_ctxMenuLayer) return;
+    saveState();
+    frames[currentIdx].layers = frames[currentIdx].layers.filter(l => l !== _ctxMenuLayer);
+    if (activeLayer === _ctxMenuLayer) activeLayer = null;
+    render();
+}
+
+// ── Debounced render — prevents excessive redraws during touch ──
+let _renderRaf = null;
 function render() {
+    if (_renderRaf) return; // already queued
+    _renderRaf = requestAnimationFrame(() => {
+        _renderRaf = null;
+        _renderNow();
+    });
+}
+function _renderNow() {
     // Preserve onion canvas and drag overlay before clearing
     const onionCanvasEl = document.getElementById('onion-skin-canvas');
     const dragOverlay   = document.getElementById('bg-drag-overlay');
@@ -1407,10 +1496,10 @@ function render() {
             // Static image — use background-image CSS (matches frameToCanvas export exactly)
             // background-size: scale% auto  preserves aspect ratio just like the canvas export
             // background-position: (50+x)% (50+y)%  is the standard CSS position formula
-            bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')}")`;
+            bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')})")`;
             bgLayer.style.backgroundRepeat   = 'no-repeat';
-            bgLayer.style.backgroundSize     = `${scale}% auto`;
-            bgLayer.style.backgroundPosition = `${50 + xOff}% ${50 + yOff}%`;
+            bgLayer.style.backgroundSize     = scale === 'cover' ? 'cover' : `${scale}% auto`;
+            bgLayer.style.backgroundPosition = scale === 'cover' ? 'center center' : `${50 + xOff}% ${50 + yOff}%`;
             bgLayer.style.transform          = `rotate(${rotate}deg)`;
             bgLayer.style.transformOrigin    = 'center center';
         }
@@ -1556,8 +1645,26 @@ function render() {
             el.style.overflow = 'visible';
         }
 
+        // Long-press = context menu, double-tap = edit text
+        let _lastTapTime = 0;
         // Tap selects, drag moves — touchstart must stop propagation so viewport pinch isn't triggered
         el.addEventListener('touchstart', (e) => {
+            // Long-press → context menu
+            const touchX = e.touches[0].clientX;
+            const touchY = e.touches[0].clientY;
+            _ctxMenuTimer = setTimeout(() => {
+                showCtxMenu(touchX, touchY, layer);
+                _ctxMenuLayer = layer;
+            }, 600);
+
+            // Double-tap → edit text
+            const now = Date.now();
+            if (now - _lastTapTime < 300 && (layer.type === 'bubble' || layer.type === 'thinking' || layer.type === 'text' || layer.type === 'subtitle')) {
+                clearTimeout(_ctxMenuTimer);
+                openTextEdit(layer);
+            }
+            _lastTapTime = now;
+
             // 2-finger on active img layer → pinch-to-resize (NOT viewport zoom)
             if (e.touches.length === 2 && layer === activeLayer && layer.type === 'img') {
                 e.preventDefault();
@@ -1590,6 +1697,7 @@ function render() {
         // Double-tap: open transform sheet
         let lastTap = 0;
         el.addEventListener('touchend', (e) => {
+            clearTimeout(_ctxMenuTimer); // cancel long-press
             if (e.changedTouches.length === 1) {
                 const now = Date.now();
                 if (!_isDragging && now - lastTap < 300) { e.preventDefault(); openTransformSheet(); }
@@ -1665,6 +1773,8 @@ function render() {
         fi.style.display = frames.length > 1 ? 'block' : 'none';
     }
     hasUnsavedChanges = true;
+    const dot = document.getElementById('unsaved-dot');
+    if (dot) dot.style.display = 'block';
 }
 
 function selectLayer(layer) {
@@ -1780,8 +1890,15 @@ function startDrag(e, layer) {
         if (layer.type === 'img') {
             const lW = layer.w || 100;
             const lH = layer.h || lW;
-            layer.x = Math.min(Math.max(rawX, -lW / 2), canvas.offsetWidth  - lW / 2);
-            layer.y = Math.min(Math.max(rawY, -lH / 2), canvas.offsetHeight - lH / 2);
+            const cw2 = canvas.offsetWidth, ch2 = canvas.offsetHeight;
+            const SNAP = 14;
+            let sx = rawX, sy = rawY;
+            // Snap to horizontal center
+            if (Math.abs(rawX - (cw2 - lW) / 2) < SNAP) sx = (cw2 - lW) / 2;
+            // Snap to vertical center
+            if (Math.abs(rawY - (ch2 - lH) / 2) < SNAP) sy = (ch2 - lH) / 2;
+            layer.x = Math.min(Math.max(sx, -lW / 2), cw2 - lW / 2);
+            layer.y = Math.min(Math.max(sy, -lH / 2), ch2 - lH / 2);
         } else {
             layer.x = rawX;
             layer.y = rawY;
@@ -1827,6 +1944,16 @@ function goToFrame(i) { if (i >= 0 && i < frames.length) { currentIdx = i; activ
 function copyCurrentFrame() { frameClipboard = JSON.parse(JSON.stringify(frames[currentIdx])); }
 function pasteCurrentFrame() { if (!frameClipboard) return; saveState(); const copy = JSON.parse(JSON.stringify(frameClipboard)); copy.layers = copy.layers.map(l => ({...l, id: Date.now() + Math.random()})); frames.splice(currentIdx + 1, 0, copy); currentIdx++; render(); renderMobFrames(); }
 
+let _frameStripVisible = true;
+function toggleFrameStrip() {
+    _frameStripVisible = !_frameStripVisible;
+    const wrap = document.getElementById('frame-strip-wrap');
+    const arrow = document.getElementById('frame-strip-arrow');
+    const bot = document.getElementById('bottom-toolbar') || document.getElementById('bot-bar');
+    if (wrap) wrap.style.display = _frameStripVisible ? '' : 'none';
+    if (arrow) arrow.innerText = _frameStripVisible ? '▼' : '▲';
+}
+
 function renderMobFrames() {
     const scroll = document.getElementById('mob-frame-scroll');
     if (!scroll) return;
@@ -1848,33 +1975,183 @@ function renderMobFrames() {
 }
 
 // ── LAYERS ──
+function getLayerName(layer, i) {
+    if (layer.nameTag) return layer.nameTag;
+    if (layer.content) return layer.content.substring(0, 18) + (layer.content.length > 18 ? '…' : '');
+    const typeNames = { img: 'Image', bubble: 'Bubble', thinking: 'Thought', text: 'Text', subtitle: 'Subtitle' };
+    return (typeNames[layer.type] || layer.type) + ' ' + (i + 1);
+}
+
 function renderMobLayers() {
     const list = document.getElementById('mob-layer-list');
     if (!list) return;
     list.innerHTML = '';
     const f = frames[currentIdx];
-    if (!f.layers.length) { list.innerHTML = '<div style="color:#555;text-align:center;padding:20px;font-size:13px;">No layers yet</div>'; return; }
+    if (!f.layers.length) {
+        list.innerHTML = '<div style="color:#555;text-align:center;padding:20px;font-size:13px;">No layers yet</div>';
+        return;
+    }
+
+    // Render top-to-bottom = reverse of layers array (top layer = last in array)
     [...f.layers].reverse().forEach((layer, ri) => {
-        const i = f.layers.length - 1 - ri;
+        const i = f.layers.length - 1 - ri; // actual index in f.layers
         const item = document.createElement('div');
         item.className = 'mob-layer-item' + (layer === activeLayer ? ' active-l' : '');
-        const ico = layer.type === 'img' ? '🖼' : layer.type === 'bubble' ? '💬' : layer.type === 'thinking' ? '💭' : layer.type === 'subtitle' ? '📋' : '✍️';
+        item.dataset.layerIdx = i;
+
+        const ico = layer.type === 'img' ? '🖼' : layer.type === 'bubble' ? '💬' :
+                    layer.type === 'thinking' ? '💭' : layer.type === 'subtitle' ? '📋' : '✍️';
         const lockIcon = layer.locked ? ' 🔒' : '';
-        item.innerHTML = `<span style="font-size:20px;flex-shrink:0;">${ico}</span><div class="l-info"><div class="l-name">${layer.nameTag || (layer.content ? layer.content.substring(0,16) : (layer.type + ' ' + (i+1)))}${lockIcon}</div><div class="l-type">${layer.type}</div></div>`;
-        if (layer.locked) item.style.opacity = '0.5';
-        item.onclick = () => { if (!layer.locked) { activeLayer = layer; render(); renderMobLayers(); } };
-        // Support both double-click (PC) and double-tap (mobile) to open transform
-        item.ondblclick = () => openTransformSheet();
-        let layerItemLastTap = 0;
-        item.addEventListener('touchend', () => {
+        const name = getLayerName(layer, i);
+
+        // Drag handle
+        const handle = document.createElement('span');
+        handle.className = 'l-drag-handle';
+        handle.innerHTML = '⠿';
+        handle.title = 'Drag to reorder';
+
+        // Icon
+        const icoEl = document.createElement('span');
+        icoEl.style.cssText = 'font-size:18px;flex-shrink:0;';
+        icoEl.innerText = ico;
+
+        // Info
+        const info = document.createElement('div');
+        info.className = 'l-info';
+        info.innerHTML = `<div class="l-name">${name}${lockIcon}</div><div class="l-type">${layer.type}</div>`;
+
+        // Double-tap name to rename
+        let nameTapTime = 0;
+        info.addEventListener('touchend', () => {
             const now = Date.now();
-            if (now - layerItemLastTap < 300) openTransformSheet();
-            layerItemLastTap = now;
+            if (now - nameTapTime < 300) {
+                const newName = prompt('Rename layer:', name);
+                if (newName !== null) { layer.nameTag = newName.trim() || undefined; renderMobLayers(); }
+            }
+            nameTapTime = now;
         });
-        const del = document.createElement('button'); del.className = 'l-del'; del.innerText = '🗑';
-        del.onclick = (e) => { e.stopPropagation(); saveState(); f.layers.splice(i, 1); if (activeLayer === layer) activeLayer = null; render(); renderMobLayers(); };
+
+        // Delete button
+        const del = document.createElement('button');
+        del.className = 'l-del'; del.innerText = '🗑';
+        del.onclick = e => {
+            e.stopPropagation();
+            saveState();
+            f.layers.splice(i, 1);
+            if (activeLayer === layer) activeLayer = null;
+            render(); renderMobLayers();
+        };
+
+        item.appendChild(handle);
+        item.appendChild(icoEl);
+        item.appendChild(info);
         item.appendChild(del);
+
+        if (layer.locked) item.style.opacity = '0.5';
+
+        // Select on tap
+        let tapStartTime = 0, tapMoved = false;
+        item.addEventListener('touchstart', () => { tapStartTime = Date.now(); tapMoved = false; }, { passive: true });
+        item.addEventListener('touchmove', () => { tapMoved = true; }, { passive: true });
+        item.addEventListener('touchend', () => {
+            if (!tapMoved && Date.now() - tapStartTime < 400 && !layer.locked) {
+                activeLayer = layer; render(); renderMobLayers();
+            }
+        });
+        item.ondblclick = () => openTransformSheet();
+
+        // ── Touch drag-to-reorder ──
+        attachLayerDrag(handle, item, i);
+
         list.appendChild(item);
+    });
+}
+
+// ── Touch drag-to-reorder for layers ────────────────────────────────────
+let _dragLayerIdx  = null;  // actual f.layers index of dragged item
+let _dragItemEl    = null;
+let _dragPlaceholder = null;
+
+function attachLayerDrag(handle, item, layerIdx) {
+    handle.addEventListener('touchstart', e => {
+        e.stopPropagation();
+        _dragLayerIdx = layerIdx;
+        _dragItemEl   = item;
+        item.classList.add('dragging');
+
+        // Create floating clone
+        const clone = item.cloneNode(true);
+        clone.id = 'layer-drag-clone';
+        clone.style.cssText = `position:fixed;z-index:99999;width:${item.offsetWidth}px;opacity:0.92;pointer-events:none;background:#1a1a1a;border:2px solid var(--accent);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.7);transform:scale(1.03);transition:none;`;
+        const touch = e.touches[0];
+        clone.style.left = (touch.clientX - item.offsetWidth / 2) + 'px';
+        clone.style.top  = (touch.clientY - item.offsetHeight / 2) + 'px';
+        document.body.appendChild(clone);
+    }, { passive: true });
+
+    handle.addEventListener('touchmove', e => {
+        if (_dragLayerIdx === null) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+
+        // Move clone
+        const clone = document.getElementById('layer-drag-clone');
+        if (clone) {
+            clone.style.left = (touch.clientX - clone.offsetWidth / 2) + 'px';
+            clone.style.top  = (touch.clientY - clone.offsetHeight / 2) + 'px';
+        }
+
+        // Find which item we're hovering over
+        const list = document.getElementById('mob-layer-list');
+        const items = [...list.querySelectorAll('.mob-layer-item:not(.dragging)')];
+        items.forEach(el => el.classList.remove('drag-over'));
+
+        let targetEl = null;
+        for (const el of items) {
+            const rect = el.getBoundingClientRect();
+            if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                targetEl = el; break;
+            }
+        }
+        if (targetEl) targetEl.classList.add('drag-over');
+
+    }, { passive: false });
+
+    handle.addEventListener('touchend', e => {
+        if (_dragLayerIdx === null) return;
+
+        // Remove clone
+        const clone = document.getElementById('layer-drag-clone');
+        if (clone) clone.remove();
+        if (_dragItemEl) _dragItemEl.classList.remove('dragging');
+
+        // Find drop target
+        const touch = e.changedTouches[0];
+        const list = document.getElementById('mob-layer-list');
+        const items = [...list.querySelectorAll('.mob-layer-item:not(.dragging)')];
+        items.forEach(el => el.classList.remove('drag-over'));
+
+        let targetIdx = null;
+        for (const el of items) {
+            const rect = el.getBoundingClientRect();
+            if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                targetIdx = parseInt(el.dataset.layerIdx);
+                break;
+            }
+        }
+
+        if (targetIdx !== null && targetIdx !== _dragLayerIdx) {
+            saveState();
+            const f = frames[currentIdx];
+            const [moved] = f.layers.splice(_dragLayerIdx, 1);
+            f.layers.splice(targetIdx, 0, moved);
+            if (activeLayer === moved) activeLayer = moved; // keep reference
+            render();
+            renderMobLayers();
+        }
+
+        _dragLayerIdx = null;
+        _dragItemEl   = null;
     });
 }
 
@@ -2339,7 +2616,7 @@ function renderMobBgGrid() {
         card.onclick = () => {
             saveState();
             frames[currentIdx].background = bg.image_data;
-            frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
+            frames[currentIdx].bgSettings = { scale:'cover', rotate:0, x:0, y:0, filter:'none' };
             syncBgSliders();
             render();
             closeSheet('bg');
@@ -2633,15 +2910,17 @@ function updateMobBg() {
     document.getElementById('mob-bg-x-v').innerText = x;
     document.getElementById('mob-bg-y-v').innerText = y;
     frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, scale: parseInt(scale), rotate: parseInt(rotate), x: parseInt(x), y: parseInt(y) };
+    document.getElementById('mob-bg-scale-v').innerText = scale + '%';
     render();
 }
 function syncBgSliders() {
     const s = frames[currentIdx].bgSettings || {};
-    document.getElementById('mob-bg-scale').value = s.scale ?? 100;
+    const scaleVal = (s.scale === 'cover') ? 100 : (s.scale ?? 100);
+    document.getElementById('mob-bg-scale').value = scaleVal;
     document.getElementById('mob-bg-rotate').value = s.rotate ?? 0;
     document.getElementById('mob-bg-x').value = s.x ?? 0;
     document.getElementById('mob-bg-y').value = s.y ?? 0;
-    document.getElementById('mob-bg-scale-v').innerText = (s.scale ?? 100) + '%';
+    document.getElementById('mob-bg-scale-v').innerText = s.scale === 'cover' ? 'Cover' : (scaleVal + '%');
     document.getElementById('mob-bg-rotate-v').innerText = (s.rotate ?? 0) + '°';
     document.getElementById('mob-bg-x-v').innerText = (s.x ?? 0);
     document.getElementById('mob-bg-y-v').innerText = (s.y ?? 0);
@@ -2661,7 +2940,7 @@ function syncBgSliders() {
 function resetBgSettings() {
     saveState();
     // Reset transform only — preserve the background image itself
-    frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
+    frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };
     syncBgSliders();
     document.querySelectorAll('#mob-bg-filter-row .filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     render();
@@ -2753,7 +3032,7 @@ function bgChoiceFixed() {
     saveState();
     frames[currentIdx].background = _bgChoiceSrc;
     // Always reset bgSettings when a new background is applied
-    frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
+    frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };
     _bgChoiceSrc = null;
     // Sync sliders to clean state
     syncBgSliders();
@@ -2926,7 +3205,7 @@ function confirmMultiImport() {
     const mode = document.getElementById('multi-insert-mode').value;
     const newFrames = multiFiles.map(f => ({
         layers: [], background: f.dataUrl,
-        bgSettings: { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' }
+        bgSettings: { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' }
     }));
     if (mode === 'replace') { frames = newFrames; currentIdx = 0; }
     else if (mode === 'append') { frames.splice(currentIdx + 1, 0, ...newFrames); currentIdx++; }
@@ -2966,6 +3245,8 @@ async function saveOffline(silent = false) {
                     }
                 }
                 hasUnsavedChanges = false;
+    const dot2 = document.getElementById('unsaved-dot');
+    if (dot2) dot2.style.display = 'none';
                 if (!silent) {
                     const t = document.createElement('div');
                     t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;';
@@ -3066,7 +3347,8 @@ async function renderFrameToCanvas(frame, cw, ch) {
     const ctx = tmp.getContext('2d');
     const bg = frame.background || '#ffffff';
     const s = frame.bgSettings || {};
-    const scale  = s.scale  ?? 100;
+    const isCover = s.scale === 'cover';
+    const scale  = isCover ? 100 : (s.scale ?? 100);
     const xOff   = s.x      ?? 0;
     const yOff   = s.y      ?? 0;
     const rot    = s.rotate ?? 0;
@@ -3078,15 +3360,23 @@ async function renderFrameToCanvas(frame, cw, ch) {
         if (isImg) {
             const img = new Image(); img.crossOrigin = 'anonymous';
             img.onload = () => {
-                // Mirror CSS: background-size: scale% auto (preserves AR)
-                // background-position: (50+x)% (50+y)%
-                const imgAR   = img.naturalWidth / img.naturalHeight;
-                const drawW   = cw * scale / 100;
-                const drawH   = drawW / imgAR;
-                const posXfrac = (50 + xOff) / 100;
-                const posYfrac = (50 + yOff) / 100;
-                const posX = (cw - drawW) * posXfrac;
-                const posY = (ch - drawH) * posYfrac;
+                const imgAR = img.naturalWidth / img.naturalHeight;
+                let drawW, drawH, posX, posY;
+                if (isCover) {
+                    // Cover: fill canvas, maintain AR
+                    const canvasAR = cw / ch;
+                    if (imgAR > canvasAR) { drawH = ch; drawW = drawH * imgAR; }
+                    else { drawW = cw; drawH = drawW / imgAR; }
+                    posX = (cw - drawW) / 2;
+                    posY = (ch - drawH) / 2;
+                } else {
+                    drawW = cw * scale / 100;
+                    drawH = drawW / imgAR;
+                    const posXfrac = (50 + xOff) / 100;
+                    const posYfrac = (50 + yOff) / 100;
+                    posX = (cw - drawW) * posXfrac;
+                    posY = (ch - drawH) * posYfrac;
+                }
                 ctx.save();
                 ctx.translate(cw / 2, ch / 2);
                 ctx.rotate(rot * Math.PI / 180);
@@ -3604,6 +3894,28 @@ function vpZoomReset() {
     _showZoomIndicator();
 }
 
+// ── Swipe left/right on CANVAS to switch frames ──
+(function() {
+    let swipeStartX = null, swipeStartY = null;
+    const cvs = document.getElementById('canvas-wrap') || document.getElementById('canvas');
+    if (!cvs) return;
+    cvs.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) return;
+        swipeStartX = e.touches[0].clientX;
+        swipeStartY = e.touches[0].clientY;
+    }, { passive: true });
+    cvs.addEventListener('touchend', e => {
+        if (swipeStartX === null || activeLayer) return;
+        const dx = e.changedTouches[0].clientX - swipeStartX;
+        const dy = e.changedTouches[0].clientY - swipeStartY;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
+            if (dx < 0 && currentIdx < frames.length - 1) { currentIdx++; render(); renderMobFrames(); }
+            else if (dx > 0 && currentIdx > 0) { currentIdx--; render(); renderMobFrames(); }
+        }
+        swipeStartX = null;
+    }, { passive: true });
+})();
+
 // ── Touch: pinch-zoom + 2-finger pan ──
 let _vpTouches = [];
 let _vpPinchDist = 0;
@@ -3966,6 +4278,21 @@ document.addEventListener('gesturechange', function(e) {
         </div>
     </div>
 </div>
+
+
+<!-- ── LAYER CONTEXT MENU ── -->
+<div id="layer-ctx-menu" style="display:none;position:fixed;z-index:9000;background:#1a1a1a;border:1px solid #333;border-radius:14px;padding:6px;box-shadow:0 8px 32px rgba(0,0,0,.8);min-width:160px;">
+    <div class="ctx-item" onclick="ctxDuplicate()">📄 Duplicate</div>
+    <div class="ctx-item" onclick="ctxBringForward()">⬆ Bring Forward</div>
+    <div class="ctx-item" onclick="ctxSendBack()">⬇ Send Back</div>
+    <div class="ctx-item" onclick="ctxFlip()">↔ Flip</div>
+    <div class="ctx-item ctx-danger" onclick="ctxDelete()">🗑 Delete</div>
+</div>
+<style>
+.ctx-item { padding:10px 14px; font-size:13px; font-weight:700; color:#f5f5f7; border-radius:8px; cursor:pointer; }
+.ctx-item:hover { background:#2a2a2a; }
+.ctx-item.ctx-danger { color:#ff453a; }
+</style>
 
 </body>
 </html>
