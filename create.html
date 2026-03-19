@@ -793,6 +793,24 @@
     #sb-bg-grid::-webkit-scrollbar { width: 3px; }
     #sb-bg-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
     #sb-bg-grid::-webkit-scrollbar-track { background: transparent; }
+    .sb-bg-card {
+        position: relative;
+        width: 100%;
+        padding-bottom: 75%; /* 4:3 ratio — reliable across all browsers */
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: pointer;
+        border: 2px solid #1e1e1e;
+        background: #111;
+        transition: border-color 0.15s;
+        box-sizing: border-box;
+    }
+    .sb-bg-card img {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        object-fit: cover; display: block;
+        border-radius: 6px;
+    }
     #sb-effect-grid::-webkit-scrollbar { width: 3px; }
     #sb-effect-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
     #sb-effect-grid::-webkit-scrollbar-track { background: transparent; }
@@ -1603,7 +1621,7 @@
                             <button id="sb-bg-tab-official" onclick="setSbBgTab('official')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
                             <button id="sb-bg-tab-mine" onclick="setSbBgTab('mine')" style="flex:1;padding:5px;border-radius:8px;border:1px solid #222;background:#111;color:#555;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
                         </div>
-                        <div id="sb-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:80px;gap:8px;overflow-y:auto;flex:1;min-height:0;padding:4px 6px 4px 4px;align-content:start;"></div>
+                        <div id="sb-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;overflow-y:auto;flex:1;min-height:0;padding:4px 6px 8px 4px;align-content:start;"></div>
                         <div style="border-top:1px solid #1e1e1e;padding-top:6px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
                             <button class="sp-action-btn" onclick="toggleSidePanel('background'); triggerImport('bg')">
                                 <span class="sp-action-icon">📷</span> Upload (Auto-fit)
@@ -2167,17 +2185,17 @@
             probe.crossOrigin = 'anonymous';
             probe.onload = () => {
                 if (!probe.naturalWidth) return;
-                const cropped = cropSpriteToContent(probe);
-                // Preserve the bottom-left corner position so the new action
-                // sits exactly where the old one did without jumping/recentering
+                const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+                const prevTrim = layer.trimData;
+                const scale = prevTrim ? (layer.w / prevTrim.trimW) : (layer.w / trimW);
                 const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
                 const oldLeft   = layer.x;
-                const scale = layer.w / cropped.w;
-                layer.src = cropped.src;
-                layer.w = Math.round(cropped.w * scale);
-                layer.h = Math.round(cropped.h * scale);
+                layer.src = img;
+                layer.w = Math.round(trimW * scale);
+                layer.h = Math.round(trimH * scale);
                 layer.x = oldLeft;
                 layer.y = oldBottom - layer.h;
+                layer.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
                 render();
             };
             probe.onerror = () => render();
@@ -2256,19 +2274,23 @@
 
     function addSpriteToCanvas(src, pack) {
         saveState();
-        const TARGET_W = 200;
-        const nl = { type: 'img', src, w: TARGET_W, h: TARGET_W, x: 100, y: 100, rotation: 0, flipped: false, packData: pack, id: Date.now() };
+        const cw = canvas.offsetWidth || 600;
+        const ch = canvas.offsetHeight || 600;
+        const TARGET_W = Math.round(cw * 0.33);
+        const nl = { type: 'img', src, w: TARGET_W, h: TARGET_W, x: Math.round(cw * 0.33), y: Math.round(ch * 0.33), rotation: 0, flipped: false, packData: pack, id: Date.now() };
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
         const probe = new Image();
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
             if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
-            const cropped = cropSpriteToContent(probe);
-            nl.src = cropped.src;
-            const scale = TARGET_W / cropped.w;
-            nl.w = TARGET_W;
-            nl.h = Math.round(cropped.h * scale);
+            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+            const scale = TARGET_W / trimW;
+            nl.w = Math.round(trimW * scale);
+            nl.h = Math.round(trimH * scale);
+            nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
+            nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+            nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
             render();
         };
         probe.onerror = () => {
@@ -2705,21 +2727,41 @@
             };
             closeCrop(); render();
         } else {
-            const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
+            const b64 = cropper.getCroppedCanvas({ maxWidth: 1200, maxHeight: 1200 }).toDataURL('image/png');
             saveState();
-            const uploadProbe = new Image();
-            uploadProbe.onload = () => {
-                const cropped = cropSpriteToContent(uploadProbe);
-                const TARGET_W = 200;
-                const scale = TARGET_W / cropped.w;
-                frames[currentIdx].layers.push({
-                    type: 'img', src: cropped.src,
-                    w: TARGET_W, h: Math.round(cropped.h * scale),
-                    x: 50, y: 50, rotation: 0, flipped: false, id: Date.now()
-                });
-                closeCrop(); render();
-            };
-            uploadProbe.src = b64;
+            closeCrop();
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,0.92);color:#00d2ff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;pointer-events:none;border:1px solid rgba(0,210,255,0.3);letter-spacing:0.3px;';
+            toast.innerText = '⬆️ Uploading image…';
+            document.body.appendChild(toast);
+            uploadBgToStorage(b64).then(url => {
+                toast.remove();
+                const finalSrc = url || b64;
+                const probe = new Image();
+                probe.crossOrigin = 'anonymous';
+                probe.onload = () => {
+                    const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+                    const cw = canvas.offsetWidth || 600;
+                    const TARGET_W = Math.round(cw * 0.33);
+                    const scale = TARGET_W / trimW;
+                    frames[currentIdx].layers.push({
+                        type: 'img', src: finalSrc,
+                        w: Math.round(trimW * scale),
+                        h: Math.round(trimH * scale),
+                        x: Math.max(0, 50 - Math.round(offsetX * scale)),
+                        y: Math.max(0, 50 - Math.round(offsetY * scale)),
+                        rotation: 0, flipped: false,
+                        trimData: { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight },
+                        id: Date.now()
+                    });
+                    render();
+                };
+                probe.onerror = () => {
+                    frames[currentIdx].layers.push({ type:'img', src:finalSrc, w:200, h:200, x:50, y:50, rotation:0, flipped:false, id:Date.now() });
+                    render();
+                };
+                probe.src = finalSrc;
+            });
         }
     };
 
@@ -4934,6 +4976,51 @@
     let sbBgOfficial = null;
     let sbBgMine = null;
 
+    // ── Batch lazy-loader for background images ──
+    let _sbBgLazyQueue = [];
+    let _sbBgLazyTimer = null;
+
+    const _sbBgObserver = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            _sbBgObserver.unobserve(entry.target);
+            const id = entry.target.dataset.bgId;
+            if (!id) return;
+            const cached = (() => { try { return sessionStorage.getItem('cc_bg_img_' + id); } catch(e) { return null; } })();
+            if (cached) { _sbBgApplyImg(entry.target, cached); return; }
+            _sbBgLazyQueue.push(id);
+            if (!_sbBgLazyTimer) _sbBgLazyTimer = setTimeout(_sbBgFlushBatch, 40);
+        });
+    }, { rootMargin: '400px 0px' });
+
+    async function _sbBgFlushBatch() {
+        _sbBgLazyTimer = null;
+        if (!_sbBgLazyQueue.length) return;
+        const batch = [...new Set(_sbBgLazyQueue.splice(0, 10))];
+        const { data } = await _supabase.from('backgrounds_library').select('id, image_data').in('id', batch);
+        if (!data) return;
+        data.forEach(row => {
+            try { sessionStorage.setItem('cc_bg_img_' + row.id, row.image_data); } catch(e) {}
+            const card = document.querySelector(`.sb-bg-card[data-bg-id="${row.id}"]`);
+            if (card) { card._imgSrc = row.image_data; _sbBgApplyImg(card, row.image_data); }
+            const inOff = (sbBgOfficial||[]).find(b => b.id === row.id);
+            if (inOff) inOff.image_data = row.image_data;
+            const inMine = (sbBgMine||[]).find(b => b.id === row.id);
+            if (inMine) inMine.image_data = row.image_data;
+        });
+        if (_sbBgLazyQueue.length) { _sbBgLazyTimer = setTimeout(_sbBgFlushBatch, 40); }
+    }
+
+    function _sbBgApplyImg(card, src) {
+        const skeleton = card.querySelector('.sb-bg-skeleton');
+        if (!skeleton) return;
+        const img = document.createElement('img');
+        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border-radius:6px;';
+        img.onload = () => skeleton.replaceWith(img);
+        img.src = src;
+        card._imgSrc = src;
+    }
+
     function setSbBgTab(tab) {
         sbBgTab = tab;
         const offBtn  = document.getElementById('sb-bg-tab-official');
@@ -4948,19 +5035,18 @@
         if (!grid) return;
         grid.innerHTML = '<div class="sp-load-msg">Loading…</div>';
 
-        // Load official
+        // Fetch metadata only — images lazy-loaded per card
         const { data: offData } = await _supabase.from('backgrounds_library')
-            .select('id, name, image_data, ratio')
+            .select('id, name, ratio')
             .eq('is_official', true)
             .order('id', { ascending: false });
         sbBgOfficial = offData || [];
 
-        // Load mine
         const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
         const handle  = profile.handle;
         if (handle) {
             const { data: mineData } = await _supabase.from('backgrounds_library')
-                .select('id, name, image_data, ratio')
+                .select('id, name, ratio')
                 .eq('uploaded_by', handle)
                 .order('id', { ascending: false });
             sbBgMine = mineData || [];
@@ -4986,28 +5072,44 @@
         grid.innerHTML = '';
         filtered.forEach(bg => {
             const card = document.createElement('div');
-            card.style.cssText = 'height:100%;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;transition:.15s;position:relative;background:#111;';
-            card.onmouseover = () => card.style.borderColor = '#ff7a00';
-            card.onmouseout  = () => card.style.borderColor = '#1e1e1e';
+            card.className = 'sb-bg-card';
+            card.dataset.bgId = bg.id;
 
-            const img = document.createElement('img');
-            img.src = bg.image_data;
-            img.loading = 'lazy';
-            img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
-            img.onerror = () => { card.style.background='#111'; img.remove(); };
+            // Skeleton shimmer
+            const skeleton = document.createElement('div');
+            skeleton.className = 'sb-bg-skeleton';
+            skeleton.style.cssText = 'position:absolute;inset:0;background:linear-gradient(90deg,#1a1a1a 25%,#252525 50%,#1a1a1a 75%);background-size:200% 100%;animation:sb-shimmer 1.4s infinite;border-radius:6px;';
+            card.appendChild(skeleton);
 
             const lbl = document.createElement('div');
-            lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:rgba(0,0,0,.75);font-size:9px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(0,0,0,.78);font-size:9px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1;border-radius:0 0 6px 6px;';
             lbl.innerText = bg.name || 'Untitled';
-
-            card.appendChild(img);
             card.appendChild(lbl);
-            card.onclick = () => {
-                // Close panel first so the crop/fixed choice modal is visible
+
+            // Check session cache, else observe for lazy batch load
+            const cached = bg.image_data || (() => { try { return sessionStorage.getItem('cc_bg_img_' + bg.id); } catch(e) { return null; } })();
+            if (cached) {
+                _sbBgApplyImg(card, cached);
+            } else {
+                _sbBgObserver.observe(card);
+            }
+
+            card.onmouseover = () => card.style.borderColor = '#ff7a00';
+            card.onmouseout  = () => card.style.borderColor = '#1e1e1e';
+            card.onclick = async () => {
+                let src = card._imgSrc || bg.image_data;
+                if (!src) {
+                    card.style.opacity = '0.6';
+                    const { data } = await _supabase.from('backgrounds_library').select('image_data').eq('id', bg.id).single();
+                    card.style.opacity = '';
+                    if (!data?.image_data) return;
+                    src = data.image_data;
+                    bg.image_data = src;
+                    _sbBgApplyImg(card, src);
+                }
                 toggleSidePanel('background');
-                // Show crop/fixed import choice — same as when uploading from device
                 currentImportType = 'bg';
-                showBgImportChoice(bg.image_data);
+                showBgImportChoice(src);
             };
             grid.appendChild(card);
         });
@@ -5198,19 +5300,23 @@
 
     function addEffectToCanvas(src, pack) {
         saveState();
-        const TARGET_W = 200;
-        const nl = { type:'img', src, w:TARGET_W, h:TARGET_W, x:100, y:100, rotation:0, flipped:false, effectData:pack, id:Date.now() };
+        const cw = canvas.offsetWidth || 600;
+        const ch = canvas.offsetHeight || 600;
+        const TARGET_W = Math.round(cw * 0.33);
+        const nl = { type:'img', src, w:TARGET_W, h:TARGET_W, x:Math.round(cw*0.33), y:Math.round(ch*0.33), rotation:0, flipped:false, effectData:pack, id:Date.now() };
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
         const probe = new Image();
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
             if (!probe.naturalWidth) { render(); return; }
-            const cropped = cropSpriteToContent(probe);
-            nl.src = cropped.src;
-            const scale = TARGET_W / cropped.w;
-            nl.w = TARGET_W;
-            nl.h = Math.round(cropped.h * scale);
+            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+            const scale = TARGET_W / trimW;
+            nl.w = Math.round(trimW * scale);
+            nl.h = Math.round(trimH * scale);
+            nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
+            nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+            nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
             render();
         };
         probe.onerror = () => {
