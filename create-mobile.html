@@ -281,6 +281,13 @@
         font-size: 8px; font-weight: 800; text-align: center;
         padding: 3px 2px; text-transform: uppercase; letter-spacing: 0.3px;
     }
+    /* Effect cards in 2-col grid get a bit more height + larger label */
+    #mob-effect-grid .mob-sprite-card {
+        aspect-ratio: unset; height: 110px;
+    }
+    #mob-effect-grid .mob-sprite-name {
+        font-size: 10px; padding: 5px 6px;
+    }
 
     /* ── LAYERS SHEET ── */
     .mob-layer-actions {
@@ -866,7 +873,7 @@
             </select>
         </div>
         <div id="mob-effect-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
-        <div id="mob-effect-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;overflow-y:auto;max-height:55vh;">
+        <div id="mob-effect-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;overflow-y:auto;max-height:55vh;padding-bottom:8px;">
             <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load effects...</div>
         </div>
     </div>
@@ -891,7 +898,7 @@
                 <button id="mob-bg-tab-official" onclick="setMobBgTab('official')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
                 <button id="mob-bg-tab-mine" onclick="setMobBgTab('mine')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
             </div>
-            <div id="mob-bg-grid" style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;margin-bottom:6px;">
+            <div id="mob-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:6px;padding-bottom:4px;">
                 <div style="color:#555;font-size:12px;padding:16px;text-align:center;">Tap to load...</div>
             </div>
             <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:18px;">📷</span>Upload (Auto-fit)</button>
@@ -2648,21 +2655,20 @@ function renderMobBgGrid() {
     grid.innerHTML = '';
     filtered.forEach(bg => {
         const card = document.createElement('div');
-        card.style.cssText = 'width:100%;height:60px;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;transition:.15s;position:relative;background:#0a0a0a;flex-shrink:0;';
+        card.style.cssText = 'width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;transition:.15s;position:relative;background:#0a0a0a;';
+        card.ontouchstart = () => card.style.borderColor = 'var(--accent)';
+        card.ontouchend   = () => card.style.borderColor = '#1e1e1e';
         const img = document.createElement('img');
         img.src = bg.image_data; img.loading = 'lazy';
         img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
         const lbl = document.createElement('div');
-        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:rgba(0,0,0,.75);font-size:9px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(0,0,0,.78);font-size:10px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
         lbl.innerText = bg.name || 'Untitled';
         card.appendChild(img); card.appendChild(lbl);
         card.onclick = () => {
-            saveState();
-            frames[currentIdx].background = bg.image_data;
-            frames[currentIdx].bgSettings = { scale:'cover', rotate:0, x:0, y:0, filter:'none' };
-            syncBgSliders();
-            render();
             closeSheet('bg');
+            currentImportType = 'bg';
+            showBgImportChoice(bg.image_data);
         };
         grid.appendChild(card);
     });
