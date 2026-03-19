@@ -432,7 +432,7 @@
 
     <script>
 
-        const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+        const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
         
         const SOCIAL_CONFIG = [
             { key: 'x', label: 'X (Twitter)', icon: '𝕏' },
@@ -505,7 +505,8 @@
 
             // Self-heal: if handle is missing from localStorage, re-fetch from Supabase auth
             if (!myProfile.handle && !currentViewedHandle) {
-                const { data: { user } } = await _supabase.auth.getUser();
+                const { data: { session: _ps } } = await _supabase.auth.getSession();
+                const user = _ps?.user ?? null;
                 if (!user) {
                     alert('You must be logged in to edit your profile.');
                     location.href = 'login.html';

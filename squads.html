@@ -283,7 +283,7 @@
 </div>
 
 <script>
-    const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE');
+    const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
 
     // ── Storage bucket upload helper ──────────────────────
     async function uploadToStorage(bucket, path, data) {
@@ -314,7 +314,8 @@
             return;
         }
         const local = JSON.parse(localStorage.getItem('user_profile') || '{}');
-        const { data: { user } } = await _sb.auth.getUser();
+        const { data: { session: _sq } } = await _sb.auth.getSession();
+        const user = _sq?.user ?? null;
         if (user) {
             const { data: dbp } = await _sb.from('profiles').select('handle').eq('id', user.id).single();
             myHandle = dbp?.handle || local.handle;

@@ -3228,7 +3228,8 @@ async function saveOffline(silent = false) {
     // ── Supabase-first ──
     if (handle) {
         try {
-            const { data: { user } } = await _supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+            const { data: { session: _cm1 } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+            const user = _cm1?.user ?? null;
             if (user) {
                 if (activeDraftId && activeDraftId.toString().includes('-')) {
                     await _supabase.from('drafts').update({
@@ -3319,7 +3320,8 @@ async function finalPublish() {
     if (!title) { alert('Please enter a title.'); return; }
     if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
     btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
-    const { data: { user } } = await _supabase.auth.getUser();
+    const { data: { session: _cm2 } } = await _supabase.auth.getSession();
+    const user = _cm2?.user ?? null;
     if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
     const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
@@ -3604,7 +3606,8 @@ async function openExportFramesTab() {
 // ── SAVE SPRITE TO PERSONAL ──
 async function saveSpriteToPersonal() {
     if (!activeLayer?.src) return;
-    const { data:{user} } = await _supabase.auth.getUser();
+    const { data: { session: _cm3 } } = await _supabase.auth.getSession();
+    const user = _cm3?.user ?? null;
     if (!user) { alert('Log in first'); return; }
     const { error } = await _supabase.from('personal_sprites').insert([{ user_id: user.id, src: activeLayer.src, name: activeLayer.nameTag || 'My Sprite', created_at: new Date().toISOString() }]);
     alert(error ? error.message : '✓ Sprite saved!');
