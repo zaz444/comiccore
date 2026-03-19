@@ -2135,24 +2135,22 @@
     function handleActionSelect(img, pack, isEditing) {
         if (isEditing) {
             saveState();
-            activeLayer.src = img;
             const layer = activeLayer;
             const probe = new Image();
             probe.crossOrigin = 'anonymous';
             probe.onload = () => {
                 if (!probe.naturalWidth) return;
-                const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-                const prevTrim = layer.trimData;
-                const scale = prevTrim ? (layer.w / prevTrim.trimW) : (layer.w / trimW);
+                const cropped = cropSpriteToContent(probe);
                 // Preserve the bottom-left corner position so the new action
                 // sits exactly where the old one did without jumping/recentering
                 const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
                 const oldLeft   = layer.x;
-                layer.w = Math.round(trimW * scale);
-                layer.h = Math.round(trimH * scale);
-                layer.x = oldLeft;              // left edge stays fixed
-                layer.y = oldBottom - layer.h;  // bottom edge stays fixed
-                layer.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+                const scale = layer.w / cropped.w;
+                layer.src = cropped.src;
+                layer.w = Math.round(cropped.w * scale);
+                layer.h = Math.round(cropped.h * scale);
+                layer.x = oldLeft;
+                layer.y = oldBottom - layer.h;
                 render();
             };
             probe.onerror = () => render();
@@ -2190,6 +2188,45 @@
         return { offsetX: minX, offsetY: minY, trimW: maxX - minX + 1, trimH: maxY - minY + 1 };
     }
 
+    // Returns a cropped data-URL with all transparent/white padding removed.
+    // Falls back to original src if cropping fails (CORS, etc).
+    function cropSpriteToContent(img) {
+        const ow = img.naturalWidth;
+        const oh = img.naturalHeight;
+        try {
+            const c = document.createElement('canvas');
+            c.width = ow; c.height = oh;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const data = ctx.getImageData(0, 0, ow, oh).data;
+            let minX = ow, minY = oh, maxX = 0, maxY = 0;
+            for (let y = 0; y < oh; y++) {
+                for (let x = 0; x < ow; x++) {
+                    const i = (y * ow + x) * 4;
+                    const a = data[i + 3];
+                    // Treat near-white opaque pixels as background too
+                    const isWhiteBg = a > 240 && data[i] > 240 && data[i+1] > 240 && data[i+2] > 240;
+                    if (a > 8 && !isWhiteBg) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (minX > maxX || minY > maxY) return { src: img.src, w: ow, h: oh };
+            const tw = maxX - minX + 1;
+            const th = maxY - minY + 1;
+            const out = document.createElement('canvas');
+            out.width = tw; out.height = th;
+            out.getContext('2d').drawImage(img, minX, minY, tw, th, 0, 0, tw, th);
+            return { src: out.toDataURL('image/png'), w: tw, h: th };
+        } catch(e) {
+            // CORS block — can't read pixels, return original
+            return { src: img.src, w: ow, h: oh };
+        }
+    }
+
     function addSpriteToCanvas(src, pack) {
         saveState();
         const TARGET_W = 200;
@@ -2200,13 +2237,11 @@
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
             if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
-            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-            const scale = TARGET_W / trimW;
-            nl.w = Math.round(trimW * scale);
-            nl.h = Math.round(trimH * scale);
-            nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
-            nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
-            nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+            const cropped = cropSpriteToContent(probe);
+            nl.src = cropped.src;
+            const scale = TARGET_W / cropped.w;
+            nl.w = TARGET_W;
+            nl.h = Math.round(cropped.h * scale);
             render();
         };
         probe.onerror = () => {
@@ -2633,8 +2668,19 @@
         } else {
             const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
             saveState();
-            frames[currentIdx].layers.push({ type: 'img', src: b64, w: 200, x: 50, y: 50, rotation: 0, flipped: false, id: Date.now() });
-            closeCrop(); render();
+            const uploadProbe = new Image();
+            uploadProbe.onload = () => {
+                const cropped = cropSpriteToContent(uploadProbe);
+                const TARGET_W = 200;
+                const scale = TARGET_W / cropped.w;
+                frames[currentIdx].layers.push({
+                    type: 'img', src: cropped.src,
+                    w: TARGET_W, h: Math.round(cropped.h * scale),
+                    x: 50, y: 50, rotation: 0, flipped: false, id: Date.now()
+                });
+                closeCrop(); render();
+            };
+            uploadProbe.src = b64;
         }
     };
 
@@ -5103,12 +5149,11 @@
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
             if (!probe.naturalWidth) { render(); return; }
-            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-            const scale = TARGET_W / trimW;
-            nl.w = Math.round(trimW * scale);
-            nl.h = Math.round(trimH * scale);
-            nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
-            nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+            const cropped = cropSpriteToContent(probe);
+            nl.src = cropped.src;
+            const scale = TARGET_W / cropped.w;
+            nl.w = TARGET_W;
+            nl.h = Math.round(cropped.h * scale);
             render();
         };
         probe.onerror = () => {
