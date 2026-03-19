@@ -44,12 +44,15 @@ width:100%;height:100dvh;position:relative;overflow:hidden;touch-action:none;
 }
 
 /* ── Comic frame (the actual rendered canvas) ── */
-#comic-frame{
-position:relative;overflow:hidden;background:#fff;
+#comic-frame-wrap{position:relative;flex-shrink:0;}
+.cf-buf{
+position:absolute;top:0;left:0;
+overflow:hidden;background:#fff;
 box-shadow:0 8px 60px rgba(0,0,0,.85);
-transition:opacity .2s;
+transition:opacity .22s ease;
 }
-#comic-frame.fade{opacity:0;}
+.cf-buf.cf-active{opacity:1;z-index:2;position:relative;}
+.cf-buf.cf-behind{opacity:0;z-index:1;pointer-events:none;}
 
 /* All layer types sit inside #comic-frame */
 .r-layer{position:absolute;pointer-events:none;transform-origin:top left;}
@@ -110,8 +113,28 @@ word-wrap:break-word;line-height:1.35;
 .thought-dot-2{width:9px;height:9px;bottom:-34px;left:22px;}
 .thought-dot-3{width:5px;height:5px;bottom:-42px;left:17px;}
 
-/* Legacy fallback */
-.thinking .bubble-tail{display:none;}
+/* ── Fullscreen mode ── */
+body.fs-mode .top-bar,
+body.fs-mode .bottom-bar,
+body.fs-mode .prog-track{ opacity:0; pointer-events:none; }
+body.fs-mode .reader-vp{ background:#000; }
+#fs-exit{
+  position:fixed; bottom:20px; right:16px; z-index:9000;
+  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18);
+  color:white; padding:8px 14px; border-radius:50px;
+  font-size:12px; font-weight:800; cursor:pointer;
+  backdrop-filter:blur(10px); letter-spacing:.4px;
+  opacity:0; pointer-events:none;
+  transition:opacity .3s, transform .3s;
+  transform:translateY(8px);
+  display:flex; align-items:center; gap:6px;
+}
+body.fs-mode #fs-exit{
+  opacity:1; pointer-events:all;
+  transform:translateY(0);
+}
+/* Also hide fs-exit when UI is hidden in non-fs mode */
+#fs-exit.hide{ opacity:0 !important; pointer-events:none !important; }
 
 /* ── Tap nav zones ── */
 .nav-zone{position:absolute;z-index:50;cursor:pointer;}
@@ -314,7 +337,10 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
   <div class="nav-zone" id="nz-up"    onclick="prevFrame()"></div>
   <div class="nav-zone" id="nz-down"  onclick="nextFrame()"></div>
 
-  <div id="comic-frame"></div>
+  <div id="comic-frame-wrap" style="position:relative;">
+    <div id="comic-frame"   class="cf-buf cf-active"></div>
+    <div id="comic-frame-b" class="cf-buf"></div>
+  </div>
 
   <!-- Finish overlay -->
 
@@ -337,6 +363,7 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
   <div class="nav-btns">
     <button class="nb" id="btn-prev" onclick="prevFrame()" disabled>◀</button>
     <button class="nb" id="btn-next" onclick="nextFrame()">▶</button>
+    <button class="nb" id="btn-fs" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
   </div>
 </div>
 
@@ -392,6 +419,9 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
     </div>
   </div>
 </div>
+
+<!-- Fullscreen exit pill -->
+<div id="fs-exit" onclick="toggleFullscreen()">✕ Exit Fullscreen</div>
 
 <!-- Toast -->
 
@@ -496,8 +526,8 @@ function getCanvasRatio() {
   return { w: 1, h: 1 };
 }
 
-function sizeFrame() {
-  const cf = document.getElementById('comic-frame');
+function sizeFrame(el) {
+  const cf = el || getActiveCf();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
@@ -552,15 +582,26 @@ function preloadAllFrameImages(frames) {
   });
 }
 
-function renderFrame(anim = false) {
-  const cf = document.getElementById('comic-frame');
-  if (anim) { cf.classList.add('fade'); setTimeout(() => cf.classList.remove('fade'), 220); }
+// Track which buffer is currently active
+let _activeBuf = 'a'; // 'a' = #comic-frame, 'b' = #comic-frame-b
 
+function getActiveCf()  { return document.getElementById(_activeBuf === 'a' ? 'comic-frame'   : 'comic-frame-b'); }
+function getInactiveCf(){ return document.getElementById(_activeBuf === 'a' ? 'comic-frame-b' : 'comic-frame');   }
+
+function renderFrame(anim = false) {
   const f = frames[idx];
   if (!f) return;
 
-  // 1. Size the frame to fit the viewport, preserving aspect ratio
-  const { cw, ch } = sizeFrame();
+  // Pick the off-screen buffer to paint into
+  const next = getInactiveCf();
+  const prev = getActiveCf();
+
+  // Match size on both buffers
+  const { cw, ch } = sizeFrame(next);
+  prev.style.width  = cw + 'px';
+  prev.style.height = ch + 'px';
+  next.style.width  = cw + 'px';
+  next.style.height = ch + 'px';
 
   // 2. Scale factors: editor → reader
   const { ew, eh } = getEditorDimensions();
@@ -585,14 +626,14 @@ function renderFrame(anim = false) {
   const isBgAnimated = isBgImage && isAnimatedBg(bg);
 
   // Remove previous bg-layer and legacy r-bg-div elements
-  cf.querySelectorAll('.r-bg-div, #r-bg-layer').forEach(e => e.remove());
+  next.querySelectorAll('.r-bg-div, #r-bg-layer').forEach(e => e.remove());
 
-  // Reset canvas-level bg props — filter NEVER goes on cf, only on r-bg-layer
-  cf.style.filter          = '';
-  cf.style.backgroundImage = 'none';
-  cf.style.backgroundColor = '#ffffff';
-  cf.style.backgroundSize  = '';
-  cf.style.backgroundPosition = '';
+  // Reset canvas-level bg props
+  next.style.filter          = '';
+  next.style.backgroundImage = 'none';
+  next.style.backgroundColor = '#ffffff';
+  next.style.backgroundSize  = '';
+  next.style.backgroundPosition = '';
 
   const s = f.bgSettings || {};
   const scale  = s.scale  ?? 100;
@@ -609,10 +650,8 @@ function renderFrame(anim = false) {
   if (filterCSS) bgLayer.style.filter = filterCSS;
 
   if (isBgImage) {
-    cf.style.backgroundColor = 'transparent';
+    next.style.backgroundColor = 'transparent';
     if (isBgAnimated) {
-      // GIF/WebP-anim: must use <img> so animation plays.
-      // Mirror create.html animated path: width=scale%, translate to (50+x)% (50+y)% of container.
       const wrapper = document.createElement('div');
       wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
       const img = document.createElement('img');
@@ -624,10 +663,6 @@ function renderFrame(anim = false) {
       wrapper.appendChild(img);
       bgLayer.appendChild(wrapper);
     } else {
-      // Static image — use background-image CSS.
-      // background-size: scale% auto  preserves natural AR (same as create.html + frameToCanvas)
-      // background-position: (50+x)% (50+y)%  is the standard CSS position formula
-      // For rotation we apply it on the bgLayer div itself.
       bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')}")`;
       bgLayer.style.backgroundRepeat   = 'no-repeat';
       bgLayer.style.backgroundSize     = `${scale}% auto`;
@@ -636,20 +671,19 @@ function renderFrame(anim = false) {
       bgLayer.style.transformOrigin    = 'center center';
     }
   } else if (isBgGradient) {
-    cf.style.backgroundColor = 'transparent';
+    next.style.backgroundColor = 'transparent';
     bgLayer.style.background      = bg;
     bgLayer.style.backgroundSize  = 'cover';
     bgLayer.style.transform       = rotate ? `rotate(${rotate}deg)` : '';
     bgLayer.style.transformOrigin = 'center center';
   } else {
-    // Solid color — no bgLayer needed for color, but still insert empty one for z-index consistency
-    cf.style.backgroundColor = bg;
+    next.style.backgroundColor = bg;
   }
 
-  cf.insertBefore(bgLayer, cf.firstChild);
+  next.insertBefore(bgLayer, next.firstChild);
 
-  // 4. Remove old layers, add new ones
-  cf.querySelectorAll('.r-layer').forEach(e => e.remove());
+  // 4. Remove old layers from next buffer, add new ones
+  next.querySelectorAll('.r-layer').forEach(e => e.remove());
 
   f.layers.forEach((l, layerIdx) => {
     const el = document.createElement('div');
@@ -796,8 +830,26 @@ function renderFrame(anim = false) {
       if (combinedFilter) el.style.filter = combinedFilter;
     }
 
-    cf.appendChild(el);
+    next.appendChild(el);
   });
+
+  // 5. Crossfade: show next buffer, hide prev — no black flash
+  if (anim) {
+    next.classList.remove('cf-behind');
+    next.classList.add('cf-active');
+    prev.classList.remove('cf-active');
+    prev.classList.add('cf-behind');
+    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
+  } else {
+    // First render — just show next immediately, no transition
+    next.style.transition = 'none';
+    next.classList.remove('cf-behind');
+    next.classList.add('cf-active');
+    prev.classList.remove('cf-active');
+    prev.classList.add('cf-behind');
+    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
+    requestAnimationFrame(() => { next.style.transition = ''; });
+  }
 
   // 5. Update UI chrome
   const tot = frames.length;
@@ -819,6 +871,31 @@ function prevFrame() {
   if (idx > 0) { idx--; renderFrame(true); saveProg(); resetUI(); }
 }
 function jumpTo(i) { idx = i; renderFrame(true); saveProg(); }
+
+// ── Fullscreen ────────────────────────────────────────────
+let _fsActive = false;
+function toggleFullscreen() {
+  _fsActive = !_fsActive;
+  document.body.classList.toggle('fs-mode', _fsActive);
+  // Update the button icon
+  const btn = document.getElementById('btn-fs');
+  if (btn) btn.innerText = _fsActive ? '⊠' : '⛶';
+  // Try native fullscreen API too (desktop browsers)
+  if (_fsActive) {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  } else {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+  }
+}
+// Sync if user presses Esc or the browser exits native fullscreen
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && _fsActive) {
+    _fsActive = false;
+    document.body.classList.remove('fs-mode');
+    const btn = document.getElementById('btn-fs');
+    if (btn) btn.innerText = '⛶';
+  }
+});
 
 function setSwipeDir(d) {
   swipeDir = d;
