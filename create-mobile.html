@@ -2348,6 +2348,112 @@ function efxSetFull(id, url, actions) {
     try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url, actions:actions||{}, ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
 }
 
+// ── Batch lazy-loader for effect images (like sprite sidebar) ──
+let _efxLazyQueue = [];
+let _efxLazyTimer = null;
+
+const _efxObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        _efxObserver.unobserve(entry.target);
+        const id = entry.target.dataset.efxId;
+        if (!id) return;
+        const cached = efxGetImg(id);
+        if (cached) {
+            _efxApplyImg(entry.target, cached);
+        } else {
+            _efxLazyQueue.push(id);
+            _efxScheduleBatch();
+        }
+    });
+}, { rootMargin: '300px 0px' });
+
+function _efxScheduleBatch() {
+    if (_efxLazyTimer) return;
+    _efxLazyTimer = setTimeout(_efxFlushBatch, 40);
+}
+
+async function _efxFlushBatch() {
+    _efxLazyTimer = null;
+    if (!_efxLazyQueue.length) return;
+    const batch = [...new Set(_efxLazyQueue.splice(0, 20))];
+    const { data } = await _supabase.from('effects_library')
+        .select('id, image_data').in('id', batch);
+    if (!data) return;
+    data.forEach(row => {
+        efxSetImg(row.id, row.image_data);
+        const card = document.querySelector(`.mob-sprite-card[data-efx-id="${row.id}"]`);
+        if (card) _efxApplyImg(card, row.image_data);
+    });
+    if (_efxLazyQueue.length) _efxScheduleBatch();
+}
+
+function _efxApplyImg(card, src) {
+    const skeleton = card.querySelector('.efx-skeleton');
+    if (!skeleton) return;
+    const img = document.createElement('img');
+    img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;';
+    img.onload = () => skeleton.replaceWith(img);
+    img.onerror = () => { skeleton.style.background = '#1a1a1a'; };
+    img.src = src;
+}
+
+// ── Background image lazy-loader ──
+let _bgLazyQueue = [];
+let _bgLazyTimer = null;
+
+const _bgObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        _bgObserver.unobserve(entry.target);
+        const id = entry.target.dataset.bgId;
+        if (!id) return;
+        const cached = sessionStorage.getItem('cc_bg_img_' + id);
+        if (cached) {
+            _bgApplyImg(entry.target, cached);
+        } else {
+            _bgLazyQueue.push(id);
+            _bgScheduleBatch();
+        }
+    });
+}, { rootMargin: '400px 0px' });
+
+function _bgScheduleBatch() {
+    if (_bgLazyTimer) return;
+    _bgLazyTimer = setTimeout(_bgFlushBatch, 40);
+}
+
+async function _bgFlushBatch() {
+    _bgLazyTimer = null;
+    if (!_bgLazyQueue.length) return;
+    const batch = [...new Set(_bgLazyQueue.splice(0, 10))];
+    const { data } = await _supabase.from('backgrounds_library')
+        .select('id, image_data').in('id', batch);
+    if (!data) return;
+    data.forEach(row => {
+        try { sessionStorage.setItem('cc_bg_img_' + row.id, row.image_data); } catch(e) {}
+        const card = document.querySelector(`.mob-bg-card[data-bg-id="${row.id}"]`);
+        if (card) _bgApplyImg(card, row.image_data);
+        // Also update our in-memory list so clicks work
+        const inOff = (mobBgOfficial||[]).find(b => b.id === row.id);
+        if (inOff) inOff.image_data = row.image_data;
+        const inMine = (mobBgMine||[]).find(b => b.id === row.id);
+        if (inMine) inMine.image_data = row.image_data;
+    });
+    if (_bgLazyQueue.length) _bgScheduleBatch();
+}
+
+function _bgApplyImg(card, src) {
+    const skeleton = card.querySelector('.bg-skeleton');
+    if (!skeleton) return;
+    const img = document.createElement('img');
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0;';
+    img.onload = () => skeleton.replaceWith(img);
+    img.src = src;
+    // Store on card for click handler
+    card._imgSrc = src;
+}
+
 async function loadMobEffects() {
     const grid = document.getElementById('mob-effect-grid');
     const cached = efxLoadMetaCache();
@@ -2398,28 +2504,17 @@ function filterMobEffects() {
 function renderMobEffectGrid(effects) {
     const grid = document.getElementById('mob-effect-grid');
     grid.innerHTML = '';
-    if (!effects.length) { grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">No effects found</div>'; return; }
+    if (!effects.length) { grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">No effects found</div>'; return; }
     effects.forEach(pack => {
         const card = document.createElement('div');
-        card.className = 'mob-sprite-card'; // reuse sprite card CSS
+        card.className = 'mob-sprite-card';
+        card.dataset.efxId = pack.id;
         const cachedSrc = pack.image_data || efxGetImg(pack.id);
-        card.innerHTML = cachedSrc
-            ? `<img src="${cachedSrc}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`
-            : `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
-
-        if (!cachedSrc) {
-            const obs = new IntersectionObserver(entries => {
-                if (!entries[0].isIntersecting) return;
-                obs.disconnect();
-                _supabase.from('effects_library').select('image_data').eq('id',pack.id).single().then(({data})=>{
-                    if (!data?.image_data) return;
-                    efxSetImg(pack.id, data.image_data);
-                    pack.image_data = data.image_data;
-                    const old = card.querySelector('div');
-                    if (old) { const img=document.createElement('img'); img.src=data.image_data; img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:8px;'; old.replaceWith(img); }
-                });
-            }, {root: grid});
-            obs.observe(card);
+        if (cachedSrc) {
+            card.innerHTML = `<img src="${cachedSrc}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
+        } else {
+            card.innerHTML = `<div class="efx-skeleton" style="position:absolute;inset:0;border-radius:8px;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;"></div><div class="mob-sprite-name">${pack.name}</div>`;
+            _efxObserver.observe(card);
         }
 
         card.onclick = async () => {
@@ -2618,15 +2713,16 @@ async function loadMobBgs() {
     const grid = document.getElementById('mob-bg-grid');
     if (grid) grid.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">Loading…</div>';
 
+    // Fetch metadata only — images lazy-loaded per card
     const { data: offData } = await _supabase.from('backgrounds_library')
-        .select('id, name, image_data').eq('is_official', true).order('id', { ascending: false });
+        .select('id, name').eq('is_official', true).order('id', { ascending: false });
     mobBgOfficial = offData || [];
 
     const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     const handle  = profile.handle;
     if (handle) {
         const { data: mineData } = await _supabase.from('backgrounds_library')
-            .select('id, name, image_data').eq('uploaded_by', handle).order('id', { ascending: false });
+            .select('id, name').eq('uploaded_by', handle).order('id', { ascending: false });
         mobBgMine = mineData || [];
     } else { mobBgMine = []; }
 
@@ -2651,24 +2747,44 @@ function renderMobBgGrid() {
     const q    = (document.getElementById('mob-bg-search')?.value || '').toLowerCase().trim();
     const list = mobBgTab === 'official' ? (mobBgOfficial || []) : (mobBgMine || []);
     const filtered = q ? list.filter(b => (b.name||'').toLowerCase().includes(q)) : list;
-    if (!filtered.length) { grid.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">' + (mobBgTab==='mine'?'No saved backgrounds':'No official backgrounds') + '</div>'; return; }
+    if (!filtered.length) {
+        grid.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">' + (mobBgTab==='mine'?'No saved backgrounds':'No official backgrounds') + '</div>';
+        return;
+    }
     grid.innerHTML = '';
     filtered.forEach(bg => {
         const card = document.createElement('div');
+        card.className = 'mob-bg-card';
+        card.dataset.bgId = bg.id;
         card.style.cssText = 'width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;transition:.15s;position:relative;background:#0a0a0a;';
         card.ontouchstart = () => card.style.borderColor = 'var(--accent)';
-        card.ontouchend   = () => card.style.borderColor = '#1e1e1e';
-        const img = document.createElement('img');
-        img.src = bg.image_data; img.loading = 'lazy';
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+        card.ontouchend   = () => setTimeout(() => card.style.borderColor = '#1e1e1e', 200);
+
+        // Skeleton placeholder
+        const skeleton = document.createElement('div');
+        skeleton.className = 'bg-skeleton';
+        skeleton.style.cssText = 'position:absolute;inset:0;background:linear-gradient(90deg,#1a1a1a 25%,#252525 50%,#1a1a1a 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;';
+        card.appendChild(skeleton);
+
         const lbl = document.createElement('div');
-        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(0,0,0,.78);font-size:10px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(0,0,0,.78);font-size:10px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1;';
         lbl.innerText = bg.name || 'Untitled';
-        card.appendChild(img); card.appendChild(lbl);
+        card.appendChild(lbl);
+
+        // Check session cache first
+        const cached = bg.image_data || (function(){ try { return sessionStorage.getItem('cc_bg_img_'+bg.id); } catch(e){ return null; } })();
+        if (cached) {
+            _bgApplyImg(card, cached);
+        } else {
+            _bgObserver.observe(card);
+        }
+
         card.onclick = () => {
+            const src = card._imgSrc || bg.image_data;
+            if (!src) return; // still loading
             closeSheet('bg');
             currentImportType = 'bg';
-            showBgImportChoice(bg.image_data);
+            showBgImportChoice(src);
         };
         grid.appendChild(card);
     });
