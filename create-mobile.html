@@ -289,6 +289,49 @@
         font-size: 10px; padding: 5px 6px;
     }
 
+    /* ── BACKGROUND GRID CARDS ── */
+    #mob-bg-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        max-height: 50vh;
+        overflow-y: auto;
+        margin-bottom: 6px;
+        padding: 2px 2px 8px 2px; /* small padding so borders don't clip */
+    }
+    .mob-bg-card {
+        display: block;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        border-radius: 10px;
+        overflow: hidden;
+        cursor: pointer;
+        border: 2px solid #1e1e1e;
+        position: relative;
+        background: #0a0a0a;
+        transition: border-color 0.15s;
+        /* No position:absolute — let the grid size this naturally */
+    }
+    .mob-bg-card:active { border-color: var(--accent); }
+    .mob-bg-card img {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        object-fit: cover; display: block;
+    }
+    .mob-bg-card .bg-skeleton {
+        position: absolute; inset: 0;
+        background: linear-gradient(90deg, #1a1a1a 25%, #252525 50%, #1a1a1a 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s infinite;
+    }
+    .mob-bg-card .bg-label {
+        position: absolute; bottom: 0; left: 0; right: 0; z-index: 1;
+        padding: 5px 8px;
+        background: rgba(0,0,0,0.78);
+        font-size: 10px; font-weight: 800; color: white;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
     /* ── LAYERS SHEET ── */
     .mob-layer-actions {
         display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;
@@ -898,7 +941,7 @@
                 <button id="mob-bg-tab-official" onclick="setMobBgTab('official')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
                 <button id="mob-bg-tab-mine" onclick="setMobBgTab('mine')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
             </div>
-            <div id="mob-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:6px;padding-bottom:4px;">
+            <div id="mob-bg-grid">
                 <div style="color:#555;font-size:12px;padding:16px;text-align:center;">Tap to load...</div>
             </div>
             <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:18px;">📷</span>Upload (Auto-fit)</button>
@@ -2756,18 +2799,14 @@ function renderMobBgGrid() {
         const card = document.createElement('div');
         card.className = 'mob-bg-card';
         card.dataset.bgId = bg.id;
-        card.style.cssText = 'width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid #1e1e1e;transition:.15s;position:relative;background:#0a0a0a;';
-        card.ontouchstart = () => card.style.borderColor = 'var(--accent)';
-        card.ontouchend   = () => setTimeout(() => card.style.borderColor = '#1e1e1e', 200);
 
         // Skeleton placeholder
         const skeleton = document.createElement('div');
         skeleton.className = 'bg-skeleton';
-        skeleton.style.cssText = 'position:absolute;inset:0;background:linear-gradient(90deg,#1a1a1a 25%,#252525 50%,#1a1a1a 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;';
         card.appendChild(skeleton);
 
         const lbl = document.createElement('div');
-        lbl.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(0,0,0,.78);font-size:10px;font-weight:800;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1;';
+        lbl.className = 'bg-label';
         lbl.innerText = bg.name || 'Untitled';
         card.appendChild(lbl);
 
@@ -2781,7 +2820,7 @@ function renderMobBgGrid() {
 
         card.onclick = () => {
             const src = card._imgSrc || bg.image_data;
-            if (!src) return; // still loading
+            if (!src) return;
             closeSheet('bg');
             currentImportType = 'bg';
             showBgImportChoice(src);
