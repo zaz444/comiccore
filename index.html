@@ -277,10 +277,13 @@
     <script>
         const SUPABASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co'; 
         const SUPABASE_KEY = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
+        });
 
         async function checkUser() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const user = session?.user ?? null;
             
             if (user) {
                 let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
