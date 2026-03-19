@@ -3585,10 +3585,10 @@ async function finalPublish() {
     if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
     const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     const desc = document.getElementById('pub-desc').value.trim();
-    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio, updated_at: new Date().toISOString() };
+    const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
     let error;
     if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload }).eq('id', editingComicId)); }
-    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, created_at: new Date().toISOString() }])); }
+    else { ({ error } = await _supabase.from('comics').insert([{ ...payload, owner_name: handle, owner_handle: handle }])); }
     if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText='POST NOW'; return; }
     hasUnsavedChanges = false;
     alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
