@@ -1750,6 +1750,30 @@
         auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
     });
 
+    // ── Upload a base64 background image to Supabase Storage (backgrounds/user/) ──
+    // Returns the public URL, or null on failure.
+    async function uploadBgToStorage(dataUrl) {
+        try {
+            const handle = (typeof myHandle !== 'undefined' && myHandle)
+                || JSON.parse(localStorage.getItem('user_profile') || '{}').handle
+                || 'guest';
+            const safeHandle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'guest';
+            const res  = await fetch(dataUrl);
+            const blob = await res.blob();
+            const ext  = dataUrl.startsWith('data:image/gif')  ? 'gif'
+                       : dataUrl.startsWith('data:image/webp') ? 'webp' : 'jpg';
+            const path = 'user/' + safeHandle + '/bg_' + Date.now() + '.' + ext;
+            const { error } = await _supabase.storage
+                .from('backgrounds')
+                .upload(path, blob, { upsert: true, cacheControl: '3600' });
+            if (error) { console.warn('BG storage upload error:', error); return null; }
+            return _supabase.storage.from('backgrounds').getPublicUrl(path).data.publicUrl;
+        } catch (e) {
+            console.warn('uploadBgToStorage failed:', e);
+            return null;
+        }
+    }
+
     // Safe localStorage wrapper — silently handles QuotaExceededError
     // so a full storage never crashes click handlers or other UI flows
     function lsSet(key, value) {
@@ -2634,7 +2658,7 @@
         e.target.value = '';
     };
 
-    document.getElementById('apply-crop-btn').onclick = () => {
+    document.getElementById('apply-crop-btn').onclick = async () => {
         if (currentImportType === 'cover') {
             const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
             finalCoverBase64 = b64;
@@ -2659,7 +2683,19 @@
             // Scale: how much of the image width the crop box takes up
             const bgScale    = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
             saveState();
-            frames[currentIdx].background = pendingBgImageSrc || frames[currentIdx].background;
+
+            // Upload the original image to Supabase Storage if it's base64
+            let bgSrc = pendingBgImageSrc || frames[currentIdx].background;
+            if (bgSrc && bgSrc.startsWith('data:image')) {
+                const toast = document.createElement('div');
+                toast.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,0.92);color:#00d2ff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;pointer-events:none;border:1px solid rgba(0,210,255,0.3);';
+                toast.innerText = '⬆️ Uploading background…';
+                document.body.appendChild(toast);
+                const url = await uploadBgToStorage(bgSrc);
+                toast.remove();
+                if (url) bgSrc = url;
+            }
+            frames[currentIdx].background = bgSrc;
             // Clear filter when new background is cropped in
             if (frames[currentIdx].bgSettings) frames[currentIdx].bgSettings.filter = 'none';
             document.querySelectorAll('.filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
@@ -2982,13 +3018,30 @@
         }
     }
 
-    function bgChoiceFixed() {
+    async function bgChoiceFixed() {
         document.getElementById('bg-import-choice-modal').style.display = 'none';
         const src = pendingBgImageSrc;
         pendingBgImageSrc = null;
         if (!src) return;
         saveState();
-        frames[currentIdx].background = src;
+
+        // If the source is a base64 data URL, upload it to Supabase Storage
+        // and store the public URL instead — keeps drafts/comics lean.
+        let finalSrc = src;
+        if (src.startsWith('data:image')) {
+            // Show a quick uploading toast
+            const toast = document.createElement('div');
+            toast.id = 'bg-upload-toast';
+            toast.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,0.92);color:#00d2ff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;pointer-events:none;border:1px solid rgba(0,210,255,0.3);letter-spacing:0.3px;';
+            toast.innerText = '⬆️ Uploading background…';
+            document.body.appendChild(toast);
+            const url = await uploadBgToStorage(src);
+            toast.remove();
+            if (url) finalSrc = url;
+            // If upload failed, finalSrc stays as base64 (graceful fallback)
+        }
+
+        frames[currentIdx].background = finalSrc;
         // Always reset bgSettings when a new background is applied
         // so old pan/zoom/filter from previous background don't carry over
         frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };

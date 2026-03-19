@@ -171,21 +171,24 @@
 
     /* ── ZOOM / PAN OVERLAY ── */
     #zoom-controls {
-        position: fixed; right: 12px; bottom: 80px; z-index: 500;
-        display: flex; flex-direction: column; gap: 4px;
+        position: fixed; right: 10px; top: 58px; z-index: 500;
+        display: flex; flex-direction: row; gap: 0;
+        background: rgba(20,20,22,0.88); border: 1px solid #333;
+        border-radius: 20px; overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
     .zoom-ctrl-btn {
-        width: 36px; height: 36px; background: rgba(28,28,30,0.92);
-        border: 1px solid #333; color: #fff; border-radius: 10px;
-        font-size: 18px; font-weight: 900; display: flex; align-items: center;
+        width: 34px; height: 30px; background: transparent;
+        border: none; border-right: 1px solid #2a2a2a; color: #ccc;
+        font-size: 16px; font-weight: 900; display: flex; align-items: center;
         justify-content: center; cursor: pointer; font-family: inherit;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.5); transition: 0.15s;
-        -webkit-tap-highlight-color: transparent;
+        transition: 0.12s; -webkit-tap-highlight-color: transparent;
     }
-    .zoom-ctrl-btn:active { opacity: 0.6; }
-    #zoom-reset-btn { font-size: 9px; font-weight: 900; letter-spacing: 0.3px; }
+    .zoom-ctrl-btn:last-child { border-right: none; }
+    .zoom-ctrl-btn:active { background: rgba(255,255,255,0.08); }
+    #zoom-reset-btn { font-size: 8px; font-weight: 900; letter-spacing: 0.3px; width: 30px; }
     #zoom-indicator {
-        position: fixed; bottom: 80px; left: 12px; z-index: 500;
+        position: fixed; top: 58px; right: 108px; z-index: 500;
         background: rgba(0,0,0,0.7); color: #fff; font-size: 11px; font-weight: 800;
         padding: 4px 10px; border-radius: 8px; pointer-events: none;
         opacity: 0; transition: opacity 0.3s; letter-spacing: 0.5px;
@@ -1217,6 +1220,28 @@ const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.c
     auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
 });
 
+// ── Upload a base64 image to Supabase Storage (backgrounds/user/) ──
+// Returns the public URL, or null on failure. Used for both backgrounds and uploaded objects.
+async function uploadBgToStorage(dataUrl) {
+    try {
+        const handle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle || 'guest';
+        const safeHandle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'guest';
+        const res  = await fetch(dataUrl);
+        const blob = await res.blob();
+        const ext  = dataUrl.startsWith('data:image/gif')  ? 'gif'
+                   : dataUrl.startsWith('data:image/webp') ? 'webp' : 'jpg';
+        const path = 'user/' + safeHandle + '/bg_' + Date.now() + '.' + ext;
+        const { error } = await _supabase.storage
+            .from('backgrounds')
+            .upload(path, blob, { upsert: true, cacheControl: '3600' });
+        if (error) { console.warn('BG storage upload error:', error); return null; }
+        return _supabase.storage.from('backgrounds').getPublicUrl(path).data.publicUrl;
+    } catch (e) {
+        console.warn('uploadBgToStorage failed:', e);
+        return null;
+    }
+}
+
 function lsSet(key, value) {
     try { localStorage.setItem(key, value); } catch(e) {
         try {
@@ -1379,50 +1404,74 @@ let _ctxMenuLayer = null;
 function showCtxMenu(x, y, layer) {
     _ctxMenuLayer = layer;
     const menu = document.getElementById('layer-ctx-menu');
+    // Show "Change Action" only for sprite layers with packData
+    const changeActionItem = document.getElementById('ctx-change-action');
+    if (changeActionItem) changeActionItem.style.display = (layer.type === 'img' && layer.packData) ? 'block' : 'none';
     menu.style.display = 'block';
     // Position so it doesn't go off screen
-    const mw = 170, mh = 200;
+    const mw = 180, mh = 240;
     menu.style.left = Math.min(x, window.innerWidth  - mw - 10) + 'px';
     menu.style.top  = Math.min(y, window.innerHeight - mh - 10) + 'px';
-    // Close on outside tap
+    // Close on outside tap — slight delay so item taps aren't swallowed
     setTimeout(() => document.addEventListener('touchstart', closeCtxMenu, { once: true }), 50);
 }
 
 function closeCtxMenu() {
     document.getElementById('layer-ctx-menu').style.display = 'none';
-    _ctxMenuLayer = null;
+    // Delay clearing so action handlers can still read _ctxMenuLayer
+    setTimeout(() => { _ctxMenuLayer = null; }, 50);
 }
 
 function ctxDuplicate() {
+    const layer = _ctxMenuLayer;
     closeCtxMenu();
-    if (!_ctxMenuLayer) return;
+    if (!layer) return;
     saveState();
-    const copy = JSON.parse(JSON.stringify(_ctxMenuLayer));
+    const copy = JSON.parse(JSON.stringify(layer));
     copy.id = Date.now(); copy.x += 20; copy.y += 20;
     frames[currentIdx].layers.push(copy);
     activeLayer = copy; render();
 }
 function ctxBringForward() {
+    const layer = _ctxMenuLayer;
     closeCtxMenu();
-    if (!_ctxMenuLayer) return;
+    if (!layer) return;
     saveState();
     const layers = frames[currentIdx].layers;
-    const idx = layers.indexOf(_ctxMenuLayer);
+    const idx = layers.indexOf(layer);
     if (idx < layers.length - 1) { [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]]; render(); }
 }
 function ctxSendBack() {
+    const layer = _ctxMenuLayer;
     closeCtxMenu();
-    if (!_ctxMenuLayer) return;
+    if (!layer) return;
     saveState();
     const layers = frames[currentIdx].layers;
-    const idx = layers.indexOf(_ctxMenuLayer);
+    const idx = layers.indexOf(layer);
     if (idx > 0) { [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]]; render(); }
 }
 function ctxFlip() {
+    const layer = _ctxMenuLayer;
     closeCtxMenu();
-    if (!_ctxMenuLayer) return;
+    if (!layer) return;
     saveState();
-    _ctxMenuLayer.flipped = !_ctxMenuLayer.flipped; render();
+    layer.flipped = !layer.flipped; render();
+}
+function ctxChangeAction() {
+    const layer = _ctxMenuLayer;
+    closeCtxMenu();
+    if (!layer || !layer.packData) return;
+    activeLayer = layer;
+    openActionModal(layer.packData, true);
+}
+function ctxDelete() {
+    const layer = _ctxMenuLayer;
+    closeCtxMenu();
+    if (!layer) return;
+    saveState();
+    frames[currentIdx].layers = frames[currentIdx].layers.filter(l => l !== layer);
+    if (activeLayer === layer) activeLayer = null;
+    render();
 }
 function openTextEdit(layer) {
     // Double-tap on text/bubble — open quick edit prompt
@@ -1432,15 +1481,6 @@ function openTextEdit(layer) {
         layer.content = newText;
         render();
     }
-}
-
-function ctxDelete() {
-    closeCtxMenu();
-    if (!_ctxMenuLayer) return;
-    saveState();
-    frames[currentIdx].layers = frames[currentIdx].layers.filter(l => l !== _ctxMenuLayer);
-    if (activeLayer === _ctxMenuLayer) activeLayer = null;
-    render();
 }
 
 // ── Debounced render — prevents excessive redraws during touch ──
@@ -1797,6 +1837,7 @@ function selectLayerLight(layer) {
 var _isDragging = false; // blocks double-tap-to-transform during a drag
 function startTouchDrag(e, layer) {
     if (e.touches.length > 1) return;
+    clearTimeout(_ctxMenuTimer); // cancel long-press — user is dragging, not holding
     var touch = e.touches[0];
     var fingerStartX = touch.clientX;
     var fingerStartY = touch.clientY;
@@ -2694,19 +2735,30 @@ function openActionModal(pack, isEditing = false) {
     document.getElementById('pack-title').innerText = pack.name;
     const grid = document.getElementById('action-selector-list');
     grid.innerHTML = '';
-    const main = createActionOption(pack.image_data, 'Default');
+    // When editing, highlight whichever action is currently on the canvas
+    const lastUsedSrc = (isEditing && activeLayer) ? activeLayer.src : null;
+    const main = createActionOption(pack.image_data, 'Default', lastUsedSrc === pack.image_data);
     main.onclick = () => handleActionSelect(pack.image_data, pack, isEditing);
     grid.appendChild(main);
     let actions = pack.actions;
     if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) { actions = {}; }
     const items = Array.isArray(actions) ? actions.map((img, i) => [`Action ${i+1}`, img]) : Object.entries(actions || {});
-    items.forEach(([name, img]) => { const opt = createActionOption(img, name); opt.onclick = () => handleActionSelect(img, pack, isEditing); grid.appendChild(opt); });
+    items.forEach(([name, img]) => {
+        const opt = createActionOption(img, name, lastUsedSrc === img);
+        opt.onclick = () => handleActionSelect(img, pack, isEditing);
+        grid.appendChild(opt);
+    });
     document.getElementById('action-modal').style.display = 'flex';
 }
-function createActionOption(src, name) {
+function createActionOption(src, name, isLastUsed = false) {
     const div = document.createElement('div');
     div.className = 'action-option';
-    div.innerHTML = `<img src="${src}"><strong>${name}</strong>`;
+    if (isLastUsed) {
+        div.style.cssText = 'border: 2px solid rgba(255,122,0,0.55); background: rgba(255,122,0,0.09); border-radius: 12px; position: relative;';
+        div.innerHTML = `<img src="${src}"><strong>${name}</strong><div style="position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#ff7a00;opacity:0.85;pointer-events:none;"></div>`;
+    } else {
+        div.innerHTML = `<img src="${src}"><strong>${name}</strong>`;
+    }
     return div;
 }
 function handleActionSelect(img, pack, isEditing) {
@@ -3028,11 +3080,23 @@ function showBgImportChoiceModal(src) {
 }
 function closeBgChoiceModal() { document.getElementById('bg-import-choice-modal').style.display = 'none'; }
 function bgChoiceCrop() { closeBgChoiceModal(); const t = document.getElementById('crop-target'); t.src = _bgChoiceSrc; document.getElementById('crop-modal').style.display = 'flex'; if (cropper) cropper.destroy(); const r = canvasRatio || { w:1, h:1 }; cropper = new Cropper(t, { aspectRatio: r.w / r.h, viewMode: 1 }); }
-function bgChoiceFixed() {
+async function bgChoiceFixed() {
     closeBgChoiceModal();
     if (!_bgChoiceSrc) return;
     saveState();
-    frames[currentIdx].background = _bgChoiceSrc;
+
+    let finalSrc = _bgChoiceSrc;
+    if (_bgChoiceSrc.startsWith('data:image')) {
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,0.92);color:#00d2ff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;pointer-events:none;border:1px solid rgba(0,210,255,0.3);letter-spacing:0.3px;';
+        toast.innerText = '⬆️ Uploading background…';
+        document.body.appendChild(toast);
+        const url = await uploadBgToStorage(_bgChoiceSrc);
+        toast.remove();
+        if (url) finalSrc = url;
+    }
+
+    frames[currentIdx].background = finalSrc;
     // Always reset bgSettings when a new background is applied
     frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };
     _bgChoiceSrc = null;
@@ -3109,10 +3173,9 @@ function handleCoverInput(e) {
     e.target.value = '';
 }
 function closeCrop() { document.getElementById('crop-modal').style.display='none'; if(cropper){cropper.destroy();cropper=null;} }
-document.getElementById('apply-crop-btn').onclick = () => {
+document.getElementById('apply-crop-btn').onclick = async () => {
     if (!cropper) return;
     if (currentImportType === 'bg') {
-        // Store FULL original image — derive bgSettings from crop box
         const cropData = cropper.getData(true);
         const imgData  = cropper.getImageData();
         const naturalW = imgData.naturalWidth;
@@ -3122,7 +3185,18 @@ document.getElementById('apply-crop-btn').onclick = () => {
         const bgX      = Math.round(Math.max(-50, Math.min(50, cropCX - 50)));
         const bgY      = Math.round(Math.max(-50, Math.min(50, cropCY - 50)));
         const bgScale  = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
-        const fullSrc  = _bgChoiceSrc || frames[currentIdx].background;
+
+        // Upload original image to Supabase Storage if it's base64
+        let fullSrc = _bgChoiceSrc || frames[currentIdx].background;
+        if (fullSrc && fullSrc.startsWith('data:image')) {
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,0.92);color:#00d2ff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;pointer-events:none;border:1px solid rgba(0,210,255,0.3);';
+            toast.innerText = '⬆️ Uploading background…';
+            document.body.appendChild(toast);
+            const url = await uploadBgToStorage(fullSrc);
+            toast.remove();
+            if (url) fullSrc = url;
+        }
         saveState();
         frames[currentIdx].background = fullSrc;
         frames[currentIdx].bgSettings = {
@@ -3139,12 +3213,38 @@ document.getElementById('apply-crop-btn').onclick = () => {
         img.src = data; img.style.display = 'block';
         document.getElementById('cover-label').style.display = 'none';
     } else {
-        const data = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
+        // Uploaded object — crop then upload to storage
+        const data = cropper.getCroppedCanvas({ maxWidth: 1200, maxHeight: 1200 }).toDataURL('image/jpeg', 0.9);
         closeCrop();
         saveState();
-        const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300;
-        const nl={type:'img',src:data,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()};
-        frames[currentIdx].layers.push(nl); activeLayer=nl; render();
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,0.92);color:#00d2ff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;pointer-events:none;border:1px solid rgba(0,210,255,0.3);letter-spacing:0.3px;';
+        toast.innerText = '⬆️ Uploading image…';
+        document.body.appendChild(toast);
+        uploadBgToStorage(data).then(url => {
+            toast.remove();
+            const finalSrc = url || data;
+            const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
+            const initW = Math.round(cw * 0.5);
+            const nl = { type:'img', src:finalSrc, w:initW, h:initW, x:Math.round(cw*0.25), y:Math.round(ch*0.25), rotation:0, flipped:false, id:Date.now() };
+            frames[currentIdx].layers.push(nl);
+            activeLayer = nl;
+            const probe = new Image();
+            probe.crossOrigin = 'anonymous';
+            probe.onload = () => {
+                if (!probe.naturalWidth) { render(); return; }
+                const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+                const scale = initW / trimW;
+                nl.w = Math.round(trimW * scale);
+                nl.h = Math.round(trimH * scale);
+                nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
+                nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+                nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+                render();
+            };
+            probe.onerror = () => render();
+            probe.src = finalSrc;
+        });
     }
 };
 
@@ -4286,7 +4386,8 @@ document.addEventListener('gesturechange', function(e) {
 
 
 <!-- ── LAYER CONTEXT MENU ── -->
-<div id="layer-ctx-menu" style="display:none;position:fixed;z-index:9000;background:#1a1a1a;border:1px solid #333;border-radius:14px;padding:6px;box-shadow:0 8px 32px rgba(0,0,0,.8);min-width:160px;">
+<div id="layer-ctx-menu" style="display:none;position:fixed;z-index:9000;background:#1a1a1a;border:1px solid #333;border-radius:14px;padding:6px;box-shadow:0 8px 32px rgba(0,0,0,.8);min-width:170px;">
+    <div class="ctx-item" id="ctx-change-action" onclick="ctxChangeAction()" style="display:none;color:#ff7a00;">🎬 Change Action</div>
     <div class="ctx-item" onclick="ctxDuplicate()">📄 Duplicate</div>
     <div class="ctx-item" onclick="ctxBringForward()">⬆ Bring Forward</div>
     <div class="ctx-item" onclick="ctxSendBack()">⬇ Send Back</div>
@@ -4294,8 +4395,8 @@ document.addEventListener('gesturechange', function(e) {
     <div class="ctx-item ctx-danger" onclick="ctxDelete()">🗑 Delete</div>
 </div>
 <style>
-.ctx-item { padding:10px 14px; font-size:13px; font-weight:700; color:#f5f5f7; border-radius:8px; cursor:pointer; }
-.ctx-item:hover { background:#2a2a2a; }
+.ctx-item { padding:10px 14px; font-size:13px; font-weight:700; color:#f5f5f7; border-radius:8px; cursor:pointer; -webkit-tap-highlight-color: transparent; }
+.ctx-item:active { background:#2a2a2a; }
 .ctx-item.ctx-danger { color:#ff453a; }
 </style>
 
