@@ -49,7 +49,6 @@ width:100%;height:100dvh;position:relative;overflow:hidden;touch-action:none;
 position:absolute;top:0;left:0;
 overflow:hidden;background:#fff;
 box-shadow:0 8px 60px rgba(0,0,0,.85);
-transition:opacity .22s ease;
 }
 .cf-buf.cf-active{opacity:1;z-index:2;position:relative;}
 .cf-buf.cf-behind{opacity:0;z-index:1;pointer-events:none;}
@@ -120,8 +119,8 @@ body.fs-mode .prog-track{ opacity:0; pointer-events:none; }
 body.fs-mode .reader-vp{ background:#000; }
 #fs-exit{
   position:fixed; bottom:20px; right:16px; z-index:9000;
-  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18);
-  color:white; padding:8px 14px; border-radius:50px;
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07);
+  color:rgba(255,255,255,.18); padding:8px 14px; border-radius:50px;
   font-size:12px; font-weight:800; cursor:pointer;
   backdrop-filter:blur(10px); letter-spacing:.4px;
   opacity:0; pointer-events:none;
@@ -133,7 +132,10 @@ body.fs-mode #fs-exit{
   opacity:1; pointer-events:all;
   transform:translateY(0);
 }
-/* Also hide fs-exit when UI is hidden in non-fs mode */
+#fs-exit:hover{
+  background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.2);
+  color:rgba(255,255,255,.7);
+}
 #fs-exit.hide{ opacity:0 !important; pointer-events:none !important; }
 
 /* ── Tap nav zones ── */
@@ -841,14 +843,12 @@ function renderFrame(anim = false) {
     prev.classList.add('cf-behind');
     _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
   } else {
-    // First render — just show next immediately, no transition
-    next.style.transition = 'none';
+    // First render — show next immediately
     next.classList.remove('cf-behind');
     next.classList.add('cf-active');
     prev.classList.remove('cf-active');
     prev.classList.add('cf-behind');
     _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
-    requestAnimationFrame(() => { next.style.transition = ''; });
   }
 
   // 5. Update UI chrome
