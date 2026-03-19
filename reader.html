@@ -402,7 +402,8 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
 const READER_BASE = location.origin + location.pathname;
 const _sb = supabase.createClient(
   'https://mmycqeejhguzhtzkyjaj.supabase.co',
-  'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE'
+  'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE',
+  { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
 );
 const myP = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
@@ -450,6 +451,12 @@ async function boot() {
   if (sv !== null && sv !== '__done__') { const i = parseInt(sv); if (i > 0 && i < frames.length) idx = i; }
 
   buildDots();
+
+  // Preload all sprite + background images across every frame so they're
+  // cached by the browser before the reader reaches each frame — no more
+  // waiting for assets to appear on frame change.
+  preloadAllFrameImages(frames);
+
   renderFrame();
   sched();
   buildShareUrl();
@@ -521,6 +528,28 @@ function getSpriteFilterCSS(layer) {
   if (blurType === 'soft')  return `blur(${amt}px)`;
   if (blurType === 'pixel') return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
   return '';
+}
+
+// ── Preload all images across all frames ─────────────────────
+// Fires-and-forgets Image() loads so the browser caches every
+// sprite and background before the reader reaches that frame.
+function preloadAllFrameImages(frames) {
+  const seen = new Set();
+  frames.forEach(f => {
+    // Background
+    const bg = f.background || '';
+    if ((bg.startsWith('http') || bg.startsWith('data:image')) && !seen.has(bg)) {
+      seen.add(bg);
+      const im = new Image(); im.src = bg;
+    }
+    // Layers
+    (f.layers || []).forEach(l => {
+      if (l.type === 'img' && l.src && !seen.has(l.src)) {
+        seen.add(l.src);
+        const im = new Image(); im.src = l.src;
+      }
+    });
+  });
 }
 
 function renderFrame(anim = false) {
