@@ -980,33 +980,11 @@
             <button onclick="applyMobCustomGradient()" style="width:100%;padding:10px;background:#ff7a00;color:#000;border:none;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit;">Apply Gradient</button>
         </div>
 
-        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 8px;">Adjust</div>
-        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 10px;">Adjust</div>
-        <div class="bg-slider-row">
-            <span>Scale</span>
-            <input type="range" id="mob-bg-scale" min="10" max="200" value="100" oninput="updateMobBg()">
-            <span class="bg-val" id="mob-bg-scale-v">100%</span>
-        </div>
-        <div class="bg-slider-row">
-            <span>Rotate</span>
-            <input type="range" id="mob-bg-rotate" min="0" max="360" value="0" oninput="updateMobBg()">
-            <span class="bg-val" id="mob-bg-rotate-v">0°</span>
-        </div>
-        <div class="bg-slider-row">
-            <span>X Offset</span>
-            <input type="range" id="mob-bg-x" min="-100" max="100" value="0" oninput="updateMobBg()">
-            <span class="bg-val" id="mob-bg-x-v">0</span>
-        </div>
-        <div class="bg-slider-row">
-            <span>Y Offset</span>
-            <input type="range" id="mob-bg-y" min="-100" max="100" value="0" oninput="updateMobBg()">
-            <span class="bg-val" id="mob-bg-y-v">0</span>
-        </div>
         <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 8px;">Filter</div>
         <div class="filter-row" id="mob-bg-filter-row"></div>
-        <button onclick="resetBgSettings();closeSheet('bg')" style="width:100%;padding:11px;background:#222;border:1px solid #333;color:#aaa;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;">Reset Background</button>
-        <button id="mob-bg-drag-btn" onclick="toggleMobBgDrag()" style="width:100%;padding:11px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:12px;">✋ Drag Canvas to Pan</button>
-        <button onclick="openMoveBgModal();closeSheet('bg')" style="width:100%;padding:13px;background:#0a1520;border:1.5px solid rgba(0,210,255,0.45);color:var(--teal);border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:13px;letter-spacing:0.5px;">🎯 Move Background</button>
+        <button onclick="resetBgSettings()" style="width:100%;padding:11px;background:#222;border:1px solid #333;color:#aaa;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;">Reset Background</button>
+        <button onclick="closeSheet('bg'); openBgAdjustBar();" style="width:100%;padding:13px;background:rgba(255,122,0,0.1);border:1.5px solid rgba(255,122,0,0.45);color:var(--accent);border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:13px;letter-spacing:0.5px;">🎚 Adjust (Scale / Position)</button>
+        <button id="mob-bg-drag-btn" onclick="closeSheet('bg'); toggleMobBgDrag();" style="width:100%;padding:11px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:12px;">✋ Drag Canvas to Pan</button>
     </div>
 </div>
 
@@ -3130,6 +3108,13 @@ function openBackgroundSource() {
     lsSet('cc-pending-frames', JSON.stringify({ frames, currentIdx }));
     location.href = 'backgroundsource.html';
 }
+function openBgAdjustBar() {
+    syncBgSliders();
+    document.getElementById('bg-adjust-bar').style.display = 'block';
+}
+function closeBgAdjustBar() {
+    document.getElementById('bg-adjust-bar').style.display = 'none';
+}
 function updateMobBg() {
     const scale = document.getElementById('mob-bg-scale').value;
     const rotate = document.getElementById('mob-bg-rotate').value;
@@ -3140,7 +3125,6 @@ function updateMobBg() {
     document.getElementById('mob-bg-x-v').innerText = x;
     document.getElementById('mob-bg-y-v').innerText = y;
     frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, scale: parseInt(scale), rotate: parseInt(rotate), x: parseInt(x), y: parseInt(y) };
-    document.getElementById('mob-bg-scale-v').innerText = scale + '%';
     render();
 }
 function syncBgSliders() {
@@ -4575,6 +4559,37 @@ document.addEventListener('gesturechange', function(e) {
 .ctx-item:active { background:#2a2a2a; }
 .ctx-item.ctx-danger { color:#ff453a; }
 </style>
+
+<!-- ── COMPACT BG ADJUST BAR (canvas stays visible above) ── -->
+<div id="bg-adjust-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:1200;background:#161618;border-top:1px solid #2a2a2c;border-radius:20px 20px 0 0;padding:12px 16px 24px;box-shadow:0 -6px 30px rgba(0,0,0,0.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="font-size:11px;font-weight:900;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;">🎚 Background</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="resetBgSettings()" style="background:#222;border:1px solid #333;color:#888;padding:5px 12px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Reset</button>
+            <button onclick="closeBgAdjustBar()" style="background:var(--accent);border:none;color:#000;padding:5px 14px;border-radius:8px;font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;">Done</button>
+        </div>
+    </div>
+    <div class="bg-slider-row">
+        <span>Scale</span>
+        <input type="range" id="mob-bg-scale" min="10" max="300" value="100" oninput="updateMobBg()">
+        <span class="bg-val" id="mob-bg-scale-v">100%</span>
+    </div>
+    <div class="bg-slider-row">
+        <span>X</span>
+        <input type="range" id="mob-bg-x" min="-100" max="100" value="0" oninput="updateMobBg()">
+        <span class="bg-val" id="mob-bg-x-v">0</span>
+    </div>
+    <div class="bg-slider-row">
+        <span>Y</span>
+        <input type="range" id="mob-bg-y" min="-100" max="100" value="0" oninput="updateMobBg()">
+        <span class="bg-val" id="mob-bg-y-v">0</span>
+    </div>
+    <div class="bg-slider-row">
+        <span>Rotate</span>
+        <input type="range" id="mob-bg-rotate" min="0" max="360" value="0" oninput="updateMobBg()">
+        <span class="bg-val" id="mob-bg-rotate-v">0°</span>
+    </div>
+</div>
 
 </body>
 </html>
