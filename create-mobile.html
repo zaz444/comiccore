@@ -2819,9 +2819,21 @@ function renderMobBgGrid() {
             _bgObserver.observe(card);
         }
 
-        card.onclick = () => {
-            const src = card._imgSrc || bg.image_data;
-            if (!src) return;
+        card.onclick = async () => {
+            let src = card._imgSrc || bg.image_data;
+            if (!src) {
+                // Image not loaded yet — fetch it now
+                card.style.opacity = '0.6';
+                const { data } = await _supabase.from('backgrounds_library')
+                    .select('image_data').eq('id', bg.id).single();
+                card.style.opacity = '';
+                if (!data?.image_data) return;
+                src = data.image_data;
+                bg.image_data = src;
+                card._imgSrc = src;
+                try { sessionStorage.setItem('cc_bg_img_' + bg.id, src); } catch(e) {}
+                _bgApplyImg(card, src);
+            }
             closeSheet('bg');
             currentImportType = 'bg';
             showBgImportChoice(src);
