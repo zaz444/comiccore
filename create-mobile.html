@@ -1543,7 +1543,7 @@ function _renderNow() {
     canvas.style.filter = '';
 
     const s = f.bgSettings || {};
-    const scale = s.scale ?? 100, rotate = s.rotate ?? 0, xOff = s.x ?? 0, yOff = s.y ?? 0, filter = s.filter || 'none';
+    const scale = s.scale ?? 1, rotate = s.rotate ?? 0, xOff = s.x ?? 0, yOff = s.y ?? 0, filter = s.filter || 'none';
     const filterCSS = filter === 'none' ? '' : filter;
 
     // Build dedicated bg-layer div
@@ -1560,21 +1560,29 @@ function _renderNow() {
             wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
             const img = document.createElement('img');
             img.src = bg;
-            const effectiveScale = Math.max(100, scale);
+            const effectiveScale = Math.max(1, scale) * 100;
             img.style.cssText = `position:absolute;width:${effectiveScale}%;height:auto;min-height:100%;top:50%;left:50%;transform-origin:0 0;transform:translate(calc(-50% + ${xOff * effectiveScale / 100}%),calc(-50% + ${yOff * effectiveScale / 100}%)) rotate(${rotate}deg);pointer-events:none;`;
             wrapper.appendChild(img);
             bgLayer.appendChild(wrapper);
         } else {
-            // Static image — map x/y to background-position (0–100%) so no black ever shows
+            // Static image — img + object-fit:cover so no black ever shows
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
+            const imgEl = document.createElement('img');
+            imgEl.src = bg;
+            const scaleVal = Math.max(1, typeof scale === 'number' ? scale : 1);
             const bpx = Math.min(100, Math.max(0, 50 + xOff / 2));
             const bpy = Math.min(100, Math.max(0, 50 + yOff / 2));
-            bgLayer.style.backgroundImage    = `url("${bg}")`;
-            bgLayer.style.backgroundRepeat   = 'no-repeat';
-            bgLayer.style.backgroundSize     = (scale <= 100 || scale === 'cover') ? 'cover' : `${scale}% auto`;
-            bgLayer.style.backgroundPosition = `${bpx}% ${bpy}%`;
-            bgLayer.style.transform          = `rotate(${rotate}deg)`;
-            bgLayer.style.transformOrigin    = 'center center';
-            bgLayer.style.overflow           = 'hidden';
+            imgEl.style.cssText = [
+                'position:absolute','inset:0','width:100%','height:100%',
+                'object-fit:cover',
+                'object-position:' + bpx + '% ' + bpy + '%',
+                'transform:scale(' + scaleVal + ') rotate(' + rotate + 'deg)',
+                'transform-origin:center center',
+                'pointer-events:none'
+            ].join(';') + ';';
+            wrapper.appendChild(imgEl);
+            bgLayer.appendChild(wrapper);
         }
     } else if (isGrad) {
         canvas.style.backgroundColor = 'transparent';
@@ -2693,7 +2701,7 @@ function renderMobColors() {
 function applyMobBgColor(color) {
     saveState();
     frames[currentIdx].background = color;
-    frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
+    frames[currentIdx].bgSettings = { scale:1, rotate:0, x:0, y:0, filter:'none' };
     render();
     closeSheet('bg');
 }
@@ -3120,21 +3128,21 @@ function updateMobBg() {
     const rotate = document.getElementById('mob-bg-rotate').value;
     const x = document.getElementById('mob-bg-x').value;
     const y = document.getElementById('mob-bg-y').value;
-    document.getElementById('mob-bg-scale-v').innerText = scale + '%';
+    document.getElementById('mob-bg-scale-v').innerText = parseFloat(scale).toFixed(1) + 'x';
     document.getElementById('mob-bg-rotate-v').innerText = rotate + '°';
     document.getElementById('mob-bg-x-v').innerText = x;
     document.getElementById('mob-bg-y-v').innerText = y;
-    frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, scale: parseInt(scale), rotate: parseInt(rotate), x: parseInt(x), y: parseInt(y) };
+    frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, scale: parseFloat(scale), rotate: parseInt(rotate), x: parseInt(x), y: parseInt(y) };
     render();
 }
 function syncBgSliders() {
     const s = frames[currentIdx].bgSettings || {};
-    const scaleVal = (s.scale === 'cover') ? 100 : (s.scale ?? 100);
+    const scaleVal = typeof s.scale === 'number' ? s.scale : 1;
     document.getElementById('mob-bg-scale').value = scaleVal;
     document.getElementById('mob-bg-rotate').value = s.rotate ?? 0;
     document.getElementById('mob-bg-x').value = s.x ?? 0;
     document.getElementById('mob-bg-y').value = s.y ?? 0;
-    document.getElementById('mob-bg-scale-v').innerText = s.scale === 'cover' ? 'Cover' : (scaleVal + '%');
+    document.getElementById('mob-bg-scale-v').innerText = scaleVal + 'x';
     document.getElementById('mob-bg-rotate-v').innerText = (s.rotate ?? 0) + '°';
     document.getElementById('mob-bg-x-v').innerText = (s.x ?? 0);
     document.getElementById('mob-bg-y-v').innerText = (s.y ?? 0);
@@ -3154,7 +3162,7 @@ function syncBgSliders() {
 function resetBgSettings() {
     saveState();
     // Reset transform only — preserve the background image itself
-    frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };
+    frames[currentIdx].bgSettings = { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' };
     syncBgSliders();
     document.querySelectorAll('#mob-bg-filter-row .filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     render();
@@ -3258,7 +3266,7 @@ async function bgChoiceFixed() {
 
     frames[currentIdx].background = finalSrc;
     // Always reset bgSettings when a new background is applied
-    frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };
+    frames[currentIdx].bgSettings = { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' };
     _bgChoiceSrc = null;
     // Sync sliders to clean state
     syncBgSliders();
@@ -3467,7 +3475,7 @@ function confirmMultiImport() {
     const mode = document.getElementById('multi-insert-mode').value;
     const newFrames = multiFiles.map(f => ({
         layers: [], background: f.dataUrl,
-        bgSettings: { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' }
+        bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' }
     }));
     if (mode === 'replace') { frames = newFrames; currentIdx = 0; }
     else if (mode === 'append') { frames.splice(currentIdx + 1, 0, ...newFrames); currentIdx++; }
@@ -3611,8 +3619,8 @@ async function renderFrameToCanvas(frame, cw, ch) {
     const ctx = tmp.getContext('2d');
     const bg = frame.background || '#ffffff';
     const s = frame.bgSettings || {};
-    const isCover = s.scale === 'cover';
-    const scale  = isCover ? 100 : (s.scale ?? 100);
+    const isCover = false;
+    const scale  = typeof s.scale === 'number' ? s.scale : 1;
     const xOff   = s.x      ?? 0;
     const yOff   = s.y      ?? 0;
     const rot    = s.rotate ?? 0;
@@ -3626,7 +3634,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
             img.onload = () => {
                 const imgAR = img.naturalWidth / img.naturalHeight;
                 let drawW, drawH, posX, posY;
-                if (isCover) {
+                if (scale <= 1) {
                     // Cover: fill canvas, maintain AR
                     const canvasAR = cw / ch;
                     if (imgAR > canvasAR) { drawH = ch; drawW = drawH * imgAR; }
@@ -3634,7 +3642,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     posX = (cw - drawW) / 2;
                     posY = (ch - drawH) / 2;
                 } else {
-                    drawW = cw * scale / 100;
+                    drawW = cw * scale;
                     drawH = drawW / imgAR;
                     const posXfrac = (50 + xOff) / 100;
                     const posYfrac = (50 + yOff) / 100;
@@ -4377,9 +4385,9 @@ document.addEventListener('gesturechange', function(e) {
         mbgY = s.y ?? 0;
 
         const inner = document.getElementById('move-bg-frame-inner');
-        const scale = s.scale ?? 100;
+        const scale = s.scale ?? 1;
         const rotate = s.rotate ?? 0;
-        inner.style.transform = `scale(${scale/100}) rotate(${rotate}deg)`;
+        inner.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
         inner.style.transformOrigin = 'center center';
         inner.style.background = '';
         inner.style.backgroundImage = '';
@@ -4571,8 +4579,8 @@ document.addEventListener('gesturechange', function(e) {
     </div>
     <div class="bg-slider-row">
         <span>Scale</span>
-        <input type="range" id="mob-bg-scale" min="10" max="300" value="100" oninput="updateMobBg()">
-        <span class="bg-val" id="mob-bg-scale-v">100%</span>
+        <input type="range" id="mob-bg-scale" min="1" max="5" step="0.1" value="1" oninput="updateMobBg()">
+        <span class="bg-val" id="mob-bg-scale-v">1.0x</span>
     </div>
     <div class="bg-slider-row">
         <span>X</span>
