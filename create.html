@@ -4734,27 +4734,45 @@
             .update({ default_scale: scale })
             .eq('id', _efxModPack.id);
 
-        if (btn) { btn.innerText = '💾 Save for Everyone'; btn.disabled = false; }
+        if (btn) { btn.innerText = '💾 Save'; btn.disabled = false; }
 
         if (error) {
-            showKbFlash('❌ Save failed: ' + error.message);
+            alert('❌ Save failed:\n' + error.message + '\n\nMake sure you have run:\nALTER TABLE effects_library ADD COLUMN IF NOT EXISTS default_scale INTEGER;');
             return;
         }
 
-        // Update in-memory and cache
+        // Read back to VERIFY it actually saved
+        const { data: verify, error: verifyErr } = await _supabase
+            .from('effects_library')
+            .select('id, default_scale')
+            .eq('id', _efxModPack.id)
+            .single();
+
+        if (verifyErr || !verify) {
+            alert('❌ Could not verify save. Check Supabase RLS policies allow updates.');
+            return;
+        }
+
+        if (verify.default_scale !== scale) {
+            alert(`❌ Verification failed — DB shows ${verify.default_scale} but we tried to save ${scale}. Check RLS policies.`);
+            return;
+        }
+
+        // Confirmed saved — update in-memory and clear all caches
         _efxModPack.default_scale = scale;
         if (sidebarEffects) {
             const e = sidebarEffects.find(e => e.id === _efxModPack.id);
             if (e) e.default_scale = scale;
         }
-        // Invalidate full cache so next load picks up new value
         localStorage.removeItem('efx-full-' + _efxModPack.id);
-        // Invalidate meta cache too
         localStorage.removeItem('cc_effects_meta_v1');
 
         const current = document.getElementById('efx-mod-current');
-        if (current) current.innerText = `✓ Saved! Global default: ${scale}px`;
-        showKbFlash(`✓ Default scale set to ${scale}px for "${_efxModPack.name}"`);
+        if (current) current.innerText = `✓ Verified in DB: ${scale}px`;
+        const selected = document.getElementById('efx-mod-selected');
+        if (selected) selected.style.color = '#00d2ff';
+
+        showKbFlash(`✅ Confirmed: "${_efxModPack.name}" default = ${scale}px`);
     }
 
     function toggleSidePanel(name) {
