@@ -1554,6 +1554,17 @@
                         Extras
                         <span class="sp-close-btn" onclick="toggleSidePanel('effects')">✕</span>
                     </div>
+                    <!-- ── MOD PANEL: only visible to @jeffyplays ── -->
+                    <div id="efx-mod-panel" style="display:none;background:rgba(255,122,0,0.07);border:1.5px solid rgba(255,122,0,0.35);border-radius:10px;padding:10px 12px;margin-bottom:8px;flex-shrink:0;">
+                        <div style="font-size:9px;font-weight:900;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">⚙ Mod Panel — Default Scale</div>
+                        <div style="font-size:10px;color:#666;font-weight:600;margin-bottom:8px;line-height:1.4;">Set the default import size (px) for any extra. This is saved globally — all users will get this size when they add the extra.</div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="number" id="efx-mod-scale-input" min="50" max="900" value="200" placeholder="px"
+                                style="flex:1;background:#111;border:1px solid #444;color:var(--accent);padding:7px 10px;border-radius:8px;font-size:13px;font-weight:800;font-family:inherit;outline:none;text-align:center;">
+                            <button onclick="saveEfxDefaultScale()" style="flex:2;padding:8px 12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">💾 Save for Everyone</button>
+                        </div>
+                        <div id="efx-mod-current" style="font-size:9px;color:#555;font-weight:700;margin-top:6px;text-align:center;"></div>
+                    </div>
                     <input class="sp-search" id="sb-effect-search" placeholder="Search effects..." oninput="filterSidebarEffects()">
                     <div style="display:flex;align-items:center;gap:6px;margin:6px 0 4px;">
                         <select id="sb-effect-sort" onchange="filterSidebarEffects()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;outline:none;font-family:inherit;">
@@ -2116,7 +2127,7 @@
         } else {
             grid.innerHTML = "<p style='color:white; font-size:12px;'>Loading...</p>";
             const { data } = await _supabase.from('sprites_library')
-                .select('id, name, tags, creator, created_at')
+                .select('id, name, tags, creator, created_at, default_scale')
                 .order('created_at', { ascending: false });
             sidebarSprites = data || [];
             sbSaveMetaCache(sidebarSprites);
@@ -2390,7 +2401,7 @@
                 // Map x/y (-100..100) → background-position (0%..100%), guaranteed no black
                 const bpx = Math.min(100, Math.max(0, 50 + xOff / 2));
                 const bpy = Math.min(100, Math.max(0, 50 + yOff / 2));
-                bgLayer.style.backgroundImage    = `url("${bg.replace(/"/g,'\\"')}")`;
+                bgLayer.style.backgroundImage    = `url("${bg}")`;
                 bgLayer.style.backgroundRepeat   = 'no-repeat';
                 // Honour user scale but enforce cover minimum so no black shows
                 bgLayer.style.backgroundSize     = (scale <= 100 || scale === 'cover') ? 'cover' : `${scale}% auto`;
@@ -4676,6 +4687,71 @@
 <script>
     let activeSidePanel = null;
     let sidebarSprites = null;
+    // Mod panel — tracks which effect pack is currently selected for scale editing
+    let _efxModPack = null;
+    let _isOwner = false; // set after auth check in window.onload
+
+    function _initModPanel() {
+        // Check if logged-in user is @jeffyplays
+        JSON.parse(localStorage.getItem('user_profile') || '{}').handle === 'jeffyplays'
+            ? (_isOwner = true)
+            : (_isOwner = false);
+        const panel = document.getElementById('efx-mod-panel');
+        if (panel) panel.style.display = _isOwner ? 'flex' : 'none';
+        if (_isOwner && panel) panel.style.flexDirection = 'column';
+    }
+
+    function _efxModSelectPack(pack) {
+        if (!_isOwner) return;
+        _efxModPack = pack;
+        const input = document.getElementById('efx-mod-scale-input');
+        const current = document.getElementById('efx-mod-current');
+        if (input) input.value = pack.default_scale || 200;
+        if (current) current.innerText = pack.default_scale
+            ? `Current global default: ${pack.default_scale}px`
+            : 'No default set — currently uses 33% of canvas width';
+    }
+
+    async function saveEfxDefaultScale() {
+        if (!_isOwner || !_efxModPack) {
+            showKbFlash('Select an effect first (click its card)');
+            return;
+        }
+        const input = document.getElementById('efx-mod-scale-input');
+        const scale = parseInt(input?.value);
+        if (!scale || scale < 50 || scale > 900) {
+            showKbFlash('Enter a valid scale between 50–900px');
+            return;
+        }
+        const btn = document.querySelector('#efx-mod-panel button');
+        if (btn) { btn.innerText = 'Saving…'; btn.disabled = true; }
+
+        const { error } = await _supabase.from('effects_library')
+            .update({ default_scale: scale })
+            .eq('id', _efxModPack.id);
+
+        if (btn) { btn.innerText = '💾 Save for Everyone'; btn.disabled = false; }
+
+        if (error) {
+            showKbFlash('❌ Save failed: ' + error.message);
+            return;
+        }
+
+        // Update in-memory and cache
+        _efxModPack.default_scale = scale;
+        if (sidebarEffects) {
+            const e = sidebarEffects.find(e => e.id === _efxModPack.id);
+            if (e) e.default_scale = scale;
+        }
+        // Invalidate full cache so next load picks up new value
+        localStorage.removeItem('efx-full-' + _efxModPack.id);
+        // Invalidate meta cache too
+        localStorage.removeItem('cc_effects_meta_v1');
+
+        const current = document.getElementById('efx-mod-current');
+        if (current) current.innerText = `✓ Saved! Global default: ${scale}px`;
+        showKbFlash(`✓ Default scale set to ${scale}px for "${_efxModPack.name}"`);
+    }
 
     function toggleSidePanel(name) {
         const panel = document.getElementById('sidebar-panel');
@@ -4698,7 +4774,7 @@
         if (btn) btn.classList.add('active');
         // Panel-specific init
         if (name === 'sprites' && !sidebarSprites) loadSidebarSprites();
-        if (name === 'effects' && !sidebarEffects) loadSidebarEffects();
+        if (name === 'effects') { if (!sidebarEffects) loadSidebarEffects(); _initModPanel(); }
         if (name === 'background') loadSidebarBgs();
         if (name === 'layers') renderSidebarLayers();
     }
@@ -4835,7 +4911,7 @@
         // 2. Refresh metadata from DB in background
         try {
             const { data } = await _supabase.from('sprites_library')
-                .select('id, name, tags, creator, created_at')
+                .select('id, name, tags, creator, created_at, default_scale')
                 .order('created_at', { ascending: false });
             const fresh = data || [];
 
@@ -5151,7 +5227,7 @@
     const EFX_CACHE_VER = 'v2';
 
     function efxSaveMetaCache(data) {
-        const lean = (data||[]).map(({id,name,tags,creator,created_at}) => ({id,name,tags,creator,created_at}));
+        const lean = (data||[]).map(({id,name,tags,creator,created_at,default_scale}) => ({id,name,tags,creator,created_at,default_scale}));
         try { localStorage.setItem(EFX_META_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
     }
     function efxLoadMetaCache() {
@@ -5174,8 +5250,8 @@
             return p;
         } catch(e) { return null; }
     }
-    function efxSetFull(id, url, actions) {
-        try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url, actions:actions||{}, ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
+    function efxSetFull(id, url, actions, default_scale) {
+        try { localStorage.setItem('efx-full-'+id, JSON.stringify({img:url, actions:actions||{}, default_scale: default_scale||null, ts:Date.now(),v:EFX_CACHE_VER})); } catch(e) {}
     }
 
     async function loadSidebarEffects() {
@@ -5190,7 +5266,7 @@
         }
         try {
             const { data } = await _supabase.from('effects_library')
-                .select('id, name, tags, creator, created_at')
+                .select('id, name, tags, creator, created_at, default_scale')
                 .order('created_at', {ascending: false});
             const fresh = data || [];
             const cachedIds = (sidebarEffects||[]).map(e=>e.id).join(',');
@@ -5260,12 +5336,13 @@
                     const cached2 = efxGetImg(pack.id);
                     if (cached2) { const old=div.querySelector('div'); if(old){const img=document.createElement('img');img.src=cached2;img.className='sb-loaded';old.replaceWith(img);} return; }
                     // Fetch image_data AND actions so the full cache is populated correctly
-                    _supabase.from('effects_library').select('image_data,actions').eq('id',pack.id).single().then(({data})=>{
+                    _supabase.from('effects_library').select('image_data,actions,default_scale').eq('id',pack.id).single().then(({data})=>{
                         if (!data?.image_data) return;
                         efxSetImg(pack.id, data.image_data);
-                        efxSetFull(pack.id, data.image_data, data.actions || {});
+                        efxSetFull(pack.id, data.image_data, data.actions || {}, data.default_scale);
                         pack.image_data = data.image_data;
                         if (data.actions) pack.actions = data.actions;
+                        if (data.default_scale) pack.default_scale = data.default_scale;
                         const old = div.querySelector('div');
                         if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
                     });
@@ -5274,18 +5351,21 @@
             }
             div.onclick = async () => {
                 lsSet('efx-used-'+pack.id, Date.now());
+                // Update mod panel selection (jeffyplays only — no-op for others)
+                _efxModSelectPack(pack);
                 // Fetch full pack data then open effect picker modal
                 const cached = efxGetFull(pack.id);
                 if (cached) {
-                    openEffectModal({ ...pack, image_data: cached.img, actions: cached.actions });
+                    openEffectModal({ ...pack, image_data: cached.img, actions: cached.actions, default_scale: cached.default_scale || pack.default_scale });
                 } else {
                     div.style.opacity = '0.5';
                     const { data } = await _supabase.from('effects_library')
-                        .select('id, image_data, actions').eq('id', pack.id).single();
+                        .select('id, image_data, actions, default_scale').eq('id', pack.id).single();
                     div.style.opacity = '';
                     if (data) {
-                        efxSetFull(pack.id, data.image_data, data.actions);
+                        efxSetFull(pack.id, data.image_data, data.actions, data.default_scale);
                         pack.image_data = data.image_data;
+                        if (data.default_scale) pack.default_scale = data.default_scale;
                         openEffectModal({ ...pack, ...data });
                     }
                 }
@@ -5324,8 +5404,9 @@
         saveState();
         const cw = canvas.offsetWidth || 600;
         const ch = canvas.offsetHeight || 600;
-        const TARGET_W = Math.round(cw * 0.33);
-        const nl = { type:'img', src, w:TARGET_W, h:TARGET_W, x:Math.round(cw*0.33), y:Math.round(ch*0.33), rotation:0, flipped:false, effectData:pack, id:Date.now() };
+        // Use mod-set default_scale (px) if available, else 33% of canvas width
+        const TARGET_W = (pack && pack.default_scale) ? pack.default_scale : Math.round(cw * 0.33);
+        const nl = { type:'img', src, w:TARGET_W, h:TARGET_W, x:Math.round((cw - TARGET_W) / 2), y:Math.round((ch - TARGET_W) / 2), rotation:0, flipped:false, effectData:pack, id:Date.now() };
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
         const probe = new Image();
