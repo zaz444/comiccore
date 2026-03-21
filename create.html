@@ -2128,7 +2128,7 @@
         } else {
             grid.innerHTML = "<p style='color:white; font-size:12px;'>Loading...</p>";
             const { data } = await _supabase.from('sprites_library')
-                .select('id, name, tags, creator, created_at, default_scale')
+                .select('id, name, tags, creator, created_at')
                 .order('created_at', { ascending: false });
             sidebarSprites = data || [];
             sbSaveMetaCache(sidebarSprites);
@@ -4730,6 +4730,8 @@
         const btn = document.querySelector('#efx-mod-panel button');
         if (btn) { btn.innerText = 'Saving…'; btn.disabled = true; }
 
+        // JS already verified _isOwner before reaching here.
+        // RPC uses a SECURITY DEFINER function to bypass RLS.
         const { error } = await _supabase.rpc('set_effect_default_scale', {
             p_effect_id: String(_efxModPack.id),
             p_scale: scale
@@ -4934,7 +4936,7 @@
         // 2. Refresh metadata from DB in background
         try {
             const { data } = await _supabase.from('sprites_library')
-                .select('id, name, tags, creator, created_at, default_scale')
+                .select('id, name, tags, creator, created_at')
                 .order('created_at', { ascending: false });
             const fresh = data || [];
 
