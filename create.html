@@ -2398,18 +2398,27 @@
                 wrapper.appendChild(img);
                 bgLayer.appendChild(wrapper);
             } else {
-                // Static image: background-size enforces minimum coverage
-                // Map x/y (-100..100) → background-position (0%..100%), guaranteed no black
-                const bpx = Math.min(100, Math.max(0, 50 + xOff / 2));
-                const bpy = Math.min(100, Math.max(0, 50 + yOff / 2));
-                bgLayer.style.backgroundImage    = `url("${bg}")`;
-                bgLayer.style.backgroundRepeat   = 'no-repeat';
-                // Honour user scale but enforce cover minimum so no black shows
-                bgLayer.style.backgroundSize     = (scale <= 100 || scale === 'cover') ? 'cover' : `${scale}% auto`;
-                bgLayer.style.backgroundPosition = `${bpx}% ${bpy}%`;
-                bgLayer.style.transform          = `rotate(${rotate}deg)`;
-                bgLayer.style.transformOrigin    = 'center center';
-                bgLayer.style.overflow           = 'hidden';
+                // Static image — oversized centered <img> so zoom always expands outward
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
+                const imgEl = document.createElement('img');
+                imgEl.src = bg;
+                const sv = Math.max(1, typeof scale === 'number' ? scale : 1);
+                // Pan: map x/y (-100..100) to translate offset in % of img size
+                const tx = xOff * sv;
+                const ty = yOff * sv;
+                imgEl.style.cssText = [
+                    'position:absolute',
+                    'width:' + (sv * 100) + '%',
+                    'height:' + (sv * 100) + '%',
+                    'object-fit:cover',
+                    'top:50%', 'left:50%',
+                    'transform:translate(calc(-50% + ' + tx + 'px), calc(-50% + ' + ty + 'px)) rotate(' + rotate + 'deg)',
+                    'transform-origin:center center',
+                    'pointer-events:none'
+                ].join(';') + ';';
+                wrapper.appendChild(imgEl);
+                bgLayer.appendChild(wrapper);
             }
         } else if (isGradient) {
             canvas.style.backgroundColor = 'transparent';
@@ -3745,31 +3754,20 @@
 
                     // Mirror the CSS render: cover when scale<=100, else scale% wide
                     let drawW, drawH;
-                    const scaleVal = s.scale ?? 1;
-                    if (scaleVal <= 1 || scaleVal === 'cover') {
-                        // cover: fill the frame fully — no black gaps
-                        if (imgAR > frameAR) {
-                            // image wider than frame — fit by height
-                            drawH = offH;
-                            drawW = drawH * imgAR;
-                        } else {
-                            // image taller than frame — fit by width
-                            drawW = offW;
-                            drawH = drawW / imgAR;
-                        }
-                    } else {
-                        drawW = offW * scaleVal;
-                        drawH = drawW / imgAR;
-                        // Enforce cover minimum even at higher scales
-                        if (drawW < offW) { drawW = offW; drawH = drawW / imgAR; }
-                        if (drawH < offH) { drawH = offH; drawW = drawH * imgAR; }
-                    }
-
-                    // Map x/y (-100..100) → position fraction (0..1) matching CSS render
-                    const bpx = Math.min(1, Math.max(0, (50 + (s.x ?? 0) / 2) / 100));
-                    const bpy = Math.min(1, Math.max(0, (50 + (s.y ?? 0) / 2) / 100));
-                    const posX = (offW - drawW) * bpx;
-                    const posY = (offH - drawH) * bpy;
+                    // Mirror CSS: background-size:cover → fill frame, then scale(sv) zooms in
+                    const scaleVal = typeof s.scale === 'number' ? Math.max(1, s.scale) : 1;
+                    // Cover base
+                    if (imgAR > frameAR) { drawH = offH; drawW = drawH * imgAR; }
+                    else                  { drawW = offW; drawH = drawW / imgAR; }
+                    // bg-position pan (matches CSS background-position)
+                    const bpx = Math.min(1, Math.max(0, (50 + (s.x ?? 0) * 0.5) / 100));
+                    const bpy = Math.min(1, Math.max(0, (50 + (s.y ?? 0) * 0.5) / 100));
+                    let posX = (offW - drawW) * bpx;
+                    let posY = (offH - drawH) * bpy;
+                    // Apply zoom: scale from canvas center (matches transform-origin:center)
+                    drawW *= scaleVal; drawH *= scaleVal;
+                    posX = (posX - offW / 2) * scaleVal + offW / 2;
+                    posY = (posY - offH / 2) * scaleVal + offH / 2;
 
                     ctx.save();
                     ctx.translate(offW / 2, offH / 2);
