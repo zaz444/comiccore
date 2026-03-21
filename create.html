@@ -1185,8 +1185,8 @@
     <button id="bg-move-btn" onclick="openMoveBgModal()" style="padding:9px 12px; background:#0a1520; border:1.5px solid rgba(0,210,255,0.4); color:var(--teal); border-radius:10px; font-weight:900; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:7px; letter-spacing:0.5px;">✋ Move Background</button>
     <div class="bg-slider-row">
         <span>Scale</span>
-        <input type="range" id="bg-scale" min="50" max="300" value="100" oninput="applyBgTransform()">
-        <input type="number" class="bg-num-input" id="bg-scale-num" min="50" max="300" value="100" oninput="document.getElementById('bg-scale').value=this.value; applyBgTransform()">
+        <input type="range" id="bg-scale" min="1" max="5" step="0.1" value="1" oninput="applyBgTransform()">
+        <input type="number" class="bg-num-input" id="bg-scale-num" min="1" max="5" step="0.1" value="1" oninput="document.getElementById('bg-scale').value=this.value; applyBgTransform()">
     </div>
     <div class="bg-slider-row">
         <span>Rotate</span>
@@ -2363,7 +2363,7 @@
 
         // Apply background transform + filter settings
         const s = f.bgSettings || {};
-        const scale  = s.scale  ?? 100;
+        const scale  = s.scale  ?? 1;
         const rotate = s.rotate ?? 0;
         const xOff   = s.x      ?? 0;
         const yOff   = s.y      ?? 0;
@@ -2386,7 +2386,7 @@
                 const img = document.createElement('img');
                 img.src = bg;
                 // Always cover: width >= 100% of frame, translate by offset
-                const effectiveScale = Math.max(100, scale);
+                const effectiveScale = Math.max(1, scale) * 100;
                 img.style.cssText = `
                     position:absolute;
                     width:${effectiveScale}%; height:auto;
@@ -3099,7 +3099,7 @@
         // so old pan/zoom/filter from previous background don't carry over
         frames[currentIdx].bgSettings = { scale: 'cover', rotate: 0, x: 0, y: 0, filter: 'none' };
         // Sync the bg-edit panel sliders to reflect clean state
-        const syncInputs = { 'bg-scale': 100, 'bg-scale-num': 100, 'bg-x': 0, 'bg-x-num': 0, 'bg-y': 0, 'bg-y-num': 0, 'bg-rotate': 0 };
+        const syncInputs = { 'bg-scale': 1, 'bg-scale-num': 1, 'bg-x': 0, 'bg-x-num': 0, 'bg-y': 0, 'bg-y-num': 0, 'bg-rotate': 0 };
         Object.entries(syncInputs).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
         const rotVal = document.getElementById('bg-rotate-val');
         if (rotVal) rotVal.innerText = '0°';
@@ -3745,8 +3745,8 @@
 
                     // Mirror the CSS render: cover when scale<=100, else scale% wide
                     let drawW, drawH;
-                    const scaleVal = s.scale ?? 100;
-                    if (scaleVal <= 100 || scaleVal === 'cover') {
+                    const scaleVal = s.scale ?? 1;
+                    if (scaleVal <= 1 || scaleVal === 'cover') {
                         // cover: fill the frame fully — no black gaps
                         if (imgAR > frameAR) {
                             // image wider than frame — fit by height
@@ -3758,7 +3758,7 @@
                             drawH = drawW / imgAR;
                         }
                     } else {
-                        drawW = offW * scaleVal / 100;
+                        drawW = offW * scaleVal;
                         drawH = drawW / imgAR;
                         // Enforce cover minimum even at higher scales
                         if (drawW < offW) { drawW = offW; drawH = drawW / imgAR; }
@@ -4220,11 +4220,11 @@
         }
         buildFilterChips();
         const s = f.bgSettings || {};
-        document.getElementById('bg-scale').value  = s.scale  ?? 100;
+        document.getElementById('bg-scale').value  = s.scale  ?? 1;
         document.getElementById('bg-rotate').value = s.rotate ?? 0;
         document.getElementById('bg-x').value      = Math.max(-50, Math.min(50, s.x ?? 0));
         document.getElementById('bg-y').value      = Math.max(-50, Math.min(50, s.y ?? 0));
-        document.getElementById('bg-scale-num').value  = s.scale  ?? 100;
+        document.getElementById('bg-scale-num').value  = s.scale  ?? 1;
         document.getElementById('bg-x-num').value      = Math.max(-50, Math.min(50, s.x ?? 0));
         document.getElementById('bg-y-num').value      = Math.max(-50, Math.min(50, s.y ?? 0));
         document.getElementById('bg-rotate-val').innerText = (s.rotate ?? 0) + '°';
@@ -4251,7 +4251,7 @@
     function applyBgTransform() {
         if (!frames[currentIdx].bgSettings) frames[currentIdx].bgSettings = {};
         const s  = frames[currentIdx].bgSettings;
-        s.scale  = parseInt(document.getElementById('bg-scale').value);
+        s.scale  = parseFloat(document.getElementById('bg-scale').value);
         s.rotate = parseInt(document.getElementById('bg-rotate').value);
         s.x      = parseInt(document.getElementById('bg-x').value);
         s.y      = parseInt(document.getElementById('bg-y').value);
@@ -4277,12 +4277,12 @@
     }
 
     function resetBgTransform() {
-        frames[currentIdx].bgSettings = { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' };
-        document.getElementById('bg-scale').value  = 100;
+        frames[currentIdx].bgSettings = { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' };
+        document.getElementById('bg-scale').value  = 1;
         document.getElementById('bg-rotate').value = 0;
         document.getElementById('bg-x').value      = 0;
         document.getElementById('bg-y').value      = 0;
-        document.getElementById('bg-scale-num').value = 100;
+        document.getElementById('bg-scale-num').value = 1;
         document.getElementById('bg-x-num').value = 0;
         document.getElementById('bg-y-num').value = 0;
         document.querySelectorAll('.filter-chip').forEach((c,i) => c.classList.toggle('active', i === 0));
@@ -4530,7 +4530,7 @@
         const newFrames = multiImportFiles.map(f => ({
             layers: [],
             background: f.dataUrl,
-            bgSettings: { scale: 100, rotate: 0, x: 0, y: 0, filter: 'none' }
+            bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' }
         }));
 
         if (mode === 'replace') {
@@ -5061,7 +5061,7 @@
     function applySbBgColor(color) {
         saveState();
         frames[currentIdx].background = color;
-        frames[currentIdx].bgSettings = { scale:100, rotate:0, x:0, y:0, filter:'none' };
+        frames[currentIdx].bgSettings = { scale:1, rotate:0, x:0, y:0, filter:'none' };
         render();
         toggleSidePanel('background');
     }
@@ -6511,11 +6511,11 @@
 
         // Mirror bg into the preview frame
         const inner = document.getElementById('move-bg-frame-inner');
-        const scale = s.scale ?? 100;
+        const scale = s.scale ?? 1;
         const rotate = s.rotate ?? 0;
         inner.style.backgroundImage = '';
         inner.style.background = '';
-        inner.style.transform = `scale(${scale/100}) rotate(${rotate}deg)`;
+        inner.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
         inner.style.transformOrigin = 'center center';
 
         if (f.background.startsWith('data:') || f.background.startsWith('http') || f.background.startsWith('blob:')) {
@@ -6601,7 +6601,7 @@
         mbgX = 0; mbgY = 0;
         // Also reset scale and rotation so Reset is a full reset
         if (frames[currentIdx].bgSettings) {
-            frames[currentIdx].bgSettings.scale  = 100;
+            frames[currentIdx].bgSettings.scale  = 1;
             frames[currentIdx].bgSettings.rotate = 0;
         }
         // Sync the bg-edit panel sliders
