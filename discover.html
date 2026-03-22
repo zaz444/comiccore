@@ -966,7 +966,11 @@ async function loadFeeds() {
     localStorage.setItem('cc-comics-cache', JSON.stringify(allComics));
     localStorage.setItem('cc-stars-cache',  JSON.stringify(globalStars));
     localStorage.setItem('cc-feeds-ts',     String(Date.now()));
-  } catch(e) {}
+  } catch(e) {
+    localStorage.removeItem('cc-comics-cache');
+    localStorage.removeItem('cc-stars-cache');
+    localStorage.removeItem('cc-stories-cache');
+  }
 
   renderComics(allComics, globalStars);
   renderTeams(teams || []);
@@ -1595,8 +1599,12 @@ async function loadStories() {
     return;
   }
 
-  localStorage.setItem(cacheKey, JSON.stringify(stories || []));
-  localStorage.setItem(cacheTs, String(Date.now()));
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(stories || []));
+    localStorage.setItem(cacheTs, String(Date.now()));
+  } catch(e) {
+    localStorage.removeItem(cacheKey);
+  }
   renderStories(stories || []);
 }
 

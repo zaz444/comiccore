@@ -530,7 +530,6 @@ const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
 
 let activeDraftId   = null;
 let hasUnsaved      = false;
-let coverBase64     = null;
 let currentFontSize = 18;
 let currentFont     = "'Merriweather', Georgia, serif";
 let currentSpacing  = '1.8';
@@ -984,16 +983,15 @@ function saveDraft() {
 function openPublish()  { document.getElementById('publish-modal').style.display = 'flex'; }
 function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
 
+let coverFile = null; // raw File for upload
+
 function handleCover(input) {
     const file = input.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        coverBase64 = e.target.result;
-        document.getElementById('cover-img').src = coverBase64;
-        document.getElementById('cover-img').style.display = 'block';
-        document.getElementById('cover-label').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
+    coverFile = file;
+    const preview = URL.createObjectURL(file);
+    document.getElementById('cover-img').src = preview;
+    document.getElementById('cover-img').style.display = 'block';
+    document.getElementById('cover-label').style.display = 'none';
 }
 
 async function finalPublish() {
@@ -1002,11 +1000,28 @@ async function finalPublish() {
     const desc  = document.getElementById('pub-desc').value.trim();
     if (!title) return alert('Please add a title!');
     const btn = document.getElementById('pub-btn');
-    btn.innerText = 'Publishing...'; btn.disabled = true;
+    btn.innerText = 'Uploading...'; btn.disabled = true;
+
+    // ── Upload cover to Supabase Storage ──────────────────
+    let coverUrl = null;
+    if (coverFile) {
+        const ext  = coverFile.name.split('.').pop() || 'jpg';
+        const path = 'story-covers/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext;
+        const { error: upErr } = await _supabase.storage
+            .from('avatars').upload(path, coverFile, { upsert: true, contentType: coverFile.type });
+        if (upErr) {
+            alert('Cover upload failed: ' + upErr.message);
+            btn.innerText = 'PUBLISH'; btn.disabled = false; return;
+        }
+        const { data: urlData } = _supabase.storage.from('avatars').getPublicUrl(path);
+        coverUrl = urlData.publicUrl;
+    }
+
+    btn.innerText = 'Publishing...';
     const plainText = getAllText();
     const { error } = await _supabase.from('stories').insert([{
         title, description: desc, tags,
-        cover: coverBase64 || null,
+        cover: coverUrl,
         content_html: getAllHTML(), content_text: plainText,
         word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
         page_count: getAllPages().length,
