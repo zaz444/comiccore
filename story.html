@@ -15,50 +15,112 @@
         /* ── Top Toolbar ── */
         .toolbar-top {
             height: 52px; background: var(--card); border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0 12px; gap: 8px; flex-shrink: 0; z-index: 100;
+            display: flex; align-items: center; padding: 0 12px; gap: 6px;
+            flex-shrink: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
+        .tb-spacer { flex: 1; }
+        .tb-title { font-size: 13px; font-weight: 900; color: var(--accent); letter-spacing: 1px; white-space: nowrap; }
         .nav-btn {
-            background: #2c2c2e; border: 1px solid var(--border); color: var(--text);
-            padding: 6px 12px; border-radius: 8px; cursor: pointer;
-            font-size: 12px; font-weight: 700; transition: 0.2s; white-space: nowrap;
+            background: rgba(255,255,255,0.07); border: 1px solid var(--border); color: var(--text);
+            padding: 7px 12px; border-radius: 8px; cursor: pointer;
+            font-size: 12px; font-weight: 700; transition: 0.15s; white-space: nowrap;
+            font-family: inherit;
         }
-        .nav-btn:hover { background: #3a3a3c; }
+        .nav-btn:hover { background: rgba(255,255,255,0.13); }
+        .nav-btn.teal { background: rgba(0,210,255,0.1); border-color: var(--teal); color: var(--teal); }
+        .nav-btn.accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 900; }
+        .nav-btn.accent:hover { opacity: 0.88; }
 
         /* ── Format Toolbar ── */
         .toolbar-format {
             background: var(--card); border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; gap: 3px; padding: 5px 12px;
-            flex-wrap: wrap; flex-shrink: 0;
+            display: flex; align-items: center; gap: 4px; padding: 6px 12px;
+            flex-shrink: 0; overflow-x: auto;
         }
+        .toolbar-format::-webkit-scrollbar { display: none; }
         .fmt-btn {
-            background: transparent; border: 1px solid transparent; color: var(--text);
-            border-radius: 6px; padding: 5px 9px; cursor: pointer;
+            background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text);
+            border-radius: 7px; padding: 6px 11px; cursor: pointer;
             font-size: 13px; font-weight: 700; transition: 0.15s;
-            min-width: 30px; text-align: center;
+            white-space: nowrap; flex-shrink: 0; font-family: inherit;
+            display: flex; align-items: center; gap: 4px;
         }
-        .fmt-btn:hover { background: rgba(255,255,255,0.08); border-color: #444; }
+        .fmt-btn:hover { background: rgba(255,255,255,0.12); }
         .fmt-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
-        .fmt-divider { width: 1px; height: 22px; background: #333; margin: 0 3px; flex-shrink: 0; }
-        .fmt-select {
-            background: #2a2a2a; border: 1px solid #444; color: var(--text);
-            border-radius: 6px; padding: 5px 7px; font-size: 12px; outline: none; cursor: pointer;
-        }
-        .fmt-size-group { display: flex; align-items: center; gap: 2px; }
+        .fmt-divider { width: 1px; height: 22px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+        .fmt-size-group { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
         .fmt-size-num {
-            background: #1a1a1a; border: 1px solid #444; color: var(--text);
-            border-radius: 5px; width: 32px; text-align: center; padding: 4px 2px;
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text);
+            border-radius: 6px; width: 32px; text-align: center; padding: 5px 2px;
             font-size: 12px; font-weight: 700;
         }
-        .color-btn-wrap {
-            position: relative; display: flex; flex-direction: column;
-            align-items: center; cursor: pointer; gap: 1px;
+        .color-swatch { width: 18px; height: 4px; border-radius: 2px; pointer-events: none; }
+
+        /* ── Sheet system ── */
+        .sheet-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 500; display: none; backdrop-filter: blur(4px);
         }
-        .color-bar { height: 3px; width: 18px; border-radius: 2px; pointer-events: none; }
-        .color-picker-input {
-            position: absolute; opacity: 0; width: 100%; height: 100%;
-            cursor: pointer; top: 0; left: 0; border: none; padding: 0;
+        .sheet-overlay.open { display: block; }
+        .bottom-sheet {
+            position: fixed; bottom: -100%; left: 50%; transform: translateX(-50%);
+            width: min(540px, 96vw); background: var(--card); border: 1px solid var(--border);
+            border-radius: 20px 20px 0 0; z-index: 600; transition: bottom 0.3s cubic-bezier(.4,0,.2,1);
+            display: flex; flex-direction: column; max-height: 72vh;
         }
+        .bottom-sheet.open { bottom: 0; }
+        .sheet-handle { width: 36px; height: 4px; background: #444; border-radius: 2px; margin: 10px auto 0; flex-shrink: 0; }
+        .sheet-title {
+            font-size: 13px; font-weight: 900; color: var(--accent); letter-spacing: 1.5px;
+            text-transform: uppercase; padding: 12px 16px 8px;
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .sheet-close { background: none; border: none; color: #555; font-size: 18px; cursor: pointer; padding: 4px; }
+        .sheet-body { flex: 1; overflow-y: auto; padding: 16px; }
+        .sheet-section-label {
+            font-size: 9px; font-weight: 900; color: #555;
+            text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; margin-top: 4px;
+        }
+        .font-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .font-card {
+            background: rgba(255,255,255,0.05); border: 2px solid var(--border); border-radius: 12px;
+            padding: 12px 10px; cursor: pointer; text-align: center; transition: 0.15s;
+        }
+        .font-card:hover { border-color: var(--accent); }
+        .font-card.active { border-color: var(--accent); background: rgba(255,122,0,0.1); }
+        .font-card .font-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+        .font-card .font-preview { font-size: 13px; color: #888; line-height: 1.4; }
+        .opt-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .opt-btn {
+            flex: 1; min-width: 60px; padding: 12px 8px; background: rgba(255,255,255,0.05);
+            border: 1.5px solid var(--border); color: #888; border-radius: 10px;
+            font-size: 12px; font-weight: 800; cursor: pointer; font-family: inherit;
+            text-align: center; transition: 0.15s; white-space: nowrap;
+        }
+        .opt-btn:hover, .opt-btn.active { border-color: var(--teal); background: rgba(0,210,255,0.08); color: var(--teal); }
+        .opt-btn.accent-active { border-color: var(--accent); background: rgba(255,122,0,0.1); color: var(--accent); }
+        .sheet-action-btn {
+            width: 100%; padding: 13px 16px; background: rgba(255,255,255,0.05); border: 1.5px solid var(--border);
+            color: var(--text); border-radius: 12px; font-size: 14px; font-weight: 700;
+            cursor: pointer; font-family: inherit; text-align: left; display: flex;
+            align-items: center; gap: 12px; margin-bottom: 10px; transition: 0.15s;
+        }
+        .sheet-action-btn:hover { border-color: var(--accent); background: rgba(255,122,0,0.08); }
+        .sheet-action-btn .sico { font-size: 20px; }
+        .color-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .color-row label { font-size: 13px; font-weight: 700; color: #aaa; width: 80px; flex-shrink: 0; }
+        .color-row input[type=color] {
+            width: 48px; height: 36px; border: 2px solid var(--border); border-radius: 8px;
+            cursor: pointer; background: none; padding: 2px;
+        }
+        .color-preview { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #444; }
+
+        /* classic theme sheet overrides */
+        [data-theme="classic"] .bottom-sheet { background: #f0e8dc; border-color: #c9b99a; }
+        [data-theme="classic"] .font-card { background: #e8ddd0; border-color: #c9b99a; }
+        [data-theme="classic"] .opt-btn { background: #e8ddd0; border-color: #c9b99a; color: #5a6a8a; }
+        [data-theme="classic"] .sheet-action-btn { background: #e8ddd0; border-color: #c9b99a; color: #1a2a4a; }
 
         /* ── Writing Area ── */
         #writing-area-wrap {
@@ -78,7 +140,22 @@
         .page-wrapper:only-child  .story-page { border-radius: 4px; }
         .page-wrapper:not(:last-child) .story-page { border-bottom: 2px dashed #ddd; }
 
-        /* ── THE PAGE — colours hardcoded, nothing from theme bleeds in ── */
+        /* ── Classic theme ── */
+        [data-theme="classic"] {
+            --bg: #f0e8dc; --card: #e8ddd0; --text: #1a2a4a;
+            --border: #c9b99a; --accent: #d97706; --teal: #2563eb;
+            --secondary: #5a6a8a; --input: #f5ede0;
+        }
+        [data-theme="classic"] .toolbar-top { background: #e8ddd0 !important; border-color: #c9b99a !important; }
+        [data-theme="classic"] .toolbar-format { background: #f0e8dc !important; border-color: #c9b99a !important; }
+        [data-theme="classic"] .fmt-select,
+        [data-theme="classic"] .fmt-size-num { background: #e0d4c0 !important; border-color: #c9b99a !important; color: #1a2a4a !important; }
+        [data-theme="classic"] .nav-btn { background: #ddd0bc !important; border-color: #c9b99a !important; color: #1a2a4a !important; }
+        [data-theme="classic"] #writing-area-wrap { background: #dfd5c5 !important; }
+        [data-theme="classic"] .status-bar { background: #e8ddd0 !important; border-color: #c9b99a !important; }
+        [data-theme="classic"] .page-label { color: #8a7a6a !important; }
+
+        /* ── THE PAGE — classic uses cream/navy/blue palette ── */
         .story-page {
             width: 100%; background: #ffffff; color: #111111;
             padding: 60px 70px 80px;
@@ -90,12 +167,21 @@
             min-height: 900px; box-sizing: border-box;
             -webkit-user-select: text; user-select: text;
         }
+        [data-theme="classic"] .story-page {
+            background: #fffdf8 !important;
+            color: #1a2a4a !important;
+            -webkit-text-fill-color: #1a2a4a !important;
+            caret-color: #2563eb !important;
+            box-shadow: 0 4px 40px rgba(100,80,50,0.25) !important;
+        }
+        [data-theme="classic"] .page-wrapper:not(:last-child) .story-page { border-bottom: 2px dashed #c9b99a !important; }
         .story-page.is-empty::before {
             content: attr(data-placeholder);
             color: #bbb; pointer-events: none;
             position: absolute; top: 60px; left: 70px;
             font-family: 'Merriweather', Georgia, serif; font-size: 18px;
         }
+        [data-theme="classic"] .story-page.is-empty::before { color: #a89880 !important; }
         @media (max-width: 600px) {
             .story-page { padding: 36px 22px 70px; min-height: 600px; font-size: 16px; }
             #writing-area-wrap { padding: 16px 6px 0; }
@@ -162,14 +248,16 @@
         }
         .modal-content {
             background: var(--card); padding: 26px; border-radius: 20px;
-            width: 100%; max-width: 420px; border: 1px solid var(--border);
+            width: 100%; max-width: 440px; border: 1px solid var(--border);
+            max-height: 90vh; overflow-y: auto;
         }
         .pub-input {
-            width: 100%; padding: 11px; background: #111; border: 1px solid #333;
-            color: white; border-radius: 10px; margin-bottom: 12px;
+            width: 100%; padding: 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+            color: var(--text); border-radius: 10px; margin-bottom: 12px;
             box-sizing: border-box; font-family: inherit; font-size: 14px;
         }
         .pub-input:focus { outline: none; border-color: var(--accent); }
+        [data-theme="classic"] .pub-input { background: #f5ede0; color: #1a2a4a; border-color: #c9b99a; }
         .export-tab-row { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 18px; }
         .export-tab { flex: 1; padding: 10px; text-align: center; font-weight: 800; font-size: 13px; cursor: pointer; background: #1a1a1a; color: #666; border: none; transition: 0.2s; }
         .export-tab.active { background: var(--teal); color: #000; }
@@ -202,18 +290,21 @@
 <!-- ── Publish Modal ── -->
 <div id="publish-modal" class="overlay-full">
     <div class="modal-content">
-        <h2 style="margin-top:0; color:var(--accent);">Publish Story</h2>
-        <div id="cover-box" style="width:100%; aspect-ratio:2/3; max-height:190px; background:#111; border:2px dashed #444; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; margin-bottom:14px;" onclick="document.getElementById('cover-input').click()">
-            <img id="cover-img" style="width:100%; height:100%; object-fit:cover; display:none;">
-            <span id="cover-label" style="color:#555; font-size:13px;">Click to upload cover</span>
+        <h2 style="margin-top:0;color:var(--accent);font-size:18px;font-weight:900;">Publish Story</h2>
+        <div id="cover-box" style="width:100%;aspect-ratio:2/3;max-height:210px;background:#111;border:2px dashed #444;border-radius:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;margin-bottom:14px;transition:border-color 0.2s;" onclick="document.getElementById('cover-input').click()" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='#444'">
+            <img id="cover-img" style="width:100%;height:100%;object-fit:cover;display:none;">
+            <div id="cover-label" style="display:flex;flex-direction:column;align-items:center;gap:6px;color:#555;">
+                <span style="font-size:28px;">🖼</span>
+                <span style="font-size:12px;font-weight:700;">Click to upload cover</span>
+            </div>
         </div>
         <input type="file" id="cover-input" accept="image/*" style="display:none;" onchange="handleCover(this)">
         <input type="text"  id="pub-title" class="pub-input" placeholder="Story Title">
         <input type="text"  id="pub-tags"  class="pub-input" placeholder="Tags (e.g. romance, sci-fi, fantasy)">
-        <textarea           id="pub-desc"  class="pub-input" placeholder="Brief description..." style="height:76px; resize:none;"></textarea>
-        <div style="display:flex; gap:10px;">
-            <button onclick="closePublish()" style="flex:1; padding:12px; background:#333; color:white; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Cancel</button>
-            <button id="pub-btn" onclick="finalPublish()" style="flex:2; padding:12px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:900; cursor:pointer;">PUBLISH</button>
+        <textarea           id="pub-desc"  class="pub-input" placeholder="Brief description..." style="height:76px;resize:none;"></textarea>
+        <div style="display:flex;gap:10px;">
+            <button onclick="closePublish()" style="flex:1;padding:13px;background:rgba(255,255,255,0.07);color:var(--text);border:1px solid var(--border);border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px;">Cancel</button>
+            <button id="pub-btn" onclick="finalPublish()" style="flex:2;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;font-family:inherit;font-size:14px;">PUBLISH</button>
         </div>
     </div>
 </div>
@@ -238,122 +329,156 @@
     </div>
 </div>
 
+<!-- ── Sheet Overlay ── -->
+<div id="sheet-overlay" class="sheet-overlay" onclick="closeAllSheets()"></div>
+
+<!-- ── FONT SHEET ── -->
+<div id="sheet-font" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Font <button class="sheet-close" onclick="closeSheet('font')">✕</button></div>
+    <div class="sheet-body">
+        <div class="font-grid" id="font-grid"></div>
+    </div>
+</div>
+
+<!-- ── SPACING SHEET ── -->
+<div id="sheet-spacing" class="bottom-sheet" style="max-height:44vh;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Line Spacing <button class="sheet-close" onclick="closeSheet('spacing')">✕</button></div>
+    <div class="sheet-body">
+        <div class="opt-grid">
+            <button class="opt-btn" onclick="applySpacing('1.4',this)">Tight<br><small>1.4×</small></button>
+            <button class="opt-btn active" onclick="applySpacing('1.8',this)">Normal<br><small>1.8×</small></button>
+            <button class="opt-btn" onclick="applySpacing('2.2',this)">Relaxed<br><small>2.2×</small></button>
+            <button class="opt-btn" onclick="applySpacing('2.8',this)">Double<br><small>2.8×</small></button>
+        </div>
+    </div>
+</div>
+
+<!-- ── COLOUR SHEET ── -->
+<div id="sheet-colour" class="bottom-sheet" style="max-height:60vh;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Text Colour &amp; Highlight <button class="sheet-close" onclick="closeSheet('colour')">✕</button></div>
+    <div class="sheet-body">
+        <div class="sheet-section-label">Text Colour</div>
+        <div class="color-row">
+            <label>Pick colour</label>
+            <input type="color" id="pc-text-color" value="#111111" onchange="applyTextColor(this.value)">
+            <div class="color-preview" id="text-color-preview" style="background:#111111;"></div>
+        </div>
+        <div class="opt-grid" style="margin-bottom:20px;">
+            <button class="opt-btn" onclick="pickTextColor('#111111')" style="background:#f5f5f5;color:#111;border-color:#ddd;">Black</button>
+            <button class="opt-btn" onclick="pickTextColor('#FF7A00')" style="background:#FF7A00;color:#000;border-color:#FF7A00;">Orange</button>
+            <button class="opt-btn" onclick="pickTextColor('#e63946')" style="background:#e63946;color:#fff;border-color:#e63946;">Red</button>
+            <button class="opt-btn" onclick="pickTextColor('#2196f3')" style="background:#2196f3;color:#fff;border-color:#2196f3;">Blue</button>
+            <button class="opt-btn" onclick="pickTextColor('#4caf50')" style="background:#4caf50;color:#fff;border-color:#4caf50;">Green</button>
+            <button class="opt-btn" onclick="pickTextColor('#9c27b0')" style="background:#9c27b0;color:#fff;border-color:#9c27b0;">Purple</button>
+        </div>
+        <div class="sheet-section-label">Highlight</div>
+        <div class="color-row">
+            <label>Pick colour</label>
+            <input type="color" id="pc-highlight" value="#FFFF00" onchange="applyHighlight(this.value)">
+            <div class="color-preview" id="highlight-preview" style="background:#FFFF00;"></div>
+        </div>
+        <div class="opt-grid">
+            <button class="opt-btn" onclick="pickHighlight('#FFFF00')" style="background:#FFFF00;color:#000;border-color:#cccc00;">Yellow</button>
+            <button class="opt-btn" onclick="pickHighlight('#b3f5b3')" style="background:#b3f5b3;color:#000;border-color:#7acc7a;">Green</button>
+            <button class="opt-btn" onclick="pickHighlight('#ffd6a5')" style="background:#ffd6a5;color:#000;border-color:#e6b06e;">Peach</button>
+            <button class="opt-btn" onclick="pickHighlight('#c8d8ff')" style="background:#c8d8ff;color:#000;border-color:#8aabff;">Blue</button>
+            <button class="opt-btn" onclick="pickHighlight('#ffc8c8')" style="background:#ffc8c8;color:#000;border-color:#ff9999;">Pink</button>
+            <button class="opt-btn" onclick="applyHighlight('transparent')" style="color:#888;">None</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── MORE SHEET ── -->
+<div id="sheet-more" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">More Options <button class="sheet-close" onclick="closeSheet('more')">✕</button></div>
+    <div class="sheet-body">
+        <div class="sheet-section-label">Text Style</div>
+        <div class="opt-grid" style="margin-bottom:16px;">
+            <button class="opt-btn" onclick="applyHeading('p');closeSheet('more')">Body</button>
+            <button class="opt-btn" onclick="applyHeading('h1');closeSheet('more')">H1</button>
+            <button class="opt-btn" onclick="applyHeading('h2');closeSheet('more')">H2</button>
+            <button class="opt-btn" onclick="applyHeading('h3');closeSheet('more')">H3</button>
+            <button class="opt-btn" onclick="applyHeading('blockquote');closeSheet('more')">Quote</button>
+            <button class="opt-btn" onclick="applyHeading('pre');closeSheet('more')">Code</button>
+        </div>
+        <div class="sheet-section-label">Alignment</div>
+        <div class="opt-grid" style="margin-bottom:16px;">
+            <button class="opt-btn" onclick="fmt('justifyLeft')">≡ Left</button>
+            <button class="opt-btn" onclick="fmt('justifyCenter')">≡ Center</button>
+            <button class="opt-btn" onclick="fmt('justifyRight')">≡ Right</button>
+            <button class="opt-btn" onclick="fmt('justifyFull')">≡ Justify</button>
+        </div>
+        <div class="sheet-section-label">Lists &amp; Links</div>
+        <div class="opt-grid" style="margin-bottom:16px;">
+            <button class="opt-btn" onclick="fmt('insertUnorderedList');closeSheet('more')">• Bullets</button>
+            <button class="opt-btn" onclick="fmt('insertOrderedList');closeSheet('more')">1. Numbers</button>
+            <button class="opt-btn" onclick="insertLink();closeSheet('more')">🔗 Link</button>
+            <button class="opt-btn" onclick="fmt('removeFormat');closeSheet('more')" style="color:#ff9966;">✕ Clear</button>
+        </div>
+        <div class="sheet-section-label">Insert</div>
+        <button class="sheet-action-btn" onclick="triggerImageInsert();closeSheet('more')">
+            <span class="sico">🖼</span>Insert Image from Device
+        </button>
+        <input type="file" id="img-file-input" accept="image/*" style="display:none;" onchange="insertImageFromFile(this)">
+        <div class="sheet-section-label">Story</div>
+        <button class="sheet-action-btn" onclick="addPage();closeSheet('more')"><span class="sico">📄</span>Add New Page</button>
+        <button class="sheet-action-btn" onclick="saveDraft();closeSheet('more')"><span class="sico">💾</span>Save Draft</button>
+        <button class="sheet-action-btn" onclick="document.getElementById('export-modal').style.display='flex';closeSheet('more')"><span class="sico">📤</span>Export Story</button>
+    </div>
+</div>
+
 <!-- ── Top Toolbar ── -->
 <div class="toolbar-top">
-    <div style="display:flex; gap:6px;">
-        <button class="nav-btn" onclick="handleExit()">🏠 EXIT</button>
-        <button class="nav-btn" onclick="document.execCommand('undo')" title="Undo">↩️</button>
-        <button class="nav-btn" onclick="document.execCommand('redo')" title="Redo">↪️</button>
-    </div>
-    <div style="font-size:13px; font-weight:900; color:var(--accent); letter-spacing:1px;">STORY EDITOR</div>
-    <div style="display:flex; gap:6px;">
-        <button class="nav-btn" onclick="saveDraft()" style="color:var(--teal); border-color:var(--teal);">💾 SAVE</button>
-        <button class="nav-btn" onclick="openDraftsModal()" style="color:var(--teal); border-color:var(--teal);">📂 DRAFTS</button>
-        <button class="nav-btn" onclick="document.getElementById('export-modal').style.display='flex'" style="color:var(--teal); border-color:var(--teal);">EXPORT</button>
-        <button onclick="openPublish()" style="color:var(--accent); background:none; border:none; font-weight:900; cursor:pointer; font-size:14px;">PUBLISH</button>
-    </div>
+    <button class="nav-btn" onclick="handleExit()">← Exit</button>
+    <button class="nav-btn" onclick="document.execCommand('undo')" title="Undo">↩</button>
+    <button class="nav-btn" onclick="document.execCommand('redo')" title="Redo">↪</button>
+    <div class="tb-spacer"></div>
+    <span class="tb-title">STORY EDITOR</span>
+    <div class="tb-spacer"></div>
+    <button class="nav-btn teal" onclick="saveDraft()">💾 Save</button>
+    <button class="nav-btn teal" onclick="openDraftsModal()">📂 Drafts</button>
+    <button class="nav-btn accent" onclick="openPublish()">Publish</button>
 </div>
 
 <!-- ── Format Toolbar ── -->
 <div class="toolbar-format">
-
-    <!-- Text style -->
-    <select class="fmt-select" id="heading-select" onchange="applyHeading(this.value)" title="Text style">
-        <option value="p">Paragraph</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
-        <option value="h4">Heading 4</option>
-        <option value="blockquote">Quote</option>
-        <option value="pre">Code block</option>
-    </select>
-
-    <div class="fmt-divider"></div>
-
-    <!-- Font -->
-    <select class="fmt-select" id="font-select" onchange="applyFont(this.value)" title="Font family">
-        <option value="'Merriweather', Georgia, serif">Merriweather</option>
-        <option value="'Lora', Georgia, serif">Lora</option>
-        <option value="'Playfair Display', Georgia, serif">Playfair</option>
-        <option value="'Crimson Text', Georgia, serif">Crimson</option>
-        <option value="'EB Garamond', Georgia, serif">Garamond</option>
-        <option value="'Libre Baskerville', Georgia, serif">Baskerville</option>
-        <option value="'Source Serif 4', Georgia, serif">Source Serif</option>
-        <option value="'Nunito', sans-serif">Nunito</option>
-        <option value="'Inter', sans-serif">Inter</option>
-        <option value="monospace">Monospace</option>
-    </select>
+    <!-- Bold / Italic / Underline / Strike -->
+    <button class="fmt-btn" id="btn-bold"      onmousedown="event.preventDefault()" onclick="fmt('bold')"><b>B</b></button>
+    <button class="fmt-btn" id="btn-italic"    onmousedown="event.preventDefault()" onclick="fmt('italic')"><i>I</i></button>
+    <button class="fmt-btn" id="btn-underline" onmousedown="event.preventDefault()" onclick="fmt('underline')"><u>U</u></button>
+    <button class="fmt-btn" id="btn-strike"    onmousedown="event.preventDefault()" onclick="fmt('strikeThrough')"><s>S</s></button>
 
     <div class="fmt-divider"></div>
 
     <!-- Font size -->
     <div class="fmt-size-group">
-        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(-2)" title="Smaller">−</button>
+        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(-2)">−</button>
         <div class="fmt-size-num" id="size-display">18</div>
-        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(+2)" title="Larger">+</button>
+        <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="changeFontSize(+2)">+</button>
     </div>
 
     <div class="fmt-divider"></div>
 
-    <!-- Bold / Italic / Underline / Strike -->
-    <button class="fmt-btn" id="btn-bold"      onmousedown="event.preventDefault()" onclick="fmt('bold')"          title="Bold"><b>B</b></button>
-    <button class="fmt-btn" id="btn-italic"    onmousedown="event.preventDefault()" onclick="fmt('italic')"        title="Italic"><i>I</i></button>
-    <button class="fmt-btn" id="btn-underline" onmousedown="event.preventDefault()" onclick="fmt('underline')"     title="Underline"><u>U</u></button>
-    <button class="fmt-btn" id="btn-strike"    onmousedown="event.preventDefault()" onclick="fmt('strikeThrough')" title="Strikethrough"><s>S</s></button>
+    <!-- Colour (opens sheet) -->
+    <button class="fmt-btn" onclick="openSheet('colour')" onmousedown="event.preventDefault()" title="Text colour &amp; highlight">
+        <span style="font-size:13px;font-weight:900;">A</span>
+        <div class="color-swatch" id="fmt-color-swatch" style="background:#111111;"></div>
+    </button>
 
     <div class="fmt-divider"></div>
 
-    <!-- Text colour -->
-    <div class="color-btn-wrap fmt-btn" title="Text colour" onmousedown="event.preventDefault()">
-        <span style="font-size:13px; font-weight:900; line-height:1.2; pointer-events:none;">A</span>
-        <div class="color-bar" id="text-color-bar" style="background:#111111;"></div>
-        <input class="color-picker-input" type="color" id="text-color-pick" value="#111111"
-               oninput="applyTextColor(this.value)" onchange="applyTextColor(this.value)">
-    </div>
+    <!-- Font (opens sheet) -->
+    <button class="fmt-btn" onclick="openSheet('font')" onmousedown="event.preventDefault()" id="font-label-btn">Aa Font</button>
 
-    <!-- Highlight -->
-    <div class="color-btn-wrap fmt-btn" title="Highlight colour" onmousedown="event.preventDefault()">
-        <span style="font-size:11px; font-weight:900; line-height:1.4; pointer-events:none; background:#FFFF00; color:#000; padding:0 3px; border-radius:2px;">H</span>
-        <div class="color-bar" id="highlight-bar" style="background:#FFFF00;"></div>
-        <input class="color-picker-input" type="color" id="highlight-pick" value="#FFFF00"
-               oninput="applyHighlight(this.value)" onchange="applyHighlight(this.value)">
-    </div>
+    <!-- Spacing (opens sheet) -->
+    <button class="fmt-btn" onclick="openSheet('spacing')" onmousedown="event.preventDefault()">↕ Spacing</button>
 
-    <div class="fmt-divider"></div>
-
-    <!-- Alignment -->
-    <button class="fmt-btn" id="btn-left"    onmousedown="event.preventDefault()" onclick="fmt('justifyLeft')"   title="Left align">≡L</button>
-    <button class="fmt-btn" id="btn-center"  onmousedown="event.preventDefault()" onclick="fmt('justifyCenter')" title="Center">≡C</button>
-    <button class="fmt-btn" id="btn-right"   onmousedown="event.preventDefault()" onclick="fmt('justifyRight')"  title="Right align">≡R</button>
-    <button class="fmt-btn" id="btn-justify" onmousedown="event.preventDefault()" onclick="fmt('justifyFull')"   title="Justify">≡J</button>
-
-    <div class="fmt-divider"></div>
-
-    <!-- Lists -->
-    <button class="fmt-btn" id="btn-ul" onmousedown="event.preventDefault()" onclick="fmt('insertUnorderedList')" title="Bullet list">• List</button>
-    <button class="fmt-btn" id="btn-ol" onmousedown="event.preventDefault()" onclick="fmt('insertOrderedList')"   title="Numbered list">1. List</button>
-
-    <div class="fmt-divider"></div>
-
-    <!-- Line spacing -->
-    <select class="fmt-select" id="spacing-select" onchange="applySpacing(this.value)" title="Line spacing">
-        <option value="1.4">Tight</option>
-        <option value="1.8" selected>Normal</option>
-        <option value="2.2">Relaxed</option>
-        <option value="2.8">Double</option>
-    </select>
-
-    <div class="fmt-divider"></div>
-
-    <!-- Insert image -->
-    <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="triggerImageInsert()" title="Insert image">🖼 Image</button>
-    <input type="file" id="img-file-input" accept="image/*" style="display:none;" onchange="insertImageFromFile(this)">
-
-    <!-- Insert link -->
-    <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="insertLink()" title="Insert hyperlink">🔗 Link</button>
-
-    <!-- Clear formatting -->
-    <button class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmt('removeFormat')" title="Remove formatting" style="font-size:11px; color:#ff9966;">✕ Clear</button>
+    <!-- More (opens sheet) -->
+    <button class="fmt-btn" onclick="openSheet('more')" onmousedown="event.preventDefault()" style="background:rgba(255,122,0,0.12);border-color:var(--accent);color:var(--accent);">••• More</button>
 
 </div>
 
@@ -421,11 +546,12 @@
         page.spellcheck = true;
         page.setAttribute('data-placeholder', pageNum === 1 ? 'Start writing your story...' : 'Continue your story...');
 
-        // ALL colours set as inline styles — beats any CSS cascade including theme.css
-        page.style.background           = '#ffffff';
-        page.style.color                = '#111111';
-        page.style.webkitTextFillColor  = '#111111';
-        page.style.caretColor           = '#FF7A00';
+        // Page colours — adapt to classic theme if active
+        const isClassic = document.documentElement.getAttribute('data-theme') === 'classic';
+        page.style.background           = isClassic ? '#fffdf8' : '#ffffff';
+        page.style.color                = isClassic ? '#1a2a4a' : '#111111';
+        page.style.webkitTextFillColor  = isClassic ? '#1a2a4a' : '#111111';
+        page.style.caretColor           = isClassic ? '#2563eb' : '#FF7A00';
         page.style.fontFamily           = currentFont;
         page.style.fontSize             = currentFontSize + 'px';
 
@@ -512,6 +638,12 @@
     // INIT
     // ═══════════════════════════════════════════
 
+    // Apply saved theme immediately (prevents flash)
+    (function() {
+        const t = localStorage.getItem('cc-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+
     window.onload = function () {
         const resumeId = localStorage.getItem('active_story_draft_id');
         if (resumeId) {
@@ -521,7 +653,7 @@
                 activeDraftId = resumeId;
                 document.getElementById('pub-title').value = found.title || '';
                 if (found.fontSize) { currentFontSize = found.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
-                if (found.font)     { currentFont = found.font; document.getElementById('font-select').value = currentFont; }
+                if (found.font)     { applyFont(found.font); }
                 (found.pages || [found.content || '']).forEach(html => addPage(html));
                 document.getElementById('save-status').innerText = 'Draft loaded';
                 updateStats();
@@ -566,36 +698,99 @@
         restoreSelection();
     }
 
+    // ── Sheet system ──────────────────────────────────
+    function openSheet(name) {
+        closeAllSheets();
+        document.getElementById('sheet-overlay').classList.add('open');
+        document.getElementById('sheet-' + name).classList.add('open');
+        if (name === 'font') buildFontGrid();
+    }
+    function closeSheet(name) {
+        document.getElementById('sheet-overlay').classList.remove('open');
+        document.getElementById('sheet-' + name).classList.remove('open');
+        if (activePage) activePage.focus();
+    }
+    function closeAllSheets() {
+        document.getElementById('sheet-overlay').classList.remove('open');
+        document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('open'));
+    }
+
+    const FONTS = [
+        { label: 'Merriweather', val: "'Merriweather', Georgia, serif",   sample: 'Merriweather' },
+        { label: 'Lora',         val: "'Lora', Georgia, serif",            sample: 'Lora' },
+        { label: 'Playfair',     val: "'Playfair Display', Georgia, serif",sample: 'Playfair' },
+        { label: 'Crimson',      val: "'Crimson Text', Georgia, serif",    sample: 'Crimson' },
+        { label: 'Garamond',     val: "'EB Garamond', Georgia, serif",     sample: 'Garamond' },
+        { label: 'Baskerville',  val: "'Libre Baskerville', Georgia, serif",sample: 'Libre' },
+        { label: 'Source Serif', val: "'Source Serif 4', Georgia, serif",  sample: 'Source' },
+        { label: 'Nunito',       val: "'Nunito', sans-serif",              sample: 'Nunito' },
+        { label: 'Inter',        val: "'Inter', sans-serif",               sample: 'Inter' },
+        { label: 'Mono',         val: 'monospace',                         sample: 'Mono' },
+    ];
+
+    function buildFontGrid() {
+        const grid = document.getElementById('font-grid');
+        grid.innerHTML = FONTS.map(f => `
+            <div class="font-card ${currentFont === f.val ? 'active' : ''}" onclick="applyFont('${f.val.replace(/'/g,"\'")}');closeSheet('font')">
+                <div class="font-name">${f.label}</div>
+                <div class="font-preview" style="font-family:${f.val}">Aa Bb</div>
+            </div>`).join('');
+    }
+
     function applyFont(font) {
         currentFont = font;
         getAllPages().forEach(p => p.style.fontFamily = font);
+        const btn = document.getElementById('font-label-btn');
+        const f = FONTS.find(x => x.val === font);
+        if (btn && f) btn.innerHTML = 'Aa ' + f.label;
         hasUnsaved = true;
-        restoreSelection();
+        if (activePage) activePage.focus();
     }
 
     function applyHeading(tag) {
         restoreSelection();
         document.execCommand('formatBlock', false, tag);
         saveSelection();
+        if (activePage) activePage.focus();
     }
 
-    function applySpacing(val) {
+    function applySpacing(val, btn) {
         getAllPages().forEach(p => p.style.lineHeight = val);
-        restoreSelection();
+        if (btn) {
+            btn.closest('.opt-grid')?.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+        if (activePage) activePage.focus();
     }
 
     function applyTextColor(val) {
-        document.getElementById('text-color-bar').style.background = val;
+        const preview = document.getElementById('text-color-preview');
+        const swatch  = document.getElementById('fmt-color-swatch');
+        if (preview) preview.style.background = val;
+        if (swatch)  swatch.style.background  = val;
+        document.getElementById('pc-text-color').value = val === 'transparent' ? '#111111' : val;
         restoreSelection();
         document.execCommand('foreColor', false, val);
         saveSelection();
     }
 
+    function pickTextColor(val) {
+        document.getElementById('pc-text-color').value = val;
+        applyTextColor(val);
+    }
+
     function applyHighlight(val) {
-        document.getElementById('highlight-bar').style.background = val;
+        const preview = document.getElementById('highlight-preview');
+        if (preview) preview.style.background = val;
+        document.getElementById('pc-highlight').value = val === 'transparent' ? '#FFFF00' : val;
         restoreSelection();
         document.execCommand('hiliteColor', false, val);
         saveSelection();
+    }
+
+    function pickHighlight(val) {
+        document.getElementById('pc-highlight').value = val;
+        applyHighlight(val);
     }
 
     function insertLink() {
@@ -610,8 +805,6 @@
         document.getElementById('btn-italic').classList.toggle('active',    document.queryCommandState('italic'));
         document.getElementById('btn-underline').classList.toggle('active', document.queryCommandState('underline'));
         document.getElementById('btn-strike').classList.toggle('active',    document.queryCommandState('strikeThrough'));
-        document.getElementById('btn-ul').classList.toggle('active',        document.queryCommandState('insertUnorderedList'));
-        document.getElementById('btn-ol').classList.toggle('active',        document.queryCommandState('insertOrderedList'));
     }
 
     function handleKeyDown(e) {
@@ -811,6 +1004,7 @@
             cover: coverBase64 || null,
             content_html: getAllHTML(), content_text: plainText,
             word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
+            page_count: getAllPages().length,
             owner_name: myProfile.name || 'Author',
             owner_handle: myProfile.handle || 'user',
             font: currentFont, font_size: currentFontSize,
@@ -912,7 +1106,7 @@
         localStorage.setItem('active_story_draft_id', String(draft.id));
         document.getElementById('pub-title').value = draft.title || '';
         if (draft.fontSize) { currentFontSize = draft.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
-        if (draft.font)     { currentFont = draft.font; document.getElementById('font-select').value = currentFont; }
+        if (draft.font)     { applyFont(draft.font); }
         (draft.pages || [draft.content || '']).forEach(html => addPage(html));
         hasUnsaved = false;
         document.getElementById('save-status').innerText = 'Draft loaded';
@@ -929,7 +1123,7 @@
         document.getElementById('pub-title').value = '';
         currentFontSize = 18; document.getElementById('size-display').innerText = 18;
         currentFont = "'Merriweather', Georgia, serif";
-        document.getElementById('font-select').value = currentFont;
+        // font-select is now a sheet — applyFont already handles this
         hasUnsaved = false;
         addPage('');
         document.getElementById('save-status').innerText = 'New story';

@@ -450,7 +450,10 @@ animation: slideUp .3s cubic-bezier(.4,0,.2,1);
 .story-author { font-size: 11px; color: #ff7a00; text-decoration: none; }
 .story-desc { font-size: 12px; color: #666; margin-top: 4px; line-height: 1.4; }
 .story-meta { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: #444; font-weight: 700; }
-.empty-feed { padding: 48px 20px; text-align: center; color: #2a2a2a; font-size: 13px; line-height: 1.8; }
+.empty-feed { padding: 48px 20px; text-align: center; color: #555; font-size: 13px; line-height: 1.8; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.skel-cover { width:70px;height:90px;border-radius:8px;flex-shrink:0;background:linear-gradient(90deg,#1a1a1a 25%,#2c2c2c 50%,#1a1a1a 75%);background-size:200%;animation:shimmer 1.5s infinite; }
+.skel-line  { height:14px;border-radius:4px;background:linear-gradient(90deg,#1a1a1a 25%,#2c2c2c 50%,#1a1a1a 75%);background-size:200%;animation:shimmer 1.5s infinite; }
 
 /* ── Toast ── */
 .toast {
@@ -585,6 +588,12 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 </div>
 
 <div id="section-stories" style="display:none;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px 4px;">
+    <span style="font-size:12px;font-weight:800;color:#555;letter-spacing:.5px;text-transform:uppercase;">Latest Stories</span>
+    <button onclick="storiesLoaded=false;localStorage.removeItem('cc-stories-cache');loadStories();" 
+      style="background:none;border:1px solid #222;color:#555;font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;cursor:pointer;font-family:inherit;" 
+      title="Refresh stories">↺ Refresh</button>
+  </div>
   <div id="storiesFeed"></div>
 </div>
 <div id="section-projects" style="display:none;">
@@ -1488,28 +1497,74 @@ function switchTab(type) {
   document.getElementById('section-continue').style.display = type === 'continue' ? 'block' : 'none';
   document.getElementById('section-stories').style.display  = type === 'stories'  ? 'block' : 'none';
   document.getElementById('section-projects').style.display = type === 'projects' ? 'block' : 'none';
-  if (type === 'stories' && !storiesLoaded) loadStories();
+  if (type === 'stories') { if (!storiesLoaded) loadStories(); }
   if (type === 'continue') renderContinueReading();
+}
+
+function renderSkeletons(n) {
+  return Array.from({length: n}, () => `
+    <div class="story-card story-skeleton" style="pointer-events:none">
+      <div class="skel-cover"></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding:4px 0">
+        <div class="skel-line" style="width:62%"></div>
+        <div class="skel-line" style="width:30%;height:10px"></div>
+        <div class="skel-line" style="width:80%;height:10px"></div>
+        <div class="skel-line" style="width:40%;height:9px"></div>
+      </div>
+    </div>`).join('');
+}
+
+function renderStories(stories) {
+  const feed = document.getElementById('storiesFeed');
+  if (!stories || !stories.length) {
+    feed.innerHTML = '<div class="empty-feed">No stories yet.<br>Be the first to publish one! ✍️</div>';
+    return;
+  }
+  feed.innerHTML = stories.map(s => `
+    <div class="story-card" onclick="location.href='story-reader.html?id=${esc(s.id)}'">
+      ${s.cover ? `<img src="${esc(s.cover)}" class="story-cover">` : `<div class="story-cover-placeholder">📖</div>`}
+      <div style="flex:1;min-width:0">
+        <div class="story-title">${esc(s.title)}</div>
+        <a href="profile.html?u=${esc(s.owner_handle)}" class="story-author" onclick="event.stopPropagation()">@${esc(s.owner_handle)}</a>
+        ${s.description ? `<div class="story-desc">${esc(s.description)}</div>` : ''}
+        <div class="story-meta"><span>📄 ${s.page_count||1} page${(s.page_count||1)!==1?'s':''}</span><span>${timeAgo(s.created_at)}</span></div>
+      </div>
+    </div>`).join('');
 }
 
 async function loadStories() {
   const feed = document.getElementById('storiesFeed');
-  feed.innerHTML = '<div class="empty-feed">Loading stories…</div>';
-  const { data: stories, error } = await _sb.from('stories').select('*').order('created_at', { ascending: false });
-  if (error || !stories?.length) {
-    feed.innerHTML = '<div class="empty-feed">No stories yet. Be the first!</div>'; return;
-  }
   storiesLoaded = true;
-  feed.innerHTML = stories.map(s => `
-    <div class="story-card" onclick="location.href='story-reader.html?id=${esc(s.id)}'">
-      ${s.cover ? `<img src="${esc(s.cover)}" class="story-cover">` : `<div class="story-cover-placeholder">📖</div>`}
-      <div>
-        <div class="story-title">${esc(s.title)}</div>
-        <a href="profile.html?u=${esc(s.owner_handle)}" class="story-author" onclick="event.stopPropagation()">@${esc(s.owner_handle)}</a>
-        ${s.description ? `<div class="story-desc">${esc(s.description)}</div>` : ''}
-        <div class="story-meta"><span>📄 ${s.page_count||1} pages</span><span>${timeAgo(s.created_at)}</span></div>
-      </div>
-    </div>`).join('');
+
+  // ── 1. Instant cache paint ──────────────────────────────
+  const cacheKey = 'cc-stories-cache';
+  const cacheTs  = 'cc-stories-ts';
+  const cached   = localStorage.getItem(cacheKey);
+  const ts       = parseInt(localStorage.getItem(cacheTs) || '0');
+  const stale    = Date.now() - ts > 90000; // 90 s TTL
+
+  if (cached && !stale) {
+    try { renderStories(JSON.parse(cached)); return; } catch(e) {}
+  }
+  if (cached) {
+    try { renderStories(JSON.parse(cached)); } catch(e) { feed.innerHTML = renderSkeletons(4); }
+  } else {
+    feed.innerHTML = renderSkeletons(4);
+  }
+
+  // ── 2. Background fetch ─────────────────────────────────
+  const { data: stories, error } = await _sb.from('stories')
+    .select('id,title,description,cover,tags,page_count,word_count,owner_name,owner_handle,created_at')
+    .order('created_at', { ascending: false })
+    .limit(40);
+
+  if (!error && stories) {
+    localStorage.setItem(cacheKey, JSON.stringify(stories));
+    localStorage.setItem(cacheTs, String(Date.now()));
+    renderStories(stories);
+  } else if (!cached) {
+    feed.innerHTML = '<div class="empty-feed">No stories yet.<br>Be the first to publish one! ✍️</div>';
+  }
 }
 
 function renderTeams(teams) {

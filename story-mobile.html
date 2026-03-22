@@ -14,6 +14,20 @@
         --accent: #ff7a00; --border: #2c2c2e; --teal: #00d2ff;
         --sheet-bg: #161618;
     }
+    [data-theme="classic"] {
+        --bg: #f0e8dc; --card: #e8ddd0; --text: #1a2a4a;
+        --accent: #d97706; --border: #c9b99a; --teal: #2563eb;
+        --sheet-bg: #f5ede0;
+    }
+    [data-theme="classic"] #top-bar { background: #e8ddd0 !important; border-color: #c9b99a !important; }
+    [data-theme="classic"] #format-bar { background: #f0e8dc !important; border-color: #c9b99a !important; }
+    [data-theme="classic"] .fmt-btn { background: #e0d4c0 !important; border-color: #c9b99a !important; color: #1a2a4a !important; }
+    [data-theme="classic"] #writing-area-wrap { background: #dfd5c5 !important; }
+    [data-theme="classic"] .story-page {
+        background: #fffdf8 !important; color: #1a2a4a !important;
+        -webkit-text-fill-color: #1a2a4a !important; caret-color: #2563eb !important;
+    }
+    [data-theme="classic"] .story-page.is-empty::before { color: #a89880 !important; }
 
     body {
         margin: 0; font-family: 'Inter', sans-serif;
@@ -588,11 +602,12 @@ function createPage(content, pageNum) {
     page.spellcheck = true;
     page.setAttribute('data-placeholder', pageNum === 1 ? 'Start writing your story...' : 'Continue your story...');
 
-    // Inline styles — immune to any CSS cascade
-    page.style.background          = '#ffffff';
-    page.style.color               = '#111111';
-    page.style.webkitTextFillColor = '#111111';
-    page.style.caretColor          = '#FF7A00';
+    // Inline styles — adapt to classic theme if active
+    const isClassic = document.documentElement.getAttribute('data-theme') === 'classic';
+    page.style.background          = isClassic ? '#fffdf8' : '#ffffff';
+    page.style.color               = isClassic ? '#1a2a4a' : '#111111';
+    page.style.webkitTextFillColor = isClassic ? '#1a2a4a' : '#111111';
+    page.style.caretColor          = isClassic ? '#2563eb' : '#FF7A00';
     page.style.fontFamily          = currentFont;
     page.style.fontSize            = currentFontSize + 'px';
     page.style.lineHeight          = currentSpacing;
@@ -677,6 +692,12 @@ function getAllHTML() {
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
+// Apply saved theme immediately (prevents flash)
+(function() {
+    const t = localStorage.getItem('cc-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+})();
+
 window.onload = function () {
     const resumeId = localStorage.getItem('active_story_draft_id');
     if (resumeId) {
@@ -988,6 +1009,7 @@ async function finalPublish() {
         cover: coverBase64 || null,
         content_html: getAllHTML(), content_text: plainText,
         word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
+        page_count: getAllPages().length,
         owner_name: myProfile.name || 'Author',
         owner_handle: myProfile.handle || 'user',
         font: currentFont, font_size: currentFontSize,
