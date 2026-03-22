@@ -643,7 +643,31 @@
         document.documentElement.setAttribute('data-theme', t);
     })();
 
-    window.onload = function () {
+    window.onload = async function () {
+        // ── Edit existing published story from reader ──────────
+        const editStoryId = localStorage.getItem('edit_story_id');
+        if (editStoryId) {
+            localStorage.removeItem('edit_story_id');
+            document.getElementById('save-status').innerText = 'Loading story…';
+            const { data, error } = await _supabase.from('stories').select('*').eq('id', editStoryId).maybeSingle();
+            if (data) {
+                activeDraftId = 'published:' + editStoryId;
+                document.getElementById('pub-title').value = data.title || '';
+                if (data.font_size) { currentFontSize = data.font_size; document.getElementById('size-display').innerText = currentFontSize; }
+                if (data.font) applyFont(data.font);
+                const pages = data.content_html
+                    ? data.content_html.split('<hr class="page-break">')
+                    : [''];
+                pages.forEach(html => addPage(html));
+                document.getElementById('save-status').innerText = 'Editing published story';
+                // Override publish to UPDATE instead of INSERT
+                window._editingStoryId = editStoryId;
+                updateStats();
+                return;
+            }
+        }
+
+        // ── Resume local draft ─────────────────────────────────
         const resumeId = localStorage.getItem('active_story_draft_id');
         if (resumeId) {
             const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
@@ -652,7 +676,7 @@
                 activeDraftId = resumeId;
                 document.getElementById('pub-title').value = found.title || '';
                 if (found.fontSize) { currentFontSize = found.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
-                if (found.font)     { applyFont(found.font); }
+                if (found.font) applyFont(found.font);
                 (found.pages || [found.content || '']).forEach(html => addPage(html));
                 document.getElementById('save-status').innerText = 'Draft loaded';
                 updateStats();
@@ -1020,7 +1044,7 @@
 
         btn.innerText = 'Publishing...';
         const plainText = getAllText();
-        const { error } = await _supabase.from('stories').insert([{
+        const storyData = {
             title, description: desc, tags,
             cover: coverUrl,
             content_html: getAllHTML(), content_text: plainText,
@@ -1029,7 +1053,14 @@
             owner_name: myProfile.name || 'Author',
             owner_handle: myProfile.handle || 'user',
             font: currentFont, font_size: currentFontSize,
-        }]);
+        };
+        let error;
+        if (window._editingStoryId) {
+            // Update existing published story
+            ({ error } = await _supabase.from('stories').update(storyData).eq('id', window._editingStoryId));
+        } else {
+            ({ error } = await _supabase.from('stories').insert([storyData]));
+        }
         if (error) { alert('Error: ' + error.message); btn.innerText = 'PUBLISH'; btn.disabled = false; }
         else { hasUnsaved = false; alert('Story published!'); location.href = 'discover.html'; }
     }

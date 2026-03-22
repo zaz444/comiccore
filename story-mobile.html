@@ -697,7 +697,28 @@ function getAllHTML() {
     document.documentElement.setAttribute('data-theme', t);
 })();
 
-window.onload = function () {
+window.onload = async function () {
+    // ── Edit existing published story from reader ──────────
+    const editStoryId = localStorage.getItem('edit_story_id');
+    if (editStoryId) {
+        localStorage.removeItem('edit_story_id');
+        document.getElementById('save-status').innerText = 'Loading story…';
+        const { data } = await _supabase.from('stories').select('*').eq('id', editStoryId).maybeSingle();
+        if (data) {
+            activeDraftId = 'published:' + editStoryId;
+            document.getElementById('pub-title').value = data.title || '';
+            if (data.font_size) { currentFontSize = data.font_size; document.getElementById('size-display').innerText = currentFontSize; }
+            if (data.font) applyFont(data.font);
+            const pages = data.content_html ? data.content_html.split('<hr class="page-break">') : [''];
+            pages.forEach(html => addPage(html));
+            document.getElementById('save-status').innerText = 'Editing published story';
+            window._editingStoryId = editStoryId;
+            updateStats();
+            return;
+        }
+    }
+    // ── Original load ──────────────────────────────────────
+    (function() {
     const resumeId = localStorage.getItem('active_story_draft_id');
     if (resumeId) {
         const drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
@@ -719,6 +740,7 @@ window.onload = function () {
         }
     }
     addPage('');
+    })(); // end original load IIFE
 };
 
 // ═══════════════════════════════════════════
@@ -1025,16 +1047,21 @@ async function finalPublish() {
 
     btn.innerText = 'Publishing...';
     const plainText = getAllText();
-    const { error } = await _supabase.from('stories').insert([{
-        title, description: desc, tags,
-        cover: coverUrl,
+    const storyData = {
+        title, description: desc, tags, cover: coverUrl,
         content_html: getAllHTML(), content_text: plainText,
         word_count: plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
         page_count: getAllPages().length,
         owner_name: myProfile.name || 'Author',
         owner_handle: myProfile.handle || 'user',
         font: currentFont, font_size: currentFontSize,
-    }]);
+    };
+    let error;
+    if (window._editingStoryId) {
+        ({ error } = await _supabase.from('stories').update(storyData).eq('id', window._editingStoryId));
+    } else {
+        ({ error } = await _supabase.from('stories').insert([storyData]));
+    }
     if (error) { alert('Error: ' + error.message); btn.innerText = 'PUBLISH'; btn.disabled = false; }
     else { hasUnsaved = false; alert('Story published!'); location.href = 'discover.html'; }
 }

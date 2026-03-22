@@ -499,74 +499,226 @@ async function boot() {
 }
 
 // ── Story reader ───────────────────────────────────────────
-function bootStory(story) {
+let _story = null; // active story object for story-mode actions
+
+async function bootStory(story) {
+  _story = story;
+  const isOwner = myP.handle && myP.handle !== 'guest' && myP.handle === story.owner_handle;
+
   document.title = (story.title || 'Story') + ' — ComicCore';
-  document.getElementById('top-title').innerText = story.title || 'Untitled';
+  document.getElementById('top-title').innerText  = story.title || 'Untitled';
   document.getElementById('top-author').innerText = 'by @' + (story.owner_handle || 'unknown');
 
-  // Hide comic-specific UI
-  document.getElementById('edit-btn').style.display = 'none';
-  document.getElementById('bot-bar').style.display  = 'none';
+  // Hide comic-specific UI, keep share + comment + star buttons
+  document.getElementById('edit-btn').style.display   = 'none';
+  document.getElementById('bot-bar').style.display    = 'none';
   document.querySelector('.prog-track').style.display = 'none';
-  document.getElementById('vp').style.display       = 'none';
+  document.getElementById('vp').style.display         = 'none';
+  document.getElementById('fs-btn').style.display     = 'none';
 
-  // Build story reading view
+  // Wire existing top-bar buttons to story context
+  document.getElementById('comment-btn').onclick = openComments;
+  document.getElementById('share-btn').onclick   = openStoryShare;
+  document.getElementById('star-btn').onclick    = toggleStoryStar;
+  if (isOwner) document.getElementById('star-btn').style.display = 'none';
+
+  // Check if already starred
+  if (!isOwner && myP.handle && myP.handle !== 'guest') {
+    const { data: starData } = await _sb.from('messages')
+      .select('id').eq('sender_handle', myP.handle)
+      .eq('receiver_hand', story.id).eq('reaction', '⭐').maybeSingle();
+    isStarred = !!starData;
+    updStar();
+  }
+
+  // Body scroll
+  document.body.style.background = '#0a0a0a';
+  document.body.style.overflowY  = 'auto';
+  document.body.style.overflowX  = 'hidden';
+
+  // ── Build reading view ────────────────────────────────────
   const wrap = document.createElement('div');
   wrap.id = 'story-wrap';
-  wrap.style.cssText = 'max-width:720px;margin:0 auto;padding:40px 28px 80px;';
+  wrap.style.cssText = 'max-width:720px;margin:0 auto;padding:40px 28px 120px;';
 
   // Cover
   if (story.cover) {
     const img = document.createElement('img');
     img.src = story.cover;
-    img.style.cssText = 'width:100%;max-height:360px;object-fit:cover;border-radius:14px;margin-bottom:28px;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.6);';
+    img.style.cssText = 'width:100%;max-height:400px;object-fit:cover;border-radius:14px;margin-bottom:28px;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.6);';
     wrap.appendChild(img);
   }
 
   // Title + meta
-  const meta = document.createElement('div');
-  meta.style.cssText = 'margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid #1e1e1e;';
-  const words = story.word_count || 0;
+  const words   = story.word_count || 0;
   const readMin = Math.max(1, Math.ceil(words / 200));
-  const pages = story.page_count || Math.max(1, Math.ceil(words / 350));
-  meta.innerHTML = '<h1 style="margin:0 0 8px;font-size:28px;font-weight:900;color:#f5f5f7;line-height:1.2;">' + esc(story.title || '') + '</h1>'
-    + '<div style="color:#ff7a00;font-size:13px;font-weight:700;margin-bottom:8px;">@' + esc(story.owner_handle || '') + '</div>'
-    + '<div style="display:flex;gap:14px;font-size:12px;color:#555;font-weight:700;">'
+  const pages   = story.page_count || Math.max(1, Math.ceil(words / 350));
+  const tagsHtml = story.tags?.length
+    ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">'
+      + story.tags.map(t => '<span style="background:rgba(255,122,0,0.12);color:#ff7a00;border:1px solid rgba(255,122,0,0.25);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">' + esc(t) + '</span>').join('')
+      + '</div>'
+    : '';
+
+  const meta = document.createElement('div');
+  meta.style.cssText = 'margin-bottom:32px;padding-bottom:22px;border-bottom:1px solid #1e1e1e;';
+  meta.innerHTML = '<h1 style="margin:0 0 6px;font-size:26px;font-weight:900;color:#f5f5f7;line-height:1.2;">' + esc(story.title || '') + '</h1>'
+    + '<a href="profile.html?u=' + esc(story.owner_handle) + '" style="color:#ff7a00;font-size:13px;font-weight:700;text-decoration:none;">@' + esc(story.owner_handle || '') + '</a>'
+    + '<div style="display:flex;gap:14px;font-size:12px;color:#555;font-weight:700;margin-top:8px;">'
     + '<span>📄 ' + pages + ' page' + (pages !== 1 ? 's' : '') + '</span>'
     + '<span>⏱ ' + readMin + ' min read</span>'
-    + (story.tags?.length ? '<span>🏷 ' + story.tags.slice(0,3).map(t => esc(t)).join(', ') + '</span>' : '')
+    + '<span>💬 <span id="story-comment-count">—</span></span>'
     + '</div>'
-    + (story.description ? '<p style="margin:12px 0 0;font-size:14px;color:#888;line-height:1.6;font-style:italic;">' + esc(story.description) + '</p>' : '');
+    + (story.description ? '<p style="margin:12px 0 0;font-size:14px;color:#888;line-height:1.6;font-style:italic;">' + esc(story.description) + '</p>' : '')
+    + tagsHtml;
   wrap.appendChild(meta);
 
   // Content
-  const content = document.createElement('div');
-  content.id = 'story-content';
+  const contentEl = document.createElement('div');
+  contentEl.id = 'story-content';
   const fontFamily = story.font || "'Merriweather', Georgia, serif";
   const fontSize   = (story.font_size || 18) + 'px';
-  content.style.cssText = 'font-family:' + fontFamily + ';font-size:' + fontSize + ';line-height:1.85;color:#e8e8e8;';
+  contentEl.style.cssText = 'font-family:' + fontFamily + ';font-size:' + fontSize + ';line-height:1.85;color:#e0e0e0;';
 
   if (story.content_html) {
-    // Sanitise — strip any script tags just in case
-    content.innerHTML = story.content_html.replace(/<script[\s\S]*?<\/script>/gi, '');
-    // Remove inline img-toolbar divs from the saved HTML
-    content.querySelectorAll('.img-toolbar').forEach(el => el.remove());
-    // Make all images responsive
-    content.querySelectorAll('img').forEach(img => {
+    contentEl.innerHTML = story.content_html.replace(/<script[\s\S]*?<\/script>/gi, '');
+    contentEl.querySelectorAll('.img-toolbar').forEach(el => el.remove());
+    contentEl.querySelectorAll('img').forEach(img => {
       img.style.maxWidth = '100%'; img.style.height = 'auto';
-      img.style.borderRadius = '8px'; img.style.margin = '12px 0';
+      img.style.borderRadius = '8px'; img.style.margin = '16px 0'; img.style.display = 'block';
     });
   } else if (story.content_text) {
-    content.innerText = story.content_text;
+    contentEl.innerText = story.content_text;
   } else {
-    content.innerHTML = '<p style="color:#444;font-style:italic;">No content yet.</p>';
+    contentEl.innerHTML = '<p style="color:#444;font-style:italic;">No content yet.</p>';
   }
-  wrap.appendChild(content);
+  wrap.appendChild(contentEl);
 
   document.body.appendChild(wrap);
-  document.body.style.background = '#0a0a0a';
-  document.body.style.overflowY  = 'auto';
-  document.body.style.overflowX  = 'hidden';
+
+  // ── Bottom action bar ────────────────────────────────────
+  const bar = document.createElement('div');
+  bar.id = 'story-bottom-bar';
+  bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:200;'
+    + 'background:rgba(10,10,10,0.96);border-top:1px solid #1e1e1e;'
+    + 'display:flex;align-items:center;gap:10px;padding:12px 20px;'
+    + 'backdrop-filter:blur(14px);';
+
+  if (isOwner) {
+    bar.innerHTML = '<button onclick="storyEdit()" style="flex:1;padding:12px;background:rgba(0,210,255,0.12);border:1.5px solid #00d2ff;color:#00d2ff;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">✏️ Edit</button>'
+      + '<button onclick="storyDelete()" style="flex:1;padding:12px;background:rgba(255,59,48,0.1);border:1.5px solid rgba(255,59,48,0.4);color:#ff3b30;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">🗑 Delete</button>'
+      + '<button onclick="openComments()" style="flex:1;padding:12px;background:rgba(255,255,255,0.07);border:1.5px solid #2c2c2e;color:#f5f5f7;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">💬 Comments</button>';
+  } else {
+    bar.innerHTML = '<button id="story-star-btn" onclick="toggleStoryStar()" style="flex:1;padding:12px;background:rgba(255,215,0,0.1);border:1.5px solid rgba(255,215,0,0.3);color:#ffd700;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">'
+      + (isStarred ? '⭐ Starred' : '☆ Star') + '</button>'
+      + '<button onclick="openComments()" style="flex:1;padding:12px;background:rgba(255,255,255,0.07);border:1.5px solid #2c2c2e;color:#f5f5f7;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">💬 Comments</button>'
+      + '<button onclick="openStoryShare()" style="flex:1;padding:12px;background:rgba(255,122,0,0.12);border:1.5px solid rgba(255,122,0,0.35);color:#ff7a00;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">↗ Share</button>';
+  }
+  document.body.appendChild(bar);
+
+  // Load comment count
+  _sb.from('messages').select('id', { count: 'exact', head: true })
+    .eq('receiver_hand', story.id).is('reaction', null)
+    .then(({ count }) => {
+      const el = document.getElementById('story-comment-count');
+      if (el) el.innerText = count || 0;
+    });
+
+  // Override openComments to use story id
+  const _origOpen = openComments;
+  openComments = async function() {
+    document.getElementById('comment-overlay').classList.add('open');
+    // Fetch comments for this story
+    const list = document.getElementById('comment-list');
+    list.innerHTML = '<div class="comment-empty">Loading…</div>';
+    const { data: comments } = await _sb.from('messages').select('*')
+      .eq('receiver_hand', story.id).is('reaction', null)
+      .order('created_at', { ascending: false });
+    if (!comments?.length) {
+      list.innerHTML = '<div class="comment-empty">No comments yet. Be first!</div>'; return;
+    }
+    list.innerHTML = comments.map(m =>
+      '<div class="comment-item"><div class="comment-user">@' + esc(m.sender_handle) + '</div>'
+      + '<div class="comment-text">' + esc(m.content) + '</div></div>'
+    ).join('');
+    // Update count badge
+    const el = document.getElementById('story-comment-count');
+    if (el) el.innerText = comments.length;
+  };
+
+  // Override postComment to use story id
+  const _origPost = postComment;
+  postComment = async function() {
+    const input = document.getElementById('comment-input');
+    const text = input.value.trim();
+    if (!text) return;
+    if (!myP.handle || myP.handle === 'guest') return showToast('Log in to comment!');
+    const { error } = await _sb.from('messages').insert([{
+      sender_handle: myP.handle, receiver_hand: story.id, content: text
+    }]);
+    if (error) { showToast('Error posting comment'); return; }
+    input.value = '';
+    await openComments();
+  };
+
+  buildShareUrl = function() {
+    shareUrl = location.origin + location.pathname + '?id=' + encodeURIComponent(story.id);
+  };
+  buildShareUrl();
+}
+
+// ── Story actions ──────────────────────────────────────────
+function storyEdit() {
+  if (!_story) return;
+  localStorage.setItem('edit_story_id', _story.id);
+  const mode = localStorage.getItem('cc-device-mode') || 'pc';
+  location.href = mode === 'mobile' ? 'story-mobile.html' : 'story.html';
+}
+
+async function storyDelete() {
+  if (!_story) return;
+  if (!confirm('Delete "' + (_story.title || 'this story') + '"? This cannot be undone.')) return;
+  const { error } = await _sb.from('stories').delete().eq('id', _story.id);
+  if (error) { showToast('Error deleting story'); return; }
+  showToast('Story deleted');
+  setTimeout(() => location.href = 'discover.html', 900);
+}
+
+async function toggleStoryStar() {
+  if (!_story) return;
+  if (!myP.handle || myP.handle === 'guest') return showToast('Log in to star!');
+  const btn = document.getElementById('story-star-btn');
+  if (isStarred) {
+    await _sb.from('messages').delete()
+      .eq('sender_handle', myP.handle).eq('receiver_hand', _story.id).eq('reaction', '⭐');
+    isStarred = false;
+    if (btn) btn.innerHTML = '☆ Star';
+    showToast('Star removed');
+  } else {
+    await _sb.from('messages').insert([{
+      sender_handle: myP.handle, receiver_hand: _story.id, content: '⭐', reaction: '⭐'
+    }]);
+    isStarred = true;
+    if (btn) btn.innerHTML = '⭐ Starred';
+    showToast('⭐ Starred!');
+  }
+  updStar();
+}
+
+function openStoryShare() {
+  if (!shareUrl) buildShareUrl();
+  const title = _story?.title || 'this story';
+  document.getElementById('sh-title').innerText = 'Share "' + title + '"';
+  document.getElementById('sh-sub').innerText   = 'Anyone with this link can read it';
+  document.getElementById('sh-link-text').innerText = shareUrl;
+  document.getElementById('copy-btn').textContent = 'Copy';
+  document.getElementById('copy-btn').classList.remove('copied');
+  const enc = encodeURIComponent(shareUrl);
+  const txt = encodeURIComponent('"' + title + '" — a story on ComicCore ✍️');
+  document.getElementById('discord-btn').onclick = e => { e.preventDefault(); copyLink(); showToast('Link copied! Paste into Discord 🎮'); };
+  document.getElementById('twitter-btn').href  = 'https://twitter.com/intent/tweet?text=' + txt + '&url=' + enc;
+  document.getElementById('whatsapp-btn').href = 'https://wa.me/?text=' + txt + '%20' + enc;
+  drawQR(shareUrl);
+  document.getElementById('share-sheet').classList.add('open');
 }
 
 function esc(s) {
