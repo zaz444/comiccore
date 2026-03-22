@@ -452,46 +452,125 @@ async function boot() {
   comicId = new URLSearchParams(location.search).get('id');
   if (!comicId) return location.href = 'discover.html';
 
-  const { data, error } = await _sb.from('comics').select('*').eq('id', comicId).single();
-  if (error || !data) { alert('Comic not found.'); return location.href = 'discover.html'; }
+  // ── Check both tables simultaneously ──────────────────────
+  const [comicRes, storyRes] = await Promise.all([
+    _sb.from('comics').select('*').eq('id', comicId).maybeSingle(),
+    _sb.from('stories').select('*').eq('id', comicId).maybeSingle(),
+  ]);
 
+  if (storyRes.data && !comicRes.data) {
+    // ── It's a STORY — render reading mode ──────────────────
+    bootStory(storyRes.data);
+    return;
+  }
+
+  const data = comicRes.data;
+  if (!data) { alert('Not found.'); return location.href = 'discover.html'; }
+
+  // ── It's a COMIC — original flow ────────────────────────
   comic = data;
   frames = data.data || data.frames || [];
   document.title = (data.title || 'Comic') + ' — ComicCore';
   document.getElementById('top-title').innerText = data.title || 'Untitled';
   document.getElementById('top-author').innerText = 'by @' + (data.owner_handle || 'unknown');
-  // Swipe direction: user pref='creator' means use comic creator's setting, otherwise user's choice wins
   const userSwipePref = localStorage.getItem('cc-swipe-dir') || 'creator';
   swipeDir = (userSwipePref === 'creator')
     ? (data.swipe_dir || 'horizontal')
     : userSwipePref;
   setSwipeDir(swipeDir);
 
-  // Show edit button only to owner
   if (myP.handle && myP.handle !== 'guest' && myP.handle === data.owner_handle) {
     document.getElementById('edit-btn').style.display = 'flex';
   }
-  // Hide star for owner
   if (myP.handle && myP.handle === data.owner_handle) {
     document.getElementById('star-btn').style.display = 'none';
   }
 
   await checkStar();
 
-  // Restore reading progress
   const sv = localStorage.getItem('cc-progress-' + comicId);
   if (sv !== null && sv !== '__done__') { const i = parseInt(sv); if (i > 0 && i < frames.length) idx = i; }
 
   buildDots();
-
-  // Preload all sprite + background images across every frame so they're
-  // cached by the browser before the reader reaches each frame — no more
-  // waiting for assets to appear on frame change.
   preloadAllFrameImages(frames);
-
   renderFrame();
   sched();
   buildShareUrl();
+}
+
+// ── Story reader ───────────────────────────────────────────
+function bootStory(story) {
+  document.title = (story.title || 'Story') + ' — ComicCore';
+  document.getElementById('top-title').innerText = story.title || 'Untitled';
+  document.getElementById('top-author').innerText = 'by @' + (story.owner_handle || 'unknown');
+
+  // Hide comic-specific UI
+  document.getElementById('edit-btn').style.display = 'none';
+  document.getElementById('bot-bar').style.display  = 'none';
+  document.querySelector('.prog-track').style.display = 'none';
+  document.getElementById('vp').style.display       = 'none';
+
+  // Build story reading view
+  const wrap = document.createElement('div');
+  wrap.id = 'story-wrap';
+  wrap.style.cssText = 'max-width:720px;margin:0 auto;padding:40px 28px 80px;';
+
+  // Cover
+  if (story.cover) {
+    const img = document.createElement('img');
+    img.src = story.cover;
+    img.style.cssText = 'width:100%;max-height:360px;object-fit:cover;border-radius:14px;margin-bottom:28px;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.6);';
+    wrap.appendChild(img);
+  }
+
+  // Title + meta
+  const meta = document.createElement('div');
+  meta.style.cssText = 'margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid #1e1e1e;';
+  const words = story.word_count || 0;
+  const readMin = Math.max(1, Math.ceil(words / 200));
+  const pages = story.page_count || Math.max(1, Math.ceil(words / 350));
+  meta.innerHTML = '<h1 style="margin:0 0 8px;font-size:28px;font-weight:900;color:#f5f5f7;line-height:1.2;">' + esc(story.title || '') + '</h1>'
+    + '<div style="color:#ff7a00;font-size:13px;font-weight:700;margin-bottom:8px;">@' + esc(story.owner_handle || '') + '</div>'
+    + '<div style="display:flex;gap:14px;font-size:12px;color:#555;font-weight:700;">'
+    + '<span>📄 ' + pages + ' page' + (pages !== 1 ? 's' : '') + '</span>'
+    + '<span>⏱ ' + readMin + ' min read</span>'
+    + (story.tags?.length ? '<span>🏷 ' + story.tags.slice(0,3).map(t => esc(t)).join(', ') + '</span>' : '')
+    + '</div>'
+    + (story.description ? '<p style="margin:12px 0 0;font-size:14px;color:#888;line-height:1.6;font-style:italic;">' + esc(story.description) + '</p>' : '');
+  wrap.appendChild(meta);
+
+  // Content
+  const content = document.createElement('div');
+  content.id = 'story-content';
+  const fontFamily = story.font || "'Merriweather', Georgia, serif";
+  const fontSize   = (story.font_size || 18) + 'px';
+  content.style.cssText = 'font-family:' + fontFamily + ';font-size:' + fontSize + ';line-height:1.85;color:#e8e8e8;';
+
+  if (story.content_html) {
+    // Sanitise — strip any script tags just in case
+    content.innerHTML = story.content_html.replace(/<script[\s\S]*?<\/script>/gi, '');
+    // Remove inline img-toolbar divs from the saved HTML
+    content.querySelectorAll('.img-toolbar').forEach(el => el.remove());
+    // Make all images responsive
+    content.querySelectorAll('img').forEach(img => {
+      img.style.maxWidth = '100%'; img.style.height = 'auto';
+      img.style.borderRadius = '8px'; img.style.margin = '12px 0';
+    });
+  } else if (story.content_text) {
+    content.innerText = story.content_text;
+  } else {
+    content.innerHTML = '<p style="color:#444;font-style:italic;">No content yet.</p>';
+  }
+  wrap.appendChild(content);
+
+  document.body.appendChild(wrap);
+  document.body.style.background = '#0a0a0a';
+  document.body.style.overflowY  = 'auto';
+  document.body.style.overflowX  = 'hidden';
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Share URL ─────────────────────────────────────────────
