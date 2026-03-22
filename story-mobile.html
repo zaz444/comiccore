@@ -838,12 +838,18 @@ function triggerImageInsert() {
     input.click();
 }
 
-function insertImageFromFile(input) {
+async function insertImageFromFile(input) {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => { restoreSelection(); buildImageBlock(e.target.result); };
-    reader.readAsDataURL(file);
+    showToast('Uploading image…');
+    const ext  = file.name.split('.').pop() || 'jpg';
+    const path = 'story-images/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext;
+    const { error } = await _supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+    if (error) { showToast('Upload failed: ' + error.message); return; }
+    const { data: urlData } = _supabase.storage.from('avatars').getPublicUrl(path);
+    restoreSelection();
+    buildImageBlock(urlData.publicUrl);
+    showToast('Image inserted ✓');
 }
 
 function buildImageBlock(src) {
@@ -1168,6 +1174,21 @@ function handleExit() {
 }
 
 setInterval(() => { if (hasUnsaved) saveDraft(); }, 60000);
+
+    function showToast(msg, duration) {
+        let t = document.getElementById('__toast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = '__toast';
+            t.style.cssText = 'position:fixed;top:68px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:9px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;pointer-events:none;opacity:0;transition:opacity 0.2s;white-space:nowrap;';
+            document.body.appendChild(t);
+        }
+        t.innerText = msg;
+        t.style.opacity = '1';
+        clearTimeout(t._timer);
+        t._timer = setTimeout(() => { t.style.opacity = '0'; }, duration || 2200);
+    }
+
 </script>
 </body>
 </html>

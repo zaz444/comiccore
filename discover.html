@@ -489,6 +489,23 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 /* ── Loading Screen ── */
 
+
+/* ── Loading screen ── */
+#loading-screen {
+  position: fixed; inset: 0; z-index: 99999;
+  background: #0f0f11;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+#loading-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+#loading-screen img { width: 90px; height: 90px; object-fit: contain; }
+#loading-screen .loading-text {
+  font-size: 12px; font-weight: 800; color: #333;
+  letter-spacing: 2px; text-transform: uppercase;
+  animation: loadingPulse 1.2s ease-in-out infinite;
+}
+@keyframes loadingPulse { 0%,100%{opacity:0.25;} 50%{opacity:1;} }
 </style>
 
 </head>
@@ -498,6 +515,13 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 
 <!-- Header -->
+
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/discoverimages/loading.gif" alt="">
+  <div class="loading-text">Loading…</div>
+</div>
 
 <div class="header">
   <div class="header-row">
@@ -905,7 +929,16 @@ function renderTopCreators(creators, tab) {
 
 // ── Load ─────────────────────────────────────────────────
 function init() {
-  loadFeeds(); // fire-and-forget — cache renders instantly, network updates silently
+  loadFeeds().then(() => {
+    // Hide loader once first render is done (cache or network)
+    const loader = document.getElementById('loading-screen');
+    if (loader) loader.classList.add('hidden');
+  });
+  // Safety fallback — never block more than 1.8s
+  setTimeout(() => {
+    const loader = document.getElementById('loading-screen');
+    if (loader) loader.classList.add('hidden');
+  }, 1800);
   setupRealtime();
 }
 
@@ -976,6 +1009,7 @@ async function loadFeeds() {
   renderTeams(teams || []);
   loadTopCreators(currentRankTab);
   updateContinueBadge();
+  return Promise.resolve();
 }
 
 function updateContinueBadge() {
