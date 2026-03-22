@@ -1535,16 +1535,25 @@ function renderStories(stories) {
     feed.innerHTML = '<div class="empty-feed">No stories yet.<br>Be the first to publish one! ✍️</div>';
     return;
   }
-  feed.innerHTML = stories.map(s => `
-    <div class="story-card" onclick="location.href='story-reader.html?id=${esc(s.id)}'">
-      ${s.cover ? `<img src="${esc(s.cover)}" class="story-cover">` : `<div class="story-cover-placeholder">📖</div>`}
-      <div style="flex:1;min-width:0">
-        <div class="story-title">${esc(s.title)}</div>
-        <a href="profile.html?u=${esc(s.owner_handle)}" class="story-author" onclick="event.stopPropagation()">@${esc(s.owner_handle)}</a>
-        ${s.description ? `<div class="story-desc">${esc(s.description)}</div>` : ''}
-        <div class="story-meta"><span>📄 ${s.page_count||1} page${(s.page_count||1)!==1?'s':''}</span><span>${timeAgo(s.created_at)}</span></div>
-      </div>
-    </div>`).join('');
+  feed.innerHTML = stories.map(s => {
+    const pages = s.page_count || Math.max(1, Math.ceil((s.word_count||0)/350));
+    const coverHtml = s.cover
+      ? '<img src="' + esc(s.cover) + '" class="story-cover" loading="lazy">'
+      : '<div class="story-cover-placeholder">📖</div>';
+    const descHtml = s.description
+      ? '<div class="story-desc">' + esc(s.description) + '</div>'
+      : '';
+    const pageLabel = pages + ' page' + (pages !== 1 ? 's' : '');
+    const href = 'story-reader.html?id=' + esc(s.id);
+    return '<div class="story-card" onclick="location.href=&quot;' + href + '&quot;">'
+      + coverHtml
+      + '<div style="flex:1;min-width:0">'
+      + '<div class="story-title">' + esc(s.title) + '</div>'
+      + '<a href="profile.html?u=' + esc(s.owner_handle) + '" class="story-author" onclick="event.stopPropagation()">@' + esc(s.owner_handle) + '</a>'
+      + descHtml
+      + '<div class="story-meta"><span>📄 ' + pageLabel + '</span><span>' + timeAgo(s.created_at) + '</span></div>'
+      + '</div></div>';
+  }).join('');
 }
 
 async function loadStories() {
@@ -1569,17 +1578,26 @@ async function loadStories() {
 
   // ── 2. Background fetch ─────────────────────────────────
   const { data: stories, error } = await _sb.from('stories')
-    .select('id,title,description,cover,tags,page_count,word_count,owner_name,owner_handle,created_at')
+    .select('id,title,description,cover,tags,word_count,owner_name,owner_handle,created_at')
     .order('created_at', { ascending: false })
     .limit(40);
 
-  if (!error && stories) {
-    localStorage.setItem(cacheKey, JSON.stringify(stories));
-    localStorage.setItem(cacheTs, String(Date.now()));
-    renderStories(stories);
-  } else if (!cached) {
-    feed.innerHTML = '<div class="empty-feed">No stories yet.<br>Be the first to publish one! ✍️</div>';
+  if (error) {
+    console.warn('Stories fetch error:', error.message);
+    // Always show something — never leave skeletons frozen
+    if (cached) {
+      try { renderStories(JSON.parse(cached)); } catch(e) {
+        feed.innerHTML = '<div class="empty-feed">Could not load stories. Try refreshing.</div>';
+      }
+    } else {
+      feed.innerHTML = '<div class="empty-feed">Could not load stories. Try refreshing.</div>';
+    }
+    return;
   }
+
+  localStorage.setItem(cacheKey, JSON.stringify(stories || []));
+  localStorage.setItem(cacheTs, String(Date.now()));
+  renderStories(stories || []);
 }
 
 function renderTeams(teams) {
