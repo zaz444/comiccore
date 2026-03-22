@@ -924,42 +924,79 @@ function renderTopCreators(creators, tab) {
 
 // ── Load ─────────────────────────────────────────────────
 async function init() {
+  // Hide loader immediately — cache paints content before network finishes
+  const loader = document.getElementById('loading-screen');
+  if (loader) setTimeout(() => loader.classList.add('hidden'), 80);
   await loadFeeds();
   setupRealtime();
-  // Hide loading screen once all data is loaded
-  const loader = document.getElementById('loading-screen');
-  if (loader) loader.classList.add('hidden');
 }
 
 function setupRealtime() {
   _sb.channel('discover_realtime')
     .on('postgres_changes', { event:'*', schema:'public', table:'messages' }, () => {
-      loadFeeds();
+      // Only reload comments if reading a comic — don't re-fetch entire feed
       if (activeComicId) fetchComments();
     })
     .subscribe();
 }
 
 async function loadFeeds() {
+  // ── 1. Paint from cache INSTANTLY ──────────────────────
+  const CACHE_TTL = 120000; // 2 min
+  const cachedComics  = localStorage.getItem('cc-comics-cache');
+  const cachedStars   = localStorage.getItem('cc-stars-cache');
+  const cachedTs      = parseInt(localStorage.getItem('cc-feeds-ts') || '0');
+  const cacheIsValid  = Date.now() - cachedTs < CACHE_TTL;
+
+  if (cachedComics && cachedStars && cacheIsValid) {
+    allComics   = JSON.parse(cachedComics);
+    globalStars = JSON.parse(cachedStars);
+    renderComics(allComics, globalStars);
+    updateContinueBadge();
+    loadTopCreators(currentRankTab);
+    // Still fetch teams (small) in background
+    _sb.from('team_tickets').select('id,team_name,pfp,owner_handle').limit(30).then(({data}) => renderTeams(data||[]));
+    return;
+  }
+
+  // ── 2. Stale cache? Paint immediately, refresh silently ─
+  if (cachedComics && cachedStars) {
+    allComics   = JSON.parse(cachedComics);
+    globalStars = JSON.parse(cachedStars);
+    renderComics(allComics, globalStars);
+    updateContinueBadge();
+    loadTopCreators(currentRankTab);
+  }
+
+  // ── 3. Fetch only what's needed — no full data blobs ────
   const [{ data: comics }, { data: stars }, { data: teams }, { data: validProfiles }] = await Promise.all([
-    _sb.from('comics').select('*').order('created_at', { ascending: false }),
-    _sb.from('messages').select('receiver_hand, sender_handle').eq('reaction','⭐'),
-    _sb.from('team_tickets').select('*'),
-    _sb.from('profiles').select('handle'),
+    _sb.from('comics')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir')
+      .order('created_at', { ascending: false })
+      .limit(80),
+    _sb.from('messages').select('receiver_hand,sender_handle').eq('reaction','⭐').limit(2000),
+    _sb.from('team_tickets').select('id,team_name,pfp,owner_handle').limit(30),
+    _sb.from('profiles').select('handle').limit(500),
   ]);
 
-  // Build a Set of known handles so we can filter out orphaned/deleted accounts
   const knownHandles = new Set((validProfiles || []).map(p => p.handle));
-
-  allComics   = (comics || []).filter(c =>
-    c.title && (c.data?.length > 0 || c.cover) && knownHandles.has(c.owner_handle)
-  );
+  allComics   = (comics || []).filter(c => c.title && c.owner_handle && knownHandles.has(c.owner_handle));
   globalStars = stars || [];
+
+  // Save to cache
+  try {
+    localStorage.setItem('cc-comics-cache', JSON.stringify(allComics));
+    localStorage.setItem('cc-stars-cache',  JSON.stringify(globalStars));
+    localStorage.setItem('cc-feeds-ts',     String(Date.now()));
+  } catch(e) {}
 
   renderComics(allComics, globalStars);
   renderTeams(teams || []);
   loadTopCreators(currentRankTab);
-  // Update Continue Reading tab badge
+  updateContinueBadge();
+}
+
+function updateContinueBadge() {
   const inProgressCount = allComics.filter(c => {
     const frames = (c.data || []).length;
     if (frames < 2) return false;
