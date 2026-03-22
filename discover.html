@@ -1304,11 +1304,12 @@ function openCommentSheet(id) {
   activeComicId = id;
   pendingReactionImg = null;
   document.getElementById('comment-overlay').classList.add('open');
-  // Close reaction tray on open
-  document.getElementById('reaction-tray').classList.remove('open');
-  document.getElementById('reaction-toggle-btn').classList.remove('active');
+  // Close reaction tray on open (guard against missing elements)
+  const tray = document.getElementById('reaction-tray');
+  const toggleBtn = document.getElementById('reaction-toggle-btn');
+  if (tray) tray.classList.remove('open');
+  if (toggleBtn) toggleBtn.classList.remove('active');
   fetchComments();
-  loadReactionTray();
 }
 
 function closeCommentSheet() {
@@ -1450,27 +1451,29 @@ async function fetchComments() {
     return;
   }
 
+  // Batch-fetch all unique profiles in ONE query instead of N sequential calls
+  const handles = [...new Set(comments.map(m => m.sender_handle).filter(Boolean))];
+  const { data: profiles } = await _sb.from('profiles').select('handle,pic,name').in('handle', handles);
+  const profMap = {};
+  (profiles || []).forEach(p => { profMap[p.handle] = p; profileCache[p.handle] = p; });
+
   listEl.innerHTML = '';
   for (const m of comments) {
-    const p = await getCachedProfile(m.sender_handle);
+    const p = profMap[m.sender_handle] || { pic: '', name: m.sender_handle };
     const isImgReaction = m.content && m.content.startsWith('[IMG_REACTION]:');
     let bodyHtml = '';
     if (isImgReaction) {
       const src = m.content.replace('[IMG_REACTION]:', '').trim();
-      bodyHtml = `<img src="${esc(src)}" class="comment-reaction-img" loading="lazy">`;
-      if (m.comment_text) bodyHtml += `<div style="margin-top:4px;">${esc(m.comment_text)}</div>`;
+      bodyHtml = '<img src="' + esc(src) + '" class="comment-reaction-img" loading="lazy">';
+      if (m.comment_text) bodyHtml += '<div style="margin-top:4px;">' + esc(m.comment_text) + '</div>';
     } else {
-      bodyHtml = `<div>${esc(m.content)}</div>`;
+      bodyHtml = '<div>' + esc(m.content) + '</div>';
     }
 
     const item = document.createElement('div');
     item.className = 'comment-item';
-    item.innerHTML = `
-      <img src="${esc(p?.pic || '')}" class="comment-avatar" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'" onerror="this.src=''">
-      <div class="comment-content">
-        <div class="comment-user" onclick="location.href='profile.html?u=${esc(m.sender_handle)}'">@${esc(m.sender_handle)}</div>
-        ${bodyHtml}
-      </div>`;
+    const profileUrl = 'profile.html?u=' + esc(m.sender_handle);
+    item.innerHTML = '<img src="' + esc(p?.pic || '') + '" class="comment-avatar" onclick="location.href=&quot;' + profileUrl + '&quot;" onerror="this.src=&quot;&quot;"><div class="comment-content"><div class="comment-user" onclick="location.href=&quot;' + profileUrl + '&quot;">@' + esc(m.sender_handle) + '</div>' + bodyHtml + '</div>';
     listEl.appendChild(item);
   }
 }
