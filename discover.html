@@ -488,40 +488,13 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 .nav-item:not(.active):hover { opacity: .65; }
 
 /* ── Loading Screen ── */
-#loading-screen {
-  position: fixed; inset: 0; z-index: 99999;
-  background: #0f0f11;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 20px;
-  transition: opacity 0.5s ease, visibility 0.5s ease;
-}
-#loading-screen.hidden {
-  opacity: 0; visibility: hidden; pointer-events: none;
-}
-#loading-screen img {
-  width: 120px; height: 120px; object-fit: contain;
-  image-rendering: auto;
-}
-#loading-screen .loading-text {
-  font-size: 13px; font-weight: 800; color: #444;
-  letter-spacing: 2px; text-transform: uppercase;
-  animation: loadingPulse 1.2s ease-in-out infinite;
-}
-@keyframes loadingPulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
+
 </style>
 
 </head>
 <body>
 
-<!-- Loading Screen -->
-<div id="loading-screen">
-  <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/discoverimages/loading.gif" alt="Loading...">
-  <div class="loading-text">Loading ComicCore…</div>
-</div>
+
 
 
 <!-- Header -->
@@ -865,32 +838,40 @@ async function loadTopCreators(tab) {
   const list = document.getElementById('top-creators-list');
   if (!list) return;
 
+  // Render cached immediately if available
+  if (topCreatorsData[tab]?.length) {
+    renderTopCreators(topCreatorsData[tab], tab);
+    return;
+  }
+
   if (tab === 'stars') {
-    // Aggregate stars (messages with reaction ⭐) by owner_handle
     const starsByOwner = {};
     globalStars.forEach(s => {
       const comic = allComics.find(c => c.id === s.receiver_hand);
-      if (comic?.owner_handle) {
-        starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
-      }
+      if (comic?.owner_handle) starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
     });
     const sorted = Object.entries(starsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
-    const withProfiles = await Promise.all(sorted.map(async ([handle, count]) => {
-      const p = await getCachedProfile(handle);
-      return { handle, count, ...p };
-    }));
-    topCreatorsData.stars = withProfiles;
+    if (!sorted.length) { renderTopCreators([], tab); return; }
+
+    // ONE batch query instead of 10 individual requests
+    const handles = sorted.map(([h]) => h);
+    const { data: profiles } = await _sb.from('profiles').select('handle,name,pic').in('handle', handles);
+    const profMap = Object.fromEntries((profiles||[]).map(p => [p.handle, p]));
+    profiles?.forEach(p => { profileCache[p.handle] = p; });
+    topCreatorsData.stars = sorted.map(([handle, count]) => ({ handle, count, ...(profMap[handle]||{}) }));
+
   } else if (tab === 'follows') {
-    // Count follows per handle from the follows table
-    const { data: followCounts } = await _sb.from('follows').select('following');
+    const { data: followCounts } = await _sb.from('follows').select('following').limit(2000);
     const countMap = {};
     (followCounts || []).forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
     const sorted = Object.entries(countMap).sort((a,b) => b[1]-a[1]).slice(0,10);
-    const withProfiles = await Promise.all(sorted.map(async ([handle, count]) => {
-      const p = await getCachedProfile(handle);
-      return { handle, count, ...p };
-    }));
-    topCreatorsData.follows = withProfiles;
+    if (!sorted.length) { renderTopCreators([], tab); return; }
+
+    const handles = sorted.map(([h]) => h);
+    const { data: profiles } = await _sb.from('profiles').select('handle,name,pic').in('handle', handles);
+    const profMap = Object.fromEntries((profiles||[]).map(p => [p.handle, p]));
+    profiles?.forEach(p => { profileCache[p.handle] = p; });
+    topCreatorsData.follows = sorted.map(([handle, count]) => ({ handle, count, ...(profMap[handle]||{}) }));
   }
 
   renderTopCreators(topCreatorsData[tab], tab);
@@ -923,11 +904,8 @@ function renderTopCreators(creators, tab) {
 }
 
 // ── Load ─────────────────────────────────────────────────
-async function init() {
-  // Hide loader immediately — cache paints content before network finishes
-  const loader = document.getElementById('loading-screen');
-  if (loader) setTimeout(() => loader.classList.add('hidden'), 80);
-  await loadFeeds();
+function init() {
+  loadFeeds(); // fire-and-forget — cache renders instantly, network updates silently
   setupRealtime();
 }
 
