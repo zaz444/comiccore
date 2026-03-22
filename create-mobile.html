@@ -884,19 +884,35 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">Sprites <button class="sheet-close" onclick="closeSheet('sprites')">✕</button></div>
     <div class="sheet-body">
-        <input class="pub-input" id="mob-sprite-search" placeholder="Search sprites..." oninput="filterMobSprites()" style="margin-bottom:6px;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <select id="mob-sprite-sort" onchange="filterMobSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:7px 10px;border-radius:10px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="az">A → Z</option>
-                <option value="za">Z → A</option>
-                <option value="lastused">Last Used</option>
-            </select>
+        <!-- Sub-tabs -->
+        <div style="display:flex;border-radius:8px;overflow:hidden;border:1px solid #2a2a2a;margin-bottom:8px;flex-shrink:0;">
+            <button id="mob-tab-sprites" onclick="switchMobSpriteTab('sprites')" style="flex:1;padding:7px;background:var(--accent);color:#000;border:none;font-size:10px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:0.5px;text-transform:uppercase;border-right:1px solid #2a2a2a;">🎭 Sprites</button>
+            <button id="mob-tab-packs" onclick="switchMobSpriteTab('packs')" style="flex:1;padding:7px;background:#111;color:#555;border:none;font-size:10px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:0.5px;text-transform:uppercase;">📦 Packs</button>
         </div>
-        <div id="mob-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
-        <div id="mob-sprite-grid">
-            <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load sprites...</div>
+        <!-- Sprites sub-panel -->
+        <div id="mob-sprites-subpanel">
+            <input class="pub-input" id="mob-sprite-search" placeholder="Search sprites..." oninput="filterMobSprites()" style="margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <select id="mob-sprite-sort" onchange="filterMobSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:7px 10px;border-radius:10px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
+                    <option value="newest">Newest</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="az">A → Z</option>
+                    <option value="za">Z → A</option>
+                    <option value="lastused">Last Used</option>
+                </select>
+            </div>
+            <div id="mob-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
+            <div id="mob-sprite-grid">
+                <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load sprites...</div>
+            </div>
+        </div>
+        <!-- Packs sub-panel -->
+        <div id="mob-packs-subpanel" style="display:none;">
+            <input class="pub-input" id="mob-pack-search" placeholder="Search packs..." oninput="filterMobPacks()" style="margin-bottom:6px;">
+            <div id="mob-pack-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
+            <div id="mob-pack-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;overflow-y:auto;max-height:55vh;padding-bottom:8px;">
+                <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 2;">Tap to load packs...</div>
+            </div>
         </div>
     </div>
 </div>
@@ -2330,18 +2346,192 @@ function buildMobTagChips(sprites) {
     const counts = {};
     sprites.forEach(s => (s.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
     const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
-    wrap.innerHTML = ['All', ...top10].map((t,i) =>
-        `<button onclick="setMobTag(${i===0?'null':JSON.stringify(t)})" style="padding:4px 10px;border-radius:12px;border:1px solid ${(i===0&&!mobActiveTag)||(mobActiveTag===t)?'#ff7a00':'#222'};background:${(i===0&&!mobActiveTag)||(mobActiveTag===t)?'rgba(255,122,0,.12)':'#111'};color:${(i===0&&!mobActiveTag)||(mobActiveTag===t)?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">${t}</button>`
-    ).join('');
+    wrap.innerHTML = '';
+    ['All', ...top10].forEach((t, i) => {
+        const isActive = (i===0 && !mobActiveTag) || (mobActiveTag === t);
+        const btn = document.createElement('button');
+        btn.textContent = t;
+        btn.dataset.tag = i === 0 ? '' : t;
+        btn.style.cssText = `padding:4px 10px;border-radius:12px;border:1px solid ${isActive?'#ff7a00':'#222'};background:${isActive?'rgba(255,122,0,.12)':'#111'};color:${isActive?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;`;
+        btn.addEventListener('click', () => setMobTag(btn.dataset.tag || null));
+        wrap.appendChild(btn);
+    });
 }
 
 function setMobTag(tag) {
-    mobActiveTag = tag;
+    mobActiveTag = tag || null;
     filterMobSprites();
 }
 
+// ── Mobile Sprite / Packs Sub-Tab ──
+let mobActiveSpriteTab = 'sprites';
+let mobSidebarPacks = null;
+let mobActivePackTag = null;
+const MOB_PACKS_META_KEY = 'cc_packs_meta_v1';
+const MOB_PACKS_TTL = 10 * 60 * 1000;
 
-// ── EFFECTS ──
+function switchMobSpriteTab(tab) {
+    mobActiveSpriteTab = tab;
+    const tSprites = document.getElementById('mob-tab-sprites');
+    const tPacks   = document.getElementById('mob-tab-packs');
+    const pSprites = document.getElementById('mob-sprites-subpanel');
+    const pPacks   = document.getElementById('mob-packs-subpanel');
+    if (tSprites) { tSprites.style.background = tab==='sprites' ? 'var(--accent)' : '#111'; tSprites.style.color = tab==='sprites' ? '#000' : '#555'; }
+    if (tPacks)   { tPacks.style.background   = tab==='packs'   ? 'var(--accent)' : '#111'; tPacks.style.color   = tab==='packs'   ? '#000' : '#555'; }
+    if (pSprites) pSprites.style.display = tab==='sprites' ? 'block' : 'none';
+    if (pPacks)   pPacks.style.display   = tab==='packs'   ? 'block' : 'none';
+    if (tab === 'packs' && !mobSidebarPacks) loadMobPacks();
+}
+
+function mobSavePacksCache(data) {
+    try { localStorage.setItem(MOB_PACKS_META_KEY, JSON.stringify({ts:Date.now(),data})); } catch(e) {}
+}
+function mobLoadPacksCache() {
+    try {
+        const raw = localStorage.getItem(MOB_PACKS_META_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (Date.now()-p.ts > MOB_PACKS_TTL) { localStorage.removeItem(MOB_PACKS_META_KEY); return null; }
+        return p.data;
+    } catch(e) { return null; }
+}
+
+async function loadMobPacks() {
+    const grid = document.getElementById('mob-pack-grid');
+    const cached = mobLoadPacksCache();
+    if (cached) { mobSidebarPacks = cached; renderMobPackGrid(cached); buildMobPackTagChips(cached); }
+    const { data } = await _supabase.from('sprite_packs')
+        .select('id, name, tags, creator, created_at, cover_image')
+        .order('created_at', { ascending: false });
+    if (!data) { if (!cached) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">No packs found</div>'; return; }
+    mobSidebarPacks = data;
+    mobSavePacksCache(data);
+    buildMobPackTagChips(data);
+    renderMobPackGrid(data);
+}
+
+function buildMobPackTagChips(packs) {
+    const wrap = document.getElementById('mob-pack-tag-chips');
+    if (!wrap) return;
+    const counts = {};
+    packs.forEach(p => (p.tags||[]).forEach(t => { counts[t]=(counts[t]||0)+1; }));
+    const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+    wrap.innerHTML = '';
+    ['All', ...top10].forEach((t, i) => {
+        const isActive = (i===0 && !mobActivePackTag) || (mobActivePackTag === t);
+        const btn = document.createElement('button');
+        btn.textContent = t;
+        btn.dataset.tag = i === 0 ? '' : t;
+        btn.style.cssText = `padding:4px 10px;border-radius:12px;border:1px solid ${isActive?'#00d2ff':'#222'};background:${isActive?'rgba(0,210,255,.12)':'#111'};color:${isActive?'#00d2ff':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;`;
+        btn.addEventListener('click', () => { mobActivePackTag = btn.dataset.tag || null; filterMobPacks(); });
+        wrap.appendChild(btn);
+    });
+}
+
+function filterMobPacks() {
+    if (!mobSidebarPacks) return;
+    const q = (document.getElementById('mob-pack-search')?.value||'').toLowerCase().trim();
+    let list = [...mobSidebarPacks];
+    if (mobActivePackTag) list = list.filter(p=>(p.tags||[]).includes(mobActivePackTag));
+    if (q) list = list.filter(p=>p.name.toLowerCase().includes(q)||(p.tags||[]).some(t=>t.includes(q)));
+    renderMobPackGrid(list);
+    buildMobPackTagChips(mobSidebarPacks);
+}
+
+function renderMobPackGrid(packs) {
+    const grid = document.getElementById('mob-pack-grid');
+    if (!packs.length) { grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">No packs found</div>'; return; }
+    grid.innerHTML = '';
+    packs.forEach(pack => {
+        const card = document.createElement('div');
+        card.style.cssText = 'position:relative;background:#1c1c1e;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;overflow:hidden;aspect-ratio:1;display:flex;flex-direction:column;transition:0.2s;';
+        card.innerHTML = `
+            <div style="position:absolute;top:4px;right:4px;background:#00d2ff;color:#000;font-size:8px;font-weight:900;padding:2px 5px;border-radius:4px;z-index:1;">PACK</div>
+            ${pack.cover_image ? `<img src="${pack.cover_image}" style="width:100%;flex:1;object-fit:contain;padding:8px;box-sizing:border-box;" loading="lazy">` : '<div style="flex:1;background:#111;"></div>'}
+            <div style="font-size:9px;font-weight:800;color:#888;padding:3px 6px 6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,0.5);">${pack.name}</div>
+        `;
+        card.addEventListener('click', () => openMobPackModal(pack));
+        grid.appendChild(card);
+    });
+}
+
+let _mobPackPreviewData = null;
+
+function openMobPackModal(pack) {
+    _mobPackPreviewData = pack;
+    (async () => {
+        const { data } = await _supabase.from('sprite_packs')
+            .select('id, name, items, cover_image').eq('id', pack.id).single();
+        if (!data) return;
+        _mobPackPreviewData = { ...pack, ...data };
+        showMobPackModal(_mobPackPreviewData);
+    })();
+}
+
+function showMobPackModal(pack) {
+    let items = pack.items;
+    if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
+    items = items || [];
+
+    const existing = document.getElementById('mob-pack-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'mob-pack-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+    modal.innerHTML = `
+        <div style="background:#111;border-top:1.5px solid #00d2ff;border-radius:24px 24px 0 0;padding:20px;width:100%;max-height:75vh;overflow-y:auto;box-sizing:border-box;">
+            <div style="width:36px;height:4px;background:#333;border-radius:2px;margin:0 auto 14px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="font-size:14px;font-weight:900;color:#00d2ff;">📦 ${pack.name}</div>
+                <span onclick="document.getElementById('mob-pack-modal').remove()" style="color:#555;font-size:20px;cursor:pointer;">✕</span>
+            </div>
+            <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:12px;">${items.length} sprite${items.length!==1?'s':''} — placed as separate layers</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+                ${items.map(it=>`<div style="background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:6px;text-align:center;">
+                    <img src="${it.image_url||it.src||''}" style="width:100%;height:55px;object-fit:contain;" loading="lazy">
+                    <div style="font-size:9px;color:#666;font-weight:800;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.label||'Sprite'}</div>
+                </div>`).join('')}
+            </div>
+            <button onclick="placeMobPackOnCanvas()" style="width:100%;padding:14px;background:#00d2ff;color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;">⬇ Place All on Canvas</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function placeMobPackOnCanvas() {
+    const pack = _mobPackPreviewData;
+    if (!pack) return;
+    let items = pack.items;
+    if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
+    if (!items || !items.length) return;
+
+    const cw = canvasW || 600, ch = canvasH || 600;
+    const baseX = Math.round(cw * 0.2), baseY = Math.round(ch * 0.2);
+
+    items.forEach((it, i) => {
+        const w = it.width || 150;
+        const xOff = it.x_offset !== undefined ? it.x_offset : i * 8;
+        const yOff = it.y_offset !== undefined ? it.y_offset : i * 8;
+        const nl = {
+            type:'img', src: it.image_url||it.src||'',
+            w, h:w, x:baseX+xOff, y:baseY+yOff,
+            rotation:0, flipped:false, opacity:1,
+            nameTag: it.label || pack.name,
+            packData: { id:pack.id, name:pack.name },
+            id: Date.now()+i
+        };
+        layers.push(nl);
+    });
+
+    saveHistory();
+    render();
+    document.getElementById('mob-pack-modal').remove();
+    closeSheet('sprites');
+}
+
+
+
 let mobSidebarEffects = null;
 let mobEffectActiveTag = null;
 

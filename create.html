@@ -783,6 +783,43 @@
         font-family: inherit; flex-shrink: 0;
     }
     .sp-search:focus { border-color: var(--accent); }
+    /* ── Sprites / Packs sub-tabs ── */
+    .sb-sub-tabs {
+        display: flex; margin: 6px 10px 4px; border-radius: 8px; overflow: hidden;
+        border: 1px solid #2a2a2a; flex-shrink: 0;
+    }
+    .sb-sub-tab {
+        flex: 1; padding: 6px; background: #111; border: none; color: #555;
+        font-size: 10px; font-weight: 900; cursor: pointer; font-family: inherit;
+        letter-spacing: 0.5px; text-transform: uppercase; transition: 0.15s;
+    }
+    .sb-sub-tab.active { background: var(--accent); color: #000; }
+    .sb-sub-tab:first-child { border-right: 1px solid #2a2a2a; }
+    /* Pack grid */
+    #sb-pack-grid {
+        flex: 1; overflow-y: auto; padding: 6px 8px 10px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        align-content: start; display: none;
+    }
+    #sb-pack-grid::-webkit-scrollbar { width: 3px; }
+    #sb-pack-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .sb-pack-card {
+        background: var(--card); border: 2px solid var(--border); border-radius: 12px;
+        cursor: pointer; overflow: hidden; transition: 0.2s;
+        display: flex; flex-direction: column; position: relative; height: 100px;
+    }
+    .sb-pack-card:hover { border-color: var(--teal); transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+    .sb-pack-card img { width: 100%; flex: 1; object-fit: contain; padding: 8px; box-sizing: border-box; min-height: 0; opacity: 0; transition: opacity 0.2s; }
+    .sb-pack-card img.sb-loaded { opacity: 1; }
+    .sb-pack-card .sb-pack-badge {
+        position: absolute; top: 4px; right: 4px; background: var(--teal); color: #000;
+        font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 4px; letter-spacing: 0.5px;
+    }
+    .sb-pack-card span {
+        font-size: 9px; font-weight: 800; color: #888; padding: 3px 6px 5px;
+        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        background: rgba(0,0,0,0.4); flex-shrink: 0;
+    }
     #sb-sprite-grid {
         flex: 1; overflow-y: auto; padding: 6px 8px 10px;
         display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
@@ -1532,19 +1569,35 @@
                         Sprites
                         <span class="sp-close-btn" onclick="toggleSidePanel('sprites')">✕</span>
                     </div>
-                    <input class="sp-search" id="sb-sprite-search" placeholder="Search sprites..." oninput="filterSidebarSprites()">
-                    <div style="display:flex;align-items:center;gap:6px;margin:6px 0 4px;">
-                        <select id="sb-sprite-sort" onchange="filterSidebarSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;outline:none;font-family:inherit;">
-                            <option value="newest">Newest</option>
-                            <option value="oldest">Oldest</option>
-                            <option value="az">A → Z</option>
-                            <option value="za">Z → A</option>
-                            <option value="lastused">Last Used</option>
-                        </select>
+                    <!-- Sub-tabs: Sprites | Packs -->
+                    <div class="sb-sub-tabs">
+                        <button class="sb-sub-tab active" id="sb-tab-sprites" onclick="switchSpriteTab('sprites')">🎭 Sprites</button>
+                        <button class="sb-sub-tab" id="sb-tab-packs" onclick="switchSpriteTab('packs')">📦 Packs</button>
                     </div>
-                    <div id="sb-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
-                    <div id="sb-sprite-grid">
-                        <div class="sp-load-msg">Click to load sprites</div>
+                    <!-- Sprites sub-panel -->
+                    <div id="sb-sprites-subpanel" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+                        <input class="sp-search" id="sb-sprite-search" placeholder="Search sprites..." oninput="filterSidebarSprites()">
+                        <div style="display:flex;align-items:center;gap:6px;margin:6px 10px 4px;">
+                            <select id="sb-sprite-sort" onchange="filterSidebarSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;outline:none;font-family:inherit;">
+                                <option value="newest">Newest</option>
+                                <option value="oldest">Oldest</option>
+                                <option value="az">A → Z</option>
+                                <option value="za">Z → A</option>
+                                <option value="lastused">Last Used</option>
+                            </select>
+                        </div>
+                        <div id="sb-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin:0 10px 6px;"></div>
+                        <div id="sb-sprite-grid">
+                            <div class="sp-load-msg">Click to load sprites</div>
+                        </div>
+                    </div>
+                    <!-- Packs sub-panel -->
+                    <div id="sb-packs-subpanel" style="display:none;flex-direction:column;flex:1;min-height:0;">
+                        <input class="sp-search" id="sb-pack-search" placeholder="Search packs..." oninput="filterSidebarPacks()" style="margin-top:6px;">
+                        <div id="sb-pack-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin:0 10px 6px;"></div>
+                        <div id="sb-pack-grid">
+                            <div class="sp-load-msg">Click to load packs</div>
+                        </div>
                     </div>
                 </div>
 
@@ -5479,14 +5532,189 @@
         const counts = {};
         sprites.forEach(s => (s.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
         const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
-        wrap.innerHTML = ['All', ...top10].map((t,i) =>
-            `<button onclick="setSbTag(${i===0?'null':JSON.stringify(t)})" style="padding:3px 9px;border-radius:12px;border:1px solid ${(i===0&&!sbActiveTag)||(sbActiveTag===t)?'#ff7a00':'#222'};background:${(i===0&&!sbActiveTag)||(sbActiveTag===t)?'rgba(255,122,0,.12)':'#111'};color:${(i===0&&!sbActiveTag)||(sbActiveTag===t)?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">${t}</button>`
-        ).join('');
+        wrap.innerHTML = '';
+        ['All', ...top10].forEach((t, i) => {
+            const isActive = (i===0 && !sbActiveTag) || (sbActiveTag === t);
+            const btn = document.createElement('button');
+            btn.textContent = t;
+            btn.dataset.tag = i === 0 ? '' : t;
+            btn.style.cssText = `padding:3px 9px;border-radius:12px;border:1px solid ${isActive?'#ff7a00':'#222'};background:${isActive?'rgba(255,122,0,.12)':'#111'};color:${isActive?'#ff7a00':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;`;
+            btn.addEventListener('click', () => setSbTag(btn.dataset.tag || null));
+            wrap.appendChild(btn);
+        });
     }
 
     function setSbTag(tag) {
-        sbActiveTag = tag;
+        sbActiveTag = tag || null;
         filterSidebarSprites();
+    }
+
+    // ── Sprite / Packs sub-tab switcher ──
+    let sbActivePanelTab = 'sprites';
+    let sidebarPacks = null;
+    let sbActivePackTag = null;
+
+    function switchSpriteTab(tab) {
+        sbActivePanelTab = tab;
+        document.getElementById('sb-tab-sprites').classList.toggle('active', tab === 'sprites');
+        document.getElementById('sb-tab-packs').classList.toggle('active', tab === 'packs');
+        document.getElementById('sb-sprites-subpanel').style.display = tab === 'sprites' ? 'flex' : 'none';
+        document.getElementById('sb-packs-subpanel').style.display = tab === 'packs' ? 'flex' : 'none';
+        if (tab === 'packs' && !sidebarPacks) loadSidebarPacks();
+    }
+
+    // ── Pack Sidebar ──
+    const SB_PACKS_META_KEY = 'cc_packs_meta_v1';
+    const SB_PACKS_TTL = 10 * 60 * 1000;
+
+    function sbSavePacksCache(data) {
+        try { localStorage.setItem(SB_PACKS_META_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+    }
+    function sbLoadPacksCache() {
+        try {
+            const raw = localStorage.getItem(SB_PACKS_META_KEY);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - p.ts > SB_PACKS_TTL) { localStorage.removeItem(SB_PACKS_META_KEY); return null; }
+            return p.data;
+        } catch(e) { return null; }
+    }
+
+    async function loadSidebarPacks() {
+        const grid = document.getElementById('sb-pack-grid');
+        const cached = sbLoadPacksCache();
+        if (cached) { sidebarPacks = cached; renderSidebarPacks(cached); buildSbPackTagChips(cached); }
+        const { data } = await _supabase.from('sprite_packs')
+            .select('id, name, tags, creator, created_at, cover_image')
+            .order('created_at', { ascending: false });
+        if (!data) { if (!cached) grid.innerHTML = '<div class="sp-load-msg">No packs found</div>'; return; }
+        sidebarPacks = data;
+        sbSavePacksCache(data);
+        buildSbPackTagChips(data);
+        renderSidebarPacks(data);
+    }
+
+    function buildSbPackTagChips(packs) {
+        const wrap = document.getElementById('sb-pack-tag-chips');
+        if (!wrap) return;
+        const counts = {};
+        packs.forEach(p => (p.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
+        const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+        wrap.innerHTML = '';
+        ['All', ...top10].forEach((t, i) => {
+            const isActive = (i===0 && !sbActivePackTag) || (sbActivePackTag === t);
+            const btn = document.createElement('button');
+            btn.textContent = t;
+            btn.dataset.tag = i === 0 ? '' : t;
+            btn.style.cssText = `padding:3px 9px;border-radius:12px;border:1px solid ${isActive?'#00d2ff':'#222'};background:${isActive?'rgba(0,210,255,.12)':'#111'};color:${isActive?'#00d2ff':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;`;
+            btn.addEventListener('click', () => { sbActivePackTag = btn.dataset.tag || null; filterSidebarPacks(); });
+            wrap.appendChild(btn);
+        });
+    }
+
+    function filterSidebarPacks() {
+        if (!sidebarPacks) return;
+        const q = (document.getElementById('sb-pack-search')?.value || '').toLowerCase().trim();
+        let list = [...sidebarPacks];
+        if (sbActivePackTag) list = list.filter(p => (p.tags||[]).includes(sbActivePackTag));
+        if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || (p.tags||[]).some(t=>t.includes(q)));
+        renderSidebarPacks(list);
+        buildSbPackTagChips(sidebarPacks);
+    }
+
+    function renderSidebarPacks(packs) {
+        const grid = document.getElementById('sb-pack-grid');
+        if (!packs.length) { grid.innerHTML = '<div class="sp-load-msg">No packs found</div>'; return; }
+        grid.innerHTML = '';
+        packs.forEach(pack => {
+            const div = document.createElement('div');
+            div.className = 'sb-pack-card';
+            div.innerHTML = `
+                <div class="sb-pack-badge">PACK</div>
+                ${pack.cover_image ? `<img class="sb-loaded" src="${pack.cover_image}">` : '<div class="sb-skeleton"></div>'}
+                <span>${pack.name}</span>
+            `;
+            div.addEventListener('click', () => openPackPreviewModal(pack));
+            grid.appendChild(div);
+        });
+    }
+
+    // ── Pack Preview Modal (place all items on canvas) ──
+    let _packPreviewData = null;
+
+    function openPackPreviewModal(pack) {
+        _packPreviewData = pack;
+        // Fetch full pack items
+        (async () => {
+            const { data } = await _supabase.from('sprite_packs')
+                .select('id, name, items, cover_image')
+                .eq('id', pack.id).single();
+            if (!data) return;
+            _packPreviewData = { ...pack, ...data };
+            showPackModal(_packPreviewData);
+        })();
+    }
+
+    function showPackModal(pack) {
+        let items = pack.items;
+        if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
+        items = items || [];
+
+        // Build modal HTML
+        const existing = document.getElementById('sb-pack-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'sb-pack-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+        modal.innerHTML = `
+            <div style="background:#111;border:1.5px solid var(--teal);border-radius:20px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.9);max-height:85vh;overflow-y:auto;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                    <div style="font-size:14px;font-weight:900;color:var(--teal);">📦 ${pack.name}</div>
+                    <span onclick="document.getElementById('sb-pack-modal').remove()" style="cursor:pointer;color:#555;font-size:18px;">✕</span>
+                </div>
+                <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:12px;">${items.length} sprite${items.length!==1?'s':''} in this pack — placed as separate layers</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+                    ${items.map(it=>`<div style="background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:6px;text-align:center;">
+                        <img src="${it.image_url||it.src||''}" style="width:100%;height:55px;object-fit:contain;opacity:0.9;" loading="lazy">
+                        <div style="font-size:9px;color:#666;font-weight:800;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.label||'Sprite'}</div>
+                    </div>`).join('')}
+                </div>
+                <button onclick="placePackOnCanvas()" style="width:100%;padding:14px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;">⬇ Place All on Canvas</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    function placePackOnCanvas() {
+        const pack = _packPreviewData;
+        if (!pack) return;
+        let items = pack.items;
+        if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
+        if (!items || !items.length) return;
+
+        const cw = 600, ch = 600;
+        const baseX = Math.round(cw * 0.2), baseY = Math.round(ch * 0.2);
+
+        items.forEach((it, i) => {
+            const w = it.width || 150;
+            const xOff = it.x_offset !== undefined ? it.x_offset : i * 8;
+            const yOff = it.y_offset !== undefined ? it.y_offset : i * 8;
+            const nl = {
+                type: 'img', src: it.image_url || it.src || '',
+                w, h: w, x: baseX + xOff, y: baseY + yOff,
+                rotation: 0, flipped: false, opacity: 1,
+                nameTag: it.label || pack.name,
+                packData: { id: pack.id, name: pack.name },
+                id: Date.now() + i
+            };
+            layers.push(nl);
+        });
+
+        saveHistory();
+        render();
+        document.getElementById('sb-pack-modal').remove();
+        toggleSidePanel('sprites');
     }
 
     function filterSidebarSprites() {

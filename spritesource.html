@@ -130,6 +130,17 @@
             transition: 0.2s;
         }
         .admin-btn-delete:hover { background: #551111; color: white; }
+
+        /* Pack creator */
+        .pack-section { border-top: 1px solid #1a1a1a; margin-top: 28px; padding-top: 22px; }
+        .pack-section-title { font-size: 11px; font-weight: 900; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 14px; }
+        .pack-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; max-height: 280px; overflow-y: auto; margin-bottom: 12px; }
+        .pack-item-card { background: #0a0a0a; border: 1px solid #222; border-radius: 8px; padding: 6px; text-align: center; position: relative; }
+        .pack-item-card img { width: 100%; height: 60px; object-fit: contain; }
+        .pack-item-card input { width: 100%; background: #111; border: 1px solid #222; color: white; border-radius: 4px; padding: 3px 5px; font-size: 10px; margin-top: 4px; box-sizing: border-box; text-align: center; font-family: inherit; }
+        .pack-item-remove { position: absolute; top: 3px; right: 3px; background: #331111; color: #ff5555; border: none; border-radius: 4px; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 900; }
+        .pack-item-offset-row { display: flex; gap: 4px; margin-top: 4px; }
+        .pack-item-offset-row input { flex: 1; background: #111; border: 1px solid #1a1a1a; color: #555; border-radius: 4px; padding: 2px 4px; font-size: 9px; box-sizing: border-box; text-align: center; font-family: inherit; }
     </style>
 </head>
 <body>
@@ -176,7 +187,31 @@
         </div>
 
         <button class="btn-publish" id="upload-btn" onclick="uploadToDatabase()">PUBLISH ASSET PACK</button>
-    </div>
+
+        <!-- ── PACK CREATOR ── -->
+        <div class="pack-section">
+            <div class="pack-section-title">📦 Create Shape Pack</div>
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
+                <input type="text" id="pack-name" placeholder="Pack Name (e.g. Round Shapes)" style="flex:1;padding:10px 12px;background:#000;border:1px solid var(--teal);color:white;border-radius:6px;font-size:12px;outline:none;font-family:inherit;">
+            </div>
+            <input type="text" id="pack-tags" placeholder="🏷 Pack Tags (comma-separated: shapes, corners, ui)" style="width:100%;padding:10px 12px;background:#111;border:1px solid #333;color:white;border-radius:6px;font-size:12px;outline:none;margin-bottom:10px;box-sizing:border-box;font-family:inherit;">
+            <div style="margin-bottom:10px;">
+                <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Pack Items (each image = one layer when placed)</div>
+                <div class="pack-items-grid" id="pack-items-grid"></div>
+                <div style="display:flex;gap:8px;">
+                    <div class="btn-control btn-bulk" style="flex:1;" onclick="document.getElementById('pack-shapes-input').click()">+ ADD SHAPES</div>
+                    <div class="btn-control btn-clear" onclick="document.getElementById('pack-items-grid').innerHTML=''">CLEAR</div>
+                </div>
+                <input type="file" id="pack-shapes-input" multiple accept="image/*" style="display:none;" onchange="handlePackShapes(this)">
+            </div>
+            <div style="font-size:9px;color:#444;font-weight:700;margin-bottom:10px;line-height:1.6;">
+                💡 <b style="color:#555;">X Offset / Y Offset</b> — pixel offset for each shape when stacked on canvas.<br>
+                Leave at 0 to stack directly on top (good for corner cards, overlay sets).
+            </div>
+            <button class="btn-publish" id="pack-upload-btn" onclick="uploadPackToDatabase()" style="background:var(--teal);">PUBLISH SHAPE PACK</button>
+        </div>
+
+    </div><!-- /#admin-panel -->
 
     <div class="search-wrap">
         <input type="text" class="search-bar" id="sprite-search"
@@ -753,6 +788,95 @@
 
     function closePreview() { document.getElementById('preview-overlay').classList.remove('active'); }
     function clearActions() { if (confirm("Clear all?")) document.getElementById('actions-list').innerHTML = ""; }
+
+    // ── Pack Creator ──────────────────────────────────────────────────
+
+    function handlePackShapes(input) {
+        const grid = document.getElementById('pack-items-grid');
+        const files = Array.from(input.files);
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => createPackItemCard(file.name.replace(/\.[^.]+$/, ''), e.target.result);
+            reader.readAsDataURL(file);
+        });
+        input.value = "";
+    }
+
+    function createPackItemCard(label, base64) {
+        const grid = document.getElementById('pack-items-grid');
+        const div = document.createElement('div');
+        div.className = 'pack-item-card';
+        div.dataset.base64 = base64;
+        div.innerHTML = `
+            <button class="pack-item-remove" onclick="this.closest('.pack-item-card').remove()">✕</button>
+            <img src="${base64}">
+            <input type="text" value="${label}" placeholder="Label">
+            <div class="pack-item-offset-row">
+                <input type="number" value="0" placeholder="X off" title="X offset px" style="color:#666;">
+                <input type="number" value="0" placeholder="Y off" title="Y offset px" style="color:#666;">
+            </div>
+        `;
+        grid.appendChild(div);
+    }
+
+    async function uploadPackToDatabase() {
+        const name = document.getElementById('pack-name').value.trim();
+        const tagsRaw = document.getElementById('pack-tags').value;
+        const tags = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+        const btn = document.getElementById('pack-upload-btn');
+        const itemCards = document.querySelectorAll('.pack-item-card');
+
+        if (!name) return alert('Pack Name is required!');
+        if (!itemCards.length) return alert('Add at least one shape to the pack!');
+
+        btn.disabled = true;
+        const safeName = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        const folderId = 'packs/' + safeName + '_' + Date.now();
+
+        // Upload cover = first item
+        btn.innerText = 'UPLOADING COVER...';
+        const firstCard = itemCards[0];
+        const coverUrl = await uploadToStorage('sprites', folderId + '/cover.png', firstCard.dataset.base64);
+
+        // Upload each item
+        const items = [];
+        let idx = 0;
+        for (const card of itemCards) {
+            idx++;
+            btn.innerText = `UPLOADING ITEMS (${idx}/${itemCards.length})...`;
+            const inputs = card.querySelectorAll('input[type="text"], input[type="number"]');
+            const label   = inputs[0]?.value?.trim() || ('Shape ' + idx);
+            const xOffset = parseInt(inputs[1]?.value) || 0;
+            const yOffset = parseInt(inputs[2]?.value) || 0;
+            const safeLabel = label.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+            const imageUrl = await uploadToStorage('sprites', `${folderId}/item_${idx}_${safeLabel}.png`, card.dataset.base64);
+            items.push({ label, image_url: imageUrl, x_offset: xOffset, y_offset: yOffset, width: 160 });
+        }
+
+        btn.innerText = 'SAVING PACK...';
+        const { error } = await _supabase.from('sprite_packs').insert([{
+            name,
+            tags,
+            creator: myHandle || 'Guest',
+            cover_image: coverUrl,
+            items
+        }]);
+
+        if (error) {
+            alert('Pack upload failed: ' + error.message);
+            btn.disabled = false;
+            btn.innerText = 'PUBLISH SHAPE PACK';
+        } else {
+            // Bust caches so packs tab refreshes in create.html
+            localStorage.removeItem('cc_packs_meta_v1');
+            alert('✅ Shape Pack Published!');
+            document.getElementById('pack-name').value = '';
+            document.getElementById('pack-tags').value = '';
+            document.getElementById('pack-items-grid').innerHTML = '';
+            btn.disabled = false;
+            btn.innerText = 'PUBLISH SHAPE PACK';
+        }
+    }
 </script>
 </body>
 </html>

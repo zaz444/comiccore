@@ -929,12 +929,27 @@ function renderTopCreators(creators, tab) {
 
 // ── Load ─────────────────────────────────────────────────
 function init() {
+  // Clear any broken cache from old base64-era data
+  try {
+    const cached = localStorage.getItem('cc-comics-cache');
+    if (cached) {
+      const arr = JSON.parse(cached);
+      // Old cache had cover as base64 — if first item's cover starts with data: nuke it
+      if (arr?.[0]?.cover?.startsWith('data:')) {
+        localStorage.removeItem('cc-comics-cache');
+        localStorage.removeItem('cc-stars-cache');
+        localStorage.removeItem('cc-feeds-ts');
+      }
+    }
+  } catch(e) {
+    localStorage.removeItem('cc-comics-cache');
+    localStorage.removeItem('cc-feeds-ts');
+  }
+
   loadFeeds().then(() => {
-    // Hide loader once first render is done (cache or network)
     const loader = document.getElementById('loading-screen');
     if (loader) loader.classList.add('hidden');
   });
-  // Safety fallback — never block more than 1.8s
   setTimeout(() => {
     const loader = document.getElementById('loading-screen');
     if (loader) loader.classList.add('hidden');
@@ -980,18 +995,16 @@ async function loadFeeds() {
   }
 
   // ── 3. Fetch only what's needed — no full data blobs ────
-  const [{ data: comics }, { data: stars }, { data: teams }, { data: validProfiles }] = await Promise.all([
+  const [{ data: comics }, { data: stars }, { data: teams }] = await Promise.all([
     _sb.from('comics')
       .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir')
       .order('created_at', { ascending: false })
       .limit(80),
     _sb.from('messages').select('receiver_hand,sender_handle').eq('reaction','⭐').limit(2000),
     _sb.from('team_tickets').select('id,team_name,pfp,owner_handle').limit(30),
-    _sb.from('profiles').select('handle').limit(500),
   ]);
 
-  const knownHandles = new Set((validProfiles || []).map(p => p.handle));
-  allComics   = (comics || []).filter(c => c.title && c.owner_handle && knownHandles.has(c.owner_handle));
+  allComics = (comics || []).filter(c => c.title && c.owner_handle);
   globalStars = stars || [];
 
   // Save to cache
