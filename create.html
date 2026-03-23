@@ -797,28 +797,54 @@
     .sb-sub-tab:first-child { border-right: 1px solid #2a2a2a; }
     /* Pack grid */
     #sb-pack-grid {
-        flex: 1; overflow-y: auto; padding: 6px 8px 10px;
-        display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-        align-content: start; display: none;
+        flex: 1; overflow-y: auto; padding: 10px 10px 16px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 20px 10px;
+        align-content: start;
     }
     #sb-pack-grid::-webkit-scrollbar { width: 3px; }
     #sb-pack-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+    /* ── Pack card — real stacked sprite cards ── */
     .sb-pack-card {
-        background: var(--card); border: 2px solid var(--border); border-radius: 12px;
-        cursor: pointer; overflow: hidden; transition: 0.2s;
-        display: flex; flex-direction: column; position: relative; height: 100px;
+        position: relative; cursor: pointer;
+        height: 140px; /* stack area + footer */
+        padding-bottom: 22px; /* footer height */
     }
-    .sb-pack-card:hover { border-color: var(--teal); transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
-    .sb-pack-card img { width: 100%; flex: 1; object-fit: contain; padding: 8px; box-sizing: border-box; min-height: 0; opacity: 0; transition: opacity 0.2s; }
-    .sb-pack-card img.sb-loaded { opacity: 1; }
-    .sb-pack-card .sb-pack-badge {
-        position: absolute; top: 4px; right: 4px; background: var(--teal); color: #000;
-        font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 4px; letter-spacing: 0.5px;
+    .sb-pack-card:hover .spc-1 { transform: rotate(0deg) translateY(-5px); box-shadow: 0 8px 24px rgba(0,210,255,0.2); border-color: var(--teal); }
+    .sb-pack-card:hover .spc-2 { transform: rotate(-4deg) translateY(-2px); }
+    .sb-pack-card:hover .spc-3 { transform: rotate(-9deg) translateY(0px); }
+
+    /* Individual stacked card layers */
+    .spc {
+        position: absolute; left: 50%; top: 0;
+        width: 86%; height: 100px;
+        border-radius: 14px; border: 1.5px solid #2c2c2e;
+        background: #1c1c1e; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
     }
-    .sb-pack-card span {
-        font-size: 9px; font-weight: 800; color: #888; padding: 3px 6px 5px;
-        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        background: rgba(0,0,0,0.4); flex-shrink: 0;
+    .spc img { width: 100%; height: 100%; object-fit: contain; padding: 10px; box-sizing: border-box; opacity:0; transition: opacity 0.2s; }
+    .spc img.sbl { opacity: 1; }
+    .spc-3 { transform: translateX(-50%) rotate(-8deg) translateY(6px);  z-index: 1; background: #181818; border-color: #252525; }
+    .spc-2 { transform: translateX(-50%) rotate(-3deg) translateY(3px);  z-index: 2; background: #1e1e20; border-color: #2a2a2c; }
+    .spc-1 { transform: translateX(-50%) rotate(0deg);                   z-index: 3; box-shadow: 0 4px 16px rgba(0,0,0,0.6); border-color: #333; }
+    /* Placeholder (no image yet) */
+    .spc-empty { background: linear-gradient(135deg, #1a1a1a, #222); }
+
+    /* Footer below the stack */
+    .sb-pack-footer {
+        position: absolute; bottom: 0; left: 0; right: 0;
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0 2px;
+    }
+    .sb-pack-name {
+        font-size: 9px; font-weight: 800; color: #888;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        max-width: 75%;
+    }
+    .sb-pack-count {
+        background: var(--teal); color: #000; font-size: 8px; font-weight: 900;
+        padding: 2px 6px; border-radius: 10px; letter-spacing: 0.3px; flex-shrink: 0;
     }
     #sb-sprite-grid {
         flex: 1; overflow-y: auto; padding: 6px 8px 10px;
@@ -1594,9 +1620,8 @@
                     <!-- Packs sub-panel -->
                     <div id="sb-packs-subpanel" style="display:none;flex-direction:column;flex:1;min-height:0;">
                         <input class="sp-search" id="sb-pack-search" placeholder="Search packs..." oninput="filterSidebarPacks()" style="margin-top:6px;">
-                        <div id="sb-pack-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin:0 10px 6px;"></div>
                         <div id="sb-pack-grid">
-                            <div class="sp-load-msg">Click to load packs</div>
+                            <div class="sp-load-msg">Open to load packs</div>
                         </div>
                     </div>
                 </div>
@@ -5550,184 +5575,169 @@
     }
 
     // ── Sprite / Packs sub-tab switcher ──
+    // ── Sprite / Packs sub-tab switcher ──
     let sbActivePanelTab = 'sprites';
-    let sidebarPacks = null;
-    let sbActivePackTag = null;
 
     function switchSpriteTab(tab) {
         sbActivePanelTab = tab;
         document.getElementById('sb-tab-sprites').classList.toggle('active', tab === 'sprites');
         document.getElementById('sb-tab-packs').classList.toggle('active', tab === 'packs');
         document.getElementById('sb-sprites-subpanel').style.display = tab === 'sprites' ? 'flex' : 'none';
-        document.getElementById('sb-packs-subpanel').style.display = tab === 'packs' ? 'flex' : 'none';
-        if (tab === 'packs' && !sidebarPacks) loadSidebarPacks();
+        document.getElementById('sb-packs-subpanel').style.display  = tab === 'packs'   ? 'flex' : 'none';
+        if (tab === 'packs') buildTagPacks();
     }
 
-    // ── Pack Sidebar ──
-    const SB_PACKS_META_KEY = 'cc_packs_meta_v1';
-    const SB_PACKS_TTL = 10 * 60 * 1000;
+    // ── Packs: auto-derived from sidebarSprites tags ─────────────────────────
 
-    function sbSavePacksCache(data) {
-        try { localStorage.setItem(SB_PACKS_META_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
-    }
-    function sbLoadPacksCache() {
-        try {
-            const raw = localStorage.getItem(SB_PACKS_META_KEY);
-            if (!raw) return null;
-            const p = JSON.parse(raw);
-            if (Date.now() - p.ts > SB_PACKS_TTL) { localStorage.removeItem(SB_PACKS_META_KEY); return null; }
-            return p.data;
-        } catch(e) { return null; }
+    function buildTagPacks() {
+        if (!sidebarSprites) {
+            document.getElementById('sb-pack-grid').innerHTML = '<div class="sp-load-msg">Loading sprites first…</div>';
+            const wait = setInterval(() => {
+                if (sidebarSprites) { clearInterval(wait); renderTagPackGrid(); }
+            }, 150);
+            return;
+        }
+        renderTagPackGrid();
     }
 
-    async function loadSidebarPacks() {
-        const grid = document.getElementById('sb-pack-grid');
-        const cached = sbLoadPacksCache();
-        if (cached) { sidebarPacks = cached; renderSidebarPacks(cached); buildSbPackTagChips(cached); }
-        const { data } = await _supabase.from('sprite_packs')
-            .select('id, name, tags, creator, created_at, cover_image')
-            .order('created_at', { ascending: false });
-        if (!data) { if (!cached) grid.innerHTML = '<div class="sp-load-msg">No packs found</div>'; return; }
-        sidebarPacks = data;
-        sbSavePacksCache(data);
-        buildSbPackTagChips(data);
-        renderSidebarPacks(data);
-    }
-
-    function buildSbPackTagChips(packs) {
-        const wrap = document.getElementById('sb-pack-tag-chips');
-        if (!wrap) return;
-        const counts = {};
-        packs.forEach(p => (p.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
-        const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
-        wrap.innerHTML = '';
-        ['All', ...top10].forEach((t, i) => {
-            const isActive = (i===0 && !sbActivePackTag) || (sbActivePackTag === t);
-            const btn = document.createElement('button');
-            btn.textContent = t;
-            btn.dataset.tag = i === 0 ? '' : t;
-            btn.style.cssText = `padding:3px 9px;border-radius:12px;border:1px solid ${isActive?'#00d2ff':'#222'};background:${isActive?'rgba(0,210,255,.12)':'#111'};color:${isActive?'#00d2ff':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;`;
-            btn.addEventListener('click', () => { sbActivePackTag = btn.dataset.tag || null; filterSidebarPacks(); });
-            wrap.appendChild(btn);
+    function getTagGroups(q) {
+        const map = {};
+        (sidebarSprites || []).forEach(s => {
+            (s.tags || []).forEach(t => {
+                if (!map[t]) map[t] = [];
+                map[t].push(s);
+            });
         });
+        let entries = Object.entries(map);
+        if (q) entries = entries.filter(([t]) => t.toLowerCase().includes(q));
+        entries.sort((a, b) => b[1].length - a[1].length);
+        return entries;
     }
 
-    function filterSidebarPacks() {
-        if (!sidebarPacks) return;
+    function renderTagPackGrid() {
         const q = (document.getElementById('sb-pack-search')?.value || '').toLowerCase().trim();
-        let list = [...sidebarPacks];
-        if (sbActivePackTag) list = list.filter(p => (p.tags||[]).includes(sbActivePackTag));
-        if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || (p.tags||[]).some(t=>t.includes(q)));
-        renderSidebarPacks(list);
-        buildSbPackTagChips(sidebarPacks);
-    }
-
-    function renderSidebarPacks(packs) {
         const grid = document.getElementById('sb-pack-grid');
-        if (!packs.length) { grid.innerHTML = '<div class="sp-load-msg">No packs found</div>'; return; }
+        const groups = getTagGroups(q);
+
+        if (!groups.length) {
+            grid.innerHTML = '<div class="sp-load-msg">No packs found</div>';
+            return;
+        }
+
         grid.innerHTML = '';
-        packs.forEach(pack => {
+        groups.forEach(([tag, sprites]) => {
             const div = document.createElement('div');
             div.className = 'sb-pack-card';
+
+            // Front card image = first sprite with a cached image
+            const frontSprite = sprites.find(s => s.image_data || sbGetImg(s.id)) || sprites[0];
+            const frontSrc = frontSprite ? (frontSprite.image_data || sbGetImg(frontSprite.id)) : null;
+
             div.innerHTML = `
-                <div class="sb-pack-badge">PACK</div>
-                ${pack.cover_image ? `<img class="sb-loaded" src="${pack.cover_image}">` : '<div class="sb-skeleton"></div>'}
-                <span>${pack.name}</span>
+                <div class="sb-pack-count">${sprites.length}</div>
+                <div class="sb-pack-front">
+                    ${frontSrc ? `<img class="sb-loaded" src="${frontSrc}">` : `<div class="sb-skeleton"></div>`}
+                    <div class="sb-pack-label">${tag}</div>
+                </div>
             `;
-            div.addEventListener('click', () => openPackPreviewModal(pack));
+
+            // Lazy-load cover if missing
+            if (!frontSrc && frontSprite) {
+                sbFetchFull(frontSprite.id).then(full => {
+                    if (!full?.image_data) return;
+                    const skeleton = div.querySelector('.sb-skeleton');
+                    if (skeleton) {
+                        const img = document.createElement('img');
+                        img.className = 'sb-loaded';
+                        img.src = full.image_data;
+                        skeleton.replaceWith(img);
+                        frontSprite.image_data = full.image_data;
+                    }
+                });
+            }
+
+            div.addEventListener('click', () => openTagPackSheet(tag, sprites));
             grid.appendChild(div);
         });
     }
 
-    // ── Pack Preview Modal (place all items on canvas) ──
-    let _packPreviewData = null;
+    function filterSidebarPacks() { renderTagPackGrid(); }
 
-    function openPackPreviewModal(pack) {
-        _packPreviewData = pack;
-        // Fetch full pack items
-        (async () => {
-            const { data } = await _supabase.from('sprite_packs')
-                .select('id, name, items, cover_image')
-                .eq('id', pack.id).single();
-            if (!data) return;
-            _packPreviewData = { ...pack, ...data };
-            showPackModal(_packPreviewData);
-        })();
-    }
+    // ── Tag Pack sprite-picker sheet ─────────────────────────────────────────
 
-    function showPackModal(pack) {
-        let items = pack.items;
-        if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
-        items = items || [];
-
+    function openTagPackSheet(tag, sprites) {
         const existing = document.getElementById('sb-pack-modal');
         if (existing) existing.remove();
 
         const modal = document.createElement('div');
         modal.id = 'sb-pack-modal';
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px);';
+
         modal.innerHTML = `
-            <div style="background:#111;border:1.5px solid var(--teal);border-radius:20px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.9);max-height:85vh;overflow-y:auto;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <div style="font-size:14px;font-weight:900;color:var(--teal);">📦 ${pack.name}</div>
-                    <span onclick="document.getElementById('sb-pack-modal').remove()" style="cursor:pointer;color:#555;font-size:18px;">✕</span>
+            <div style="background:#111;border-top:1.5px solid var(--teal);border-radius:24px 24px 0 0;
+                        padding:18px 16px 24px;width:100%;max-width:400px;max-height:78vh;
+                        overflow-y:auto;box-sizing:border-box;box-shadow:0 -12px 40px rgba(0,0,0,0.8);">
+                <div style="width:36px;height:4px;background:#2a2a2a;border-radius:2px;margin:0 auto 14px;"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <div style="font-size:13px;font-weight:900;color:var(--teal);">📦 ${tag}</div>
+                    <span onclick="document.getElementById('sb-pack-modal').remove()"
+                          style="cursor:pointer;color:#444;font-size:20px;line-height:1;">✕</span>
                 </div>
-                <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:14px;">${items.length} sprite${items.length!==1?'s':''} — each placed as its own layer with full actions</div>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;" id="sb-pack-modal-grid">
-                    ${items.map(it=>`<div style="background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:6px;text-align:center;">
-                        ${it.image_url ? `<img src="${it.image_url}" style="width:100%;height:55px;object-fit:contain;" loading="lazy">` : '<div style="height:55px;background:#1a1a1a;border-radius:4px;"></div>'}
-                        <div style="font-size:9px;color:#666;font-weight:800;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.label||'Sprite'}</div>
-                    </div>`).join('')}
+                <div style="font-size:10px;color:#444;font-weight:700;margin-bottom:14px;">
+                    ${sprites.length} sprite${sprites.length !== 1 ? 's' : ''} — tap one to choose its pose
                 </div>
-                <button onclick="placePackOnCanvas()" style="width:100%;padding:14px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;">⬇ Place All on Canvas</button>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="sb-pack-sprite-grid"></div>
             </div>
         `;
+
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
         document.body.appendChild(modal);
+
+        // Populate sprite cards
+        const spriteGrid = document.getElementById('sb-pack-sprite-grid');
+        sprites.forEach(sprite => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:#0f0f11;border:1.5px solid #222;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;overflow:hidden;transition:0.15s;';
+            card.addEventListener('mouseenter', () => card.style.borderColor = 'var(--teal)');
+            card.addEventListener('mouseleave', () => card.style.borderColor = '#222');
+
+            const src = sprite.image_data || sbGetImg(sprite.id);
+            card.innerHTML = `
+                <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:8px;min-height:72px;">
+                    ${src ? `<img src="${src}" style="max-width:100%;max-height:72px;object-fit:contain;">` : `<div class="sb-skeleton" style="width:56px;height:56px;border-radius:8px;"></div>`}
+                </div>
+                <div style="font-size:9px;font-weight:800;color:#777;padding:3px 6px 5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,0.4);border-top:1px solid #1e1e1e;">${sprite.name}</div>
+            `;
+
+            // Lazy-load if no cached image
+            if (!src) {
+                sbFetchFull(sprite.id).then(full => {
+                    if (!full?.image_data) return;
+                    const skeleton = card.querySelector('.sb-skeleton');
+                    if (skeleton) {
+                        const img = document.createElement('img');
+                        img.src = full.image_data;
+                        img.style.cssText = 'max-width:100%;max-height:72px;object-fit:contain;';
+                        skeleton.replaceWith(img);
+                        sprite.image_data = full.image_data;
+                    }
+                });
+            }
+
+            card.addEventListener('click', () => packSpriteClick(sprite));
+            spriteGrid.appendChild(card);
+        });
     }
 
-    async function placePackOnCanvas() {
-        const pack = _packPreviewData;
-        if (!pack) return;
-        let items = pack.items;
-        if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
-        if (!items || !items.length) return;
-
-        const modal = document.getElementById('sb-pack-modal');
-        const btn = modal?.querySelector('button:last-child');
-        if (btn) { btn.disabled = true; btn.textContent = 'Placing...'; }
-
-        const cw = 600, ch = 600;
-        const spread = 18; // slight offset per sprite so they don't perfectly overlap
-
-        for (let i = 0; i < items.length; i++) {
-            const it = items[i];
-            const id = it.sprite_id;
-            if (!id) continue;
-
-            // Fetch full sprite data (image + actions) — uses existing cache chain
-            const full = await sbFetchFull(id);
-            if (!full?.image_data) continue;
-
-            const spriteObj = (sidebarSprites || []).find(s => s.id === id) || { id, name: it.label };
-            const w = 200;
-            const nl = {
-                type: 'img',
-                src: full.image_data,
-                w, h: w,
-                x: Math.round(cw * 0.3) + i * spread,
-                y: Math.round(ch * 0.3) + i * spread,
-                rotation: 0, flipped: false, opacity: 1,
-                nameTag: it.label || spriteObj.name || 'Sprite',
-                packData: { ...spriteObj, ...full, id },
-                id: Date.now() + i
-            };
-            layers.push(nl);
+    async function packSpriteClick(sprite) {
+        document.getElementById('sb-pack-modal')?.remove();
+        const hasFull = sprite.image_data && sprite.actions !== undefined;
+        if (hasFull) {
+            openActionModal(sprite);
+        } else {
+            const full = await sbFetchFull(sprite.id);
+            if (full) openActionModal({ ...sprite, ...full });
         }
-
-        saveHistory();
-        render();
-        if (modal) modal.remove();
-        toggleSidePanel('sprites');
     }
 
     function filterSidebarSprites() {

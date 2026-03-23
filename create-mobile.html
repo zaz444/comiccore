@@ -908,10 +908,9 @@
         </div>
         <!-- Packs sub-panel -->
         <div id="mob-packs-subpanel" style="display:none;">
-            <input class="pub-input" id="mob-pack-search" placeholder="Search packs..." oninput="filterMobPacks()" style="margin-bottom:6px;">
-            <div id="mob-pack-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
-            <div id="mob-pack-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;overflow-y:auto;max-height:55vh;padding-bottom:8px;">
-                <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 2;">Tap to load packs...</div>
+            <input class="pub-input" id="mob-pack-search" placeholder="Search packs..." oninput="filterMobPacks()" style="margin-bottom:10px;">
+            <div id="mob-pack-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:22px 12px;overflow-y:auto;max-height:55vh;padding:6px 2px 16px;">
+                <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 2;">Tap Packs to load...</div>
             </div>
         </div>
     </div>
@@ -2365,10 +2364,6 @@ function setMobTag(tag) {
 
 // ── Mobile Sprite / Packs Sub-Tab ──
 let mobActiveSpriteTab = 'sprites';
-let mobSidebarPacks = null;
-let mobActivePackTag = null;
-const MOB_PACKS_META_KEY = 'cc_packs_meta_v1';
-const MOB_PACKS_TTL = 10 * 60 * 1000;
 
 function switchMobSpriteTab(tab) {
     mobActiveSpriteTab = tab;
@@ -2380,167 +2375,196 @@ function switchMobSpriteTab(tab) {
     if (tPacks)   { tPacks.style.background   = tab==='packs'   ? 'var(--accent)' : '#111'; tPacks.style.color   = tab==='packs'   ? '#000' : '#555'; }
     if (pSprites) pSprites.style.display = tab==='sprites' ? 'block' : 'none';
     if (pPacks)   pPacks.style.display   = tab==='packs'   ? 'block' : 'none';
-    if (tab === 'packs' && !mobSidebarPacks) loadMobPacks();
+    if (tab === 'packs') buildMobTagPacks();
 }
 
-function mobSavePacksCache(data) {
-    try { localStorage.setItem(MOB_PACKS_META_KEY, JSON.stringify({ts:Date.now(),data})); } catch(e) {}
-}
-function mobLoadPacksCache() {
-    try {
-        const raw = localStorage.getItem(MOB_PACKS_META_KEY);
-        if (!raw) return null;
-        const p = JSON.parse(raw);
-        if (Date.now()-p.ts > MOB_PACKS_TTL) { localStorage.removeItem(MOB_PACKS_META_KEY); return null; }
-        return p.data;
-    } catch(e) { return null; }
+// ── Packs: auto-derived from sidebarSprites tags ──────────────────────────
+
+function buildMobTagPacks() {
+    if (!sidebarSprites) {
+        const grid = document.getElementById('mob-pack-grid');
+        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">Loading sprites…</div>';
+        const wait = setInterval(() => {
+            if (sidebarSprites) { clearInterval(wait); renderMobTagPackGrid(); }
+        }, 150);
+        return;
+    }
+    renderMobTagPackGrid();
 }
 
-async function loadMobPacks() {
-    const grid = document.getElementById('mob-pack-grid');
-    const cached = mobLoadPacksCache();
-    if (cached) { mobSidebarPacks = cached; renderMobPackGrid(cached); buildMobPackTagChips(cached); }
-    const { data } = await _supabase.from('sprite_packs')
-        .select('id, name, tags, creator, created_at, cover_image')
-        .order('created_at', { ascending: false });
-    if (!data) { if (!cached) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">No packs found</div>'; return; }
-    mobSidebarPacks = data;
-    mobSavePacksCache(data);
-    buildMobPackTagChips(data);
-    renderMobPackGrid(data);
-}
-
-function buildMobPackTagChips(packs) {
-    const wrap = document.getElementById('mob-pack-tag-chips');
-    if (!wrap) return;
-    const counts = {};
-    packs.forEach(p => (p.tags||[]).forEach(t => { counts[t]=(counts[t]||0)+1; }));
-    const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
-    wrap.innerHTML = '';
-    ['All', ...top10].forEach((t, i) => {
-        const isActive = (i===0 && !mobActivePackTag) || (mobActivePackTag === t);
-        const btn = document.createElement('button');
-        btn.textContent = t;
-        btn.dataset.tag = i === 0 ? '' : t;
-        btn.style.cssText = `padding:4px 10px;border-radius:12px;border:1px solid ${isActive?'#00d2ff':'#222'};background:${isActive?'rgba(0,210,255,.12)':'#111'};color:${isActive?'#00d2ff':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;`;
-        btn.addEventListener('click', () => { mobActivePackTag = btn.dataset.tag || null; filterMobPacks(); });
-        wrap.appendChild(btn);
+function getMobTagGroups(q) {
+    const map = {};
+    (sidebarSprites || []).forEach(s => {
+        (s.tags || []).forEach(t => {
+            if (!map[t]) map[t] = [];
+            map[t].push(s);
+        });
     });
+    let entries = Object.entries(map);
+    if (q) entries = entries.filter(([t]) => t.toLowerCase().includes(q));
+    entries.sort((a, b) => b[1].length - a[1].length);
+    return entries;
 }
 
-function filterMobPacks() {
-    if (!mobSidebarPacks) return;
-    const q = (document.getElementById('mob-pack-search')?.value||'').toLowerCase().trim();
-    let list = [...mobSidebarPacks];
-    if (mobActivePackTag) list = list.filter(p=>(p.tags||[]).includes(mobActivePackTag));
-    if (q) list = list.filter(p=>p.name.toLowerCase().includes(q)||(p.tags||[]).some(t=>t.includes(q)));
-    renderMobPackGrid(list);
-    buildMobPackTagChips(mobSidebarPacks);
-}
-
-function renderMobPackGrid(packs) {
+function renderMobTagPackGrid() {
+    const q = (document.getElementById('mob-pack-search')?.value || '').toLowerCase().trim();
     const grid = document.getElementById('mob-pack-grid');
-    if (!packs.length) { grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">No packs found</div>'; return; }
+    const groups = getMobTagGroups(q);
+
+    if (!groups.length) {
+        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">No packs found</div>';
+        return;
+    }
+
     grid.innerHTML = '';
-    packs.forEach(pack => {
-        const card = document.createElement('div');
-        card.style.cssText = 'position:relative;background:#1c1c1e;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;overflow:hidden;aspect-ratio:1;display:flex;flex-direction:column;transition:0.2s;';
-        card.innerHTML = `
-            <div style="position:absolute;top:4px;right:4px;background:#00d2ff;color:#000;font-size:8px;font-weight:900;padding:2px 5px;border-radius:4px;z-index:1;">PACK</div>
-            ${pack.cover_image ? `<img src="${pack.cover_image}" style="width:100%;flex:1;object-fit:contain;padding:8px;box-sizing:border-box;" loading="lazy">` : '<div style="flex:1;background:#111;"></div>'}
-            <div style="font-size:9px;font-weight:800;color:#888;padding:3px 6px 6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,0.5);">${pack.name}</div>
+    groups.forEach(([tag, sprites]) => {
+        const count = sprites.length;
+        // Pick a sprite with a cached image for the front card
+        const frontSprite = sprites.find(s => s.image_data || efxGetImg?.(s.id) || sessionStorage.getItem('cc_simg_' + s.id)) || sprites[0];
+        const frontSrc = frontSprite ? (frontSprite.image_data || sessionStorage.getItem('cc_simg_' + frontSprite.id)) : null;
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:relative;cursor:pointer;height:140px;padding-bottom:22px;box-sizing:border-box;';
+
+        // 3 stacked card divs — back to front
+        const rotations = ['rotate(-8deg) translateY(6px)', 'rotate(-3deg) translateY(3px)', 'rotate(0deg)'];
+        const bgs       = ['#181818', '#1e1e20', '#1c1c1e'];
+        const borders   = ['#252525', '#2a2a2c', '#333'];
+
+        [null, null, frontSprite].forEach((it, i) => {
+            const card = document.createElement('div');
+            card.style.cssText = `position:absolute;left:50%;top:0;width:86%;height:100px;
+                border-radius:14px;border:1.5px solid ${borders[i]};background:${bgs[i]};
+                overflow:hidden;display:flex;align-items:center;justify-content:center;
+                transform:translateX(-50%) ${rotations[i]};z-index:${i+1};
+                transition:transform 0.2s,border-color 0.2s,box-shadow 0.2s;`;
+            if (i === 2) {
+                // Front card — load sprite image
+                if (frontSrc) {
+                    const img = document.createElement('img');
+                    img.src = frontSrc;
+                    img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:10px;box-sizing:border-box;';
+                    card.appendChild(img);
+                } else if (frontSprite) {
+                    // Lazy fetch
+                    sbFetchFull(frontSprite.id).then(full => {
+                        if (!full?.image_data) return;
+                        const img = document.createElement('img');
+                        img.src = full.image_data;
+                        img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:10px;box-sizing:border-box;';
+                        card.appendChild(img);
+                        frontSprite.image_data = full.image_data;
+                    });
+                }
+            }
+            wrapper.appendChild(card);
+        });
+
+        // Footer: tag name + count badge
+        const footer = document.createElement('div');
+        footer.style.cssText = 'position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 2px;';
+        footer.innerHTML = `
+            <span style="font-size:9px;font-weight:800;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:75%;">${tag}</span>
+            <span style="background:var(--teal);color:#000;font-size:8px;font-weight:900;padding:2px 6px;border-radius:10px;flex-shrink:0;">${count}</span>
         `;
-        card.addEventListener('click', () => openMobPackModal(pack));
-        grid.appendChild(card);
+        wrapper.appendChild(footer);
+
+        // Hover lift effect on front card
+        const frontCard = wrapper.children[2]; // z-index:3
+        wrapper.addEventListener('mouseenter', () => {
+            frontCard.style.transform = 'translateX(-50%) rotate(0deg) translateY(-5px)';
+            frontCard.style.borderColor = 'var(--teal)';
+            frontCard.style.boxShadow = '0 8px 24px rgba(0,210,255,0.2)';
+        });
+        wrapper.addEventListener('mouseleave', () => {
+            frontCard.style.transform = 'translateX(-50%) rotate(0deg)';
+            frontCard.style.borderColor = '#333';
+            frontCard.style.boxShadow = '';
+        });
+
+        wrapper.addEventListener('click', () => openMobTagPackSheet(tag, sprites));
+        grid.appendChild(wrapper);
     });
 }
 
-let _mobPackPreviewData = null;
+function filterMobPacks() { renderMobTagPackGrid(); }
 
-function openMobPackModal(pack) {
-    _mobPackPreviewData = pack;
-    (async () => {
-        const { data } = await _supabase.from('sprite_packs')
-            .select('id, name, items, cover_image').eq('id', pack.id).single();
-        if (!data) return;
-        _mobPackPreviewData = { ...pack, ...data };
-        showMobPackModal(_mobPackPreviewData);
-    })();
-}
+// ── Tag Pack sprite-picker sheet (mobile) ─────────────────────────────────
 
-function showMobPackModal(pack) {
-    let items = pack.items;
-    if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
-    items = items || [];
-
+function openMobTagPackSheet(tag, sprites) {
     const existing = document.getElementById('mob-pack-modal');
     if (existing) existing.remove();
 
     const modal = document.createElement('div');
     modal.id = 'mob-pack-modal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+
     modal.innerHTML = `
-        <div style="background:#111;border-top:1.5px solid #00d2ff;border-radius:24px 24px 0 0;padding:20px;width:100%;max-height:75vh;overflow-y:auto;box-sizing:border-box;">
-            <div style="width:36px;height:4px;background:#333;border-radius:2px;margin:0 auto 14px;"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <div style="font-size:14px;font-weight:900;color:#00d2ff;">📦 ${pack.name}</div>
-                <span onclick="document.getElementById('mob-pack-modal').remove()" style="color:#555;font-size:20px;cursor:pointer;">✕</span>
+        <div style="background:#111;border-top:1.5px solid var(--teal);border-radius:24px 24px 0 0;
+                    padding:18px 16px 32px;width:100%;max-height:78vh;overflow-y:auto;box-sizing:border-box;">
+            <div style="width:36px;height:4px;background:#2a2a2a;border-radius:2px;margin:0 auto 14px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="font-size:13px;font-weight:900;color:var(--teal);">📦 ${tag}</div>
+                <span onclick="document.getElementById('mob-pack-modal').remove()"
+                      style="color:#444;font-size:22px;cursor:pointer;line-height:1;">✕</span>
             </div>
-            <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:12px;">${items.length} sprite${items.length!==1?'s':''} — each placed as its own layer with full actions</div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
-                ${items.map(it=>`<div style="background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:6px;text-align:center;">
-                    ${it.image_url ? `<img src="${it.image_url}" style="width:100%;height:55px;object-fit:contain;" loading="lazy">` : '<div style="height:55px;background:#1a1a1a;border-radius:4px;"></div>'}
-                    <div style="font-size:9px;color:#666;font-weight:800;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.label||'Sprite'}</div>
-                </div>`).join('')}
+            <div style="font-size:10px;color:#444;font-weight:700;margin-bottom:14px;">
+                ${sprites.length} sprite${sprites.length !== 1 ? 's' : ''} — tap one to choose its pose
             </div>
-            <button onclick="placeMobPackOnCanvas()" style="width:100%;padding:14px;background:#00d2ff;color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;">⬇ Place All on Canvas</button>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="mob-pack-sprite-grid"></div>
         </div>
     `;
+
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
+
+    // Populate sprite cards
+    const spriteGrid = document.getElementById('mob-pack-sprite-grid');
+    sprites.forEach(sprite => {
+        const card = document.createElement('div');
+        card.style.cssText = 'background:#0f0f11;border:1.5px solid #222;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;overflow:hidden;';
+
+        const src = sprite.image_data || sessionStorage.getItem('cc_simg_' + sprite.id);
+        const imgStyle = 'max-width:100%;max-height:72px;object-fit:contain;';
+        card.innerHTML = `
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:8px;min-height:72px;">
+                ${src
+                    ? `<img src="${src}" style="${imgStyle}">`
+                    : `<div class="mob-pack-skeleton" data-sid="${sprite.id}" style="width:56px;height:56px;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div>`}
+            </div>
+            <div style="font-size:9px;font-weight:800;color:#666;padding:3px 5px 5px;text-align:center;
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                        background:rgba(0,0,0,0.4);border-top:1px solid #1e1e1e;">${sprite.name}</div>
+        `;
+
+        // Lazy-load image if skeleton present
+        if (!src) {
+            sbFetchFull(sprite.id).then(full => {
+                if (!full?.image_data) return;
+                const skeleton = card.querySelector('.mob-pack-skeleton');
+                if (!skeleton) return;
+                const img = document.createElement('img');
+                img.src = full.image_data;
+                img.style.cssText = imgStyle;
+                skeleton.replaceWith(img);
+                sprite.image_data = full.image_data;
+            });
+        }
+
+        card.addEventListener('click', () => mobPackSpriteClick(sprite));
+        spriteGrid.appendChild(card);
+    });
 }
 
-async function placeMobPackOnCanvas() {
-    const pack = _mobPackPreviewData;
-    if (!pack) return;
-    let items = pack.items;
-    if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
-    if (!items || !items.length) return;
-
-    const modal = document.getElementById('mob-pack-modal');
-    const btn = modal?.querySelector('button:last-child');
-    if (btn) { btn.disabled = true; btn.textContent = 'Placing...'; }
-
-    const cw = canvasW || 600, ch = canvasH || 600;
-    const spread = 18;
-
-    for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        const id = it.sprite_id;
-        if (!id) continue;
-
-        const full = await sbFetchFull(id);
-        if (!full?.image_data) continue;
-
-        const spriteObj = (sidebarSprites || []).find(s => s.id === id) || { id, name: it.label };
-        const w = 200;
-        const nl = {
-            type: 'img',
-            src: full.image_data,
-            w, h: w,
-            x: Math.round(cw * 0.3) + i * spread,
-            y: Math.round(ch * 0.3) + i * spread,
-            rotation: 0, flipped: false, opacity: 1,
-            nameTag: it.label || spriteObj.name || 'Sprite',
-            packData: { ...spriteObj, ...full, id },
-            id: Date.now() + i
-        };
-        layers.push(nl);
+async function mobPackSpriteClick(sprite) {
+    document.getElementById('mob-pack-modal')?.remove();
+    const hasFull = sprite.image_data && sprite.actions !== undefined;
+    if (hasFull) {
+        openActionModal(sprite);
+    } else {
+        const full = await sbFetchFull(sprite.id);
+        if (full) openActionModal({ ...sprite, ...full });
     }
-
-    saveHistory();
-    render();
-    if (modal) modal.remove();
-    closeSheet('sprites');
 }
 
 
