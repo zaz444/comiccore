@@ -5574,8 +5574,8 @@
     }
 
     // ── Sprite / Packs sub-tab switcher ──
-    // ── Sprite / Packs sub-tab switcher ──
     let sbActivePanelTab = 'sprites';
+    let sidebarPacks = null;
 
     function switchSpriteTab(tab) {
         sbActivePanelTab = tab;
@@ -5583,180 +5583,155 @@
         document.getElementById('sb-tab-packs').classList.toggle('active', tab === 'packs');
         document.getElementById('sb-sprites-subpanel').style.display = tab === 'sprites' ? 'flex' : 'none';
         document.getElementById('sb-packs-subpanel').style.display  = tab === 'packs'   ? 'flex' : 'none';
-        if (tab === 'packs') buildTagPacks();
+        if (tab === 'packs' && !sidebarPacks) loadSidebarPacks();
     }
 
-    // ── Packs: auto-derived from sidebarSprites tags ─────────────────────────
+    // ── Custom Packs: from sprite_packs DB table ──────────────────────────────
+    const SB_CUSTOM_PACKS_KEY = 'cc_custom_packs_meta_v1';
+    const SB_CUSTOM_PACKS_TTL = 5 * 60 * 1000;
 
-    function buildTagPacks() {
-        if (!sidebarSprites) {
-            document.getElementById('sb-pack-grid').innerHTML = '<div class="sp-load-msg">Loading sprites first…</div>';
-            const wait = setInterval(() => {
-                if (sidebarSprites) { clearInterval(wait); renderTagPackGrid(); }
-            }, 150);
-            return;
-        }
-        renderTagPackGrid();
+    function sbSavePacksCache(data) {
+        try { localStorage.setItem(SB_CUSTOM_PACKS_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+    }
+    function sbLoadPacksCache() {
+        try {
+            const raw = localStorage.getItem(SB_CUSTOM_PACKS_KEY);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - p.ts > SB_CUSTOM_PACKS_TTL) { localStorage.removeItem(SB_CUSTOM_PACKS_KEY); return null; }
+            return p.data;
+        } catch(e) { return null; }
     }
 
-    function getTagGroups(q) {
-        const map = {};
-        (sidebarSprites || []).forEach(s => {
-            (s.tags || []).forEach(t => {
-                if (!map[t]) map[t] = [];
-                map[t].push(s);
-            });
-        });
-        let entries = Object.entries(map);
-        if (q) entries = entries.filter(([t]) => t.toLowerCase().includes(q));
-        entries.sort((a, b) => b[1].length - a[1].length);
-        return entries;
-    }
-
-    function renderTagPackGrid() {
-        const q = (document.getElementById('sb-pack-search')?.value || '').toLowerCase().trim();
+    async function loadSidebarPacks() {
         const grid = document.getElementById('sb-pack-grid');
-        const groups = getTagGroups(q);
+        grid.innerHTML = '<div class="sp-load-msg">Loading packs…</div>';
+        const cached = sbLoadPacksCache();
+        if (cached) { sidebarPacks = cached; renderSidebarPacks(cached); }
+        const { data } = await _supabase
+            .from('sprite_packs')
+            .select('id, name, tags, creator, created_at, cover_image, card_sprites, items')
+            .order('created_at', { ascending: false });
+        if (!data) { if (!cached) grid.innerHTML = '<div class="sp-load-msg">No packs yet</div>'; return; }
+        sidebarPacks = data;
+        sbSavePacksCache(data);
+        renderSidebarPacks(data);
+    }
 
-        if (!groups.length) {
-            grid.innerHTML = '<div class="sp-load-msg">No packs found</div>';
-            return;
-        }
+    function filterSidebarPacks() {
+        if (!sidebarPacks) return;
+        const q = (document.getElementById('sb-pack-search')?.value || '').toLowerCase().trim();
+        const list = q
+            ? sidebarPacks.filter(p => p.name.toLowerCase().includes(q) || (p.tags||[]).some(t=>t.includes(q)))
+            : sidebarPacks;
+        renderSidebarPacks(list);
+    }
+
+    function renderSidebarPacks(packs) {
+        const grid = document.getElementById('sb-pack-grid');
+        if (!packs.length) { grid.innerHTML = '<div class="sp-load-msg">No packs yet</div>'; return; }
 
         grid.innerHTML = '';
-        groups.forEach(([tag, sprites]) => {
+        packs.forEach(pack => {
+            let items = pack.items;
+            if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
+            items = Array.isArray(items) ? items : [];
+
+            let cs = pack.card_sprites;
+            if (typeof cs === 'string') try { cs = JSON.parse(cs); } catch(e) {}
+            cs = cs || {};
+
+            // Map slot positions → image URLs
+            // cs.back=spc-1, cs.mid=spc-2, cs.front=spc-3
+            const slotSrcs = [
+                cs.back?.image_url  || items[Math.min(2, items.length-1)]?.image_url || null,
+                cs.mid?.image_url   || items[Math.min(1, items.length-1)]?.image_url || null,
+                cs.front?.image_url || items[0]?.image_url || pack.cover_image || null,
+            ];
+
             const div = document.createElement('div');
             div.className = 'sb-pack-card';
 
-            // 3 card positions: back=spc-1 (top-left), mid=spc-2, front=spc-3 (bottom-right)
-            // Assign different sprites to each card so it looks like a real deck
-            const cardSprites = [
-                sprites[Math.min(2, sprites.length - 1)], // spc-1 back
-                sprites[Math.min(1, sprites.length - 1)], // spc-2 mid
-                sprites[0],                                // spc-3 front
-            ];
-
-            // Build three stacked card divs
-            const spcEls = cardSprites.map((s, i) => {
+            const spcEls = slotSrcs.map((src, i) => {
                 const el = document.createElement('div');
                 el.className = `spc spc-${i + 1}`;
-                el.dataset.spcIdx = i;
-                const src = s.image_data || sbGetImg(s.id);
                 if (src) {
                     const img = document.createElement('img');
                     img.className = 'sbl';
                     img.src = src;
+                    img.loading = 'lazy';
                     el.appendChild(img);
                 }
                 return el;
             });
-
             spcEls.forEach(el => div.appendChild(el));
 
-            // Footer
             const footer = document.createElement('div');
             footer.className = 'sb-pack-footer';
-            footer.innerHTML = `<span class="sb-pack-name">${tag}</span><span class="sb-pack-count">${sprites.length}</span>`;
+            footer.innerHTML = `<span class="sb-pack-name">${pack.name}</span><span class="sb-pack-count">${items.length}</span>`;
             div.appendChild(footer);
 
-            // Lazy-load images for any card missing a cached image
-            cardSprites.forEach((s, i) => {
-                const src = s.image_data || sbGetImg(s.id);
-                if (!src) {
-                    const el = spcEls[i];
-                    sbFetchFull(s.id).then(full => {
-                        if (!full?.image_data || el.querySelector('img')) return;
-                        const img = document.createElement('img');
-                        img.className = 'sbl';
-                        img.src = full.image_data;
-                        el.appendChild(img);
-                        s.image_data = full.image_data;
-                    });
-                }
-            });
-
-            div.addEventListener('click', () => openTagPackSheet(tag, sprites));
+            div.addEventListener('click', () => openPackSpriteSheet(pack, items));
             grid.appendChild(div);
         });
     }
 
-    function filterSidebarPacks() { renderTagPackGrid(); }
-
-    // ── Tag Pack sprite-picker sheet ─────────────────────────────────────────
-
-    function openTagPackSheet(tag, sprites) {
+    // ── Pack sprite-picker sheet ──────────────────────────────────────────────
+    function openPackSpriteSheet(pack, items) {
         const existing = document.getElementById('sb-pack-modal');
         if (existing) existing.remove();
 
         const modal = document.createElement('div');
         modal.id = 'sb-pack-modal';
         modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px);';
-
         modal.innerHTML = `
             <div style="background:#111;border-top:1.5px solid var(--teal);border-radius:24px 24px 0 0;
                         padding:18px 16px 24px;width:100%;max-width:400px;max-height:78vh;
                         overflow-y:auto;box-sizing:border-box;box-shadow:0 -12px 40px rgba(0,0,0,0.8);">
                 <div style="width:36px;height:4px;background:#2a2a2a;border-radius:2px;margin:0 auto 14px;"></div>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <div style="font-size:13px;font-weight:900;color:var(--teal);">📦 ${tag}</div>
+                    <div style="font-size:13px;font-weight:900;color:var(--teal);">📦 ${pack.name}</div>
                     <span onclick="document.getElementById('sb-pack-modal').remove()"
                           style="cursor:pointer;color:#444;font-size:20px;line-height:1;">✕</span>
                 </div>
                 <div style="font-size:10px;color:#444;font-weight:700;margin-bottom:14px;">
-                    ${sprites.length} sprite${sprites.length !== 1 ? 's' : ''} — tap one to choose its pose
+                    ${items.length} sprite${items.length !== 1 ? 's' : ''} — tap one to choose its pose
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="sb-pack-sprite-grid"></div>
             </div>
         `;
-
         modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
         document.body.appendChild(modal);
 
-        // Populate sprite cards
         const spriteGrid = document.getElementById('sb-pack-sprite-grid');
-        sprites.forEach(sprite => {
+        items.forEach(it => {
             const card = document.createElement('div');
             card.style.cssText = 'background:#0f0f11;border:1.5px solid #222;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;overflow:hidden;transition:0.15s;';
             card.addEventListener('mouseenter', () => card.style.borderColor = 'var(--teal)');
             card.addEventListener('mouseleave', () => card.style.borderColor = '#222');
 
-            const src = sprite.image_data || sbGetImg(sprite.id);
+            const src = it.image_url || '';
             card.innerHTML = `
                 <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:8px;min-height:72px;">
-                    ${src ? `<img src="${src}" style="max-width:100%;max-height:72px;object-fit:contain;">` : `<div class="sb-skeleton" style="width:56px;height:56px;border-radius:8px;"></div>`}
+                    ${src
+                        ? `<img src="${src}" loading="lazy" style="max-width:100%;max-height:72px;object-fit:contain;">`
+                        : `<div style="width:56px;height:56px;background:#1a1a1a;border-radius:8px;"></div>`}
                 </div>
-                <div style="font-size:9px;font-weight:800;color:#777;padding:3px 6px 5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,0.4);border-top:1px solid #1e1e1e;">${sprite.name}</div>
+                <div style="font-size:9px;font-weight:800;color:#777;padding:3px 6px 5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,0.4);border-top:1px solid #1e1e1e;">${it.label||'Sprite'}</div>
             `;
-
-            // Lazy-load if no cached image
-            if (!src) {
-                sbFetchFull(sprite.id).then(full => {
-                    if (!full?.image_data) return;
-                    const skeleton = card.querySelector('.sb-skeleton');
-                    if (skeleton) {
-                        const img = document.createElement('img');
-                        img.src = full.image_data;
-                        img.style.cssText = 'max-width:100%;max-height:72px;object-fit:contain;';
-                        skeleton.replaceWith(img);
-                        sprite.image_data = full.image_data;
-                    }
-                });
-            }
-
-            card.addEventListener('click', () => packSpriteClick(sprite));
+            card.addEventListener('click', () => packItemClick(it));
             spriteGrid.appendChild(card);
         });
     }
 
-    async function packSpriteClick(sprite) {
+    async function packItemClick(it) {
         document.getElementById('sb-pack-modal')?.remove();
-        const hasFull = sprite.image_data && sprite.actions !== undefined;
-        if (hasFull) {
-            openActionModal(sprite);
-        } else {
-            const full = await sbFetchFull(sprite.id);
-            if (full) openActionModal({ ...sprite, ...full });
-        }
+        const id = it.sprite_id;
+        if (!id) return;
+        const full = await sbFetchFull(id);
+        if (!full) return;
+        const spriteObj = (sidebarSprites||[]).find(s => s.id === id) || { id, name: it.label };
+        openActionModal({ ...spriteObj, ...full, id });
     }
 
     function filterSidebarSprites() {
