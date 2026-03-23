@@ -5652,6 +5652,13 @@
             const div = document.createElement('div');
             div.className = 'sb-pack-card';
 
+            // Sprite IDs for each slot (used to lazy-fetch if image_url was stored empty)
+            const slotIds = [
+                cs.back?.sprite_id  || null,
+                cs.mid?.sprite_id   || null,
+                cs.front?.sprite_id || null,
+            ];
+
             const spcEls = slotSrcs.map((src, i) => {
                 const el = document.createElement('div');
                 el.className = `spc spc-${i + 1}`;
@@ -5661,6 +5668,15 @@
                     img.src = src;
                     img.loading = 'lazy';
                     el.appendChild(img);
+                } else if (slotIds[i]) {
+                    // image_url was empty at publish time — lazy-fetch now
+                    sbFetchFull(slotIds[i]).then(full => {
+                        if (!full?.image_data || el.querySelector('img')) return;
+                        const img = document.createElement('img');
+                        img.className = 'sbl';
+                        img.src = full.image_data;
+                        el.appendChild(img);
+                    });
                 }
                 return el;
             });
@@ -5711,14 +5727,29 @@
             card.addEventListener('mouseleave', () => card.style.borderColor = '#222');
 
             const src = it.image_url || '';
+            const imgStyle = 'max-width:100%;max-height:72px;object-fit:contain;';
+            const skeletonId = 'sk-' + Math.random().toString(36).slice(2);
             card.innerHTML = `
                 <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:8px;min-height:72px;">
                     ${src
-                        ? `<img src="${src}" loading="lazy" style="max-width:100%;max-height:72px;object-fit:contain;">`
-                        : `<div style="width:56px;height:56px;background:#1a1a1a;border-radius:8px;"></div>`}
+                        ? `<img src="${src}" loading="lazy" style="${imgStyle}">`
+                        : `<div id="${skeletonId}" class="sb-skeleton" style="width:56px;height:56px;border-radius:8px;"></div>`}
                 </div>
                 <div style="font-size:9px;font-weight:800;color:#777;padding:3px 6px 5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,0.4);border-top:1px solid #1e1e1e;">${it.label||'Sprite'}</div>
             `;
+            // Lazy-fetch if image_url was stored empty
+            if (!src && it.sprite_id) {
+                sbFetchFull(it.sprite_id).then(full => {
+                    if (!full?.image_data) return;
+                    const skeleton = card.querySelector('.sb-skeleton');
+                    if (!skeleton) return;
+                    const img = document.createElement('img');
+                    img.src = full.image_data;
+                    img.style.cssText = imgStyle;
+                    skeleton.replaceWith(img);
+                    it.image_url = full.image_data; // cache for click handler
+                });
+            }
             card.addEventListener('click', () => packItemClick(it));
             spriteGrid.appendChild(card);
         });

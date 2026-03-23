@@ -131,6 +131,40 @@
         }
         .admin-btn-delete:hover { background: #551111; color: white; }
 
+        /* Your Packs list row */
+        .my-pack-row {
+            display: flex; align-items: center; gap: 12px;
+            background: #0e0e10; border: 1px solid #1e1e22; border-radius: 12px;
+            padding: 10px 12px; transition: border-color 0.15s;
+        }
+        .my-pack-row:hover { border-color: #2a2a2e; }
+        .my-pack-thumb {
+            width: 52px; height: 52px; border-radius: 10px; background: #111;
+            border: 1px solid #222; overflow: hidden; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .my-pack-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 5px; box-sizing: border-box; }
+        .my-pack-info { flex: 1; min-width: 0; }
+        .my-pack-name { font-size: 12px; font-weight: 900; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+        .my-pack-meta { font-size: 9px; font-weight: 700; color: #444; }
+        .my-pack-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .my-pack-btn { background: #1a1a1a; border: 1px solid #2a2a2a; color: #888; padding: 5px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; font-family: inherit; transition: 0.12s; }
+        .my-pack-btn:hover { background: #222; color: #ccc; }
+        .my-pack-btn.danger { color: #ff453a; border-color: #3a1a1a; }
+        .my-pack-btn.danger:hover { background: #2a0f0f; color: #ff6b6b; }
+
+        /* Edit pack modal */
+        #edit-pack-modal {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+            z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+        }
+        #edit-pack-modal.open { display: flex; }
+        #edit-pack-modal .epm-box {
+            background: #111; border: 1.5px solid var(--teal); border-radius: 20px;
+            padding: 24px; max-width: 420px; width: 90%; max-height: 85vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+        }
+
         /* Pack creator */
         .pack-section { border-top: 1px solid #1a1a1a; margin-top: 28px; padding-top: 22px; }
         .pack-section-title { font-size: 11px; font-weight: 900; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 14px; }
@@ -292,14 +326,15 @@
 
             <!-- All selected sprites list (rest of pack, beyond the 3 slots) -->
             <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">
-                All Pack Sprites <span id="pack-sel-count" style="color:var(--teal);">0</span>
-                <span style="color:#333;font-size:8px;font-weight:700;text-transform:none;letter-spacing:0px;"> — users pick any one to place</span>
+                Pack Sprites <span id="pack-sel-count" style="color:var(--teal);">0</span>
+                <span style="color:#333;font-size:8px;font-weight:700;text-transform:none;letter-spacing:0px;"> — users pick one to place</span>
             </div>
-            <div id="pack-selected-list" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;margin-bottom:10px;"></div>
+            <div id="pack-selected-list" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;margin-bottom:10px;padding:6px 8px;background:#080808;border:1px solid #1a1a1a;border-radius:8px;"></div>
 
             <!-- Sprite picker -->
-            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">
-                Sprite Library — <span id="pack-slot-instruction" style="color:var(--teal);text-transform:none;letter-spacing:0;font-size:9px;font-weight:700;">select a slot above first</span>
+            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+                Sprite Library
+                <span id="pack-slot-instruction" style="color:var(--accent);text-transform:none;letter-spacing:0;font-size:9px;font-weight:700;background:rgba(255,122,0,0.1);padding:2px 7px;border-radius:8px;border:1px solid rgba(255,122,0,0.25);">👆 Click a slot above, then pick a sprite</span>
             </div>
             <input type="text" id="pack-picker-search" placeholder="🔍 Filter sprites..." oninput="filterPackPicker()" style="width:100%;padding:8px 12px;background:#111;border:1px solid #222;color:white;border-radius:6px;font-size:11px;outline:none;margin-bottom:8px;box-sizing:border-box;font-family:inherit;">
             <div id="pack-picker-grid">
@@ -307,6 +342,17 @@
             </div>
 
             <button class="btn-publish" id="pack-upload-btn" onclick="uploadPackToDatabase()" style="background:var(--teal);margin-top:4px;">PUBLISH SPRITE PACK</button>
+        </div>
+
+        <!-- ── YOUR PACKS (admin only) ── -->
+        <div class="pack-section" id="your-packs-section" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <div class="pack-section-title" style="margin-bottom:0;">📋 Your Packs</div>
+                <button onclick="fetchMyPacks()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:5px 12px;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">↻ Refresh</button>
+            </div>
+            <div id="your-packs-grid" style="display:flex;flex-direction:column;gap:10px;">
+                <div style="color:#333;font-size:11px;font-weight:700;text-align:center;padding:16px;">Loading your packs…</div>
+            </div>
         </div>
 
     </div><!-- /#admin-panel -->
@@ -335,6 +381,52 @@
         <span id="sprite-count" style="font-size:11px; color:#555; font-weight:700;"></span>
     </div>
     <div class="sprite-grid" id="main-grid"></div>
+</div>
+
+<!-- ── EDIT PACK MODAL ── -->
+<div id="edit-pack-modal">
+    <div class="epm-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <div style="font-size:14px;font-weight:900;color:var(--teal);">✏️ Edit Pack</div>
+            <span onclick="closeEditPackModal()" style="cursor:pointer;color:#555;font-size:20px;line-height:1;">✕</span>
+        </div>
+        <input type="hidden" id="epm-pack-id">
+
+        <!-- Name & Tags -->
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Pack Name</div>
+        <input type="text" id="epm-name" style="width:100%;padding:10px 12px;background:#000;border:1px solid var(--teal);color:white;border-radius:6px;font-size:12px;outline:none;font-family:inherit;box-sizing:border-box;margin-bottom:10px;">
+
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Tags</div>
+        <input type="text" id="epm-tags" placeholder="comma-separated" style="width:100%;padding:10px 12px;background:#111;border:1px solid #333;color:white;border-radius:6px;font-size:12px;outline:none;font-family:inherit;box-sizing:border-box;margin-bottom:14px;">
+
+        <!-- Card slots (re-assign back/mid/front) -->
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Card Preview Slots</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <div id="epm-slot-1" class="epm-slot" onclick="selectEpmSlot(1)" style="flex:1;height:80px;border-radius:12px;border:2px dashed #2c2c2e;background:#0e0e10;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;transition:0.15s;">
+                <div style="font-size:8px;font-weight:900;color:#333;margin-bottom:2px;">BACK</div>
+                <div id="epm-slot-1-img" style="font-size:9px;color:#2a2a2a;">empty</div>
+            </div>
+            <div id="epm-slot-2" class="epm-slot" onclick="selectEpmSlot(2)" style="flex:1;height:80px;border-radius:12px;border:2px dashed #2c2c2e;background:#0e0e10;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;transition:0.15s;">
+                <div style="font-size:8px;font-weight:900;color:#333;margin-bottom:2px;">MID</div>
+                <div id="epm-slot-2-img" style="font-size:9px;color:#2a2a2a;">empty</div>
+            </div>
+            <div id="epm-slot-3" class="epm-slot" onclick="selectEpmSlot(3)" style="flex:1;height:80px;border-radius:12px;border:2px dashed #2c2c2e;background:#0e0e10;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;transition:0.15s;">
+                <div style="font-size:8px;font-weight:900;color:#333;margin-bottom:2px;">FRONT</div>
+                <div id="epm-slot-3-img" style="font-size:9px;color:#2a2a2a;">empty</div>
+            </div>
+        </div>
+        <div id="epm-slot-hint" style="font-size:9px;font-weight:700;color:#444;margin-bottom:8px;">Tap a slot then pick a sprite below to change it</div>
+        <input type="text" id="epm-picker-search" placeholder="🔍 Filter sprites..." oninput="filterEpmPicker()" style="width:100%;padding:7px 10px;background:#111;border:1px solid #222;color:white;border-radius:6px;font-size:11px;outline:none;margin-bottom:7px;box-sizing:border-box;font-family:inherit;">
+        <div id="epm-picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:7px;max-height:200px;overflow-y:auto;border:1px solid #1a1a1a;border-radius:8px;padding:7px;background:#070707;margin-bottom:14px;"></div>
+
+        <!-- Pack members -->
+        <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">
+            Pack Members <span id="epm-member-count" style="color:var(--teal);"></span>
+        </div>
+        <div id="epm-members-list" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;margin-bottom:14px;"></div>
+
+        <button onclick="saveEditedPack()" style="width:100%;padding:13px;background:var(--teal);color:#000;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;">💾 Save Changes</button>
+    </div>
 </div>
 
 <script>
@@ -401,10 +493,12 @@
             document.getElementById('admin-panel').style.display = 'block';
             document.getElementById('status-badge').innerText = 'ADMIN MODE 🔑';
             document.getElementById('status-badge').style.color = 'var(--accent)';
+            document.getElementById('your-packs-section').style.display = 'block';
         }
         
         fetchLibrary();
         if (myHandle) fetchMySprites();
+        if (isAdmin) fetchMyPacks();
 
         const incomingSave = localStorage.getItem('save_sprite_to_personal');
         if (incomingSave) {
@@ -887,7 +981,286 @@
     }
 
     function closePreview() { document.getElementById('preview-overlay').classList.remove('active'); }
-    function clearActions() { if (confirm("Clear all?")) document.getElementById('actions-list').innerHTML = ""; }
+    // ── Your Packs (admin) ───────────────────────────────────────────────────
+
+    let myPacks = [];
+
+    async function fetchMyPacks() {
+        const grid = document.getElementById('your-packs-grid');
+        grid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;text-align:center;padding:16px;">Loading…</div>';
+        const { data, error } = await _supabase
+            .from('sprite_packs')
+            .select('id, name, tags, created_at, cover_image, card_sprites, items')
+            .eq('creator', myHandle)
+            .order('created_at', { ascending: false });
+        if (error || !data) { grid.innerHTML = '<div style="color:#555;font-size:11px;font-weight:700;text-align:center;padding:16px;">Failed to load packs</div>'; return; }
+        myPacks = data;
+        renderMyPacks(data);
+    }
+
+    function renderMyPacks(packs) {
+        const grid = document.getElementById('your-packs-grid');
+        if (!packs.length) { grid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;text-align:center;padding:16px;">No packs yet — create one above!</div>'; return; }
+        grid.innerHTML = '';
+        packs.forEach(pack => {
+            let items = pack.items;
+            if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
+            items = Array.isArray(items) ? items : [];
+
+            const thumbSrc = pack.cover_image || (() => {
+                let cs = pack.card_sprites;
+                if (typeof cs === 'string') try { cs = JSON.parse(cs); } catch(e) {}
+                return cs?.front?.image_url || cs?.back?.image_url || items[0]?.image_url || '';
+            })();
+
+            const row = document.createElement('div');
+            row.className = 'my-pack-row';
+            row.innerHTML = `
+                <div class="my-pack-thumb">
+                    ${thumbSrc ? `<img src="${thumbSrc}" loading="lazy">` : '<div style="width:100%;height:100%;background:#1a1a1a;border-radius:9px;"></div>'}
+                </div>
+                <div class="my-pack-info">
+                    <div class="my-pack-name">${pack.name}</div>
+                    <div class="my-pack-meta">${items.length} sprite${items.length!==1?'s':''} · ${(pack.tags||[]).join(', ') || 'no tags'}</div>
+                </div>
+                <div class="my-pack-actions">
+                    <button class="my-pack-btn" onclick="openEditPackModal('${pack.id}')">✏️ Edit</button>
+                    <button class="my-pack-btn danger" onclick="deleteMyPack('${pack.id}', '${pack.name.replace(/'/g,"\\'")}')">🗑</button>
+                </div>
+            `;
+            grid.appendChild(row);
+        });
+    }
+
+    async function deleteMyPack(id, name) {
+        if (!confirm(`Delete pack "${name}"? This cannot be undone.`)) return;
+        const { error } = await _supabase.from('sprite_packs').delete().eq('id', id);
+        if (error) { alert('Delete failed: ' + error.message); return; }
+        localStorage.removeItem('cc_custom_packs_meta_v1');
+        myPacks = myPacks.filter(p => p.id !== id);
+        renderMyPacks(myPacks);
+    }
+
+    // ── Edit Pack Modal ──────────────────────────────────────────────────────
+
+    let epmPackId = null;
+    let epmSlots = { 1: null, 2: null, 3: null }; // {sprite_id, image_url}
+    let epmMembers = new Map(); // id → {sprite_id, label, image_url}
+    let epmActiveSlot = null;
+    let epmPickerAll = [];
+
+    function openEditPackModal(packId) {
+        const pack = myPacks.find(p => p.id === packId);
+        if (!pack) return;
+        epmPackId = packId;
+
+        let items = pack.items;
+        if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
+        items = Array.isArray(items) ? items : [];
+
+        let cs = pack.card_sprites;
+        if (typeof cs === 'string') try { cs = JSON.parse(cs); } catch(e) {}
+        cs = cs || {};
+
+        // Populate fields
+        document.getElementById('epm-pack-id').value = packId;
+        document.getElementById('epm-name').value = pack.name;
+        document.getElementById('epm-tags').value = (pack.tags||[]).join(', ');
+
+        // Load slots
+        epmSlots = {
+            1: cs.back  ? { sprite_id: cs.back.sprite_id,  image_url: cs.back.image_url  } : null,
+            2: cs.mid   ? { sprite_id: cs.mid.sprite_id,   image_url: cs.mid.image_url   } : null,
+            3: cs.front ? { sprite_id: cs.front.sprite_id, image_url: cs.front.image_url } : null,
+        };
+        renderEpmSlots();
+
+        // Load members
+        epmMembers = new Map();
+        items.forEach(it => epmMembers.set(it.sprite_id, it));
+        renderEpmMembers();
+
+        // Picker
+        epmPickerAll = allSprites;
+        epmActiveSlot = null;
+        document.getElementById('epm-picker-search').value = '';
+        renderEpmPicker(epmPickerAll);
+
+        document.getElementById('edit-pack-modal').classList.add('open');
+    }
+
+    function closeEditPackModal() {
+        document.getElementById('edit-pack-modal').classList.remove('open');
+        epmPackId = null; epmActiveSlot = null;
+    }
+
+    function renderEpmSlots() {
+        const slotNames = { 1: 'back', 2: 'mid', 3: 'front' };
+        [1, 2, 3].forEach(n => {
+            const slot = document.getElementById(`epm-slot-${n}`);
+            const imgDiv = document.getElementById(`epm-slot-${n}-img`);
+            const s = epmSlots[n];
+            // Clear old img
+            slot.querySelectorAll('img').forEach(el => el.remove());
+            if (s?.image_url) {
+                const img = document.createElement('img');
+                img.src = s.image_url;
+                img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:6px;box-sizing:border-box;';
+                slot.appendChild(img);
+                imgDiv.style.display = 'none';
+                slot.style.borderColor = 'var(--teal)';
+                slot.style.borderStyle = 'solid';
+            } else {
+                imgDiv.style.display = '';
+                imgDiv.textContent = 'empty';
+                slot.style.borderColor = '#2c2c2e';
+                slot.style.borderStyle = 'dashed';
+            }
+            slot.style.outline = epmActiveSlot === n ? '2px solid var(--teal)' : '';
+        });
+    }
+
+    function selectEpmSlot(n) {
+        epmActiveSlot = n;
+        document.getElementById('epm-slot-hint').textContent = `Now pick a sprite for the ${['','BACK','MID','FRONT'][n]} card`;
+        renderEpmSlots();
+    }
+
+    function filterEpmPicker() {
+        const q = document.getElementById('epm-picker-search').value.toLowerCase().trim();
+        const filtered = q ? epmPickerAll.filter(s => s.name.toLowerCase().includes(q) || (s.tags||[]).some(t=>t.includes(q))) : epmPickerAll;
+        renderEpmPicker(filtered);
+    }
+
+    function renderEpmPicker(sprites) {
+        const grid = document.getElementById('epm-picker-grid');
+        grid.innerHTML = '';
+        sprites.forEach(s => {
+            const card = document.createElement('div');
+            const inMember = epmMembers.has(s.id);
+            const inSlot = Object.values(epmSlots).some(sl => sl?.sprite_id === s.id);
+            card.style.cssText = `position:relative;aspect-ratio:1;background:#111;border:2px solid ${inSlot?'var(--teal)':inMember?'#3a3a3c':'#1e1e1e'};border-radius:8px;cursor:pointer;overflow:hidden;transition:0.12s;`;
+
+            const src = s.image_data || getCachedImage(s.id);
+            card.innerHTML = `
+                ${src ? `<img src="${src}" style="width:100%;height:100%;object-fit:contain;padding:5px;box-sizing:border-box;opacity:${src?1:0};transition:opacity 0.2s;">` : '<div style="width:100%;height:100%;background:#181818;"></div>'}
+                <div style="position:absolute;bottom:0;left:0;right:0;padding:2px 3px;background:rgba(0,0,0,0.8);font-size:7px;font-weight:800;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;">${s.name}</div>
+                ${inSlot ? '<div style="position:absolute;top:2px;left:2px;background:var(--teal);color:#000;font-size:7px;font-weight:900;padding:1px 4px;border-radius:3px;">SLOT</div>' : ''}
+                ${inMember&&!inSlot ? '<div style="position:absolute;top:2px;right:2px;background:#555;color:#fff;font-size:7px;font-weight:900;padding:1px 4px;border-radius:3px;">✓</div>' : ''}
+            `;
+
+            if (!src) {
+                fetchFullSprite(s.id).then(full => {
+                    if (!full?.image_data) return;
+                    const img = card.querySelector('img') || document.createElement('img');
+                    img.src = full.image_data; img.style.opacity = 1; s.image_data = full.image_data;
+                    if (!card.querySelector('img')) { img.style.cssText='width:100%;height:100%;object-fit:contain;padding:5px;box-sizing:border-box;'; card.prepend(img); }
+                });
+            }
+
+            card.addEventListener('click', () => {
+                const imgSrc = s.image_data || getCachedImage(s.id) || '';
+                if (epmActiveSlot) {
+                    // Assign to slot
+                    epmSlots[epmActiveSlot] = { sprite_id: s.id, image_url: imgSrc };
+                    epmMembers.set(s.id, { sprite_id: s.id, label: s.name, image_url: imgSrc });
+                    // Auto-advance
+                    if (epmActiveSlot < 3) { epmActiveSlot++; document.getElementById('epm-slot-hint').textContent = `Now pick a sprite for the ${['','BACK','MID','FRONT'][epmActiveSlot]} card`; }
+                    else epmActiveSlot = null;
+                    renderEpmSlots();
+                } else {
+                    // Toggle pack membership
+                    if (epmMembers.has(s.id)) {
+                        const inSlot2 = Object.values(epmSlots).some(sl => sl?.sprite_id === s.id);
+                        if (!inSlot2) epmMembers.delete(s.id);
+                    } else {
+                        epmMembers.set(s.id, { sprite_id: s.id, label: s.name, image_url: imgSrc });
+                    }
+                }
+                renderEpmMembers();
+                renderEpmPicker(sprites);
+            });
+
+            grid.appendChild(card);
+        });
+    }
+
+    function renderEpmMembers() {
+        const list = document.getElementById('epm-members-list');
+        const countEl = document.getElementById('epm-member-count');
+        countEl.textContent = epmMembers.size;
+        list.innerHTML = '';
+        epmMembers.forEach((it, id) => {
+            const chip = document.createElement('div');
+            chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:2px 8px 2px 3px;font-size:9px;font-weight:800;color:#888;';
+            const inSlot = Object.values(epmSlots).some(sl => sl?.sprite_id === id);
+            if (inSlot) chip.style.borderColor = 'rgba(0,210,255,0.35)';
+            chip.innerHTML = `
+                ${it.image_url ? `<img src="${it.image_url}" style="width:16px;height:16px;object-fit:contain;border-radius:3px;background:#111;">` : ''}
+                <span>${it.label}</span>
+                <button onclick="epmRemoveMember('${id}')" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0;font-weight:900;line-height:1;">✕</button>
+            `;
+            list.appendChild(chip);
+        });
+    }
+
+    function epmRemoveMember(id) {
+        const inSlot = Object.values(epmSlots).some(sl => sl?.sprite_id === id);
+        if (inSlot) { alert('Remove this sprite from its card slot first.'); return; }
+        epmMembers.delete(id);
+        renderEpmMembers();
+        renderEpmPicker(epmPickerAll);
+    }
+
+    async function saveEditedPack() {
+        const name = document.getElementById('epm-name').value.trim();
+        const tagsRaw = document.getElementById('epm-tags').value;
+        const tags = tagsRaw.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
+        if (!name) { alert('Pack name required'); return; }
+
+        const btn = document.querySelector('#edit-pack-modal button[onclick="saveEditedPack()"]');
+        btn.disabled = true; btn.textContent = 'Fetching images…';
+
+        // Resolve any missing image_urls for slots
+        await Promise.all([1,2,3].map(async n => {
+            const sl = epmSlots[n];
+            if (sl && !sl.image_url && sl.sprite_id) {
+                const full = await fetchFullSprite(sl.sprite_id);
+                if (full?.image_data) sl.image_url = full.image_data;
+            }
+        }));
+        // Resolve member images
+        for (const [id, it] of epmMembers) {
+            if (!it.image_url && it.sprite_id) {
+                const full = await fetchFullSprite(it.sprite_id);
+                if (full?.image_data) it.image_url = full.image_data;
+            }
+        }
+
+        btn.textContent = 'Saving…';
+
+        const card_sprites = {
+            back:  epmSlots[1] || null,
+            mid:   epmSlots[2] || null,
+            front: epmSlots[3] || null,
+        };
+        const items = [...epmMembers.values()];
+        const coverUrl = epmSlots[3]?.image_url || epmSlots[1]?.image_url || items[0]?.image_url || '';
+
+        const { error } = await _supabase.from('sprite_packs').update({
+            name, tags, card_sprites, items, cover_image: coverUrl
+        }).eq('id', epmPackId);
+
+        if (error) {
+            alert('Save failed: ' + error.message);
+            btn.disabled = false; btn.textContent = '💾 Save Changes';
+        } else {
+            localStorage.removeItem('cc_custom_packs_meta_v1');
+            closeEditPackModal();
+            fetchMyPacks();
+        }
+    }
+
 
     // ── Pack Creator (slot-based sprite picker) ──────────────────────────
 
@@ -1058,7 +1431,7 @@
         if (!list) return;
         count.textContent = packSelectedSprites.size;
         if (!packSelectedSprites.size) {
-            list.innerHTML = '<span style="color:#333;font-size:10px;font-weight:700;">None yet</span>';
+            list.innerHTML = '<span style="color:#2a2a2a;font-size:10px;font-weight:700;">Assign slots above — each sprite you pick appears here</span>';
             return;
         }
         list.innerHTML = '';
@@ -1079,6 +1452,16 @@
     }
 
     // ── Publish ──
+    // Helper: get image URL for a sprite, fetching from DB if needed
+    async function resolveImageUrl(sprite) {
+        if (sprite.image_data) return sprite.image_data;
+        const cached = getCachedImage(sprite.id);
+        if (cached) return cached;
+        const full = await fetchFullSprite(sprite.id);
+        if (full?.image_data) { sprite.image_data = full.image_data; return full.image_data; }
+        return '';
+    }
+
     async function uploadPackToDatabase() {
         const name = document.getElementById('pack-name').value.trim();
         const tagsRaw = document.getElementById('pack-tags').value;
@@ -1089,28 +1472,43 @@
         if (!packSelectedSprites.size && !packSlots[3]) return alert('Assign at least the front card sprite!');
 
         btn.disabled = true;
+        btn.innerText = 'FETCHING IMAGES...';
+
+        // Resolve all image URLs before saving (allSprites is meta-only, image_data may be missing)
+        const allIds = new Set();
+        [1,2,3].forEach(n => { if (packSlots[n]) allIds.add(packSlots[n].id); });
+        packSelectedSprites.forEach((_, id) => allIds.add(id));
+
+        // Fetch missing images in parallel
+        await Promise.all([...allIds].map(async id => {
+            const sprite = packSlots[1]?.id===id ? packSlots[1]
+                         : packSlots[2]?.id===id ? packSlots[2]
+                         : packSlots[3]?.id===id ? packSlots[3]
+                         : packSelectedSprites.get(id);
+            if (sprite && !sprite.image_data) {
+                sprite.image_data = await resolveImageUrl(sprite);
+            }
+        }));
+
         btn.innerText = 'SAVING PACK...';
 
         // Build items — slot-assigned sprites first (slots 1→2→3), then rest
         const itemsMap = new Map();
-        // Slot sprites in order: slot 1 (back), slot 2 (mid), slot 3 (front)
         [1, 2, 3].forEach(n => {
             const s = packSlots[n];
-            if (s) itemsMap.set(s.id, { sprite_id: s.id, label: s.name, image_url: s.image_data || getCachedImage(s.id) || '', slot: n });
+            if (s) itemsMap.set(s.id, { sprite_id: s.id, label: s.name, image_url: s.image_data || '', slot: n });
         });
-        // Remaining selected sprites
         packSelectedSprites.forEach((sprite, id) => {
-            if (!itemsMap.has(id)) itemsMap.set(id, { sprite_id: id, label: sprite.name, image_url: sprite.image_data || getCachedImage(id) || '' });
+            if (!itemsMap.has(id)) itemsMap.set(id, { sprite_id: id, label: sprite.name, image_url: sprite.image_data || '' });
         });
         const items = [...itemsMap.values()];
 
-        // card_sprites: references to slot-assigned sprites for the stacked preview
         const card_sprites = {
             back:  packSlots[1] ? { sprite_id: packSlots[1].id, image_url: packSlots[1].image_data || '' } : null,
             mid:   packSlots[2] ? { sprite_id: packSlots[2].id, image_url: packSlots[2].image_data || '' } : null,
             front: packSlots[3] ? { sprite_id: packSlots[3].id, image_url: packSlots[3].image_data || '' } : null,
         };
-        const coverUrl = (packSlots[3]?.image_data) || (packSlots[1]?.image_data) || items[0]?.image_url || '';
+        const coverUrl = packSlots[3]?.image_data || packSlots[1]?.image_data || items[0]?.image_url || '';
 
         const { error } = await _supabase.from('sprite_packs').insert([{
             name, tags,
@@ -1127,7 +1525,6 @@
         } else {
             localStorage.removeItem('cc_custom_packs_meta_v1');
             alert('✅ Sprite Pack Published!');
-            // Reset
             document.getElementById('pack-name').value = '';
             document.getElementById('pack-tags').value = '';
             [1,2,3].forEach(n => clearPackSlot(n));
