@@ -2482,14 +2482,14 @@ function showMobPackModal(pack) {
     modal.innerHTML = `
         <div style="background:#111;border-top:1.5px solid #00d2ff;border-radius:24px 24px 0 0;padding:20px;width:100%;max-height:75vh;overflow-y:auto;box-sizing:border-box;">
             <div style="width:36px;height:4px;background:#333;border-radius:2px;margin:0 auto 14px;"></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                 <div style="font-size:14px;font-weight:900;color:#00d2ff;">📦 ${pack.name}</div>
                 <span onclick="document.getElementById('mob-pack-modal').remove()" style="color:#555;font-size:20px;cursor:pointer;">✕</span>
             </div>
-            <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:12px;">${items.length} sprite${items.length!==1?'s':''} — placed as separate layers</div>
+            <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:12px;">${items.length} sprite${items.length!==1?'s':''} — each placed as its own layer with full actions</div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
                 ${items.map(it=>`<div style="background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:6px;text-align:center;">
-                    <img src="${it.image_url||it.src||''}" style="width:100%;height:55px;object-fit:contain;" loading="lazy">
+                    ${it.image_url ? `<img src="${it.image_url}" style="width:100%;height:55px;object-fit:contain;" loading="lazy">` : '<div style="height:55px;background:#1a1a1a;border-radius:4px;"></div>'}
                     <div style="font-size:9px;color:#666;font-weight:800;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.label||'Sprite'}</div>
                 </div>`).join('')}
             </div>
@@ -2499,34 +2499,47 @@ function showMobPackModal(pack) {
     document.body.appendChild(modal);
 }
 
-function placeMobPackOnCanvas() {
+async function placeMobPackOnCanvas() {
     const pack = _mobPackPreviewData;
     if (!pack) return;
     let items = pack.items;
     if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
     if (!items || !items.length) return;
 
-    const cw = canvasW || 600, ch = canvasH || 600;
-    const baseX = Math.round(cw * 0.2), baseY = Math.round(ch * 0.2);
+    const modal = document.getElementById('mob-pack-modal');
+    const btn = modal?.querySelector('button:last-child');
+    if (btn) { btn.disabled = true; btn.textContent = 'Placing...'; }
 
-    items.forEach((it, i) => {
-        const w = it.width || 150;
-        const xOff = it.x_offset !== undefined ? it.x_offset : i * 8;
-        const yOff = it.y_offset !== undefined ? it.y_offset : i * 8;
+    const cw = canvasW || 600, ch = canvasH || 600;
+    const spread = 18;
+
+    for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const id = it.sprite_id;
+        if (!id) continue;
+
+        const full = await sbFetchFull(id);
+        if (!full?.image_data) continue;
+
+        const spriteObj = (sidebarSprites || []).find(s => s.id === id) || { id, name: it.label };
+        const w = 200;
         const nl = {
-            type:'img', src: it.image_url||it.src||'',
-            w, h:w, x:baseX+xOff, y:baseY+yOff,
-            rotation:0, flipped:false, opacity:1,
-            nameTag: it.label || pack.name,
-            packData: { id:pack.id, name:pack.name },
-            id: Date.now()+i
+            type: 'img',
+            src: full.image_data,
+            w, h: w,
+            x: Math.round(cw * 0.3) + i * spread,
+            y: Math.round(ch * 0.3) + i * spread,
+            rotation: 0, flipped: false, opacity: 1,
+            nameTag: it.label || spriteObj.name || 'Sprite',
+            packData: { ...spriteObj, ...full, id },
+            id: Date.now() + i
         };
         layers.push(nl);
-    });
+    }
 
     saveHistory();
     render();
-    document.getElementById('mob-pack-modal').remove();
+    if (modal) modal.remove();
     closeSheet('sprites');
 }
 

@@ -131,16 +131,40 @@
         }
         .admin-btn-delete:hover { background: #551111; color: white; }
 
-        /* Pack creator */
+        /* Pack creator — sprite picker */
         .pack-section { border-top: 1px solid #1a1a1a; margin-top: 28px; padding-top: 22px; }
         .pack-section-title { font-size: 11px; font-weight: 900; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 14px; }
-        .pack-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; max-height: 280px; overflow-y: auto; margin-bottom: 12px; }
-        .pack-item-card { background: #0a0a0a; border: 1px solid #222; border-radius: 8px; padding: 6px; text-align: center; position: relative; }
-        .pack-item-card img { width: 100%; height: 60px; object-fit: contain; }
-        .pack-item-card input { width: 100%; background: #111; border: 1px solid #222; color: white; border-radius: 4px; padding: 3px 5px; font-size: 10px; margin-top: 4px; box-sizing: border-box; text-align: center; font-family: inherit; }
-        .pack-item-remove { position: absolute; top: 3px; right: 3px; background: #331111; color: #ff5555; border: none; border-radius: 4px; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 900; }
-        .pack-item-offset-row { display: flex; gap: 4px; margin-top: 4px; }
-        .pack-item-offset-row input { flex: 1; background: #111; border: 1px solid #1a1a1a; color: #555; border-radius: 4px; padding: 2px 4px; font-size: 9px; box-sizing: border-box; text-align: center; font-family: inherit; }
+        #pack-picker-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 8px; max-height: 320px; overflow-y: auto; margin-bottom: 12px;
+            border: 1px solid #1a1a1a; border-radius: 10px; padding: 10px; background: #070707;
+        }
+        #pack-picker-grid::-webkit-scrollbar { width: 3px; }
+        #pack-picker-grid::-webkit-scrollbar-thumb { background: #333; }
+        .pack-picker-card {
+            position: relative; aspect-ratio: 1; background: #111; border: 2px solid #222;
+            border-radius: 8px; cursor: pointer; overflow: hidden; transition: 0.15s;
+        }
+        .pack-picker-card:hover { border-color: #444; }
+        .pack-picker-card.selected { border-color: var(--teal); background: rgba(0,210,255,0.07); }
+        .pack-picker-card img { width: 100%; height: 100%; object-fit: contain; padding: 6px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s; }
+        .pack-picker-card img.loaded { opacity: 1; }
+        .pack-picker-card .pc-label { position: absolute; bottom: 0; left: 0; right: 0; padding: 3px 4px; background: rgba(0,0,0,0.75); font-size: 8px; font-weight: 800; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+        .pack-picker-card .pc-check {
+            display: none; position: absolute; top: 3px; right: 3px;
+            width: 16px; height: 16px; background: var(--teal); color: #000;
+            border-radius: 50%; font-size: 10px; font-weight: 900;
+            align-items: center; justify-content: center;
+        }
+        .pack-picker-card.selected .pc-check { display: flex; }
+        #pack-selected-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; margin-bottom: 10px; }
+        .pack-sel-chip {
+            display: flex; align-items: center; gap: 5px; background: rgba(0,210,255,0.1);
+            border: 1px solid rgba(0,210,255,0.3); border-radius: 20px;
+            padding: 3px 8px 3px 4px; font-size: 10px; font-weight: 800; color: var(--teal);
+        }
+        .pack-sel-chip img { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; background: #111; }
+        .pack-sel-chip button { background: none; border: none; color: #555; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; font-weight: 900; }
     </style>
 </head>
 <body>
@@ -190,25 +214,24 @@
 
         <!-- ── PACK CREATOR ── -->
         <div class="pack-section">
-            <div class="pack-section-title">📦 Create Shape Pack</div>
-            <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <input type="text" id="pack-name" placeholder="Pack Name (e.g. Round Shapes)" style="flex:1;padding:10px 12px;background:#000;border:1px solid var(--teal);color:white;border-radius:6px;font-size:12px;outline:none;font-family:inherit;">
+            <div class="pack-section-title">📦 Create Sprite Pack</div>
+
+            <!-- Pack metadata -->
+            <input type="text" id="pack-name" placeholder="Pack Name (e.g. Round Shapes)" style="width:100%;padding:10px 12px;background:#000;border:1px solid var(--teal);color:white;border-radius:6px;font-size:12px;outline:none;font-family:inherit;box-sizing:border-box;margin-bottom:8px;">
+            <input type="text" id="pack-tags" placeholder="🏷 Tags (comma-separated: shapes, corners, ui)" style="width:100%;padding:10px 12px;background:#111;border:1px solid #333;color:white;border-radius:6px;font-size:12px;outline:none;margin-bottom:12px;box-sizing:border-box;font-family:inherit;">
+
+            <!-- Selected sprites chips -->
+            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Selected Sprites <span id="pack-sel-count" style="color:var(--teal);">0</span></div>
+            <div id="pack-selected-list"></div>
+
+            <!-- Sprite picker -->
+            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;margin-top:8px;">Pick Sprites from Library</div>
+            <input type="text" id="pack-picker-search" placeholder="🔍 Filter sprites..." oninput="filterPackPicker()" style="width:100%;padding:8px 12px;background:#111;border:1px solid #222;color:white;border-radius:6px;font-size:11px;outline:none;margin-bottom:8px;box-sizing:border-box;font-family:inherit;">
+            <div id="pack-picker-grid">
+                <div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:20px;text-align:center;">Loading sprites...</div>
             </div>
-            <input type="text" id="pack-tags" placeholder="🏷 Pack Tags (comma-separated: shapes, corners, ui)" style="width:100%;padding:10px 12px;background:#111;border:1px solid #333;color:white;border-radius:6px;font-size:12px;outline:none;margin-bottom:10px;box-sizing:border-box;font-family:inherit;">
-            <div style="margin-bottom:10px;">
-                <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Pack Items (each image = one layer when placed)</div>
-                <div class="pack-items-grid" id="pack-items-grid"></div>
-                <div style="display:flex;gap:8px;">
-                    <div class="btn-control btn-bulk" style="flex:1;" onclick="document.getElementById('pack-shapes-input').click()">+ ADD SHAPES</div>
-                    <div class="btn-control btn-clear" onclick="document.getElementById('pack-items-grid').innerHTML=''">CLEAR</div>
-                </div>
-                <input type="file" id="pack-shapes-input" multiple accept="image/*" style="display:none;" onchange="handlePackShapes(this)">
-            </div>
-            <div style="font-size:9px;color:#444;font-weight:700;margin-bottom:10px;line-height:1.6;">
-                💡 <b style="color:#555;">X Offset / Y Offset</b> — pixel offset for each shape when stacked on canvas.<br>
-                Leave at 0 to stack directly on top (good for corner cards, overlay sets).
-            </div>
-            <button class="btn-publish" id="pack-upload-btn" onclick="uploadPackToDatabase()" style="background:var(--teal);">PUBLISH SHAPE PACK</button>
+
+            <button class="btn-publish" id="pack-upload-btn" onclick="uploadPackToDatabase()" style="background:var(--teal);margin-top:4px;">PUBLISH SPRITE PACK</button>
         </div>
 
     </div><!-- /#admin-panel -->
@@ -701,6 +724,8 @@
         renderTagChips();
         if (rerender) { renderPublicGrid(allSprites); document.getElementById('sprite-count').innerText = allSprites.length + ' packs'; }
         else { renderPublicGrid(allSprites); document.getElementById('sprite-count').innerText = allSprites.length + ' packs'; }
+        // Populate sprite picker for pack creator (admin only, no-op if grid doesn't exist)
+        if (isAdmin && document.getElementById('pack-picker-grid')) initPackPicker();
     }
 
     function renderPublicGrid(sprites) {
@@ -789,34 +814,96 @@
     function closePreview() { document.getElementById('preview-overlay').classList.remove('active'); }
     function clearActions() { if (confirm("Clear all?")) document.getElementById('actions-list').innerHTML = ""; }
 
-    // ── Pack Creator ──────────────────────────────────────────────────
+    // ── Pack Creator (sprite picker) ──────────────────────────────────────
 
-    function handlePackShapes(input) {
-        const grid = document.getElementById('pack-items-grid');
-        const files = Array.from(input.files);
-        files.forEach(file => {
-            const reader = new FileReader();
-            reader.onload = (e) => createPackItemCard(file.name.replace(/\.[^.]+$/, ''), e.target.result);
-            reader.readAsDataURL(file);
-        });
-        input.value = "";
+    const packSelectedSprites = new Map(); // id → sprite meta obj
+    let packPickerAll = []; // all sprites for filtering
+
+    function initPackPicker() {
+        // Reuse allSprites already loaded by fetchLibrary
+        packPickerAll = allSprites;
+        renderPackPickerGrid(packPickerAll);
     }
 
-    function createPackItemCard(label, base64) {
-        const grid = document.getElementById('pack-items-grid');
-        const div = document.createElement('div');
-        div.className = 'pack-item-card';
-        div.dataset.base64 = base64;
-        div.innerHTML = `
-            <button class="pack-item-remove" onclick="this.closest('.pack-item-card').remove()">✕</button>
-            <img src="${base64}">
-            <input type="text" value="${label}" placeholder="Label">
-            <div class="pack-item-offset-row">
-                <input type="number" value="0" placeholder="X off" title="X offset px" style="color:#666;">
-                <input type="number" value="0" placeholder="Y off" title="Y offset px" style="color:#666;">
-            </div>
-        `;
-        grid.appendChild(div);
+    function filterPackPicker() {
+        const q = document.getElementById('pack-picker-search').value.toLowerCase().trim();
+        const filtered = q
+            ? packPickerAll.filter(s => s.name.toLowerCase().includes(q) || (s.tags||[]).some(t=>t.includes(q)))
+            : packPickerAll;
+        renderPackPickerGrid(filtered);
+    }
+
+    function renderPackPickerGrid(sprites) {
+        const grid = document.getElementById('pack-picker-grid');
+        if (!grid) return;
+        if (!sprites.length) { grid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:20px;text-align:center;">No sprites found</div>'; return; }
+        grid.innerHTML = '';
+        sprites.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'pack-picker-card' + (packSelectedSprites.has(s.id) ? ' selected' : '');
+            card.dataset.id = s.id;
+
+            const cachedSrc = s.image_data || getCachedImage(s.id);
+            card.innerHTML = `
+                <div class="pc-check">✓</div>
+                ${cachedSrc ? `<img src="${cachedSrc}" class="loaded">` : '<img>'}
+                <div class="pc-label">${s.name}</div>
+            `;
+            // Lazy-load image if not cached
+            if (!cachedSrc) {
+                const img = card.querySelector('img');
+                const observer = new IntersectionObserver(([entry]) => {
+                    if (!entry.isIntersecting) return;
+                    observer.disconnect();
+                    fetchFullSprite(s.id).then(full => {
+                        if (full?.image_data) { img.src = full.image_data; img.classList.add('loaded'); s.image_data = full.image_data; }
+                    });
+                }, { rootMargin: '200px' });
+                observer.observe(card);
+            }
+
+            card.addEventListener('click', () => togglePackSprite(s, card));
+            grid.appendChild(card);
+        });
+    }
+
+    function togglePackSprite(sprite, card) {
+        if (packSelectedSprites.has(sprite.id)) {
+            packSelectedSprites.delete(sprite.id);
+            card.classList.remove('selected');
+        } else {
+            packSelectedSprites.set(sprite.id, sprite);
+            card.classList.add('selected');
+        }
+        renderPackSelectedChips();
+    }
+
+    function removePackSprite(id) {
+        packSelectedSprites.delete(id);
+        // Deselect card in picker grid
+        const card = document.querySelector(`.pack-picker-card[data-id="${id}"]`);
+        if (card) card.classList.remove('selected');
+        renderPackSelectedChips();
+    }
+
+    function renderPackSelectedChips() {
+        const list = document.getElementById('pack-selected-list');
+        const count = document.getElementById('pack-sel-count');
+        if (!list) return;
+        count.textContent = packSelectedSprites.size;
+        if (!packSelectedSprites.size) { list.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;padding:4px 0;">None yet — click sprites above to add them</div>'; return; }
+        list.innerHTML = '';
+        packSelectedSprites.forEach((sprite, id) => {
+            const chip = document.createElement('div');
+            chip.className = 'pack-sel-chip';
+            const src = sprite.image_data || getCachedImage(id) || '';
+            chip.innerHTML = `
+                ${src ? `<img src="${src}">` : ''}
+                <span>${sprite.name}</span>
+                <button onclick="removePackSprite('${id}')">✕</button>
+            `;
+            list.appendChild(chip);
+        });
     }
 
     async function uploadPackToDatabase() {
@@ -824,36 +911,26 @@
         const tagsRaw = document.getElementById('pack-tags').value;
         const tags = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
         const btn = document.getElementById('pack-upload-btn');
-        const itemCards = document.querySelectorAll('.pack-item-card');
 
         if (!name) return alert('Pack Name is required!');
-        if (!itemCards.length) return alert('Add at least one shape to the pack!');
+        if (!packSelectedSprites.size) return alert('Select at least one sprite for the pack!');
 
         btn.disabled = true;
-        const safeName = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-        const folderId = 'packs/' + safeName + '_' + Date.now();
-
-        // Upload cover = first item
-        btn.innerText = 'UPLOADING COVER...';
-        const firstCard = itemCards[0];
-        const coverUrl = await uploadToStorage('sprites', folderId + '/cover.png', firstCard.dataset.base64);
-
-        // Upload each item
-        const items = [];
-        let idx = 0;
-        for (const card of itemCards) {
-            idx++;
-            btn.innerText = `UPLOADING ITEMS (${idx}/${itemCards.length})...`;
-            const inputs = card.querySelectorAll('input[type="text"], input[type="number"]');
-            const label   = inputs[0]?.value?.trim() || ('Shape ' + idx);
-            const xOffset = parseInt(inputs[1]?.value) || 0;
-            const yOffset = parseInt(inputs[2]?.value) || 0;
-            const safeLabel = label.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-            const imageUrl = await uploadToStorage('sprites', `${folderId}/item_${idx}_${safeLabel}.png`, card.dataset.base64);
-            items.push({ label, image_url: imageUrl, x_offset: xOffset, y_offset: yOffset, width: 160 });
-        }
-
         btn.innerText = 'SAVING PACK...';
+
+        // Build items array — store sprite_id + name + image_data (for preview thumbnails)
+        const items = [];
+        packSelectedSprites.forEach((sprite, id) => {
+            items.push({
+                sprite_id: id,
+                label: sprite.name,
+                image_url: sprite.image_data || getCachedImage(id) || ''
+            });
+        });
+
+        // Cover = first selected sprite's image
+        const coverUrl = items[0]?.image_url || '';
+
         const { error } = await _supabase.from('sprite_packs').insert([{
             name,
             tags,
@@ -865,16 +942,18 @@
         if (error) {
             alert('Pack upload failed: ' + error.message);
             btn.disabled = false;
-            btn.innerText = 'PUBLISH SHAPE PACK';
+            btn.innerText = 'PUBLISH SPRITE PACK';
         } else {
-            // Bust caches so packs tab refreshes in create.html
             localStorage.removeItem('cc_packs_meta_v1');
-            alert('✅ Shape Pack Published!');
+            alert('✅ Sprite Pack Published!');
             document.getElementById('pack-name').value = '';
             document.getElementById('pack-tags').value = '';
-            document.getElementById('pack-items-grid').innerHTML = '';
+            packSelectedSprites.clear();
+            renderPackSelectedChips();
+            // Deselect all cards
+            document.querySelectorAll('.pack-picker-card.selected').forEach(c => c.classList.remove('selected'));
             btn.disabled = false;
-            btn.innerText = 'PUBLISH SHAPE PACK';
+            btn.innerText = 'PUBLISH SPRITE PACK';
         }
     }
 </script>

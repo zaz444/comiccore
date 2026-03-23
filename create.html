@@ -5660,7 +5660,6 @@
         if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
         items = items || [];
 
-        // Build modal HTML
         const existing = document.getElementById('sb-pack-modal');
         if (existing) existing.remove();
 
@@ -5669,14 +5668,14 @@
         modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
         modal.innerHTML = `
             <div style="background:#111;border:1.5px solid var(--teal);border-radius:20px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.9);max-height:85vh;overflow-y:auto;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                     <div style="font-size:14px;font-weight:900;color:var(--teal);">📦 ${pack.name}</div>
                     <span onclick="document.getElementById('sb-pack-modal').remove()" style="cursor:pointer;color:#555;font-size:18px;">✕</span>
                 </div>
-                <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:12px;">${items.length} sprite${items.length!==1?'s':''} in this pack — placed as separate layers</div>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+                <div style="font-size:10px;color:#555;font-weight:700;margin-bottom:14px;">${items.length} sprite${items.length!==1?'s':''} — each placed as its own layer with full actions</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;" id="sb-pack-modal-grid">
                     ${items.map(it=>`<div style="background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:6px;text-align:center;">
-                        <img src="${it.image_url||it.src||''}" style="width:100%;height:55px;object-fit:contain;opacity:0.9;" loading="lazy">
+                        ${it.image_url ? `<img src="${it.image_url}" style="width:100%;height:55px;object-fit:contain;" loading="lazy">` : '<div style="height:55px;background:#1a1a1a;border-radius:4px;"></div>'}
                         <div style="font-size:9px;color:#666;font-weight:800;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.label||'Sprite'}</div>
                     </div>`).join('')}
                 </div>
@@ -5686,34 +5685,48 @@
         document.body.appendChild(modal);
     }
 
-    function placePackOnCanvas() {
+    async function placePackOnCanvas() {
         const pack = _packPreviewData;
         if (!pack) return;
         let items = pack.items;
         if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) {}
         if (!items || !items.length) return;
 
-        const cw = 600, ch = 600;
-        const baseX = Math.round(cw * 0.2), baseY = Math.round(ch * 0.2);
+        const modal = document.getElementById('sb-pack-modal');
+        const btn = modal?.querySelector('button:last-child');
+        if (btn) { btn.disabled = true; btn.textContent = 'Placing...'; }
 
-        items.forEach((it, i) => {
-            const w = it.width || 150;
-            const xOff = it.x_offset !== undefined ? it.x_offset : i * 8;
-            const yOff = it.y_offset !== undefined ? it.y_offset : i * 8;
+        const cw = 600, ch = 600;
+        const spread = 18; // slight offset per sprite so they don't perfectly overlap
+
+        for (let i = 0; i < items.length; i++) {
+            const it = items[i];
+            const id = it.sprite_id;
+            if (!id) continue;
+
+            // Fetch full sprite data (image + actions) — uses existing cache chain
+            const full = await sbFetchFull(id);
+            if (!full?.image_data) continue;
+
+            const spriteObj = (sidebarSprites || []).find(s => s.id === id) || { id, name: it.label };
+            const w = 200;
             const nl = {
-                type: 'img', src: it.image_url || it.src || '',
-                w, h: w, x: baseX + xOff, y: baseY + yOff,
+                type: 'img',
+                src: full.image_data,
+                w, h: w,
+                x: Math.round(cw * 0.3) + i * spread,
+                y: Math.round(ch * 0.3) + i * spread,
                 rotation: 0, flipped: false, opacity: 1,
-                nameTag: it.label || pack.name,
-                packData: { id: pack.id, name: pack.name },
+                nameTag: it.label || spriteObj.name || 'Sprite',
+                packData: { ...spriteObj, ...full, id },
                 id: Date.now() + i
             };
             layers.push(nl);
-        });
+        }
 
         saveHistory();
         render();
-        document.getElementById('sb-pack-modal').remove();
+        if (modal) modal.remove();
         toggleSidePanel('sprites');
     }
 
