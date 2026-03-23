@@ -909,7 +909,7 @@
         <!-- Packs sub-panel -->
         <div id="mob-packs-subpanel" style="display:none;">
             <input class="pub-input" id="mob-pack-search" placeholder="Search packs..." oninput="filterMobPacks()" style="margin-bottom:10px;">
-            <div id="mob-pack-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:22px 12px;overflow-y:auto;max-height:55vh;padding:6px 2px 16px;">
+            <div id="mob-pack-grid" style="display:flex;flex-direction:column;overflow-y:auto;max-height:55vh;padding:6px 4px 16px;">
                 <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 2;">Tap Packs to load...</div>
             </div>
         </div>
@@ -2412,75 +2412,92 @@ function renderMobTagPackGrid() {
     const groups = getMobTagGroups(q);
 
     if (!groups.length) {
-        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 2;font-size:12px;">No packs found</div>';
+        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;font-size:12px;">No packs found</div>';
         return;
     }
+
+    // Shared CSS values for cascade cards
+    const bgs    = ['#181818', '#1d1d1f', '#1c1c1e'];
+    const borders = ['#252527', '#2a2a2c', '#363638'];
+    // top offsets, left offsets for 3 cascade positions
+    const tops   = ['0px', '16px', '32px'];
+    const lefts  = ['0%', '17.5%', '35%'];
+    const imgCSS = 'width:100%;height:100%;object-fit:contain;padding:8px;box-sizing:border-box;';
 
     grid.innerHTML = '';
     groups.forEach(([tag, sprites]) => {
         const count = sprites.length;
-        // Pick a sprite with a cached image for the front card
-        const frontSprite = sprites.find(s => s.image_data || efxGetImg?.(s.id) || sessionStorage.getItem('cc_simg_' + s.id)) || sprites[0];
-        const frontSrc = frontSprite ? (frontSprite.image_data || sessionStorage.getItem('cc_simg_' + frontSprite.id)) : null;
+        // Assign a different sprite to each card position for visual variety
+        const cardSprites = [
+            sprites[Math.min(2, count - 1)], // back  (spc-1, top-left)
+            sprites[Math.min(1, count - 1)], // mid   (spc-2)
+            sprites[0],                       // front (spc-3, bottom-right)
+        ];
 
         const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:relative;cursor:pointer;height:140px;padding-bottom:22px;box-sizing:border-box;';
+        // 90px card + 32px total offset + 26px footer = 152px
+        wrapper.style.cssText = 'position:relative;cursor:pointer;height:152px;padding-bottom:24px;flex-shrink:0;margin-bottom:10px;';
 
-        // 3 stacked card divs — back to front
-        const rotations = ['rotate(-8deg) translateY(6px)', 'rotate(-3deg) translateY(3px)', 'rotate(0deg)'];
-        const bgs       = ['#181818', '#1e1e20', '#1c1c1e'];
-        const borders   = ['#252525', '#2a2a2c', '#333'];
-
-        [null, null, frontSprite].forEach((it, i) => {
+        // Build 3 card layers
+        const cardEls = cardSprites.map((s, i) => {
             const card = document.createElement('div');
-            card.style.cssText = `position:absolute;left:50%;top:0;width:86%;height:100px;
-                border-radius:14px;border:1.5px solid ${borders[i]};background:${bgs[i]};
+            const isFont = i === 2;
+            card.style.cssText = `position:absolute;top:${tops[i]};left:${lefts[i]};width:65%;height:90px;
+                border-radius:16px;border:1.5px solid ${borders[i]};background:${bgs[i]};
                 overflow:hidden;display:flex;align-items:center;justify-content:center;
-                transform:translateX(-50%) ${rotations[i]};z-index:${i+1};
-                transition:transform 0.2s,border-color 0.2s,box-shadow 0.2s;`;
-            if (i === 2) {
-                // Front card — load sprite image
-                if (frontSrc) {
+                z-index:${i+1};transition:transform 0.2s,border-color 0.2s,box-shadow 0.2s;
+                ${isFont ? 'box-shadow:0 4px 18px rgba(0,0,0,0.65);' : ''}`;
+
+            const src = s.image_data || sessionStorage.getItem('cc_simg_' + s.id);
+            if (src) {
+                const img = document.createElement('img');
+                img.src = src;
+                img.style.cssText = imgCSS;
+                card.appendChild(img);
+            } else {
+                // Lazy-load
+                sbFetchFull(s.id).then(full => {
+                    if (!full?.image_data || card.querySelector('img')) return;
                     const img = document.createElement('img');
-                    img.src = frontSrc;
-                    img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:10px;box-sizing:border-box;';
+                    img.src = full.image_data;
+                    img.style.cssText = imgCSS;
                     card.appendChild(img);
-                } else if (frontSprite) {
-                    // Lazy fetch
-                    sbFetchFull(frontSprite.id).then(full => {
-                        if (!full?.image_data) return;
-                        const img = document.createElement('img');
-                        img.src = full.image_data;
-                        img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:10px;box-sizing:border-box;';
-                        card.appendChild(img);
-                        frontSprite.image_data = full.image_data;
-                    });
-                }
+                    s.image_data = full.image_data;
+                });
             }
-            wrapper.appendChild(card);
+            return card;
         });
 
-        // Footer: tag name + count badge
+        cardEls.forEach(el => wrapper.appendChild(el));
+
+        // Footer
         const footer = document.createElement('div');
         footer.style.cssText = 'position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 2px;';
         footer.innerHTML = `
-            <span style="font-size:9px;font-weight:800;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:75%;">${tag}</span>
+            <span style="font-size:10px;font-weight:900;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76%;">${tag}</span>
             <span style="background:var(--teal);color:#000;font-size:8px;font-weight:900;padding:2px 6px;border-radius:10px;flex-shrink:0;">${count}</span>
         `;
         wrapper.appendChild(footer);
 
-        // Hover lift effect on front card
-        const frontCard = wrapper.children[2]; // z-index:3
-        wrapper.addEventListener('mouseenter', () => {
-            frontCard.style.transform = 'translateX(-50%) rotate(0deg) translateY(-5px)';
+        // Touch/hover: lift front card, nudge mid
+        const frontCard = cardEls[2];
+        const midCard   = cardEls[1];
+        const lift = () => {
+            frontCard.style.transform = 'translateY(-6px)';
             frontCard.style.borderColor = 'var(--teal)';
-            frontCard.style.boxShadow = '0 8px 24px rgba(0,210,255,0.2)';
-        });
-        wrapper.addEventListener('mouseleave', () => {
-            frontCard.style.transform = 'translateX(-50%) rotate(0deg)';
-            frontCard.style.borderColor = '#333';
-            frontCard.style.boxShadow = '';
-        });
+            frontCard.style.boxShadow = '0 10px 28px rgba(0,210,255,0.22)';
+            midCard.style.transform = 'translateY(-2px)';
+        };
+        const reset = () => {
+            frontCard.style.transform = '';
+            frontCard.style.borderColor = borders[2];
+            frontCard.style.boxShadow = '0 4px 18px rgba(0,0,0,0.65)';
+            midCard.style.transform = '';
+        };
+        wrapper.addEventListener('mouseenter', lift);
+        wrapper.addEventListener('mouseleave', reset);
+        wrapper.addEventListener('touchstart', lift, { passive: true });
+        wrapper.addEventListener('touchend', reset, { passive: true });
 
         wrapper.addEventListener('click', () => openMobTagPackSheet(tag, sprites));
         grid.appendChild(wrapper);

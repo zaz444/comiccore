@@ -797,50 +797,49 @@
     .sb-sub-tab:first-child { border-right: 1px solid #2a2a2a; }
     /* Pack grid */
     #sb-pack-grid {
-        flex: 1; overflow-y: auto; padding: 10px 10px 16px;
-        display: grid; grid-template-columns: 1fr 1fr; gap: 20px 10px;
-        align-content: start;
+        flex: 1; overflow-y: auto; padding: 10px 12px 16px;
+        display: flex; flex-direction: column; gap: 0;
     }
     #sb-pack-grid::-webkit-scrollbar { width: 3px; }
     #sb-pack-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 
-    /* ── Pack card — real stacked sprite cards ── */
+    /* ── Pack card — diagonal cascade (matches mockup) ── */
     .sb-pack-card {
         position: relative; cursor: pointer;
-        height: 140px; /* stack area + footer */
-        padding-bottom: 22px; /* footer height */
+        /* 90px card height + 32px diagonal offset + 26px footer */
+        height: 152px;
+        padding-bottom: 24px;
+        margin-bottom: 10px; flex-shrink: 0;
     }
-    .sb-pack-card:hover .spc-1 { transform: rotate(0deg) translateY(-5px); box-shadow: 0 8px 24px rgba(0,210,255,0.2); border-color: var(--teal); }
-    .sb-pack-card:hover .spc-2 { transform: rotate(-4deg) translateY(-2px); }
-    .sb-pack-card:hover .spc-3 { transform: rotate(-9deg) translateY(0px); }
-
-    /* Individual stacked card layers */
+    /* Individual stacked card layers — cascade top-left → bottom-right */
     .spc {
-        position: absolute; left: 50%; top: 0;
-        width: 86%; height: 100px;
-        border-radius: 14px; border: 1.5px solid #2c2c2e;
-        background: #1c1c1e; overflow: hidden;
+        position: absolute;
+        width: 65%; height: 90px;
+        border-radius: 16px; border: 1.5px solid;
+        overflow: hidden;
         display: flex; align-items: center; justify-content: center;
         transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
     }
-    .spc img { width: 100%; height: 100%; object-fit: contain; padding: 10px; box-sizing: border-box; opacity:0; transition: opacity 0.2s; }
+    .spc img { width: 100%; height: 100%; object-fit: contain; padding: 8px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s; }
     .spc img.sbl { opacity: 1; }
-    .spc-3 { transform: translateX(-50%) rotate(-8deg) translateY(6px);  z-index: 1; background: #181818; border-color: #252525; }
-    .spc-2 { transform: translateX(-50%) rotate(-3deg) translateY(3px);  z-index: 2; background: #1e1e20; border-color: #2a2a2c; }
-    .spc-1 { transform: translateX(-50%) rotate(0deg);                   z-index: 3; box-shadow: 0 4px 16px rgba(0,0,0,0.6); border-color: #333; }
-    /* Placeholder (no image yet) */
-    .spc-empty { background: linear-gradient(135deg, #1a1a1a, #222); }
-
-    /* Footer below the stack */
+    /* Back card — top-left */
+    .spc-1 { top: 0;   left: 0;    z-index: 1; background: #181818; border-color: #252527; }
+    /* Mid card */
+    .spc-2 { top: 16px; left: 17.5%; z-index: 2; background: #1d1d1f; border-color: #2a2a2c; }
+    /* Front card — bottom-right, shows sprite, teal accent on hover */
+    .spc-3 { top: 32px; left: 35%;  z-index: 3; background: var(--card); border-color: #363638; box-shadow: 0 4px 18px rgba(0,0,0,0.65); }
+    /* Hover: lift front card, nudge mid */
+    .sb-pack-card:hover .spc-3 { transform: translateY(-6px); border-color: var(--teal); box-shadow: 0 10px 28px rgba(0,210,255,0.22); }
+    .sb-pack-card:hover .spc-2 { transform: translateY(-2px); border-color: #3a3a3c; }
+    /* Footer: tag name + count */
     .sb-pack-footer {
         position: absolute; bottom: 0; left: 0; right: 0;
         display: flex; justify-content: space-between; align-items: center;
         padding: 0 2px;
     }
     .sb-pack-name {
-        font-size: 9px; font-weight: 800; color: #888;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        max-width: 75%;
+        font-size: 10px; font-weight: 900; color: #aaa;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 76%;
     }
     .sb-pack-count {
         background: var(--teal); color: #000; font-size: 8px; font-weight: 900;
@@ -5629,32 +5628,52 @@
             const div = document.createElement('div');
             div.className = 'sb-pack-card';
 
-            // Front card image = first sprite with a cached image
-            const frontSprite = sprites.find(s => s.image_data || sbGetImg(s.id)) || sprites[0];
-            const frontSrc = frontSprite ? (frontSprite.image_data || sbGetImg(frontSprite.id)) : null;
+            // 3 card positions: back=spc-1 (top-left), mid=spc-2, front=spc-3 (bottom-right)
+            // Assign different sprites to each card so it looks like a real deck
+            const cardSprites = [
+                sprites[Math.min(2, sprites.length - 1)], // spc-1 back
+                sprites[Math.min(1, sprites.length - 1)], // spc-2 mid
+                sprites[0],                                // spc-3 front
+            ];
 
-            div.innerHTML = `
-                <div class="sb-pack-count">${sprites.length}</div>
-                <div class="sb-pack-front">
-                    ${frontSrc ? `<img class="sb-loaded" src="${frontSrc}">` : `<div class="sb-skeleton"></div>`}
-                    <div class="sb-pack-label">${tag}</div>
-                </div>
-            `;
+            // Build three stacked card divs
+            const spcEls = cardSprites.map((s, i) => {
+                const el = document.createElement('div');
+                el.className = `spc spc-${i + 1}`;
+                el.dataset.spcIdx = i;
+                const src = s.image_data || sbGetImg(s.id);
+                if (src) {
+                    const img = document.createElement('img');
+                    img.className = 'sbl';
+                    img.src = src;
+                    el.appendChild(img);
+                }
+                return el;
+            });
 
-            // Lazy-load cover if missing
-            if (!frontSrc && frontSprite) {
-                sbFetchFull(frontSprite.id).then(full => {
-                    if (!full?.image_data) return;
-                    const skeleton = div.querySelector('.sb-skeleton');
-                    if (skeleton) {
+            spcEls.forEach(el => div.appendChild(el));
+
+            // Footer
+            const footer = document.createElement('div');
+            footer.className = 'sb-pack-footer';
+            footer.innerHTML = `<span class="sb-pack-name">${tag}</span><span class="sb-pack-count">${sprites.length}</span>`;
+            div.appendChild(footer);
+
+            // Lazy-load images for any card missing a cached image
+            cardSprites.forEach((s, i) => {
+                const src = s.image_data || sbGetImg(s.id);
+                if (!src) {
+                    const el = spcEls[i];
+                    sbFetchFull(s.id).then(full => {
+                        if (!full?.image_data || el.querySelector('img')) return;
                         const img = document.createElement('img');
-                        img.className = 'sb-loaded';
+                        img.className = 'sbl';
                         img.src = full.image_data;
-                        skeleton.replaceWith(img);
-                        frontSprite.image_data = full.image_data;
-                    }
-                });
-            }
+                        el.appendChild(img);
+                        s.image_data = full.image_data;
+                    });
+                }
+            });
 
             div.addEventListener('click', () => openTagPackSheet(tag, sprites));
             grid.appendChild(div);
