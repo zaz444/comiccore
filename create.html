@@ -1546,6 +1546,14 @@
                     <span class="sb-icon"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" style="width:22px;height:22px;object-fit:contain;" alt="sprites"></span>Sprites
                 </button>
 
+                <!-- My Sprites (custom user-uploaded sprites) -->
+                <button class="sb-icon-btn" data-panel="mysprites" onclick="toggleSidePanel('mysprites')" title="My Custom Sprites" style="position:relative;">
+                    <span class="sb-icon" style="position:relative;">
+                        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" style="width:22px;height:22px;object-fit:contain;filter:hue-rotate(160deg) saturate(2);" alt="mysprites">
+                        <span style="position:absolute;top:-4px;right:-4px;background:var(--teal);color:#000;font-size:7px;font-weight:900;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;line-height:1;">✦</span>
+                    </span>MY
+                </button>
+
                 <!-- Effects -->
                 <button class="sb-icon-btn" data-panel="effects" onclick="toggleSidePanel('effects')">
                     <span class="sb-icon"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/effects.webp" style="width:22px;height:22px;object-fit:contain;" alt="extras"></span>Extras
@@ -1622,6 +1630,33 @@
                         <div id="sb-pack-grid">
                             <div class="sp-load-msg">Open to load packs</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- ── MY SPRITES panel (user custom sprites) ── -->
+                <div class="sp-content" id="sp-mysprites">
+                    <div class="sp-header" style="color:var(--teal);">
+                        ✦ My Sprites
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <button onclick="openSpriteEditorNew()" style="background:rgba(0,210,255,0.1);border:1px solid rgba(0,210,255,0.3);color:var(--teal);padding:4px 9px;border-radius:7px;font-size:10px;font-weight:900;cursor:pointer;font-family:inherit;">+ New</button>
+                            <span class="sp-close-btn" onclick="toggleSidePanel('mysprites')">✕</span>
+                        </div>
+                    </div>
+                    <input class="sp-search" id="mys-search" placeholder="Search my sprites..." oninput="filterMySprites()">
+                    <div style="display:flex;align-items:center;gap:6px;margin:4px 10px 4px;">
+                        <select id="mys-sort" onchange="filterMySprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;outline:none;font-family:inherit;">
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                            <option value="az">A → Z</option>
+                        </select>
+                    </div>
+                    <div id="mys-grid" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;padding:6px 8px 10px;">
+                        <div class="sp-load-msg">Click to load your sprites</div>
+                    </div>
+                    <div style="border-top:1px solid var(--border);padding:8px;flex-shrink:0;">
+                        <button style="width:100%;padding:9px;background:rgba(0,210,255,0.07);border:1.5px dashed rgba(0,210,255,0.3);border-radius:10px;color:var(--teal);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;justify-content:center;" onclick="openSpriteEditorNew()">
+                            🎨 Open Sprite Editor
+                        </button>
                     </div>
                 </div>
 
@@ -3059,9 +3094,12 @@
         if (hasUnsavedChanges && activeDraftId) saveOffline(true);
     }, 30000);
 
-    // Save before page unload
-    window.addEventListener('beforeunload', () => {
-        if (frames && frames.length) saveOffline(true);
+    // Auto-save silently before page unload (no prompt)
+    window.addEventListener('beforeunload', (e) => {
+        if (frames && frames.length && hasUnsavedChanges) {
+            saveOffline(true); // fire-and-forget silent save
+        }
+        // DO NOT set e.returnValue — we never block navigation
     });
 
     function openPublishModal() { document.getElementById('publish-modal').style.display = 'flex'; }
@@ -3199,8 +3237,9 @@
 
     function handleExit() {
         _exitDestination = 'index.html';
-        if (hasUnsavedChanges) {
-            document.getElementById('exit-confirm-modal').style.display = 'flex';
+        // Auto-save silently, then navigate — no prompt
+        if (hasUnsavedChanges && activeDraftId) {
+            saveOffline(true).then(() => { location.href = _exitDestination; });
         } else {
             location.href = _exitDestination;
         }
@@ -3221,7 +3260,16 @@
         document.getElementById('exit-confirm-modal').style.display = 'none';
     }
     function flipHorizontal() { if(activeLayer) { saveState(); activeLayer.flipped = !activeLayer.flipped; render(); } }
-    function createActionOption(src, name) { const div = document.createElement('div'); div.className = 'action-option'; div.innerHTML = `<img src="${src}"><span>${name}</span>`; return div; }
+    function createActionOption(src, name) {
+        const div = document.createElement('div');
+        div.className = 'action-option';
+        const imgSrc = src || '';
+        // Support both supabase URL and base64
+        div.innerHTML = imgSrc
+            ? `<img src="${imgSrc}" crossorigin="anonymous" loading="lazy" onerror="this.style.display='none'"><span>${name}</span>`
+            : `<div style="width:80px;height:80px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#333;font-size:20px;">?</div><span>${name}</span>`;
+        return div;
+    }
     
     // ── Bubble Picker ──
     const BUBBLE_STYLES = [
@@ -4873,6 +4921,7 @@
         if (btn) btn.classList.add('active');
         // Panel-specific init
         if (name === 'sprites' && !sidebarSprites) loadSidebarSprites();
+        if (name === 'mysprites') loadMySprites();
         if (name === 'effects') { if (!sidebarEffects) loadSidebarEffects(); _initModPanel(); }
         if (name === 'background') loadSidebarBgs();
         if (name === 'layers') renderSidebarLayers();
@@ -5909,6 +5958,138 @@
     function sbPasteLayer() {
         pasteLayer();
     }
+
+    // ═══════════════════════════════════════════════════════
+    // MY SPRITES — user custom sprites (user_sprites table)
+    // ═══════════════════════════════════════════════════════
+    let mySpritesData = null;
+    const MYS_CACHE_KEY = 'cc_user_sprites_meta_v1';
+    const MYS_CACHE_TTL = 5 * 60 * 1000;
+    function mysSaveCache(data) { try { localStorage.setItem(MYS_CACHE_KEY, JSON.stringify({ts:Date.now(),data})); } catch(e) {} }
+    function mysLoadCache() {
+        try {
+            const raw = localStorage.getItem(MYS_CACHE_KEY);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - p.ts > MYS_CACHE_TTL) { localStorage.removeItem(MYS_CACHE_KEY); return null; }
+            return p.data;
+        } catch(e) { return null; }
+    }
+    async function loadMySprites() {
+        const grid = document.getElementById('mys-grid');
+        if (!grid) return;
+        const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        if (!profile.handle) {
+            grid.innerHTML = '<div class="sp-load-msg" style="grid-column:span 2;">Log in to see your sprites</div>';
+            return;
+        }
+        // Check if sprite editor just returned a new sprite
+        const editorResult = localStorage.getItem('sprite_editor_result');
+        if (editorResult) {
+            localStorage.removeItem('sprite_editor_result');
+            localStorage.removeItem(MYS_CACHE_KEY);
+            mySpritesData = null;
+            showKbFlash('\u2705 New sprite saved!');
+        }
+        const cached = mysLoadCache();
+        if (cached && mySpritesData === null) { mySpritesData = cached; renderMySpritesGrid(mySpritesData); }
+        else if (!cached) { grid.innerHTML = '<div class="sp-load-msg" style="grid-column:span 2;">Loading your sprites\u2026</div>'; }
+        try {
+            const { data, error } = await _supabase
+                .from('user_sprites').select('id, name, image_data, actions, created_at')
+                .eq('owner_handle', profile.handle).order('created_at', { ascending: false });
+            if (error) throw error;
+            mySpritesData = data || [];
+            mysSaveCache(mySpritesData);
+            renderMySpritesGrid(mySpritesData);
+        } catch(e) {
+            if (!cached) grid.innerHTML = '<div class="sp-load-msg" style="grid-column:span 2;">Error loading</div>';
+        }
+    }
+    function filterMySprites() {
+        if (!mySpritesData) return;
+        const q = (document.getElementById('mys-search')?.value||'').toLowerCase().trim();
+        const sort = document.getElementById('mys-sort')?.value||'newest';
+        let list = [...mySpritesData];
+        if (q) list = list.filter(s => (s.name||'').toLowerCase().includes(q));
+        if (sort==='oldest') list.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+        else if (sort==='az') list.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+        else list.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+        renderMySpritesGrid(list);
+    }
+    function renderMySpritesGrid(sprites) {
+        const grid = document.getElementById('mys-grid');
+        if (!grid) return;
+        if (!sprites || !sprites.length) {
+            grid.innerHTML = '<div class="sp-load-msg" style="grid-column:span 2;">No sprites yet \u2014 create one!</div>';
+            return;
+        }
+        grid.innerHTML = '';
+        sprites.forEach(sp => {
+            const card = document.createElement('div');
+            card.className = 'sb-sprite-card';
+            card.style.cssText = 'position:relative;';
+            const imgSrc = sp.image_data || '';
+            const hasImg = imgSrc && !imgSrc.startsWith('data:') || (imgSrc.startsWith('data:') && imgSrc.length < 300000);
+            card.innerHTML = hasImg
+                ? '<img class="sb-loaded" src="'+imgSrc+'" crossorigin="anonymous"><span>'+(sp.name||'Sprite')+'</span>'
+                : '<div class="sb-skeleton"></div><span>'+(sp.name||'Sprite')+'</span>';
+            // Edit + delete buttons
+            const btnWrap = document.createElement('div');
+            btnWrap.style.cssText = 'position:absolute;top:3px;right:3px;display:flex;gap:3px;';
+            const editBtn = document.createElement('button');
+            editBtn.title = 'Edit';
+            editBtn.innerText = '\u270f';
+            editBtn.style.cssText = 'background:rgba(0,210,255,0.9);border:none;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;color:#000;font-weight:900;';
+            editBtn.onclick = (e) => { e.stopPropagation(); openSpriteEditorEdit(sp.id, sp.name, imgSrc, sp.actions); };
+            const delBtn = document.createElement('button');
+            delBtn.title = 'Delete';
+            delBtn.innerText = '\u2715';
+            delBtn.style.cssText = 'background:rgba(255,59,48,0.85);border:none;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;color:#fff;font-weight:900;';
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteMySprite(sp.id); };
+            btnWrap.appendChild(editBtn); btnWrap.appendChild(delBtn);
+            card.appendChild(btnWrap);
+            card.onclick = (e) => {
+                if (e.target.tagName==='BUTTON') return;
+                openMySpritePicker(sp);
+            };
+            grid.appendChild(card);
+        });
+    }
+    function openMySpritePicker(sp) {
+        let actions = sp.actions || {};
+        if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) { actions = {}; }
+        openActionModal({ id: sp.id, name: sp.name, image_data: sp.image_data, actions, isUserSprite: true });
+    }
+    async function deleteMySprite(id) {
+        if (!confirm('Delete this sprite permanently?')) return;
+        const { error } = await _supabase.from('user_sprites').delete().eq('id', id);
+        if (error) { showKbFlash('\u26a0 Delete failed'); return; }
+        mySpritesData = (mySpritesData||[]).filter(s=>s.id!==id);
+        mysSaveCache(mySpritesData);
+        renderMySpritesGrid(mySpritesData);
+        showKbFlash('\ud83d\uddd1 Sprite deleted');
+    }
+    function openSpriteEditorNew() {
+        saveOffline(true);
+        localStorage.setItem('sprite_editor_context', JSON.stringify({ spriteId:null, spriteName:'New Sprite', imageData:null, actions:null, returnPage:location.href }));
+        location.href = 'sprite-editor.html';
+    }
+    function openSpriteEditorEdit(id, name, imageData, actions) {
+        saveOffline(true);
+        let acts = actions;
+        if (typeof acts === 'string') try { acts = JSON.parse(acts); } catch(e) { acts = {}; }
+        localStorage.setItem('sprite_editor_context', JSON.stringify({ spriteId:id, spriteName:name, imageData, actions:acts, returnPage:location.href }));
+        location.href = 'sprite-editor.html';
+    }
+    // Check for sprite editor result on load
+    (function() {
+        const raw = localStorage.getItem('sprite_editor_result');
+        if (!raw) return;
+        localStorage.removeItem('sprite_editor_result');
+        localStorage.removeItem(MYS_CACHE_KEY);
+        setTimeout(() => showKbFlash('\u2705 Sprite saved! Open \u201cMY\u201d panel to use it'), 600);
+    })();
 
     // ── Debounced render — one redraw per animation frame ──
     const _origRender = render;

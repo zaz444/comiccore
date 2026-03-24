@@ -916,6 +916,29 @@
     </div>
 </div>
 
+<!-- MY SPRITES SHEET -->
+<div id="sheet-mysprites" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" style="color:var(--teal);">
+        ✦ My Sprites
+        <div style="display:flex;gap:6px;align-items:center;">
+            <button onclick="openSpriteEditorNew()" style="background:rgba(0,210,255,0.12);border:1px solid rgba(0,210,255,0.3);color:var(--teal);padding:5px 10px;border-radius:8px;font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;">+ New</button>
+            <button class="sheet-close" onclick="closeSheet('mysprites')">✕</button>
+        </div>
+    </div>
+    <div class="sheet-body">
+        <input class="pub-input" id="mob-mys-search" placeholder="Search my sprites..." oninput="mobFilterMySprites()" style="margin-bottom:6px;">
+        <div id="mob-mys-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-height:55vh;overflow-y:auto;">
+            <div style="grid-column:span 3;text-align:center;color:#555;font-size:13px;padding:20px;">Tap to load your sprites...</div>
+        </div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+            <button onclick="openSpriteEditorNew()" style="width:100%;padding:12px;background:rgba(0,210,255,0.08);border:1.5px dashed rgba(0,210,255,0.3);border-radius:10px;color:var(--teal);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;">
+                🎨 Open Sprite Editor
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- EFFECTS SHEET -->
 <div id="sheet-effects" class="bottom-sheet">
     <div class="sheet-handle"></div>
@@ -1206,6 +1229,12 @@
     <button class="bot-btn" onclick="openSheet('sprites')">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprites">Sprites
     </button>
+    <button class="bot-btn" onclick="openSheet('mysprites'); loadMySprites()" style="position:relative;">
+        <span style="position:relative;display:inline-block;">
+            <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="my sprites" style="filter:hue-rotate(160deg) saturate(2);">
+            <span style="position:absolute;top:-3px;right:-3px;background:#00d2ff;color:#000;font-size:7px;font-weight:900;border-radius:50%;width:10px;height:10px;display:flex;align-items:center;justify-content:center;line-height:1;">✦</span>
+        </span>MY
+    </button>
     <button class="bot-btn" onclick="openSheet('effects'); if(!mobSidebarEffects) loadMobEffects()">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/effects.webp" class="bot-custom-icon" alt="effects">Effects
     </button>
@@ -1340,8 +1369,10 @@ function setRatio(w, h) {
 function openSheet(name) {
     closeAllSheets();
     document.getElementById('sheet-overlay').classList.add('open');
-    document.getElementById('sheet-' + name).classList.add('open');
+    const sheetEl = document.getElementById('sheet-' + name);
+    if (sheetEl) sheetEl.classList.add('open');
     if (name === 'sprites' && !sidebarSprites) loadMobSprites();
+    if (name === 'mysprites') loadMySprites();
     if (name === 'bg') loadMobBgs();
     if (name === 'layers') renderMobLayers();
     if (name === 'frames') renderMobFrames();
@@ -3145,12 +3176,12 @@ function openActionModal(pack, isEditing = false) {
 function createActionOption(src, name, isLastUsed = false) {
     const div = document.createElement('div');
     div.className = 'action-option';
-    if (isLastUsed) {
-        div.style.cssText = 'border: 2px solid rgba(255,122,0,0.55); background: rgba(255,122,0,0.09); border-radius: 12px; position: relative;';
-        div.innerHTML = `<img src="${src}"><strong>${name}</strong><div style="position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#ff7a00;opacity:0.85;pointer-events:none;"></div>`;
-    } else {
-        div.innerHTML = `<img src="${src}"><strong>${name}</strong>`;
-    }
+    const safeStyle = isLastUsed ? 'border:2px solid rgba(255,122,0,0.55);background:rgba(255,122,0,0.09);border-radius:12px;position:relative;' : '';
+    if (safeStyle) div.style.cssText = safeStyle;
+    const imgEl = src ? `<img src="${src}" crossorigin="anonymous" loading="lazy" onerror="this.parentNode.querySelector('img') && (this.style.display='none')">` 
+                      : `<div style="width:80px;height:80px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#333;font-size:24px;">?</div>`;
+    const dotEl = isLastUsed ? `<div style="position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#ff7a00;opacity:0.85;pointer-events:none;"></div>` : '';
+    div.innerHTML = `${imgEl}<strong>${name}</strong>${dotEl}`;
     return div;
 }
 function handleActionSelect(img, pack, isEditing) {
@@ -3793,8 +3824,12 @@ function goToDrafts() { saveOffline(true); location.href = 'my-comics.html'; }
 let _exitDestination = 'index.html';
 function handleExit() {
     _exitDestination = 'index.html';
-    if (hasUnsavedChanges) { document.getElementById('exit-confirm-modal').style.display = 'flex'; }
-    else { location.href = _exitDestination; }
+    // Auto-save silently then navigate — no prompt, no modal
+    if (hasUnsavedChanges && activeDraftId) {
+        saveOffline(true).then(() => { location.href = _exitDestination; }).catch(() => { location.href = _exitDestination; });
+    } else {
+        location.href = _exitDestination;
+    }
 }
 async function exitSaveAndLeave() {
     document.getElementById('exit-confirm-modal').style.display = 'none';
@@ -4764,6 +4799,154 @@ document.addEventListener('gesturechange', function(e) {
             }
         });
     });
+})();
+
+// ══════════════════════════════════════════════════════════════
+// MY SPRITES — user_sprites table (custom sprites)
+// ══════════════════════════════════════════════════════════════
+// Lightweight toast for My Sprites notifications
+function showToast(msg) {
+    let el = document.getElementById('mys-toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'mys-toast';
+        el.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(20,20,22,0.96);color:#fff;padding:9px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;pointer-events:none;border:1px solid #333;letter-spacing:0.5px;transition:opacity 0.3s;white-space:nowrap;';
+        document.body.appendChild(el);
+    }
+    el.innerText = msg; el.style.opacity = '1';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.style.opacity = '0', 2400);
+}
+let mySpritesData = null;
+const MYS_CACHE_KEY = 'cc_user_sprites_meta_v1';
+const MYS_CACHE_TTL = 5 * 60 * 1000;
+function mysSaveCache(data) { try { localStorage.setItem(MYS_CACHE_KEY, JSON.stringify({ts:Date.now(),data})); } catch(e) {} }
+function mysLoadCache() {
+    try {
+        const raw = localStorage.getItem(MYS_CACHE_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (Date.now() - p.ts > MYS_CACHE_TTL) { localStorage.removeItem(MYS_CACHE_KEY); return null; }
+        return p.data;
+    } catch(e) { return null; }
+}
+
+async function loadMySprites() {
+    const grid = document.getElementById('mob-mys-grid');
+    if (!grid) return;
+    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    if (!profile.handle) {
+        grid.innerHTML = '<div style="grid-column:span 3;text-align:center;color:#555;font-size:13px;padding:20px;">Log in to see your sprites</div>';
+        return;
+    }
+    // Check if sprite editor returned a new sprite
+    const editorResult = localStorage.getItem('sprite_editor_result');
+    if (editorResult) {
+        localStorage.removeItem('sprite_editor_result');
+        localStorage.removeItem(MYS_CACHE_KEY);
+        mySpritesData = null;
+        showToast('✅ Sprite saved!');
+    }
+    const cached = mysLoadCache();
+    if (cached && mySpritesData === null) { mySpritesData = cached; renderMobMySpritesGrid(mySpritesData); }
+    else if (!cached) { grid.innerHTML = '<div style="grid-column:span 3;text-align:center;color:#555;font-size:13px;padding:20px;">Loading your sprites…</div>'; }
+    try {
+        const { data, error } = await _supabase.from('user_sprites')
+            .select('id, name, image_data, actions, created_at')
+            .eq('owner_handle', profile.handle)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        mySpritesData = data || [];
+        mysSaveCache(mySpritesData);
+        renderMobMySpritesGrid(mySpritesData);
+    } catch(e) {
+        if (!cached) grid.innerHTML = '<div style="grid-column:span 3;text-align:center;color:#f33;font-size:13px;padding:20px;">Error loading sprites</div>';
+    }
+}
+
+function mobFilterMySprites() {
+    if (!mySpritesData) return;
+    const q = (document.getElementById('mob-mys-search')?.value || '').toLowerCase().trim();
+    let list = [...mySpritesData];
+    if (q) list = list.filter(s => (s.name||'').toLowerCase().includes(q));
+    renderMobMySpritesGrid(list);
+}
+
+function renderMobMySpritesGrid(sprites) {
+    const grid = document.getElementById('mob-mys-grid');
+    if (!grid) return;
+    if (!sprites || !sprites.length) {
+        grid.innerHTML = '<div style="grid-column:span 3;text-align:center;color:#555;font-size:13px;padding:20px;">No sprites yet — create one!</div>';
+        return;
+    }
+    grid.innerHTML = '';
+    sprites.forEach(sp => {
+        const card = document.createElement('div');
+        card.className = 'mob-sprite-card';
+        card.style.position = 'relative';
+        const imgSrc = sp.image_data || '';
+        card.innerHTML = imgSrc
+            ? `<img src="${imgSrc}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;padding:6px;">`
+            : `<div style="width:100%;height:70px;display:flex;align-items:center;justify-content:center;color:#333;font-size:28px;">?</div>`;
+        card.innerHTML += `<div class="mob-sprite-name">${sp.name || 'Sprite'}</div>`;
+        // Edit btn
+        const editBtn = document.createElement('button');
+        editBtn.style.cssText = 'position:absolute;top:3px;left:3px;background:rgba(0,210,255,0.9);border:none;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;color:#000;font-weight:900;-webkit-tap-highlight-color:transparent;';
+        editBtn.innerText = '✏';
+        editBtn.onclick = (e) => { e.stopPropagation(); closeSheet('mysprites'); openSpriteEditorEdit(sp.id, sp.name, imgSrc, sp.actions); };
+        card.appendChild(editBtn);
+        // Del btn
+        const delBtn = document.createElement('button');
+        delBtn.style.cssText = 'position:absolute;top:3px;right:3px;background:rgba(255,59,48,0.85);border:none;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;color:#fff;font-weight:900;-webkit-tap-highlight-color:transparent;';
+        delBtn.innerText = '✕';
+        delBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (!confirm('Delete this sprite?')) return;
+            await _supabase.from('user_sprites').delete().eq('id', sp.id);
+            mySpritesData = (mySpritesData||[]).filter(s => s.id !== sp.id);
+            mysSaveCache(mySpritesData);
+            renderMobMySpritesGrid(mySpritesData);
+        };
+        card.appendChild(delBtn);
+        card.onclick = (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            let actions = sp.actions || {};
+            if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(x) { actions = {}; }
+            closeSheet('mysprites');
+            openActionModal({ id: sp.id, name: sp.name, image_data: sp.image_data, actions, isUserSprite: true });
+        };
+        grid.appendChild(card);
+    });
+}
+
+// Navigate to sprite editor
+function openSpriteEditorNew() {
+    saveOffline(true);
+    localStorage.setItem('sprite_editor_context', JSON.stringify({
+        spriteId: null, spriteName: 'New Sprite', imageData: null, actions: null,
+        returnPage: location.href
+    }));
+    location.href = 'sprite-editor.html';
+}
+
+function openSpriteEditorEdit(id, name, imageData, actions) {
+    saveOffline(true);
+    let acts = actions;
+    if (typeof acts === 'string') try { acts = JSON.parse(acts); } catch(e) { acts = {}; }
+    localStorage.setItem('sprite_editor_context', JSON.stringify({
+        spriteId: id, spriteName: name, imageData, actions: acts,
+        returnPage: location.href
+    }));
+    location.href = 'sprite-editor.html';
+}
+
+// Check for sprite editor result on page load
+(function() {
+    const raw = localStorage.getItem('sprite_editor_result');
+    if (!raw) return;
+    localStorage.removeItem('sprite_editor_result');
+    localStorage.removeItem(MYS_CACHE_KEY);
+    setTimeout(() => showToast('✅ Sprite saved! Find it in "MY" sprites'), 800);
 })();
 </script>
 
