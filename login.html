@@ -1,162 +1,644 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <link rel="stylesheet" href="theme.css">
   <script src="theme.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ComicCore | Login</title>
+  <title>ComicCore | Join the Community</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #ff7a00;
+      --orange-light: #ff9a3c;
+      --orange-glow: rgba(255,122,0,0.25);
+      --bg: #0f0f11;
+      --bg2: #18181b;
+      --card: #1e1e22;
+      --card2: #26262c;
+      --border: rgba(255,255,255,0.08);
+      --text: #f4f4f6;
+      --text-muted: #888896;
+      --text-dim: #55555f;
+      --success: #22c55e;
+      --error: #ef4444;
+      --radius: 20px;
+    }
 
     body {
-      margin: 0; padding: 40px 0 60px;
       font-family: 'Inter', sans-serif;
-      background-color: var(--bg-dark);
-      display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+      background: var(--bg);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px 40px;
+      position: relative;
+      overflow-x: hidden;
     }
 
-    .brand-header { color: white; font-size: 28px; font-weight: 900; margin-bottom: 30px; letter-spacing: -0.5px; }
-
-    .container {
-      background: #fff; width: 90%; max-width: 400px;
-      border-radius: 28px; padding: 32px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.8); box-sizing: border-box;
+    /* Ambient background blobs */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -120px; left: -80px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(255,122,0,0.12) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -100px; right: -60px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(255,122,0,0.07) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
     }
 
-    .header-tabs { display: flex; margin-bottom: 28px; border-bottom: 1px solid #eee; }
-    .tab { flex: 1; text-align: center; padding: 12px; cursor: pointer; font-weight: 700; color: #aaa; transition: .2s; }
-    .tab.active { color: #000; border-bottom: 3px solid var(--vibrant-orange); }
+    /* ── BRAND ── */
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 28px;
+      animation: fadeUp 0.5s ease both;
+      z-index: 1;
+    }
+    .brand-logo {
+      width: 56px; height: 56px;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px var(--orange-glow), 0 0 0 1px rgba(255,122,0,0.3);
+    }
+    .brand-logo img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .brand-name {
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
+    .brand-tagline {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
 
-    .status-banner { padding: 12px; border-radius: 12px; margin-bottom: 18px; font-size: 13px; display: none; text-align: center; font-weight: 600; }
-    .success { background: #e6fffa; color: #276749; border: 1px solid #b2f5ea; }
-    .error   { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
+    /* ── CARD ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      position: relative;
+      z-index: 1;
+      animation: fadeUp 0.5s 0.08s ease both;
+    }
 
+    /* ── VERIFIED BANNER ── */
     .verified-banner {
-      background: #e6fffa; color: #276749; border: 1px solid #b2f5ea;
-      border-radius: 16px; padding: 16px 20px; margin-bottom: 22px;
-      text-align: center; font-weight: 700; font-size: 14px; line-height: 1.5;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.3);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      text-align: center;
+      display: none;
     }
-    .verified-banner .check-icon { font-size: 28px; display: block; margin-bottom: 6px; }
+    .verified-banner .vi { font-size: 26px; margin-bottom: 4px; }
+    .verified-banner .vt { font-size: 14px; font-weight: 800; color: var(--success); }
+    .verified-banner .vs { font-size: 12px; font-weight: 500; color: var(--text-muted); margin-top: 2px; }
 
-    .form-content { display: none; }
-    .form-content.active { display: block; }
-
-    .input-group { margin-bottom: 14px; position: relative; }
-    .input-label { position: absolute; top: -8px; left: 20px; background: white; padding: 0 5px; font-size: 11px; color: var(--vibrant-orange); font-weight: 700; z-index: 1; }
-    .input-group input {
-      width: 100%; padding: 15px 22px;
-      border: 1.5px solid #ddd; border-radius: 50px;
-      box-sizing: border-box; font-size: 15px; outline: none;
-      font-family: 'Inter', sans-serif; transition: border-color .2s;
+    /* ── STATUS BANNER ── */
+    .status-banner {
+      border-radius: 12px;
+      padding: 11px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      display: none;
+      animation: fadeIn 0.2s ease;
     }
-    .input-group input:focus { border-color: var(--vibrant-orange); }
+    .status-banner.success { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+    .status-banner.error   { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
 
-    .handle-wrap { position: relative; }
-    .handle-at { position: absolute; left: 22px; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 700; color: #aaa; pointer-events: none; z-index: 2; }
-    .handle-wrap input { padding-left: 36px !important; }
+    /* ── SEGMENTED TABS ── */
+    .tabs-wrap {
+      background: var(--bg2);
+      border-radius: 12px;
+      padding: 4px;
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 9px 10px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+      user-select: none;
+    }
+    .tab.active {
+      background: var(--card2);
+      color: var(--text);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
 
-    .pass-wrap { position: relative; }
-    .pass-wrap input { padding-right: 50px !important; }
-    .eye-btn { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 18px; color: #bbb; padding: 0; line-height: 1; transition: color .15s; }
-    .eye-btn:hover { color: #555; }
+    /* ── FORM PANELS ── */
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
 
-    .pass-reminder { font-size: 11px; color: #e53e3e; font-weight: 700; margin: -8px 0 12px 22px; display: block; }
+    /* ── OAUTH BUTTONS ── */
+    .oauth-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .oauth-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 13px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .oauth-btn:hover {
+      background: #2e2e36;
+      border-color: rgba(255,255,255,0.14);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .oauth-btn:active { transform: translateY(0); }
+    .oauth-icon { width: 20px; height: 20px; flex-shrink: 0; }
 
-    .handle-status { font-size: 11px; font-weight: 700; margin: -8px 0 10px 22px; display: block; min-height: 14px; }
-    .handle-status.ok    { color: #38a169; }
-    .handle-status.taken { color: #e53e3e; }
-    .handle-status.check { color: #aaa; }
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-text { font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase; }
 
-    .field-hint { font-size: 11px; color: #aaa; margin: -10px 0 12px 22px; display: block; }
+    /* ── INPUTS ── */
+    .field { margin-bottom: 14px; }
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+      padding-left: 4px;
+    }
+    .field-inner { position: relative; }
+    .field-inner input {
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--bg2);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    .field-inner input::placeholder { color: var(--text-dim); }
+    .field-inner input:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 3px var(--orange-glow);
+    }
+    .handle-at {
+      position: absolute; left: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px; font-weight: 700; color: var(--text-muted);
+      pointer-events: none;
+    }
+    .has-at input { padding-left: 28px; }
+    .eye-btn {
+      position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      font-size: 16px; color: var(--text-dim);
+      padding: 4px; line-height: 1; transition: color 0.15s;
+    }
+    .eye-btn:hover { color: var(--text-muted); }
+    .has-eye input { padding-right: 44px; }
 
-    .btn { width: 100%; padding: 16px; border: none; border-radius: 50px; font-weight: 800; font-size: 15px; cursor: pointer; background: var(--vibrant-orange); color: white; margin-top: 6px; transition: filter .15s, transform .1s; letter-spacing: .3px; }
-    .btn:hover   { filter: brightness(1.08); }
-    .btn:active  { transform: scale(.98); }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    /* Handle status */
+    .handle-status {
+      font-size: 11px; font-weight: 700;
+      margin-top: 5px; padding-left: 4px;
+      min-height: 14px; display: block;
+    }
+    .handle-status.ok    { color: var(--success); }
+    .handle-status.taken { color: var(--error); }
+    .handle-status.check { color: var(--text-muted); }
 
-    .forgot-link { display: block; text-align: center; margin-top: 14px; font-size: 12px; color: #aaa; text-decoration: none; font-weight: 600; }
-    .forgot-link:hover { color: var(--vibrant-orange); }
+    /* Field hint */
+    .field-hint {
+      font-size: 11px; color: var(--text-dim);
+      font-weight: 500; padding-left: 4px;
+      margin-top: 5px; display: block;
+    }
+    .field-hint.warn { color: #f97316; }
+
+    /* ── MAIN BUTTON ── */
+    .btn-primary {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-light) 100%);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      transition: all 0.18s ease;
+      box-shadow: 0 4px 20px var(--orange-glow);
+      margin-top: 6px;
+    }
+    .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 8px 28px var(--orange-glow); }
+    .btn-primary:active { transform: translateY(0); filter: brightness(0.97); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    /* ── LINKS ── */
+    .foot-link {
+      display: block;
+      text-align: center;
+      margin-top: 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .foot-link:hover { color: var(--orange); }
+
+    /* ── PASS REMINDER ── */
+    .pass-note {
+      font-size: 11px;
+      font-weight: 700;
+      color: #f97316;
+      padding-left: 4px;
+      margin-top: 5px;
+      display: block;
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .stat { text-align: center; }
+    .stat-num { font-size: 15px; font-weight: 900; color: var(--orange); }
+    .stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 1px; }
+
+    /* ── METHOD TOGGLE (Email / Phone) ── */
+    .method-toggle {
+      display: flex;
+      background: var(--bg2);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 3px;
+      margin-bottom: 20px;
+    }
+    .method-btn {
+      flex: 1; text-align: center; padding: 7px 10px;
+      border-radius: 7px; font-size: 12px; font-weight: 700;
+      color: var(--text-muted); cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+      user-select: none; border: none; background: none;
+      font-family: 'Inter', sans-serif;
+    }
+    .method-btn.active {
+      background: var(--card2); color: var(--text);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    }
+
+    /* ── PHONE VIEWS ── */
+    .phone-view { display: none; }
+    .phone-view.active { display: block; }
+    .email-view { display: block; }
+    .email-view.hidden { display: none; }
+
+    /* Phone input with country prefix */
+    .phone-wrap { display: flex; gap: 8px; }
+    .phone-prefix {
+      padding: 13px 12px; border-radius: 12px;
+      border: 1.5px solid var(--border); background: var(--bg2);
+      color: var(--text); font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; outline: none;
+      width: 72px; flex-shrink: 0; text-align: center;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    .phone-prefix:focus {
+      border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-glow);
+    }
+    .phone-wrap .field-inner { flex: 1; }
+
+    /* OTP input */
+    .otp-wrap {
+      display: none;
+      gap: 8px;
+      justify-content: center;
+      margin: 14px 0 6px;
+    }
+    .otp-wrap.show { display: flex; }
+    .otp-digit {
+      width: 44px; height: 52px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--bg2);
+      color: var(--text); font-size: 20px; font-weight: 800;
+      text-align: center; outline: none;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    .otp-digit:focus {
+      border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-glow);
+    }
+    .otp-hint {
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      text-align: center; margin-bottom: 12px;
+    }
+    .otp-hint span { color: var(--orange); font-weight: 800; }
+    .resend-link {
+      display: block; text-align: center;
+      font-size: 12px; font-weight: 600; color: var(--text-dim);
+      cursor: pointer; margin-top: 10px; transition: color 0.15s;
+      background: none; border: none; font-family: 'Inter', sans-serif; width: 100%;
+    }
+    .resend-link:hover { color: var(--orange); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+
+    /* ── LOADING SPINNER ── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
-<div class="brand-header">ComicCore</div>
+<!-- Brand -->
+<div class="brand">
+  <div class="brand-logo"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/logo/IMG_1612%20(2).webp" alt="ComicCore"></div>
+  <div class="brand-name">ComicCore</div>
+</div>
 
-<div class="container">
-  <div id="verified-banner" class="verified-banner" style="display:none;">
-    <span class="check-icon">✅</span>
-    Email verified! You're all set.<br>
-    <span style="font-weight:600;color:#555;font-size:13px;">Log in below to start creating.</span>
+<!-- Card -->
+<div class="card">
+
+  <!-- Verified email banner -->
+  <div id="verified-banner" class="verified-banner">
+    <div class="vi">✅</div>
+    <div class="vt">Email verified!</div>
+    <div class="vs">You're all set — log in below to start creating.</div>
   </div>
 
+  <!-- Status banner -->
   <div id="status-banner" class="status-banner"></div>
 
-  <div class="header-tabs">
+  <!-- Segmented tabs -->
+  <div class="tabs-wrap">
     <div id="t-create" class="tab active" onclick="toggle('create')">Create Account</div>
     <div id="t-login"  class="tab"        onclick="toggle('login')">Log In</div>
   </div>
 
-  <!-- SIGN UP -->
-  <div id="c-create" class="form-content active">
+  <!-- ══ SIGN UP PANEL ══ -->
+  <div id="c-create" class="form-panel active">
 
-    <div class="input-group">
-      <span class="input-label">Username</span>
-      <div class="handle-wrap">
-        <span class="handle-at">@</span>
-        <input type="text" id="reg-handle" placeholder="yourhandle"
-          oninput="checkHandle(this.value)" autocomplete="off" autocapitalize="none" spellcheck="false">
+    <!-- OAuth -->
+    <div class="oauth-row">
+      <button class="oauth-btn" onclick="oauthLogin('google')">
+        <svg class="oauth-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </button>
+      <button class="oauth-btn" onclick="oauthLogin('discord')">
+        <svg class="oauth-icon" viewBox="0 0 24 24" fill="#5865F2"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+        Continue with Discord
+      </button>
+    </div>
+
+    <div class="divider">
+      <div class="divider-line"></div>
+      <div class="divider-text">or with</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- Method toggle -->
+    <div class="method-toggle">
+      <button class="method-btn active" id="reg-method-email" onclick="setRegMethod('email')">✉️ Email</button>
+      <button class="method-btn" id="reg-method-phone" onclick="setRegMethod('phone')">📱 Phone</button>
+    </div>
+
+    <!-- ── EMAIL VIEW ── -->
+    <div class="email-view" id="reg-email-view">
+      <!-- Username -->
+      <div class="field">
+        <label class="field-label">Username</label>
+        <div class="field-inner has-at">
+          <span class="handle-at">@</span>
+          <input type="text" id="reg-handle" placeholder="yourhandle"
+            oninput="checkHandle(this.value)" autocomplete="off" autocapitalize="none" spellcheck="false">
+        </div>
+        <span class="handle-status" id="handle-status"></span>
       </div>
-      <span class="handle-status" id="handle-status"></span>
-    </div>
-
-    <div class="input-group">
-      <span class="input-label">Email</span>
-      <input type="email" id="reg-email" placeholder="you@email.com">
-    </div>
-
-    <div class="input-group">
-      <span class="input-label">Date of Birth</span>
-      <input type="date" id="reg-dob" style="padding-right:22px;">
-    </div>
-    <span class="field-hint">You must be 13 or older to join.</span>
-
-    <div class="input-group">
-      <span class="input-label">Password</span>
-      <div class="pass-wrap">
-        <input type="password" id="reg-pass" placeholder="Create a password">
-        <button class="eye-btn" type="button" onclick="toggleEye('reg-pass','eye-reg')">
-          <span id="eye-reg">👁</span>
-        </button>
+      <div class="field">
+        <label class="field-label">Email</label>
+        <div class="field-inner">
+          <input type="email" id="reg-email" placeholder="you@email.com">
+        </div>
       </div>
+      <div class="field">
+        <label class="field-label">Date of Birth</label>
+        <div class="field-inner">
+          <input type="date" id="reg-dob">
+        </div>
+        <span class="field-hint">You must be 13 or older to join.</span>
+      </div>
+      <div class="field">
+        <label class="field-label">Password</label>
+        <div class="field-inner has-eye">
+          <input type="password" id="reg-pass" placeholder="Create a password">
+          <button class="eye-btn" type="button" onclick="toggleEye('reg-pass','eye-reg')">
+            <span id="eye-reg">👁</span>
+          </button>
+        </div>
+        <span class="pass-note">⚠ Remember your password!</span>
+      </div>
+      <button class="btn-primary" id="signup-btn" onclick="handleSignup()">Get Started →</button>
     </div>
-    <span class="pass-reminder">Remember your password !</span>
 
-    <button class="btn" id="signup-btn" onclick="handleSignup()">Get Started</button>
+    <!-- ── PHONE VIEW ── -->
+    <div class="phone-view" id="reg-phone-view">
+      <!-- Username for phone signup -->
+      <div class="field">
+        <label class="field-label">Username</label>
+        <div class="field-inner has-at">
+          <span class="handle-at">@</span>
+          <input type="text" id="reg-handle-phone" placeholder="yourhandle"
+            oninput="checkHandlePhone(this.value)" autocomplete="off" autocapitalize="none" spellcheck="false">
+        </div>
+        <span class="handle-status" id="handle-status-phone"></span>
+      </div>
+      <div class="field">
+        <label class="field-label">Phone Number</label>
+        <div class="phone-wrap">
+          <input type="text" class="phone-prefix" id="reg-phone-prefix" value="+1" maxlength="5" placeholder="+1">
+          <div class="field-inner">
+            <input type="tel" id="reg-phone" placeholder="(555) 000-0000" maxlength="15">
+          </div>
+        </div>
+        <span class="field-hint">We'll text you a 6-digit code to verify.</span>
+      </div>
+      <!-- OTP step (hidden until code sent) -->
+      <div id="reg-otp-section" style="display:none">
+        <div class="otp-hint">Code sent to <span id="reg-otp-phone-display"></span></div>
+        <div class="otp-wrap show" id="reg-otp-wrap">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'reg-otp-wrap')" onkeydown="otpBack(event,this,'reg-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'reg-otp-wrap')" onkeydown="otpBack(event,this,'reg-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'reg-otp-wrap')" onkeydown="otpBack(event,this,'reg-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'reg-otp-wrap')" onkeydown="otpBack(event,this,'reg-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'reg-otp-wrap')" onkeydown="otpBack(event,this,'reg-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'reg-otp-wrap')" onkeydown="otpBack(event,this,'reg-otp-wrap')">
+        </div>
+        <button class="resend-link" onclick="resendOtp('reg')">Didn't get it? Resend code</button>
+      </div>
+      <button class="btn-primary" id="reg-phone-btn" onclick="handlePhoneSignup()">Send Code →</button>
+    </div>
+
   </div>
 
-  <!-- LOG IN -->
-  <div id="c-login" class="form-content">
+  <!-- ══ LOG IN PANEL ══ -->
+  <div id="c-login" class="form-panel">
 
-    <div class="input-group">
-      <span class="input-label">Email</span>
-      <input type="email" id="log-email" placeholder="you@email.com">
+    <!-- OAuth -->
+    <div class="oauth-row">
+      <button class="oauth-btn" onclick="oauthLogin('google')">
+        <svg class="oauth-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </button>
+      <button class="oauth-btn" onclick="oauthLogin('discord')">
+        <svg class="oauth-icon" viewBox="0 0 24 24" fill="#5865F2"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+        Continue with Discord
+      </button>
     </div>
 
-    <div class="input-group">
-      <span class="input-label">Password</span>
-      <div class="pass-wrap">
-        <input type="password" id="log-pass" placeholder="Your password"
-          onkeydown="if(event.key==='Enter') handleLogin()">
-        <button class="eye-btn" type="button" onclick="toggleEye('log-pass','eye-log')">
-          <span id="eye-log">👁</span>
-        </button>
+    <div class="divider">
+      <div class="divider-line"></div>
+      <div class="divider-text">or with</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- Method toggle -->
+    <div class="method-toggle">
+      <button class="method-btn active" id="log-method-email" onclick="setLogMethod('email')">✉️ Email</button>
+      <button class="method-btn" id="log-method-phone" onclick="setLogMethod('phone')">📱 Phone</button>
+    </div>
+
+    <!-- ── EMAIL VIEW ── -->
+    <div class="email-view" id="log-email-view">
+      <div class="field">
+        <label class="field-label">Email</label>
+        <div class="field-inner">
+          <input type="email" id="log-email" placeholder="you@email.com">
+        </div>
       </div>
+      <div class="field">
+        <label class="field-label">Password</label>
+        <div class="field-inner has-eye">
+          <input type="password" id="log-pass" placeholder="Your password"
+            onkeydown="if(event.key==='Enter') handleLogin()">
+          <button class="eye-btn" type="button" onclick="toggleEye('log-pass','eye-log')">
+            <span id="eye-log">👁</span>
+          </button>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="handleLogin()">Sign In →</button>
+      <a class="foot-link" href="forgotpassword.html">Forgot your password?</a>
     </div>
 
-    <button class="btn" onclick="handleLogin()">Sign In</button>
-    <a class="forgot-link" href="forgotpassword.html">Forgot your password?</a>
+    <!-- ── PHONE VIEW ── -->
+    <div class="phone-view" id="log-phone-view">
+      <div class="field">
+        <label class="field-label">Phone Number</label>
+        <div class="phone-wrap">
+          <input type="text" class="phone-prefix" id="log-phone-prefix" value="+1" maxlength="5" placeholder="+1">
+          <div class="field-inner">
+            <input type="tel" id="log-phone" placeholder="(555) 000-0000" maxlength="15">
+          </div>
+        </div>
+        <span class="field-hint">We'll text you a 6-digit code to sign in.</span>
+      </div>
+      <!-- OTP step -->
+      <div id="log-otp-section" style="display:none">
+        <div class="otp-hint">Code sent to <span id="log-otp-phone-display"></span></div>
+        <div class="otp-wrap show" id="log-otp-wrap">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'log-otp-wrap')" onkeydown="otpBack(event,this,'log-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'log-otp-wrap')" onkeydown="otpBack(event,this,'log-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'log-otp-wrap')" onkeydown="otpBack(event,this,'log-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'log-otp-wrap')" onkeydown="otpBack(event,this,'log-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'log-otp-wrap')" onkeydown="otpBack(event,this,'log-otp-wrap')">
+          <input class="otp-digit" maxlength="1" type="tel" oninput="otpNext(this,'log-otp-wrap')" onkeydown="otpBack(event,this,'log-otp-wrap')">
+        </div>
+        <button class="resend-link" onclick="resendOtp('log')">Didn't get it? Resend code</button>
+      </div>
+      <button class="btn-primary" id="log-phone-btn" onclick="handlePhoneLogin()">Send Code →</button>
+    </div>
+
   </div>
-</div>
+
+</div><!-- /card -->
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -166,37 +648,102 @@
     { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
   );
 
-  // ── On page load: check if user just verified their email ──
+  // ─── On load: handle email verification redirect ───────────────────────────
   window.addEventListener('load', async () => {
-    const hash = window.location.hash;
+    const hash   = window.location.hash;
     const params = new URLSearchParams(hash.replace('#', '?'));
-    const type = params.get('type');
+    const type   = params.get('type');
 
     if (type === 'signup') {
-      // Supabase puts the session in the URL hash after email confirmation
-      // Let the SDK pick it up, then show the success banner
-      await _sb.auth.getSession(); // triggers session exchange from hash
+      await _sb.auth.getSession();
       document.getElementById('verified-banner').style.display = 'block';
       toggle('login');
-      // Clean the URL so it doesn't look weird
       history.replaceState(null, '', window.location.pathname);
+    }
+
+    // If user is already logged in, redirect
+    const { data: { session } } = await _sb.auth.getSession();
+    if (session) {
+      window.location.href = 'index.html';
     }
   });
 
-  // Eye toggle
+  // ─── OAuth (Google / Discord) ──────────────────────────────────────────────
+  // HOW TO SET UP:
+  // 1. Supabase Dashboard → Authentication → Providers
+  // 2. Enable Google: add Client ID + Secret from console.cloud.google.com
+  //    - Authorized redirect URI: https://mmycqeejhguzhtzkyjaj.supabase.co/auth/v1/callback
+  // 3. Enable Discord: add Client ID + Secret from discord.com/developers
+  //    - Redirect URI: same as above
+  // That's literally all — the code below just works after that.
+  async function oauthLogin(provider) {
+    const { error } = await _sb.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin + '/index.html',
+        // For Discord, request guilds scope so you can show squad servers later
+        scopes: provider === 'discord' ? 'identify email guilds' : undefined
+      }
+    });
+    if (error) showStatus(error.message, 'error');
+  }
+
+  // After OAuth redirect, Supabase fires an auth state change.
+  // We listen and create the profile row if it doesn't exist yet.
+  _sb.auth.onAuthStateChange(async (event, session) => {
+    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+      const user = session.user;
+
+      // Check if profile already exists
+      const { data: existing } = await _sb
+        .from('profiles')
+        .select('handle, name, pic')
+        .eq('permanent_id', user.id)
+        .maybeSingle();
+
+      if (!existing) {
+        // First-time OAuth user — create profile from their OAuth metadata
+        const meta   = user.user_metadata || {};
+        const handle = (meta.preferred_username || meta.name || user.email.split('@')[0])
+          .toLowerCase().replace(/[^a-z0-9_]/g, '').substring(0, 20) || 'user' + Date.now();
+        const name   = meta.full_name || meta.name || handle;
+        const pic    = meta.avatar_url || '';
+
+        await _sb.from('profiles').insert({
+          handle,
+          permanent_id: user.id,
+          name,
+          pic,
+          socials:  {},
+          settings: {}
+        });
+
+        localStorage.setItem('user_profile', JSON.stringify({
+          handle, permanent_id: user.id, name, email: user.email,
+          pic, banner: '', bio: '', socials: {}, settings: {}
+        }));
+      } else {
+        localStorage.setItem('user_profile', JSON.stringify({
+          ...existing, permanent_id: user.id, email: user.email
+        }));
+      }
+
+      // Only redirect if we're on the login page
+      if (window.location.pathname.includes('login')) {
+        window.location.href = 'index.html';
+      }
+    }
+  });
+
+  // ─── Eye toggle ────────────────────────────────────────────────────────────
   function toggleEye(inputId, iconId) {
     const inp  = document.getElementById(inputId);
     const icon = document.getElementById(iconId);
-    if (inp.type === 'password') {
-      inp.type = 'text';
-      icon.textContent = '🙈';
-    } else {
-      inp.type = 'password';
-      icon.textContent = '👁';
-    }
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    icon.textContent = inp.type === 'password' ? '👁' : '🙈';
   }
 
-  // Live handle availability check
+  // ─── Handle availability check ─────────────────────────────────────────────
   let handleTimer = null;
   async function checkHandle(val) {
     const status = document.getElementById('handle-status');
@@ -214,7 +761,7 @@
     handleTimer = setTimeout(async () => {
       const { data } = await _sb.from('profiles').select('handle').eq('handle', val).maybeSingle();
       if (data) {
-        status.textContent = '✕ @' + val + ' is already taken';
+        status.textContent = '✕ @' + val + ' is taken';
         status.className = 'handle-status taken';
       } else {
         status.textContent = '✓ @' + val + ' is available';
@@ -223,7 +770,7 @@
     }, 500);
   }
 
-  // Age check (must be 13+)
+  // ─── Age check ─────────────────────────────────────────────────────────────
   function isOldEnough(dob) {
     if (!dob) return false;
     const birth = new Date(dob);
@@ -233,7 +780,7 @@
     return age >= 13;
   }
 
-  // SIGN UP
+  // ─── Sign Up ───────────────────────────────────────────────────────────────
   async function handleSignup() {
     const handle = document.getElementById('reg-handle').value.trim().toLowerCase();
     const email  = document.getElementById('reg-email').value.trim();
@@ -248,17 +795,15 @@
     if (pass.length < 6)               return showStatus('Password must be at least 6 characters.', 'error');
 
     const { data: existing } = await _sb.from('profiles').select('handle').eq('handle', handle).maybeSingle();
-    if (existing) return showStatus('That username is already taken. Choose another.', 'error');
+    if (existing) return showStatus('That username is already taken. Try another.', 'error');
 
     btn.disabled = true;
-    btn.textContent = 'Creating account…';
+    btn.innerHTML = '<span class="spinner"></span> Creating account…';
 
     try {
       const { data: signUpData, error: signUpError } = await _sb.auth.signUp({
-        email,
-        password: pass,
+        email, password: pass,
         options: {
-          // After clicking the verification link, user lands back on login.html
           emailRedirectTo: window.location.href.split('?')[0].split('#')[0]
         }
       });
@@ -266,79 +811,264 @@
 
       const user = signUpData.user;
 
-      const { error: profileError } = await _sb.from('profiles').insert({
-        handle:       handle,
-        permanent_id: user.id,
-        name:         handle,
-        socials:      {},
-        settings:     {}
+      await _sb.from('profiles').insert({
+        handle, permanent_id: user.id, name: handle, socials: {}, settings: {}
       });
-      if (profileError) throw profileError;
 
       localStorage.setItem('user_profile', JSON.stringify({
         handle, permanent_id: user.id, name: handle,
         email, pic: '', banner: '', bio: '', socials: {}, settings: {}
       }));
 
-      showStatus('✅ Account created! Check your email to verify, then log in.', 'success');
-      btn.textContent = '✓ Check Your Email';
+      showStatus('✅ Account created! Check your email to verify.', 'success');
+      btn.innerHTML = '✓ Check Your Email';
 
     } catch (err) {
       showStatus(err.message, 'error');
       btn.disabled = false;
-      btn.textContent = 'Get Started';
+      btn.innerHTML = 'Get Started →';
     }
   }
 
-  // LOG IN
+  // ─── Log In ────────────────────────────────────────────────────────────────
   async function handleLogin() {
     const email = document.getElementById('log-email').value.trim();
     const pass  = document.getElementById('log-pass').value;
 
     if (!email || !pass) return showStatus('Please enter your email and password.', 'error');
 
+    const loginBtn = document.querySelector('#c-login .btn-primary');
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<span class="spinner"></span> Signing in…';
+
     try {
       const { data: signInData, error } = await _sb.auth.signInWithPassword({ email, password: pass });
       if (error) throw error;
 
       const user = signInData.user;
+      const { data: profile } = await _sb.from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
 
-      const { data: profile } = await _sb
-        .from('profiles')
-        .select('*')
-        .eq('permanent_id', user.id)
-        .maybeSingle();
-
-      if (profile) {
-        localStorage.setItem('user_profile', JSON.stringify(profile));
-      } else {
-        localStorage.setItem('user_profile', JSON.stringify({ permanent_id: user.id, email: user.email }));
-      }
+      localStorage.setItem('user_profile', JSON.stringify(
+        profile || { permanent_id: user.id, email: user.email }
+      ));
 
       showStatus('Welcome back! Redirecting…', 'success');
-      setTimeout(() => { window.location.href = 'index.html'; }, 800);
+      setTimeout(() => { window.location.href = 'index.html'; }, 700);
 
     } catch (err) {
       showStatus(err.message, 'error');
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = 'Sign In →';
     }
   }
 
-  // Status banner
+  // ─── Method toggles ────────────────────────────────────────────────────────
+  function setRegMethod(m) {
+    const isPhone = m === 'phone';
+    document.getElementById('reg-method-email').className = isPhone ? 'method-btn' : 'method-btn active';
+    document.getElementById('reg-method-phone').className = isPhone ? 'method-btn active' : 'method-btn';
+    document.getElementById('reg-email-view').className   = isPhone ? 'email-view hidden' : 'email-view';
+    document.getElementById('reg-phone-view').className   = isPhone ? 'phone-view active' : 'phone-view';
+    document.getElementById('status-banner').style.display = 'none';
+  }
+  function setLogMethod(m) {
+    const isPhone = m === 'phone';
+    document.getElementById('log-method-email').className = isPhone ? 'method-btn' : 'method-btn active';
+    document.getElementById('log-method-phone').className = isPhone ? 'method-btn active' : 'method-btn';
+    document.getElementById('log-email-view').className   = isPhone ? 'email-view hidden' : 'email-view';
+    document.getElementById('log-phone-view').className   = isPhone ? 'phone-view active' : 'phone-view';
+    document.getElementById('status-banner').style.display = 'none';
+  }
+
+  // ─── Phone helpers ──────────────────────────────────────────────────────────
+  function buildPhone(prefixId, numberId) {
+    const prefix = document.getElementById(prefixId).value.trim();
+    const number = document.getElementById(numberId).value.replace(/\D/g, '');
+    return prefix + number;
+  }
+
+  let _regPhone = '', _logPhone = '';
+
+  // ─── Phone Signup: send OTP ─────────────────────────────────────────────────
+  async function handlePhoneSignup() {
+    const handle = document.getElementById('reg-handle-phone').value.trim().toLowerCase();
+    const phone  = buildPhone('reg-phone-prefix', 'reg-phone');
+    const btn    = document.getElementById('reg-phone-btn');
+    const otpSection = document.getElementById('reg-otp-section');
+
+    // If OTP section is visible, we're verifying
+    if (otpSection.style.display !== 'none') {
+      return verifyPhoneOtp('reg');
+    }
+
+    if (!handle || handle.length < 3) return showStatus('Username must be at least 3 characters.', 'error');
+    if (phone.replace(/\D/g,'').length < 7) return showStatus('Please enter a valid phone number.', 'error');
+
+    const { data: existing } = await _sb.from('profiles').select('handle').eq('handle', handle).maybeSingle();
+    if (existing) return showStatus('That username is already taken.', 'error');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Sending…';
+
+    const { error } = await _sb.auth.signInWithOtp({ phone });
+
+    if (error) {
+      showStatus(error.message, 'error');
+      btn.disabled = false;
+      btn.innerHTML = 'Send Code →';
+    } else {
+      _regPhone = phone;
+      document.getElementById('reg-otp-phone-display').textContent = phone;
+      otpSection.style.display = 'block';
+      btn.disabled = false;
+      btn.innerHTML = 'Verify Code →';
+      document.getElementById('reg-otp-wrap').querySelectorAll('.otp-digit')[0].focus();
+    }
+  }
+
+  // ─── Phone Login: send OTP ──────────────────────────────────────────────────
+  async function handlePhoneLogin() {
+    const phone = buildPhone('log-phone-prefix', 'log-phone');
+    const btn   = document.getElementById('log-phone-btn');
+    const otpSection = document.getElementById('log-otp-section');
+
+    if (otpSection.style.display !== 'none') {
+      return verifyPhoneOtp('log');
+    }
+
+    if (phone.replace(/\D/g,'').length < 7) return showStatus('Please enter a valid phone number.', 'error');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Sending…';
+
+    const { error } = await _sb.auth.signInWithOtp({ phone });
+
+    if (error) {
+      showStatus(error.message, 'error');
+      btn.disabled = false;
+      btn.innerHTML = 'Send Code →';
+    } else {
+      _logPhone = phone;
+      document.getElementById('log-otp-phone-display').textContent = phone;
+      otpSection.style.display = 'block';
+      btn.disabled = false;
+      btn.innerHTML = 'Verify Code →';
+      document.getElementById('log-otp-wrap').querySelectorAll('.otp-digit')[0].focus();
+    }
+  }
+
+  // ─── Verify OTP ─────────────────────────────────────────────────────────────
+  async function verifyPhoneOtp(panel) {
+    const wrapId = panel + '-otp-wrap';
+    const digits = [...document.getElementById(wrapId).querySelectorAll('.otp-digit')];
+    const token  = digits.map(d => d.value).join('');
+    const phone  = panel === 'reg' ? _regPhone : _logPhone;
+    const btnId  = panel === 'reg' ? 'reg-phone-btn' : 'log-phone-btn';
+    const btn    = document.getElementById(btnId);
+
+    if (token.length < 6) return showStatus('Please enter all 6 digits.', 'error');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Verifying…';
+
+    const { data, error } = await _sb.auth.verifyOtp({ phone, token, type: 'sms' });
+
+    if (error) {
+      showStatus(error.message, 'error');
+      btn.disabled = false;
+      btn.innerHTML = 'Verify Code →';
+      return;
+    }
+
+    const user = data.user;
+
+    // Create profile if new user (signup panel)
+    if (panel === 'reg') {
+      const handle = document.getElementById('reg-handle-phone').value.trim().toLowerCase();
+      const { data: existingProfile } = await _sb.from('profiles').select('handle').eq('permanent_id', user.id).maybeSingle();
+      if (!existingProfile) {
+        await _sb.from('profiles').insert({
+          handle, permanent_id: user.id, name: handle, socials: {}, settings: {}
+        });
+        localStorage.setItem('user_profile', JSON.stringify({
+          handle, permanent_id: user.id, name: handle,
+          email: '', pic: '', banner: '', bio: '', socials: {}, settings: {}
+        }));
+      }
+    } else {
+      const { data: profile } = await _sb.from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
+      localStorage.setItem('user_profile', JSON.stringify(profile || { permanent_id: user.id }));
+    }
+
+    showStatus('✅ Verified! Redirecting…', 'success');
+    setTimeout(() => { window.location.href = 'index.html'; }, 900);
+  }
+
+  // ─── Resend OTP ─────────────────────────────────────────────────────────────
+  async function resendOtp(panel) {
+    const phone = panel === 'reg' ? _regPhone : _logPhone;
+    if (!phone) return;
+    await _sb.auth.signInWithOtp({ phone });
+    showStatus('New code sent!', 'success');
+    // Clear digits
+    const wrap = document.getElementById(panel + '-otp-wrap');
+    wrap.querySelectorAll('.otp-digit').forEach(d => d.value = '');
+    wrap.querySelectorAll('.otp-digit')[0].focus();
+  }
+
+  // ─── Handle availability check (phone signup) ───────────────────────────────
+  let handleTimerPhone = null;
+  async function checkHandlePhone(val) {
+    const status = document.getElementById('handle-status-phone');
+    val = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    document.getElementById('reg-handle-phone').value = val;
+    if (!val || val.length < 3) {
+      status.textContent = val.length > 0 ? 'At least 3 characters' : '';
+      status.className = 'handle-status check'; return;
+    }
+    status.textContent = 'Checking…'; status.className = 'handle-status check';
+    clearTimeout(handleTimerPhone);
+    handleTimerPhone = setTimeout(async () => {
+      const { data } = await _sb.from('profiles').select('handle').eq('handle', val).maybeSingle();
+      status.textContent = data ? '✕ @' + val + ' is taken' : '✓ @' + val + ' is available';
+      status.className = 'handle-status ' + (data ? 'taken' : 'ok');
+    }, 500);
+  }
+
+  // ─── OTP digit navigation ───────────────────────────────────────────────────
+  function otpNext(el, wrapId) {
+    el.value = el.value.replace(/\D/g, '').slice(-1);
+    if (el.value && el.nextElementSibling && el.nextElementSibling.classList.contains('otp-digit')) {
+      el.nextElementSibling.focus();
+    }
+    // Auto-submit when all 6 filled
+    const wrap = document.getElementById(wrapId);
+    const digits = [...wrap.querySelectorAll('.otp-digit')];
+    if (digits.every(d => d.value)) {
+      const panel = wrapId.startsWith('reg') ? 'reg' : 'log';
+      verifyPhoneOtp(panel);
+    }
+  }
+  function otpBack(e, el, wrapId) {
+    if (e.key === 'Backspace' && !el.value && el.previousElementSibling && el.previousElementSibling.classList.contains('otp-digit')) {
+      el.previousElementSibling.focus();
+    }
+  }
+
+
   function showStatus(msg, type) {
     const b = document.getElementById('status-banner');
     b.innerText = msg;
-    b.className = `status-banner ${type}`;
+    b.className = 'status-banner ' + type;
     b.style.display = 'block';
-    b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // Tab toggle
   function toggle(mode) {
     const isCreate = mode === 'create';
     document.getElementById('t-create').className = isCreate ? 'tab active' : 'tab';
     document.getElementById('t-login').className  = isCreate ? 'tab' : 'tab active';
-    document.getElementById('c-create').className = isCreate ? 'form-content active' : 'form-content';
-    document.getElementById('c-login').className  = isCreate ? 'form-content' : 'form-content active';
+    document.getElementById('c-create').className = isCreate ? 'form-panel active' : 'form-panel';
+    document.getElementById('c-login').className  = isCreate ? 'form-panel' : 'form-panel active';
     document.getElementById('status-banner').style.display = 'none';
   }
 </script>

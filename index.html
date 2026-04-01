@@ -1,549 +1,485 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta property="og:title" content="ComicCore™ - Create & Read">
-<meta property="og:description" content="ComicCore™ is a new app that lets you make comics using 2D sprites and arcade characters. No drawing skills needed, just customize the poses, angles, and frames to tell the story you want.">
-<meta property="og:image" content="https://media.discordapp.net/attachments/1472088820584419450/1475026485256523816/IMG_1777.png?ex=699bfcf6&is=699aab76&hm=4d03c9164ead0826a54cb0d5225719bbab724d2cf9296a72589bcb41db1f815d&=&format=webp&quality=lossless">
-<meta property="og:url" content="https://zaz444.github.io/comiccore/">
-<meta name="twitter:card" content="summary_large_image">
-    <link rel="stylesheet" href="theme.css">
-    <script src="theme.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ComicCore - Home</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        /* colors now in theme.css */
+  <meta property="og:title" content="ComicCore™ - Create & Read">
+  <meta property="og:description" content="ComicCore™ is a new app that lets you make comics using 2D sprites and arcade characters. No drawing skills needed, just customize the poses, angles, and frames to tell the story you want.">
+  <meta property="og:image" content="https://media.discordapp.net/attachments/1472088820584419450/1475026485256523816/IMG_1777.png?ex=699bfcf6&is=699aab76&hm=4d03c9164ead0826a54cb0d5225719bbab724d2cf9296a72589bcb41db1f815d&=&format=webp&quality=lossless">
+  <meta property="og:url" content="https://zaz444.github.io/comiccore/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComicCore - Home</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        body { 
-            margin: 0; 
-            padding: 20px; 
-            font-family: 'Inter', sans-serif; 
-            background-color: var(--bg); 
-            color: var(--text); 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            min-height: 100vh;
-            position: relative; /* For the bubbles container */
-            z-index: 1;
-        }
-        
-        .home-header { 
-            width: 100%; 
-            max-width: 400px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-start; 
-            margin: 40px 0 30px 0; 
-        }
+    :root {
+      --orange: #ff7a00;
+      --orange-light: #ff9a3c;
+      --orange-glow: rgba(255,122,0,0.22);
+      --bg: #0f0f11;
+      --bg2: #18181b;
+      --card: #1e1e22;
+      --card2: #26262c;
+      --border: rgba(255,255,255,0.08);
+      --text: #f4f4f6;
+      --text-muted: #888896;
+      --text-dim: #55555f;
+      --teal: #00c9b1;
+      --teal-glow: rgba(0,201,177,0.18);
+    }
 
-        .welcome-container { flex: 1; }
-        h1 { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
-        
-        .corner-avatar {
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            border: 2px solid var(--accent);
-            cursor: pointer;
-            object-fit: cover;
-            background: var(--card);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
-        }
-        .corner-avatar:hover { 
-            transform: scale(1.1) rotate(5deg); 
-            box-shadow: 0 6px 16px var(--accent);
-        }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      min-height: 100dvh;
+      color: var(--text);
+      padding-bottom: 40px;
+      position: relative;
+      overflow-x: hidden;
+    }
 
-        .user-meta-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
-        #user-display { color: var(--accent); font-size: 18px; font-weight: 700; }
-        #id-badge { background: #202327; color: var(--accent); font-size: 11px; padding: 4px 10px; border-radius: 8px; font-weight: 800; border: 1px solid var(--border); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
-        
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; max-width: 400px; z-index: 2; }
-        
-        .card { 
-            background: var(--accent); 
-            border-radius: 20px; 
-            padding: 30px 15px; 
-            text-align: center; 
-            color: white; 
-            font-weight: 700; 
-            font-size: 15px; 
-            cursor: pointer; 
-            border: none; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); 
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        /* Subtle shine effect on cards */
-        .card::after {
-            content: '';
-            position: absolute;
-            top: 0; left: -100%;
-            width: 50%; height: 100%;
-            background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
-            transform: skewX(-25deg);
-            transition: 0.5s;
-        }
+    body::before {
+      content: '';
+      position: fixed; top: -100px; left: -80px;
+      width: 480px; height: 480px;
+      background: radial-gradient(circle, rgba(255,122,0,0.09) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed; bottom: -80px; right: -60px;
+      width: 380px; height: 380px;
+      background: radial-gradient(circle, rgba(0,201,177,0.06) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
 
-        .card:hover::after { left: 150%; }
-        
-        .card:active { transform: scale(0.95) translateY(2px); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-        .card:hover { 
-            transform: translateY(-4px); 
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
-            filter: brightness(1.05); 
-        }
-        
-        .card.large { 
-            grid-column: span 2; 
-            padding: 22px 25px; 
-            text-align: left; 
-            justify-content: flex-start;
-            font-size: 16px;
-        }
+    .home-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,15,17,0.88);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-brand { display: flex; align-items: center; gap: 10px; }
+    .header-logo {
+      width: 36px; height: 36px; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 4px 12px var(--orange-glow);
+    }
+    .header-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .header-title { font-size: 17px; font-weight: 900; color: var(--text); letter-spacing: -0.3px; }
+    .corner-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      border: 2px solid var(--orange); cursor: pointer; object-fit: cover;
+      background: var(--card2); transition: box-shadow 0.25s, transform 0.25s;
+    }
+    .corner-avatar:hover { transform: scale(1.08); box-shadow: 0 0 0 4px var(--orange-glow); }
 
-        /* Notification States */
-        .card.has-message { background: var(--notify-msg) !important; color: #000; animation: pulse 2s infinite; }
-        .card.has-request { background: var(--notify-req) !important; color: #000; animation: pulse 2s infinite; }
+    .main {
+      position: relative; z-index: 1;
+      max-width: 440px; margin: 0 auto; padding: 24px 16px 0;
+    }
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
-        }
+    .welcome-row { margin-bottom: 22px; }
+    .welcome-label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
+    .welcome-name { font-size: 26px; font-weight: 900; color: var(--text); letter-spacing: -0.5px; line-height: 1.1; }
+    .welcome-name span { color: var(--orange); }
 
-        .logout-btn { 
-            margin-top: 40px; 
-            background: rgba(0,0,0,0.2); 
-            border: 1px solid var(--border); 
-            color: var(--secondary); 
-            padding: 12px 35px; 
-            border-radius: 50px; 
-            cursor: pointer; 
-            font-weight: 700; 
-            transition: all 0.3s ease;
-            backdrop-filter: blur(4px);
-            z-index: 2;
-        }
-        .logout-btn:hover {
-            background: rgba(255,50,50,0.1);
-            color: #ff5555;
-            border-color: #ff5555;
-            transform: translateY(-2px);
-        }
+    /* Hero create card */
+    .create-card {
+      width: 100%;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-light) 100%);
+      border-radius: 20px; padding: 22px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; border: none; font-family: 'Inter', sans-serif;
+      box-shadow: 0 8px 32px var(--orange-glow), 0 0 0 1px rgba(255,122,0,0.3);
+      transition: all 0.2s ease; margin-bottom: 12px;
+      position: relative; overflow: hidden;
+    }
+    .create-card::before {
+      content: ''; position: absolute; top: 0; left: -60%;
+      width: 40%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+      transform: skewX(-20deg); transition: left 0.5s ease;
+    }
+    .create-card:hover::before { left: 130%; }
+    .create-card:hover { transform: translateY(-2px); box-shadow: 0 14px 40px var(--orange-glow); }
+    .create-card:active { transform: scale(0.98); }
+    .create-card-tag { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; color: rgba(255,255,255,0.7); text-transform: uppercase; margin-bottom: 4px; }
+    .create-card-title { font-size: 20px; font-weight: 900; color: #fff; letter-spacing: -0.3px; }
+    .create-card-sub { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.75); margin-top: 2px; }
+    .create-card-icon { font-size: 40px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
 
-        /* ── Glowing Bottom Bubbles Animation ── */
-        .bubbles-container {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 200px;
-            overflow: hidden;
-            z-index: 0;
-            pointer-events: none;
-        }
+    /* Card grid */
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 
-        .bubble {
-            position: absolute;
-            bottom: -30px;
-            border-radius: 50%;
-            background: var(--accent);
-            opacity: 0;
-            box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
-            animation: floatUp 6s infinite ease-in;
-        }
+    .nav-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px 14px;
+      cursor: pointer; text-align: left; font-family: 'Inter', sans-serif;
+      display: flex; flex-direction: column; gap: 5px;
+      transition: all 0.18s ease;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      position: relative; overflow: hidden;
+    }
+    .nav-card:hover { background: var(--card2); border-color: rgba(255,255,255,0.13); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    .nav-card:active { transform: scale(0.97); }
+    .nav-card.span-2 { grid-column: span 2; flex-direction: row; align-items: center; justify-content: space-between; padding: 16px 18px; }
+    .nav-card.span-2 .card-body { flex: 1; }
+    .nav-card.accent-teal { border-color: rgba(0,201,177,0.2); }
+    .nav-card.accent-teal:hover { border-color: rgba(0,201,177,0.4); box-shadow: 0 8px 24px var(--teal-glow); }
+    .nav-card.accent-teal .card-icon { color: var(--teal); }
+    .nav-card.accent-teal .card-title { color: var(--teal); }
 
-        .bubble.teal {
-            background: var(--teal);
-            box-shadow: 0 0 15px var(--teal), 0 0 30px var(--teal);
-        }
+    .nav-card.has-notification { border-color: rgba(255,200,0,0.35); background: rgba(255,200,0,0.06); animation: notif-pulse 2.5s infinite; }
+    @keyframes notif-pulse {
+      0%,100% { box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+      50% { box-shadow: 0 4px 20px rgba(255,200,0,0.25); }
+    }
+    .nav-card.has-notification .card-title { color: #ffd700; }
 
-        @keyframes floatUp {
-            0% { bottom: -30px; transform: translateX(0) scale(0.8); opacity: 0; }
-            20% { opacity: 0.6; }
-            80% { opacity: 0.3; }
-            100% { bottom: 200px; transform: translateX(-30px) scale(1.5); opacity: 0; }
-        }
+    .card-icon { font-size: 22px; margin-bottom: 2px; }
+    .card-title { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.2px; }
+    .card-sub { font-size: 11px; font-weight: 500; color: var(--text-muted); line-height: 1.4; }
+    .card-arrow { font-size: 20px; color: var(--text-dim); transition: color 0.15s, transform 0.15s; }
+    .nav-card:hover .card-arrow { color: var(--text-muted); transform: translateX(3px); }
 
-        /* Individual Bubble Settings */
-        .bubble:nth-child(1) { width: 12px; height: 12px; left: 15%; animation-duration: 5s; }
-        .bubble:nth-child(2) { width: 20px; height: 20px; left: 35%; animation-duration: 7s; animation-delay: 1.5s; }
-        .bubble:nth-child(3) { width: 10px; height: 10px; left: 55%; animation-duration: 4.5s; animation-delay: 0.5s; }
-        .bubble:nth-child(4) { width: 16px; height: 16px; left: 75%; animation-duration: 6s; animation-delay: 2.5s; }
-        .bubble:nth-child(5) { width: 24px; height: 24px; left: 85%; animation-duration: 8s; animation-delay: 1s; }
+    .signout-btn {
+      width: 100%; margin-top: 14px;
+      background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+      padding: 13px; border-radius: 12px; cursor: pointer;
+      font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
+      transition: all 0.18s ease;
+    }
+    .signout-btn:hover { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.3); color: #f87171; }
 
-        /* ── Ratio Picker Modal ── */
-        #ratio-modal {
-            position: fixed; inset: 0; background: rgba(10,10,12,0.85);
-            z-index: 9999; display: none; flex-direction: column;
-            align-items: center; justify-content: center; gap: 18px;
-            backdrop-filter: blur(16px); padding: 20px;
-            animation: fadeIn 0.3s ease-out;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        
-        #ratio-modal h2 { margin: 0; color: var(--accent); font-size: 22px; font-weight: 900; letter-spacing: 1px; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-        #ratio-modal p  { margin: 0; color: #999; font-size: 13px; text-align: center; }
-        
-        .ratio-grid {
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-            max-width: 400px; width: 100%;
-        }
-        
-        .ratio-btn {
-            background: #1a1a1a; border: 1.5px solid #333; color: #fff;
-            border-radius: 14px; padding: 12px 6px; cursor: pointer; font-weight: 800;
-            font-size: 12px; text-align: center; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex;
-            flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-            min-height: 75px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-        .ratio-btn:hover { 
-            border-color: var(--accent); color: var(--accent); background: #222; 
-            transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.4);
-        }
-        .ratio-btn:active { transform: scale(0.95); }
-        .ratio-preview { background: #444; border: 1.5px solid #666; border-radius: 3px; transition: 0.2s; }
-        .ratio-btn:hover .ratio-preview { border-color: var(--accent); background: rgba(255,255,255,0.1); }
-        
-        .ratio-cancel {
-            background: rgba(255,255,255,0.05); border: 1px solid #444; color: #aaa;
-            padding: 12px 32px; border-radius: 50px; cursor: pointer;
-            font-size: 14px; font-weight: 700; margin-top: 10px;
-            transition: 0.2s;
-        }
-        .ratio-cancel:hover { background: #333; color: #fff; border-color: #666; }
+    /* Modals */
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
 
-        /* Mode Modal Animation */
-        #mode-modal { animation: fadeIn 0.3s ease-out; }
-        .mode-btn {
-            flex: 1; background: #1a1a1a; border: 2px solid #333; color: #fff;
-            border-radius: 20px; padding: 30px 16px; cursor: pointer;
-            display: flex; flex-direction: column; align-items: center; gap: 12px;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); font-family: 'Inter', sans-serif;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .mode-btn:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.5); }
-        .mode-btn:active { transform: scale(0.96); }
-    </style>
+    #ratio-modal {
+      position: fixed; inset: 0; background: rgba(10,10,12,0.88);
+      z-index: 9999; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+      backdrop-filter: blur(20px); padding: 20px; animation: fadeIn 0.25s ease-out;
+    }
+    #ratio-modal h2 { margin: 0; color: var(--orange); font-size: 20px; font-weight: 900; text-align: center; }
+    #ratio-modal p { margin: 0; color: var(--text-muted); font-size: 13px; text-align: center; }
+    .ratio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 400px; width: 100%; }
+    .ratio-btn {
+      background: var(--card); border: 1.5px solid var(--border); color: var(--text);
+      border-radius: 14px; padding: 12px 6px; cursor: pointer; font-weight: 800;
+      font-size: 12px; text-align: center; transition: all 0.2s ease;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; min-height: 75px; font-family: 'Inter', sans-serif;
+    }
+    .ratio-btn:hover { border-color: var(--orange); color: var(--orange); background: var(--card2); transform: translateY(-2px); }
+    .ratio-btn:active { transform: scale(0.95); }
+    .ratio-preview { background: var(--card2); border: 1.5px solid var(--border); border-radius: 3px; transition: 0.2s; }
+    .ratio-btn:hover .ratio-preview { border-color: var(--orange); }
+    .ratio-cancel {
+      background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
+      padding: 12px 32px; border-radius: 50px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; transition: 0.2s;
+    }
+    .ratio-cancel:hover { background: var(--card2); color: var(--text); }
+
+    #mode-modal {
+      position: fixed; inset: 0; background: rgba(10,10,12,0.88);
+      z-index: 10000; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 24px;
+      backdrop-filter: blur(20px); padding: 30px;
+      font-family: 'Inter', sans-serif; animation: fadeIn 0.25s ease-out;
+    }
+    .mode-btn {
+      flex: 1; background: var(--card); border: 1.5px solid var(--border); color: var(--text);
+      border-radius: 20px; padding: 30px 16px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      transition: all 0.25s ease; font-family: 'Inter', sans-serif;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .mode-btn:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(0,0,0,0.5); background: var(--card2); }
+    .mode-btn:active { transform: scale(0.96); }
+
+    #draft-choice-modal {
+      position: fixed; inset: 0; background: rgba(10,10,12,0.88);
+      z-index: 9998; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+      backdrop-filter: blur(20px); padding: 30px;
+      font-family: 'Inter', sans-serif; animation: fadeIn 0.25s ease-out;
+    }
+  </style>
 </head>
 <body>
 
-    <div class="home-header">
-        <div class="welcome-container">
-            <h1>Welcome,</h1>
-            <div class="user-meta-row">
-                <span id="user-display">Loading...</span>
-                <span id="id-badge" style="display:none;">#ID</span>
-            </div>
-        </div>
-        <img id="nav-pfp" src="https://via.placeholder.com/50" class="corner-avatar" onclick="goToMyProfile()" title="View Public Profile">
+<div class="home-header">
+  <div class="header-brand">
+    <div class="header-logo">
+      <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/logo/IMG_1612%20(2).webp" alt="ComicCore">
     </div>
+    <div class="header-title">ComicCore</div>
+  </div>
+  <img id="nav-pfp" src="https://via.placeholder.com/50" class="corner-avatar" onclick="goToMyProfile()" title="View Profile">
+</div>
 
-    <div class="grid">
-        <button class="card" onclick="location.href='discover.html'">Discover</button>
-        <button class="card" onclick="goToMyComics()">My Comics</button>
-        
-        <button class="card" onclick="goToMyProfile()">View Profile</button>
-        <button class="card" onclick="location.href='favorites.html'">Favorites</button>
-        
-        <button class="card large" onclick="openCreateFlow()">Create Comic</button>
-        <button class="card large" onclick="location.href='settings.html'">Settings</button>
-        
-        <button id="teams-btn" class="card large" onclick="location.href='squads.html'">Squads</button>
-        <button id="sprite-editor-btn" class="card large" onclick="location.href='sprite-editor.html'" style="border-color: var(--teal); color: var(--teal); background: rgba(255,255,255,0.05); border: 2px solid var(--teal);">🎨 Sprite Editor</button>
+<div class="main">
+
+  <div class="welcome-row">
+    <div class="welcome-label">Good to see you,</div>
+    <div class="welcome-name"><span id="user-display">Loading…</span></div>
+  </div>
+
+  <button class="create-card" onclick="openCreateFlow()">
+    <div>
+      <div class="create-card-tag">Start creating</div>
+      <div class="create-card-title">Create Comic</div>
+      <div class="create-card-sub">Sprites, frames &amp; speech bubbles</div>
     </div>
+    <div class="create-card-icon">🎨</div>
+  </button>
 
-    <button class="logout-btn" onclick="logout()">Sign Out</button>
+  <div class="card-grid">
 
-    <div class="bubbles-container">
-        <div class="bubble"></div>
-        <div class="bubble teal"></div>
-        <div class="bubble"></div>
-        <div class="bubble teal"></div>
-        <div class="bubble"></div>
-    </div>
+    <button class="nav-card" onclick="location.href='discover.html'">
+      <div class="card-icon">🔍</div>
+      <div class="card-title">Discover</div>
+      <div class="card-sub">Find new comics</div>
+    </button>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
-        const SUPABASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co'; 
-        const SUPABASE_KEY = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-            auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
-        });
+    <button class="nav-card" onclick="goToMyComics()">
+      <div class="card-icon">📚</div>
+      <div class="card-title">My Comics</div>
+      <div class="card-sub">Your creations</div>
+    </button>
 
-        async function checkUser() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            const user = session?.user ?? null;
-            
-            if (user) {
-                let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    <button class="nav-card" onclick="goToMyProfile()">
+      <div class="card-icon">👤</div>
+      <div class="card-title">Profile</div>
+      <div class="card-sub">View your page</div>
+    </button>
 
-                if (!myProfile.handle) {
-                    const { data: freshProfile } = await supabaseClient
-                        .from('profiles')
-                        .select('*')
-                        .eq('permanent_id', user.id)
-                        .maybeSingle();
+    <button class="nav-card" onclick="location.href='favorites.html'">
+      <div class="card-icon">⭐</div>
+      <div class="card-title">Favorites</div>
+      <div class="card-sub">Saved comics</div>
+    </button>
 
-                    if (freshProfile) {
-                        myProfile = { ...myProfile, ...freshProfile };
-                        localStorage.setItem('user_profile', JSON.stringify(myProfile));
-                    }
-                }
+    <button id="teams-btn" class="nav-card span-2" onclick="location.href='squads.html'">
+      <div class="card-body">
+        <div class="card-title">Squads</div>
+        <div class="card-sub">Groups &amp; team chats</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </button>
 
-                document.getElementById('user-display').innerText = myProfile.name || "New Creator";
-                if (myProfile.pic) document.getElementById('nav-pfp').src = myProfile.pic;
+    <button class="nav-card span-2" onclick="location.href='settings.html'">
+      <div class="card-body">
+        <div class="card-title">Settings</div>
+        <div class="card-sub">Account, display &amp; privacy</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </button>
 
-                if (myProfile.permanent_id) {
-                    const badge = document.getElementById('id-badge');
-                    badge.innerText = "#" + myProfile.permanent_id;
-                    badge.style.display = "inline-block";
-                }
+    <button id="sprite-editor-btn" class="nav-card span-2 accent-teal" onclick="location.href='sprite-editor.html'">
+      <div class="card-body">
+        <div class="card-icon">🎨</div>
+        <div class="card-title">Sprite Editor</div>
+        <div class="card-sub">Create &amp; customize sprites</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </button>
 
-                if (localStorage.getItem('cc-privacy-team') === 'false')
-                    document.getElementById('teams-btn').style.display = 'none';
+  </div>
 
-                checkTeamNotifications(user.id);
-            } else {
-                window.location.href = "login.html";
-            }
+  <button class="signout-btn" onclick="logout()">Sign Out</button>
+
+</div>
+
+<!-- Draft Modal -->
+<div id="draft-choice-modal">
+  <div style="text-align:center;">
+    <div style="font-size:40px; margin-bottom:12px;">📝</div>
+    <h2 style="margin:0; color:var(--orange); font-size:22px; font-weight:900;">You have a draft</h2>
+    <p style="margin:10px 0 4px; color:var(--text); font-size:16px; font-weight:700;" id="draft-title-preview">Untitled Draft</p>
+    <p style="margin:0; color:var(--text-muted); font-size:13px;" id="draft-frames-preview">0 frames</p>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:12px; width:100%; max-width:320px;">
+    <button onclick="resumeDraft()" style="padding:18px; background:linear-gradient(135deg,var(--orange),var(--orange-light)); color:white; border:none; border-radius:14px; font-size:16px; font-weight:900; cursor:pointer; font-family:'Inter',sans-serif; box-shadow:0 6px 20px var(--orange-glow);">▶ Resume Draft</button>
+    <button onclick="startNewFromDraftChoice()" style="padding:18px; background:var(--card); color:var(--text-muted); border:1px solid var(--border); border-radius:14px; font-size:15px; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">+ Start New Comic</button>
+    <button onclick="document.getElementById('draft-choice-modal').style.display='none'" style="padding:12px; background:none; color:var(--text-dim); border:none; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">Cancel</button>
+  </div>
+</div>
+
+<!-- Ratio Modal -->
+<div id="ratio-modal">
+  <h2>Choose Canvas Format</h2>
+  <p>Pick the frame shape for your comic. Can't change later.</p>
+  <div class="ratio-grid">
+    <button class="ratio-btn" onclick="pickRatio(1,1)"><div class="ratio-preview" style="width:36px;height:36px;"></div>1:1</button>
+    <button class="ratio-btn" onclick="pickRatio(16,9)"><div class="ratio-preview" style="width:44px;height:25px;"></div>16:9</button>
+    <button class="ratio-btn" onclick="pickRatio(9,16)"><div class="ratio-preview" style="width:25px;height:44px;"></div>9:16</button>
+    <button class="ratio-btn" onclick="pickRatio(5,4)"><div class="ratio-preview" style="width:38px;height:30px;"></div>5:4</button>
+    <button class="ratio-btn" onclick="pickRatio(4,5)"><div class="ratio-preview" style="width:30px;height:38px;"></div>4:5</button>
+    <button class="ratio-btn" onclick="pickRatio(7,5)"><div class="ratio-preview" style="width:40px;height:29px;"></div>7:5</button>
+    <button class="ratio-btn" onclick="pickRatio(5,7)"><div class="ratio-preview" style="width:29px;height:40px;"></div>5:7</button>
+    <button class="ratio-btn" onclick="pickRatio(4,3)"><div class="ratio-preview" style="width:38px;height:29px;"></div>4:3</button>
+    <button class="ratio-btn" onclick="pickRatio(3,4)"><div class="ratio-preview" style="width:29px;height:38px;"></div>3:4</button>
+    <button class="ratio-btn" onclick="pickRatio(5,3)"><div class="ratio-preview" style="width:40px;height:24px;"></div>5:3</button>
+    <button class="ratio-btn" onclick="pickRatio(3,5)"><div class="ratio-preview" style="width:24px;height:40px;"></div>3:5</button>
+    <button class="ratio-btn" onclick="pickRatio(3,2)"><div class="ratio-preview" style="width:40px;height:27px;"></div>3:2</button>
+    <button class="ratio-btn" onclick="pickRatio(2,3)"><div class="ratio-preview" style="width:27px;height:40px;"></div>2:3</button>
+  </div>
+  <button class="ratio-cancel" onclick="document.getElementById('ratio-modal').style.display='none'">Cancel</button>
+</div>
+
+<!-- Mode Modal -->
+<div id="mode-modal">
+  <div style="text-align:center;">
+    <h2 style="margin:0; color:var(--orange); font-size:22px; font-weight:900;">What are you making?</h2>
+    <p style="margin:8px 0 0; color:var(--text-muted); font-size:13px;">Choose your creation type</p>
+  </div>
+  <div style="display:flex; gap:16px; width:100%; max-width:380px;">
+    <button class="mode-btn" onclick="goToMode('comic')" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+      <span style="font-size:46px;">🎨</span>
+      <span style="font-weight:900; font-size:18px; color:var(--orange);">COMIC</span>
+      <span style="font-size:12px; color:var(--text-muted); line-height:1.5; text-align:center;">Frames, sprites, speech bubbles. Visual storytelling.</span>
+    </button>
+    <button class="mode-btn" onclick="goToMode('story')" onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='var(--border)'">
+      <span style="font-size:46px;">📖</span>
+      <span style="font-weight:900; font-size:18px; color:var(--teal);">STORY</span>
+      <span style="font-size:12px; color:var(--text-muted); line-height:1.5; text-align:center;">Write a novel or short story. Text-based, like a book.</span>
+    </button>
+  </div>
+  <button onclick="document.getElementById('mode-modal').style.display='none'; document.getElementById('ratio-modal').style.display='flex';" class="ratio-cancel">← Back to Ratio</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
+  });
+
+  async function checkUser() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const user = session?.user ?? null;
+    if (user) {
+      let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+      if (!myProfile.handle) {
+        const { data: freshProfile } = await supabaseClient
+          .from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
+        if (freshProfile) {
+          myProfile = { ...myProfile, ...freshProfile };
+          localStorage.setItem('user_profile', JSON.stringify(myProfile));
         }
+      }
+      document.getElementById('user-display').innerText = myProfile.name || myProfile.handle || 'Creator';
+      if (myProfile.pic) document.getElementById('nav-pfp').src = myProfile.pic;
+      if (localStorage.getItem('cc-privacy-team') === 'false')
+        document.getElementById('teams-btn').style.display = 'none';
+      checkTeamNotifications(user.id);
+    } else {
+      window.location.href = 'login.html';
+    }
+  }
 
+  async function checkTeamNotifications(userId) {
+    const teamsBtn = document.getElementById('teams-btn');
+    const { data: myTickets } = await supabaseClient
+      .from('team_tickets').select('id').eq('owner_id', userId);
+    if (myTickets && myTickets.length > 0) {
+      const ticketIds = myTickets.map(t => t.id);
+      const { count: incomingCount } = await supabaseClient
+        .from('team_requests').select('*', { count: 'exact', head: true })
+        .in('ticket_id', ticketIds).eq('status', 'pending');
+      if (incomingCount > 0) {
+        teamsBtn.classList.add('has-notification');
+        teamsBtn.querySelector('.card-title').innerText = 'Squads — Join Request!';
+        return;
+      }
+    }
+    const { count: acceptedCount } = await supabaseClient
+      .from('team_requests').select('*', { count: 'exact', head: true })
+      .eq('sender_id', userId).eq('status', 'accepted');
+    if (acceptedCount > 0) {
+      teamsBtn.classList.add('has-notification');
+      teamsBtn.querySelector('.card-title').innerText = 'Squads — Request Accepted!';
+    }
+  }
 
-        async function checkTeamNotifications(userId) {
-            const teamsBtn = document.getElementById('teams-btn');
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'o' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA')
+      location.href = 'connections.html';
+  });
 
-            const { data: myTickets } = await supabaseClient
-                .from('team_tickets')
-                .select('id')
-                .eq('owner_id', userId);
-            
-            if (myTickets && myTickets.length > 0) {
-                const ticketIds = myTickets.map(t => t.id);
-                const { count: incomingCount } = await supabaseClient
-                    .from('team_requests')
-                    .select('*', { count: 'exact', head: true })
-                    .in('ticket_id', ticketIds)
-                    .eq('status', 'pending');
+  function goToMyProfile() {
+    const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    location.href = myProfile.handle ? `profile.html?u=${myProfile.handle}` : 'profile.html';
+  }
 
-                if (incomingCount > 0) {
-                    teamsBtn.classList.add('has-request');
-                    teamsBtn.innerText = "Squads (Join Request!)";
-                    return;
-                }
-            }
+  async function logout() {
+    await supabaseClient.auth.signOut();
+    window.location.href = 'login.html';
+  }
 
-            const { count: acceptedCount } = await supabaseClient
-                .from('team_requests')
-                .select('*', { count: 'exact', head: true })
-                .eq('sender_id', userId)
-                .eq('status', 'accepted');
+  function openCreateFlow() {
+    const resumeId = localStorage.getItem('active_draft_id');
+    const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+    const found = resumeId && drafts.find(d => String(d.id) === String(resumeId));
+    if (found) {
+      document.getElementById('draft-title-preview').innerText = found.title || 'Untitled Draft';
+      const frames = found.data || [];
+      document.getElementById('draft-frames-preview').innerText = frames.length + ' frame' + (frames.length !== 1 ? 's' : '');
+      document.getElementById('draft-choice-modal').style.display = 'flex';
+    } else {
+      document.getElementById('ratio-modal').style.display = 'flex';
+    }
+  }
 
-            if (acceptedCount > 0) {
-                teamsBtn.classList.add('has-message');
-                teamsBtn.innerText = "Squads (Request Accepted!)";
-            }
-        }
+  function resumeDraft() {
+    document.getElementById('draft-choice-modal').style.display = 'none';
+    const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+    window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
+  }
 
-        window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'o') {
-                if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-                    location.href = 'connections.html';
-                }
-            }
-        });
+  function startNewFromDraftChoice() {
+    document.getElementById('draft-choice-modal').style.display = 'none';
+    localStorage.removeItem('active_draft_id');
+    document.getElementById('ratio-modal').style.display = 'flex';
+  }
 
-        function goToMyProfile() {
-            const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
-            location.href = myProfile.handle ? `profile.html?u=${myProfile.handle}` : 'profile.html';
-        }
+  function pickRatio(w, h) {
+    localStorage.setItem('cc-new-comic-ratio', JSON.stringify({ w, h }));
+    localStorage.removeItem('active_draft_id');
+    document.getElementById('ratio-modal').style.display = 'none';
+    document.getElementById('mode-modal').style.display = 'flex';
+  }
 
-        async function logout() {
-            await supabaseClient.auth.signOut();
-            window.location.href = "login.html";
-        }
+  function goToMyComics() {
+    const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+    window.location.href = deviceMode === 'mobile' ? 'my-comics-mobile.html' : 'my-comics.html';
+  }
 
-        function openCreateFlow() {
-            // Check if there's an active draft to resume
-            const resumeId = localStorage.getItem('active_draft_id');
-            const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-            const found = resumeId && drafts.find(d => String(d.id) === String(resumeId));
-            if (found) {
-                document.getElementById('draft-title-preview').innerText = found.title || 'Untitled Draft';
-                const frames = found.data || [];
-                document.getElementById('draft-frames-preview').innerText = frames.length + ' frame' + (frames.length !== 1 ? 's' : '');
-                document.getElementById('draft-choice-modal').style.display = 'flex';
-            } else {
-                document.getElementById('ratio-modal').style.display = 'flex';
-            }
-        }
+  function goToMode(mode) {
+    const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+    if (mode === 'comic') window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
+    else window.location.href = deviceMode === 'mobile' ? 'story-mobile.html' : 'story.html';
+  }
 
-        function resumeDraft() {
-            document.getElementById('draft-choice-modal').style.display = 'none';
-            const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
-            window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
-        }
+  function applyDeviceMode() {
+    const deviceMode = localStorage.getItem('cc-device-mode');
+    const mode = deviceMode || (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc');
+    if (!deviceMode) localStorage.setItem('cc-device-mode', mode);
+    if (mode === 'mobile') {
+      const spriteBtn = document.getElementById('sprite-editor-btn');
+      if (spriteBtn) spriteBtn.style.display = 'none';
+    }
+  }
 
-        function startNewFromDraftChoice() {
-            document.getElementById('draft-choice-modal').style.display = 'none';
-            localStorage.removeItem('active_draft_id');
-            document.getElementById('ratio-modal').style.display = 'flex';
-        }
-
-        function openRatioModal() {
-            document.getElementById('ratio-modal').style.display = 'flex';
-        }
-
-        function pickRatio(w, h) {
-            localStorage.setItem('cc-new-comic-ratio', JSON.stringify({ w, h }));
-            localStorage.removeItem('active_draft_id');
-            document.getElementById('ratio-modal').style.display = 'none';
-            document.getElementById('mode-modal').style.display = 'flex';
-        }
-
-        function goToMyComics() {
-            const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
-            window.location.href = deviceMode === 'mobile' ? 'my-comics-mobile.html' : 'my-comics.html';
-        }
-
-        function goToMode(mode) {
-            const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
-            if (mode === 'comic') {
-                window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
-            } else {
-                window.location.href = deviceMode === 'mobile' ? 'story-mobile.html' : 'story.html';
-            }
-        }
-
-
-        function applyDeviceMode() {
-            const deviceMode = localStorage.getItem('cc-device-mode');
-            // Auto-detect on first visit if not set
-            const mode = deviceMode || (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc');
-            if (!deviceMode) localStorage.setItem('cc-device-mode', mode);
-            if (mode === 'mobile') {
-                const spriteBtn = document.getElementById('sprite-editor-btn');
-                if (spriteBtn) spriteBtn.style.display = 'none';
-            }
-        }
-        applyDeviceMode();
-        checkUser();
-    </script>
-
-
-    <!-- Draft Resume Modal -->
-    <div id="draft-choice-modal" style="
-        position:fixed; inset:0; background:rgba(10,10,12,0.88);
-        z-index:9998; display:none; flex-direction:column;
-        align-items:center; justify-content:center; gap:20px;
-        backdrop-filter:blur(16px); padding:30px;
-        font-family:'Inter',sans-serif; animation:fadeIn 0.3s ease-out;
-    ">
-        <div style="text-align:center;">
-            <div style="font-size:40px; margin-bottom:12px;">📝</div>
-            <h2 style="margin:0; color:var(--accent); font-size:22px; font-weight:900; letter-spacing:1px;">YOU HAVE A DRAFT</h2>
-            <p style="margin:10px 0 4px; color:#ccc; font-size:16px; font-weight:700;" id="draft-title-preview">Untitled Draft</p>
-            <p style="margin:0; color:#666; font-size:13px;" id="draft-frames-preview">0 frames</p>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:12px; width:100%; max-width:320px;">
-            <button onclick="resumeDraft()" style="
-                padding:18px; background:var(--accent); color:white; border:none;
-                border-radius:16px; font-size:16px; font-weight:900; cursor:pointer;
-                font-family:'Inter',sans-serif; letter-spacing:0.5px;
-            ">▶ Resume Draft</button>
-            <button onclick="startNewFromDraftChoice()" style="
-                padding:18px; background:#1a1a1a; color:#ccc; border:2px solid #333;
-                border-radius:16px; font-size:15px; font-weight:700; cursor:pointer;
-                font-family:'Inter',sans-serif;
-            ">+ Start New Comic</button>
-            <button onclick="document.getElementById('draft-choice-modal').style.display='none'" style="
-                padding:12px; background:none; color:#555; border:none;
-                font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;
-            ">Cancel</button>
-        </div>
-    </div>
-
-    <div id="ratio-modal">
-        <h2>CHOOSE CANVAS FORMAT</h2>
-        <p>Pick the frame shape for your comic. Set by creator — can't change later.</p>
-        <div class="ratio-grid">
-            <button class="ratio-btn" onclick="pickRatio(1,1)">
-                <div class="ratio-preview" style="width:36px;height:36px;"></div>1:1
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(16,9)">
-                <div class="ratio-preview" style="width:44px;height:25px;"></div>16:9
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(9,16)">
-                <div class="ratio-preview" style="width:25px;height:44px;"></div>9:16
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(5,4)">
-                <div class="ratio-preview" style="width:38px;height:30px;"></div>5:4
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(4,5)">
-                <div class="ratio-preview" style="width:30px;height:38px;"></div>4:5
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(7,5)">
-                <div class="ratio-preview" style="width:40px;height:29px;"></div>7:5
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(5,7)">
-                <div class="ratio-preview" style="width:29px;height:40px;"></div>5:7
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(4,3)">
-                <div class="ratio-preview" style="width:38px;height:29px;"></div>4:3
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(3,4)">
-                <div class="ratio-preview" style="width:29px;height:38px;"></div>3:4
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(5,3)">
-                <div class="ratio-preview" style="width:40px;height:24px;"></div>5:3
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(3,5)">
-                <div class="ratio-preview" style="width:24px;height:40px;"></div>3:5
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(3,2)">
-                <div class="ratio-preview" style="width:40px;height:27px;"></div>3:2
-            </button>
-            <button class="ratio-btn" onclick="pickRatio(2,3)" style="grid-column:span 1;">
-                <div class="ratio-preview" style="width:27px;height:40px;"></div>2:3
-            </button>
-        </div>
-        <button class="ratio-cancel" onclick="document.getElementById('ratio-modal').style.display='none'">Cancel</button>
-    </div>
-
-    <div id="mode-modal" style="
-        position:fixed; inset:0; background:rgba(10,10,12,0.85);
-        z-index:10000; display:none; flex-direction:column;
-        align-items:center; justify-content:center; gap:24px;
-        backdrop-filter:blur(16px); padding:30px;
-        font-family:'Inter',sans-serif;
-    ">
-        <div style="text-align:center;">
-            <h2 style="margin:0; color:var(--accent); font-size:24px; font-weight:900; letter-spacing:1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5);">WHAT ARE YOU MAKING?</h2>
-            <p style="margin:8px 0 0; color:#aaa; font-size:14px;">Choose your creation type</p>
-        </div>
-        <div style="display:flex; gap:16px; width:100%; max-width:380px;">
-            <button class="mode-btn" onclick="goToMode('comic')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='#333'">
-                <span style="font-size:46px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));">🎨</span>
-                <span style="font-weight:900; font-size:18px; color:var(--accent);">COMIC</span>
-                <span style="font-size:12px; color:#888; line-height:1.5; text-align:center;">Frames, sprites, speech bubbles. Visual storytelling.</span>
-            </button>
-            <button class="mode-btn" onclick="goToMode('story')" onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='#333'">
-                <span style="font-size:46px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));">📖</span>
-                <span style="font-weight:900; font-size:18px; color:var(--teal);">STORY</span>
-                <span style="font-size:12px; color:#888; line-height:1.5; text-align:center;">Write a novel or short story. Text-based, like a book.</span>
-            </button>
-        </div>
-        <button onclick="document.getElementById('mode-modal').style.display='none'; document.getElementById('ratio-modal').style.display='flex';" class="ratio-cancel">← Back to Ratio</button>
-    </div>
+  applyDeviceMode();
+  checkUser();
+</script>
 </body>
 </html>
