@@ -17,235 +17,457 @@
     <meta name="twitter:description" content="Check out this profile on ComicCore!">
     <meta name="twitter:image" content="">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-        /* colors now in theme.css */
-        
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: white; overflow-x: hidden; padding-bottom: 0; }
-        #public-view { position: relative; }
-        
-        /* --- PUBLIC VIEW --- */
-        #public-view { display: none; padding: 20px; flex-direction: column; align-items: center; min-height: 100vh; }
-        .profile-name { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
-        .profile-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 10px; margin-bottom: 0; }
-        .role-tag { font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase; background: rgba(255,255,255,0.1); color: #aaa; border: 1px solid rgba(255,255,255,0.15); }
-        .role-tag.owner { background: rgba(255,122,0,0.15); color: #ff7a00; border-color: rgba(255,122,0,0.4); }
-        .profile-handle { color: var(--secondary); margin-bottom: 12px; font-size: 14px; }
-        .profile-bio { text-align: center; max-width: 400px; color: #ccc; margin-bottom: 20px; font-size: 13px; line-height: 1.4; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
 
-        /* Stats & Follow */
-        .stats-row { display: flex; gap: 25px; margin-bottom: 20px; text-align: center; }
-        .stat-item b { display: block; font-size: 18px; color: white; }
-        .stat-item span { font-size: 11px; color: var(--secondary); text-transform: uppercase; font-weight: 700; }
-        
-        .follow-btn { 
-            background: white; color: black; border: none; padding: 8px 25px; 
-            border-radius: 20px; font-weight: 800; font-size: 13px; cursor: pointer; margin-bottom: 20px;
-            transition: 0.2s;
-        }
-        .follow-btn.following { background: none; border: 1px solid var(--border); color: white; }
-        .follow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        /* Social Icons */
-        .social-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 25px; }
-        .social-link { width: 36px; height: 36px; background: var(--card); border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 18px; border: 1px solid var(--border); transition: 0.2s; }
-        .social-link:hover { border-color: var(--accent); transform: translateY(-2px); }
-        .social-text-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: default; }
-        .social-text-item .social-icon-circle { width: 36px; height: 36px; background: var(--card); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 1px solid var(--border); }
-        .social-text-item .social-text-label { font-size: 9px; color: var(--secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
-        .social-text-item .social-text-value { font-size: 11px; color: #ddd; font-weight: 600; text-align: center; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        /* Comic Grid */
-        .grid-header { width: 100%; border-top: 1px solid var(--border); padding-top: 15px; margin-top: 10px; font-weight: 800; font-size: 12px; color: var(--secondary); text-transform: uppercase; letter-spacing: 1px; }
-        .comic-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; width: 100%; margin-top: 10px; }
-        .grid-item { aspect-ratio: 2/3; background: #111; overflow: hidden; cursor: pointer; border-radius: 4px; }
-        .grid-item img { width: 100%; height: 100%; object-fit: cover; }
-
-        /* --- EDIT VIEW --- */
-        #edit-view { display: none; padding: 20px; max-width: 500px; margin: 0 auto; }
-        .edit-section-title { font-size: 12px; color: var(--accent); font-weight: 900; margin: 25px 0 15px; text-transform: uppercase; letter-spacing: 1px; }
-        .input-group { margin-bottom: 15px; }
-        .input-group label { display: block; font-size: 10px; color: var(--secondary); font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
-        .input-group input, .input-group textarea {
-            width: 100%; background: var(--input); border: 1px solid var(--border);
-            border-radius: 8px; padding: 10px; color: white; font-family: inherit; box-sizing: border-box; font-size: 14px;
+        :root {
+            --accent: #ff7a00;
+            --glass: rgba(0,0,0,0.55);
+            --glass-b: rgba(255,255,255,0.07);
+            --bg: #08080c;
+            --card: rgba(16,16,22,0.82);
+            --border: rgba(255,255,255,0.07);
+            --text: #f0f0f5;
+            --muted: rgba(255,255,255,0.35);
+            --dim: rgba(255,255,255,0.18);
         }
 
-        .social-input-wrapper { display: flex; align-items: center; background: var(--input); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
-        .social-icon-label { width: 40px; text-align: center; border-right: 1px solid var(--border); font-size: 16px; }
-        .social-input-wrapper input { border: none; background: none; }
+        body {
+            margin: 0; font-family: 'Inter', sans-serif;
+            background: var(--bg); color: var(--text);
+            overflow-x: hidden; padding-bottom: 0;
+            min-height: 100dvh;
+        }
 
-        .btn-save { background: var(--accent); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 20px; }
+        /* ── Loading Screen ── */
+        #loading-screen {
+            position: fixed; inset: 0; z-index: 99999;
+            background: #08080c;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 20px;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        #loading-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+        #loading-screen img { width: 120px; height: 120px; object-fit: contain; }
+        #loading-screen .loading-text {
+            font-size: 13px; font-weight: 800; color: #444;
+            letter-spacing: 2px; text-transform: uppercase;
+            animation: loadingPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes loadingPulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+        /* ── PUBLIC VIEW ── */
+        #public-view { display: none; flex-direction: column; align-items: center; min-height: 100dvh; padding: 0; position: relative; }
 
         /* Banner */
-        .banner-wrap { width: 100%; height: 160px; background: linear-gradient(135deg,#1a1a2e,#16213e); position: relative; overflow: hidden; flex-shrink: 0; z-index: 1; }
+        .banner-wrap {
+            width: 100%; height: 190px;
+            background: linear-gradient(135deg,#1a1a2e,#16213e);
+            position: relative; overflow: hidden; flex-shrink: 0; z-index: 1;
+        }
         .banner-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .banner-edit-btn { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 800; cursor: pointer; backdrop-filter: blur(6px); }
 
-        /* Profile header layout with banner */
-        .profile-header { display: flex; flex-direction: column; align-items: center; margin-top: -55px; position: relative; z-index: 2; }
-        .pfp-large { width: 110px; height: 110px; border-radius: 50%; border: 4px solid var(--bg); object-fit: cover; background: #222; }
+        /* Top nav overlay */
+        .top-nav-overlay {
+            position: absolute; top: 0; left: 0; right: 0;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 14px; z-index: 10;
+        }
+        .glass-btn {
+            width: 34px; height: 34px; border-radius: 10px;
+            background: rgba(0,0,0,0.55); backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-b); color: rgba(255,255,255,0.65);
+            font-size: 15px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: .15s; text-decoration: none;
+        }
+        .glass-btn:hover { background: rgba(255,255,255,0.12); color: white; }
+        .glass-pill {
+            padding: 6px 14px; border-radius: 20px;
+            background: rgba(0,0,0,0.55); backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-b); color: rgba(255,255,255,0.7);
+            font-size: 12px; font-weight: 700; cursor: pointer; transition: .15s;
+        }
+        .glass-pill:hover { background: rgba(255,255,255,0.1); color: white; }
 
-        /* Action buttons row */
-        .action-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
-        .msg-btn { background: #222; color: white; border: 1px solid var(--border); padding: 8px 20px; border-radius: 20px; font-weight: 700; font-size: 13px; cursor: pointer; transition: 0.2s; }
+        /* Profile header */
+        .profile-header {
+            display: flex; flex-direction: column; align-items: center;
+            margin-top: -54px; position: relative; z-index: 2;
+            padding: 0 20px;
+        }
+
+        /* PFP with status ring */
+        .pfp-wrap { position: relative; display: inline-block; margin-bottom: 12px; }
+        .pfp-large {
+            width: 108px; height: 108px; border-radius: 50%;
+            border: 3.5px solid var(--bg); object-fit: cover; background: #1a1a1e;
+            display: block;
+        }
+        /* Status dot on PFP */
+        .pfp-status-dot {
+            position: absolute; bottom: 5px; right: 5px;
+            width: 18px; height: 18px; border-radius: 50%;
+            border: 2.5px solid var(--bg);
+            background: #555; /* default offline */
+            transition: background .3s;
+        }
+        .pfp-status-dot.online { background: #32d74b; box-shadow: 0 0 8px rgba(50,215,75,.6); }
+        .pfp-status-dot.afk    { background: #ffcc00; box-shadow: 0 0 8px rgba(255,204,0,.5); }
+        .pfp-status-dot.dnd    { background: #ff3b30; box-shadow: 0 0 8px rgba(255,59,48,.5); }
+        .pfp-status-dot.offline { background: #555; }
+
+        /* Name row */
+        .profile-name-row {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            justify-content: center; margin-bottom: 2px;
+        }
+        .profile-name { font-size: 22px; font-weight: 900; }
+        .role-tag {
+            font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 20px;
+            letter-spacing: .5px; text-transform: uppercase;
+            background: rgba(255,255,255,0.08); color: #888;
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .role-tag.owner { background: rgba(255,122,0,0.15); color: #ff7a00; border-color: rgba(255,122,0,.35); }
+
+        /* Status label under handle */
+        .profile-handle { color: var(--muted); margin-bottom: 4px; font-size: 13px; font-weight: 600; }
+        .status-label-row {
+            display: flex; align-items: center; gap: 5px;
+            margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--muted);
+        }
+        .status-label-dot { width: 7px; height: 7px; border-radius: 50%; background: #555; flex-shrink: 0; }
+        .status-label-dot.online { background: #32d74b; }
+        .status-label-dot.afk    { background: #ffcc00; }
+        .status-label-dot.dnd    { background: #ff3b30; }
+
+        /* Stats */
+        .stats-row {
+            display: flex; gap: 28px; margin-bottom: 16px;
+            text-align: center; cursor: pointer;
+        }
+        .stat-item b { display: block; font-size: 18px; font-weight: 900; color: white; }
+        .stat-item span { font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 700; letter-spacing: .5px; }
+
+        /* Bio */
+        .profile-bio { text-align: center; max-width: 380px; color: #bbb; margin-bottom: 18px; font-size: 13px; line-height: 1.5; }
+
+        /* Action row */
+        .action-row { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; justify-content: center; }
+
+        /* Follow button — squad-chat style */
+        .follow-btn {
+            padding: 9px 24px; border-radius: 20px; border: none;
+            background: var(--accent); color: #000; font-weight: 800; font-size: 13px;
+            cursor: pointer; transition: .2s;
+            box-shadow: 0 2px 14px rgba(255,122,0,.35);
+        }
+        .follow-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .follow-btn.following {
+            background: rgba(255,255,255,0.07); border: 1px solid var(--glass-b);
+            color: var(--muted); box-shadow: none;
+        }
+        .follow-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+        .msg-btn {
+            padding: 9px 20px; border-radius: 20px;
+            background: rgba(255,255,255,0.07); border: 1px solid var(--glass-b);
+            color: white; font-weight: 700; font-size: 13px; cursor: pointer; transition: .15s;
+        }
         .msg-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-        /* Followers modal */
-        .fol-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 3000; display: none; align-items: center; justify-content: center; padding: 20px; }
-        .fol-modal { background: #111; border: 1px solid var(--border); border-radius: 24px; width: 100%; max-width: 380px; max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; }
-        .fol-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 900; }
-        .fol-list { overflow-y: auto; flex: 1; }
-        .fol-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #1a1a1a; cursor: pointer; transition: 0.15s; }
-        .fol-row:hover { background: #1a1a1a; }
-        .fol-pic { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #222; border: 1px solid var(--border); }
-        .fol-name { font-weight: 700; font-size: 14px; }
-        .fol-handle { font-size: 11px; color: var(--secondary); }
-
-        /* Banner edit in editor */
-        .banner-edit-wrap { width: 100%; height: 120px; background: linear-gradient(135deg,#1a1a2e,#16213e); border-radius: 12px; overflow: hidden; position: relative; cursor: pointer; margin-bottom: 20px; }
-        .banner-edit-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .banner-edit-wrap .overlay-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); color: white; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
-
-        /* PFP Picker modal */
-        .pfp-source-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9500;
-            display: none; align-items: flex-end; justify-content: center;
+        /* ── SOCIAL GRID ── */
+        .social-grid {
+            display: flex; flex-wrap: wrap; justify-content: center;
+            gap: 10px; margin-bottom: 24px; padding: 0 8px;
         }
-        .pfp-source-overlay.active { display: flex; }
-        .pfp-source-sheet {
-            background: #141416; border-radius: 20px 20px 0 0;
-            border-top: 1px solid #2a2a2c; width: 100%; max-width: 500px;
-            padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+        .social-chip {
+            display: flex; align-items: center; gap: 7px;
+            padding: 8px 14px; border-radius: 20px;
+            background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+            text-decoration: none; color: white; font-size: 12px; font-weight: 700;
+            transition: .15s; cursor: pointer;
+        }
+        .social-chip:hover { border-color: var(--accent); background: rgba(255,122,0,0.1); color: var(--accent); }
+        .social-chip-icon { font-size: 16px; flex-shrink: 0; }
+        .social-chip-label { font-size: 10px; color: var(--muted); font-weight: 600; line-height: 1; }
+        .social-chip-val { font-size: 12px; font-weight: 700; line-height: 1; margin-top: 1px; }
+
+        /* Comic Grid */
+        .grid-section {
+            width: 100%; padding: 0 14px;
+            border-top: 1px solid var(--border); padding-top: 16px; margin-top: 4px;
+        }
+        .grid-header {
+            font-weight: 900; font-size: 11px; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;
+        }
+        .comic-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 3px; }
+        .grid-item { aspect-ratio: 2/3; background: #111; overflow: hidden; cursor: pointer; border-radius: 4px; transition: .12s; }
+        .grid-item:hover { opacity: .85; transform: scale(.98); }
+        .grid-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .grid-empty { grid-column: span 4; text-align: center; color: var(--dim); font-size: 13px; padding: 30px 0; font-weight: 600; }
+
+        /* ─────────────────────────────
+           EDIT VIEW — squad-chat glass style
+        ───────────────────────────── */
+        #edit-view {
+            display: none; padding: 0 0 40px;
+            max-width: 500px; margin: 0 auto; width: 100%;
+        }
+
+        /* Edit top bar */
+        .edit-topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px 10px;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 50;
+        }
+        .edit-topbar-title { font-size: 14px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
+        .back-icon-btn {
+            width: 32px; height: 32px; border-radius: 10px;
+            background: rgba(255,255,255,0.07); border: 1px solid var(--border);
+            color: rgba(255,255,255,.6); display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 16px; transition: .15s;
+        }
+        .back-icon-btn:hover { background: rgba(255,255,255,0.13); color: white; }
+
+        /* Section labels */
+        .edit-section {
+            padding: 20px 16px 0;
+        }
+        .edit-section-title {
+            font-size: 9px; font-weight: 900; color: #ff7a00;
+            text-transform: uppercase; letter-spacing: 2px; margin-bottom: 14px;
+        }
+
+        /* Glass input style */
+        .glass-input-group { margin-bottom: 12px; }
+        .glass-input-label {
+            display: block; font-size: 10px; font-weight: 800; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; padding-left: 2px;
+        }
+        .glass-input, .glass-textarea {
+            width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+            border-radius: 12px; padding: 12px 14px; color: white;
+            font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+            outline: none; transition: border-color .15s, background .15s;
+        }
+        .glass-input::placeholder, .glass-textarea::placeholder { color: var(--dim); }
+        .glass-input:focus, .glass-textarea:focus {
+            border-color: rgba(255,122,0,0.5); background: rgba(255,255,255,0.09);
+        }
+        .glass-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+        /* ── STATUS PICKER ── */
+        .status-picker {
+            display: grid; grid-template-columns: repeat(2,1fr); gap: 8px;
+            margin-bottom: 4px;
+        }
+        .status-opt {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 14px; border-radius: 14px;
+            background: rgba(255,255,255,0.05); border: 1.5px solid var(--border);
+            cursor: pointer; transition: .18s; user-select: none;
+        }
+        .status-opt:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.14); }
+        .status-opt.selected { border-color: var(--dot-color); background: rgba(var(--dot-rgb),0.12); }
+        .status-dot-pick { width: 12px; height: 12px; border-radius: 50%; background: var(--dot-color); flex-shrink: 0; }
+        .status-opt-label { font-size: 13px; font-weight: 700; color: var(--text); }
+        .status-opt-sub   { font-size: 10px; font-weight: 600; color: var(--muted); margin-top: 1px; }
+        /* Fill entire row for "Appear Offline" */
+        .status-opt.full-row { grid-column: span 2; }
+
+        /* ── SOCIALS — card-style with platform branding ── */
+        .social-card-grid { display: flex; flex-direction: column; gap: 8px; }
+        .social-card {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 14px;
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+            transition: border-color .15s;
+        }
+        .social-card:focus-within { border-color: rgba(255,122,0,0.4); background: rgba(255,255,255,0.08); }
+        .social-card-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: rgba(255,255,255,0.08); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; flex-shrink: 0;
+        }
+        .social-card-info { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; width: 64px; }
+        .social-card-platform { font-size: 10px; font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: .5px; }
+        .social-card-hint { font-size: 9px; font-weight: 600; color: var(--dim); }
+        .social-card input {
+            flex: 1; background: none; border: none; outline: none;
+            color: white; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+            min-width: 0;
+        }
+        .social-card input::placeholder { color: var(--dim); font-weight: 500; }
+
+        /* ── Save button — squad send-btn style ── */
+        .btn-save {
+            width: calc(100% - 32px); margin: 24px 16px 0;
+            padding: 15px; border: none; border-radius: 14px;
+            background: var(--accent); color: #000;
+            font-weight: 900; font-size: 15px; cursor: pointer;
+            box-shadow: 0 4px 20px rgba(255,122,0,.4);
+            transition: .18s; letter-spacing: .3px;
+        }
+        .btn-save:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .btn-save:active { transform: translateY(0); }
+
+        /* Banner edit area */
+        .banner-edit-wrap {
+            width: calc(100% - 32px); margin: 16px 16px 0; height: 110px;
+            background: linear-gradient(135deg,#1a1a2e,#16213e); border-radius: 14px;
+            overflow: hidden; position: relative; cursor: pointer;
+            border: 1px solid var(--border);
+        }
+        .banner-edit-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .banner-edit-wrap .overlay-hint {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.4); color: rgba(255,255,255,0.6);
+            font-size: 11px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
+            backdrop-filter: blur(2px);
+        }
+
+        /* PFP edit area */
+        .pfp-edit-area {
+            text-align: center; margin: 16px 0 4px;
+        }
+        .pfp-edit-ring {
+            position: relative; display: inline-block; cursor: pointer;
+        }
+        .pfp-edit-ring img {
+            width: 90px; height: 90px; border-radius: 50%;
+            object-fit: cover; border: 2.5px solid var(--accent);
+            display: block;
+        }
+        .pfp-edit-badge {
+            position: absolute; bottom: 0; right: 0;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: var(--accent); border: 2px solid var(--bg);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; color: #000;
+        }
+
+        /* ── MODALS (same glass style as squad-chat info panel) ── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            z-index: 3000; display: none; align-items: flex-end; justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-sheet {
+            background: #0f0f14; border: 1px solid var(--glass-b);
+            border-radius: 24px 24px 0 0; width: 100%; max-width: 500px;
+            padding: 24px 20px calc(32px + env(safe-area-inset-bottom));
+            display: flex; flex-direction: column; gap: 0;
+            max-height: 82vh; overflow-y: auto;
             animation: slideUp .25s cubic-bezier(.4,0,.2,1);
         }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .pfp-source-title {
-            font-size: 13px; font-weight: 900; color: #888; text-transform: uppercase;
-            letter-spacing: 1px; text-align: center; margin-bottom: 16px;
+        @keyframes slideUp { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
+        .sheet-handle { width: 36px; height: 4px; background: #2a2a2e; border-radius: 2px; margin: 0 auto 20px; }
+        .modal-title { font-size: 16px; font-weight: 900; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-close { color: #444; font-size: 20px; cursor: pointer; transition: .15s; }
+        .modal-close:hover { color: #aaa; }
+
+        /* Followers list */
+        .fol-list { display: flex; flex-direction: column; gap: 0; }
+        .fol-row {
+            display: flex; align-items: center; gap: 12px; padding: 12px 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            cursor: pointer; transition: .12s; border-radius: 8px;
         }
+        .fol-row:hover { background: rgba(255,255,255,0.04); }
+        .fol-pic { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #222; border: 1px solid var(--border); flex-shrink: 0; }
+        .fol-name { font-weight: 700; font-size: 14px; }
+        .fol-handle { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+        /* Share sheet */
+        .share-card {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+            border-radius: 16px; overflow: hidden; margin-bottom: 16px;
+        }
+        .share-card-banner { width: 100%; height: 80px; object-fit: cover; display: block; }
+        .share-card-body { padding: 0 16px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .share-card-pfp { width: 56px; height: 56px; border-radius: 50%; border: 3px solid #0f0f14; object-fit: cover; margin-top: -28px; background: #222; }
+        .share-card-name { font-weight: 800; font-size: 15px; margin: 8px 0 2px; }
+        .share-card-handle { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+        .share-card-bio { font-size: 12px; color: #888; line-height: 1.4; }
+        .share-action-btn {
+            flex: 1; padding: 13px; border-radius: 14px;
+            border: 1px solid var(--border); background: rgba(255,255,255,0.05);
+            color: white; font-size: 13px; font-weight: 800;
+            cursor: pointer; text-align: center; transition: .15s; font-family: 'Inter', sans-serif;
+        }
+        .share-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .share-action-btn span { display: block; font-size: 20px; margin-bottom: 4px; }
+        .sheet-cancel-btn {
+            width: 100%; margin-top: 10px; padding: 12px; border-radius: 14px;
+            background: none; border: 1px solid var(--border); color: #555;
+            font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif;
+            transition: .12s;
+        }
+        .sheet-cancel-btn:hover { border-color: #444; color: #888; }
+
+        /* PFP picker sheet */
         .pfp-source-btns { display: flex; gap: 10px; margin-bottom: 20px; }
         .pfp-source-btn {
-            flex: 1; padding: 14px; border-radius: 14px; border: 1.5px solid #2a2a2c;
-            background: #1a1a1c; color: white; font-size: 13px; font-weight: 800;
-            cursor: pointer; text-align: center; transition: .15s;
+            flex: 1; padding: 14px; border-radius: 14px; border: 1px solid var(--border);
+            background: rgba(255,255,255,0.05); color: white; font-size: 13px; font-weight: 800;
+            cursor: pointer; text-align: center; transition: .15s; font-family: 'Inter', sans-serif;
         }
         .pfp-source-btn:hover { border-color: var(--accent); color: var(--accent); }
         .pfp-source-btn span { display: block; font-size: 22px; margin-bottom: 5px; }
-
-        /* Gallery grid */
-        .pfp-gallery-grid {
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-        }
-        .pfp-gallery-item {
-            aspect-ratio: 1; border-radius: 50%; overflow: hidden; cursor: pointer;
-            border: 2.5px solid transparent; transition: .15s; background: #111;
-        }
+        .pfp-gallery-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+        .pfp-gallery-item { aspect-ratio: 1; border-radius: 50%; overflow: hidden; cursor: pointer; border: 2.5px solid transparent; transition: .15s; background: #111; }
         .pfp-gallery-item:hover { border-color: var(--accent); transform: scale(1.05); }
         .pfp-gallery-item.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,122,0,.3); }
         .pfp-gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-        .pfp-gallery-confirm {
-            width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px;
-            background: var(--accent); border: none; color: white; font-size: 14px;
-            font-weight: 900; cursor: pointer; display: none;
-        }
+        .pfp-gallery-confirm { width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px; background: var(--accent); border: none; color: #000; font-size: 14px; font-weight: 900; cursor: pointer; display: none; font-family: 'Inter', sans-serif; }
         .pfp-gallery-confirm.visible { display: block; }
-        .pfp-cancel-btn {
-            width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px;
-            background: none; border: 1px solid #2a2a2c; color: #666; font-size: 13px;
-            font-weight: 700; cursor: pointer;
-        }
 
-        /* PFP crop modal */
+        /* PFP crop overlay */
         .pfp-crop-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,0.97); z-index: 9600;
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 20px;
+            display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
         }
         .pfp-crop-overlay.active { display: flex; }
         .pfp-crop-title { font-size: 11px; font-weight: 800; color: #aaa; letter-spacing: 1px; margin-bottom: 16px; }
-        .pfp-crop-wrap {
-            position: relative; width: 240px; height: 240px; border-radius: 50%;
-            overflow: hidden; border: 3px solid var(--accent); flex-shrink: 0;
-            cursor: grab; background: #111;
-        }
+        .pfp-crop-wrap { position: relative; width: 240px; height: 240px; border-radius: 50%; overflow: hidden; border: 3px solid var(--accent); flex-shrink: 0; cursor: grab; background: #111; }
         .pfp-crop-wrap:active { cursor: grabbing; }
-        .pfp-crop-img {
-            position: absolute; transform-origin: center center;
-            user-select: none; pointer-events: none;
-        }
+        .pfp-crop-img { position: absolute; transform-origin: center center; user-select: none; pointer-events: none; }
         .pfp-crop-hint { font-size: 10px; color: #555; margin-top: 10px; margin-bottom: 20px; }
         .pfp-crop-zoom { width: 200px; accent-color: var(--accent); }
 
-        /* Share button */
-        .share-btn { background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 18px; font-size: 12px; font-weight: 700; cursor: pointer; display: none; }
-        .share-btn:hover { border-color: white; }
-
-        /* Share modal */
-        .share-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 4000; display: none; align-items: flex-end; justify-content: center; }
-        .share-overlay.active { display: flex; }
-        .share-sheet { background: #141416; border-radius: 24px 24px 0 0; border-top: 1px solid #2a2a2c; width: 100%; max-width: 500px; padding: 24px 20px calc(28px + env(safe-area-inset-bottom)); animation: slideUp .25s cubic-bezier(.4,0,.2,1); }
-        .share-title { font-size: 12px; font-weight: 900; color: #666; text-transform: uppercase; letter-spacing: 1px; text-align: center; margin-bottom: 20px; }
-
-        /* Embedded profile card */
-        .share-card { background: #1a1a1c; border: 1px solid #2a2a2c; border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
-        .share-card-banner { width: 100%; height: 80px; background: linear-gradient(135deg,#1a1a2e,#16213e); object-fit: cover; display: block; }
-        .share-card-body { padding: 0 16px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .share-card-pfp { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #141416; object-fit: cover; margin-top: -32px; background: #222; }
-        .share-card-name { font-weight: 800; font-size: 15px; margin: 8px 0 2px; }
-        .share-card-handle { font-size: 12px; color: #666; margin-bottom: 6px; }
-        .share-card-bio { font-size: 12px; color: #aaa; line-height: 1.4; max-width: 260px; }
-
-        /* Share action buttons */
-        .share-actions { display: flex; gap: 10px; margin-bottom: 10px; }
-        .share-action-btn { flex: 1; padding: 13px; border-radius: 14px; border: 1.5px solid #2a2a2c; background: #1a1a1c; color: white; font-size: 13px; font-weight: 800; cursor: pointer; text-align: center; transition: .15s; }
-        .share-action-btn:hover { border-color: var(--accent); color: var(--accent); }
-        .share-action-btn span { display: block; font-size: 20px; margin-bottom: 4px; }
-        .share-cancel-btn { width: 100%; padding: 12px; border-radius: 14px; background: none; border: 1px solid #2a2a2c; color: #666; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 4px; }
-
-        /* Hide theme bottom nav on profile page */
-        nav[class], footer, .bottom-nav, .nav-bar, #bottom-nav, #nav-bar, .tab-bar { display: none !important; }
-        /* Banner crop overlay — hidden by default, shown via .active */
-        .crop-overlay {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,0.96); z-index: 9500;
-            flex-direction: column; align-items: center; justify-content: center;
-            padding: 20px;
-        }
+        /* Banner crop overlay */
+        .crop-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.96); z-index: 9500; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         .crop-overlay.active { display: flex; }
         .crop-container { width: 100%; max-width: 600px; position: relative; overflow: hidden; cursor: grab; background: #000; border-radius: 8px; }
         .crop-container:active { cursor: grabbing; }
         .crop-source { display: block; width: 100%; user-select: none; pointer-events: none; }
         .crop-frame { position: absolute; border: 2px solid var(--accent); box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); pointer-events: none; display: none; }
         .crop-actions { display: flex; gap: 12px; margin-top: 20px; }
-        .crop-btn { padding: 12px 30px; border-radius: 20px; border: none; font-weight: 800; cursor: pointer; font-size: 14px; }
+        .crop-btn { padding: 12px 30px; border-radius: 20px; border: none; font-weight: 800; cursor: pointer; font-size: 14px; font-family: 'Inter', sans-serif; }
         .crop-btn-confirm { background: var(--accent); color: #000; }
-        .crop-btn-cancel { background: #222; color: white; border: 1px solid var(--border); }
+        .crop-btn-cancel { background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--border); }
 
-        /* ── Loading Screen ── */
-        #loading-screen {
-            position: fixed; inset: 0; z-index: 99999;
-            background: #0f0f11;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            gap: 20px;
-            transition: opacity 0.5s ease, visibility 0.5s ease;
+        /* Prevent theme bottom nav showing */
+        nav[class], footer, .bottom-nav, .nav-bar, #bottom-nav, #nav-bar, .tab-bar { display: none !important; }
+
+        /* Toast */
+        .cc-toast {
+            position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+            background: rgba(12,12,18,0.96); backdrop-filter: blur(18px);
+            border: 1px solid var(--glass-b); border-radius: 24px;
+            padding: 9px 22px; font-size: 13px; font-weight: 700;
+            color: var(--text); z-index: 9999; pointer-events: none;
+            opacity: 0; transition: opacity .25s; white-space: nowrap;
+            box-shadow: 0 8px 32px rgba(0,0,0,.6);
         }
-        #loading-screen.hidden {
-            opacity: 0; visibility: hidden; pointer-events: none;
-        }
-        #loading-screen img {
-            width: 120px; height: 120px; object-fit: contain;
-        }
-        #loading-screen .loading-text {
-            font-size: 13px; font-weight: 800; color: #444;
-            letter-spacing: 2px; text-transform: uppercase;
-            animation: loadingPulse 1.2s ease-in-out infinite;
-        }
-        @keyframes loadingPulse {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
-        }
+        .cc-toast.show { opacity: 1; }
     </style>
 </head>
 <body>
@@ -258,11 +480,12 @@
 <script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>
 
     <!-- Followers/Following modal -->
-    <div class="fol-overlay" id="fol-overlay" onclick="closeFolModal()">
-        <div class="fol-modal" onclick="event.stopPropagation()">
-            <div class="fol-header">
+    <div class="modal-overlay" id="fol-overlay" onclick="if(event.target===this)closeFolModal()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="modal-title">
                 <span id="fol-title">Followers</span>
-                <span onclick="closeFolModal()" style="cursor:pointer;color:#666;font-size:20px;">✕</span>
+                <span class="modal-close" onclick="closeFolModal()">✕</span>
             </div>
             <div class="fol-list" id="fol-list"></div>
         </div>
@@ -272,26 +495,38 @@
         <!-- Banner -->
         <div class="banner-wrap" id="view-banner-wrap">
             <img id="view-banner" src="" style="display:none;">
-        </div>
-
-        <!-- Top nav overlay on banner -->
-        <div style="position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; z-index:10;">
-            <button onclick="history.back()" style="background:rgba(0,0,0,0.5);backdrop-filter:blur(6px); border:none; color:white; cursor:pointer; font-size:18px; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center;">✕</button>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <button id="share-profile-btn" class="share-btn" onclick="openShareModal()">↗ Share</button>
-                <button id="edit-own-btn" onclick="openEditor()" style="display:none; background:rgba(0,0,0,0.6); backdrop-filter:blur(6px); color:white; border:1px solid rgba(255,255,255,0.2); padding:6px 16px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">Edit Profile</button>
+            <!-- Top nav overlay -->
+            <div class="top-nav-overlay">
+                <button class="glass-btn" onclick="history.back()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button id="share-profile-btn" class="glass-pill" onclick="openShareModal()" style="display:none;">↗ Share</button>
+                    <button id="edit-own-btn" onclick="openEditor()" style="display:none;" class="glass-pill">Edit Profile</button>
+                </div>
             </div>
         </div>
 
-        <div class="profile-header" style="padding: 0 20px;">
-            <img id="view-pfp" src="" class="pfp-large">
+        <div class="profile-header">
+            <!-- PFP with status dot -->
+            <div class="pfp-wrap">
+                <img id="view-pfp" src="" class="pfp-large">
+                <div class="pfp-status-dot offline" id="view-status-dot"></div>
+            </div>
+
             <div class="profile-name-row">
                 <div id="view-name" class="profile-name">Loading...</div>
                 <span id="view-role-tag" class="role-tag" style="display:none;"></span>
             </div>
             <div id="view-handle" class="profile-handle">@handle</div>
 
-            <div class="stats-row" style="cursor:pointer;">
+            <!-- Status label -->
+            <div class="status-label-row" id="status-label-row" style="display:none;">
+                <div class="status-label-dot offline" id="view-status-label-dot"></div>
+                <span id="view-status-text">Offline</span>
+            </div>
+
+            <div class="stats-row">
                 <div class="stat-item" id="stat-following" onclick="openFolModal('following')">
                     <b id="count-following">0</b><span>Following</span>
                 </div>
@@ -300,55 +535,106 @@
                 </div>
             </div>
 
-            <!-- Action buttons: DM if friends, Message Request if not, nothing if own profile -->
             <div class="action-row" id="action-row"></div>
-
-            <div id="view-bio" class="profile-bio">...</div>
+            <div id="view-bio" class="profile-bio"></div>
             <div id="social-links" class="social-grid"></div>
         </div>
 
-        <div style="padding: 0 20px;">
+        <div class="grid-section">
             <div class="grid-header">Creations</div>
             <div id="user-comic-grid" class="comic-grid"></div>
         </div>
     </div>
 
     <div id="edit-view">
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-            <button onclick="closeEditor()" style="background:none; border:none; color:white; font-size:20px;">←</button>
-            <h2 style="font-size:16px; font-weight:900;">EDIT PROFILE</h2>
-            <div style="width:20px;"></div>
+        <!-- Sticky top bar -->
+        <div class="edit-topbar">
+            <button class="back-icon-btn" onclick="closeEditor()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <span class="edit-topbar-title">Edit Profile</span>
+            <div style="width:32px;"></div>
         </div>
 
         <!-- Banner upload -->
         <div class="banner-edit-wrap" id="banner-edit-wrap" onclick="document.getElementById('banner-input').click()">
-            <img id="banner-preview" src="" style="display:none;" onload="document.querySelector('.overlay-hint').style.display='none'">
-            <div class="overlay-hint" id="banner-hint">📷 TAP TO SET BANNER</div>
+            <img id="banner-preview" src="" style="display:none;" onload="this.style.display='block'; document.getElementById('banner-hint').style.display='none'">
+            <div class="overlay-hint" id="banner-hint">📷  Tap to set banner</div>
         </div>
         <input type="file" id="banner-input" hidden accept="image/*">
 
-        <!-- PFP upload — now opens picker -->
-        <div style="text-align:center; margin: 0 0 20px;">
-            <div style="position:relative; display:inline-block; cursor:pointer;" onclick="openPfpPicker()">
-                <img id="pfp-preview" src="" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:2px solid var(--accent);">
-                <div style="position:absolute; bottom:0; right:0; background:var(--accent); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;">✎</div>
+        <!-- PFP -->
+        <div class="pfp-edit-area">
+            <div class="pfp-edit-ring" onclick="openPfpPicker()">
+                <img id="pfp-preview" src="">
+                <div class="pfp-edit-badge">✎</div>
             </div>
             <input type="file" id="pfp-input" hidden accept="image/*">
         </div>
 
-        <div class="input-group">
-            <label>Name</label>
-            <input type="text" id="edit-name">
-        </div>
-        <div class="input-group">
-            <label>Bio</label>
-            <textarea id="edit-bio" rows="3"></textarea>
+        <!-- Basic info -->
+        <div class="edit-section">
+            <div class="edit-section-title">Profile Info</div>
+            <div class="glass-input-group">
+                <label class="glass-input-label">Display Name</label>
+                <input type="text" class="glass-input" id="edit-name" placeholder="Your name">
+            </div>
+            <div class="glass-input-group">
+                <label class="glass-input-label">Bio</label>
+                <textarea class="glass-textarea" id="edit-bio" rows="3" placeholder="Tell people about yourself..."></textarea>
+            </div>
         </div>
 
-        <div class="edit-section-title">Socials & Links</div>
-        <div id="social-inputs-container"></div>
+        <!-- Status picker -->
+        <div class="edit-section">
+            <div class="edit-section-title">Availability Status</div>
+            <div class="status-picker" id="status-picker">
+                <div class="status-opt" data-status="online"
+                    style="--dot-color:#32d74b;--dot-rgb:50,215,75"
+                    onclick="selectStatus('online')">
+                    <div class="status-dot-pick"></div>
+                    <div>
+                        <div class="status-opt-label">Online</div>
+                        <div class="status-opt-sub">Available now</div>
+                    </div>
+                </div>
+                <div class="status-opt" data-status="afk"
+                    style="--dot-color:#ffcc00;--dot-rgb:255,204,0"
+                    onclick="selectStatus('afk')">
+                    <div class="status-dot-pick"></div>
+                    <div>
+                        <div class="status-opt-label">AFK</div>
+                        <div class="status-opt-sub">Away for a bit</div>
+                    </div>
+                </div>
+                <div class="status-opt" data-status="dnd"
+                    style="--dot-color:#ff3b30;--dot-rgb:255,59,48"
+                    onclick="selectStatus('dnd')">
+                    <div class="status-dot-pick"></div>
+                    <div>
+                        <div class="status-opt-label">Do Not Disturb</div>
+                        <div class="status-opt-sub">No notifications</div>
+                    </div>
+                </div>
+                <div class="status-opt" data-status="offline"
+                    style="--dot-color:#555;--dot-rgb:85,85,85"
+                    onclick="selectStatus('offline')">
+                    <div class="status-dot-pick"></div>
+                    <div>
+                        <div class="status-opt-label">Appear Offline</div>
+                        <div class="status-opt-sub">Hidden from others</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        <button class="btn-save" onclick="saveProfile()">SAVE PROFILE</button>
+        <!-- Socials — new card style -->
+        <div class="edit-section">
+            <div class="edit-section-title">Connections</div>
+            <div class="social-card-grid" id="social-inputs-container"></div>
+        </div>
+
+        <button class="btn-save" onclick="saveProfile()">Save Profile</button>
     </div>
 
     <!-- Banner crop modal -->
@@ -366,33 +652,40 @@
     </div>
 
     <!-- PFP Source Picker -->
-    <div class="pfp-source-overlay" id="pfp-source-overlay" onclick="if(event.target===this)closePfpPicker()">
-        <div class="pfp-source-sheet" onclick="event.stopPropagation()">
-            <div class="pfp-source-title">Choose Profile Picture</div>
+    <div class="modal-overlay" id="pfp-source-overlay" onclick="if(event.target===this)closePfpPicker()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="modal-title">
+                <span>Profile Picture</span>
+                <span class="modal-close" onclick="closePfpPicker()">✕</span>
+            </div>
             <div class="pfp-source-btns">
                 <div class="pfp-source-btn" onclick="switchPfpTab('gallery')">
                     <span>🎨</span>Our Gallery
                 </div>
                 <div class="pfp-source-btn" onclick="document.getElementById('pfp-input').click(); closePfpPicker()">
-                    <span>📱</span>My Phone
+                    <span>📱</span>Upload Photo
                 </div>
             </div>
             <div id="pfp-gallery-section">
                 <div class="pfp-gallery-grid" id="pfp-gallery-grid"></div>
                 <button class="pfp-gallery-confirm" id="pfp-gallery-confirm" onclick="confirmGalleryPfp()">Use This Avatar</button>
             </div>
-            <button class="pfp-cancel-btn" onclick="closePfpPicker()">Cancel</button>
+            <button class="sheet-cancel-btn" onclick="closePfpPicker()">Cancel</button>
         </div>
     </div>
 
     <!-- Share Modal -->
-    <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareModal()">
-        <div class="share-sheet" onclick="event.stopPropagation()">
-            <div class="share-title">Share Profile</div>
-            <!-- Embedded profile card preview -->
+    <div class="modal-overlay" id="share-overlay" onclick="if(event.target===this)closeShareModal()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="modal-title">
+                <span>Share Profile</span>
+                <span class="modal-close" onclick="closeShareModal()">✕</span>
+            </div>
             <div class="share-card" id="share-card">
                 <img id="share-card-banner" class="share-card-banner" src="" style="display:none;">
-                <div id="share-card-banner-fallback" style="width:100%;height:80px;background:linear-gradient(135deg,#1a1a2e,#16213e);"></div>
+                <div id="share-card-banner-fallback" style="width:100%;height:80px;background:linear-gradient(135deg,#1a1a2e,#16213e);display:block;"></div>
                 <div class="share-card-body">
                     <img id="share-card-pfp" class="share-card-pfp" src="" onerror="this.style.display='none'">
                     <div id="share-card-name" class="share-card-name"></div>
@@ -404,7 +697,7 @@
                     </div>
                 </div>
             </div>
-            <div class="share-actions">
+            <div style="display:flex;gap:8px;margin-bottom:0;">
                 <button class="share-action-btn" onclick="copyProfileLink()">
                     <span>🔗</span>Copy Link
                 </button>
@@ -412,7 +705,7 @@
                     <span>📤</span>Share
                 </button>
             </div>
-            <button class="share-cancel-btn" onclick="closeShareModal()">Cancel</button>
+            <button class="sheet-cancel-btn" onclick="closeShareModal()">Cancel</button>
         </div>
     </div>
 
@@ -435,18 +728,18 @@
         const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
         
         const SOCIAL_CONFIG = [
-            { key: 'x', label: 'X (Twitter)', icon: '𝕏' },
-            { key: 'instagram', label: 'Instagram', icon: '📸' },
-            { key: 'tiktok', label: 'TikTok', icon: '🎵' },
-            { key: 'youtube', label: 'YouTube', icon: '📺' },
-            { key: 'discord', label: 'Discord', icon: '👾' },
-            { key: 'facebook', label: 'Facebook', icon: '👥' },
-            { key: 'snapchat', label: 'Snapchat', icon: '👻' },
-            { key: 'playstation', label: 'PSN', icon: '🎮' },
-            { key: 'xbox', label: 'Xbox', icon: '💚' },
-            { key: 'paypal', label: 'PayPal', icon: '💰' },
-            { key: 'cashapp', label: 'CashApp', icon: '💸' },
-            { key: 'gmail', label: 'Gmail', icon: '📧' }
+            { key: 'x',           label: 'X / Twitter',  icon: '𝕏',  hint: '@username',   placeholder: '@handle' },
+            { key: 'instagram',   label: 'Instagram',     icon: '📸', hint: '@username',   placeholder: '@handle' },
+            { key: 'tiktok',      label: 'TikTok',        icon: '🎵', hint: '@username',   placeholder: '@handle' },
+            { key: 'youtube',     label: 'YouTube',       icon: '📺', hint: '@channel',    placeholder: '@channel' },
+            { key: 'discord',     label: 'Discord',       icon: '👾', hint: 'username#tag', placeholder: 'username' },
+            { key: 'facebook',    label: 'Facebook',      icon: '👥', hint: 'profile name', placeholder: 'yourname' },
+            { key: 'snapchat',    label: 'Snapchat',      icon: '👻', hint: 'username',    placeholder: 'snapname' },
+            { key: 'playstation', label: 'PSN',           icon: '🎮', hint: 'PSN ID',      placeholder: 'PSN ID' },
+            { key: 'xbox',        label: 'Xbox',          icon: '💚', hint: 'Gamertag',    placeholder: 'Gamertag' },
+            { key: 'paypal',      label: 'PayPal',        icon: '💰', hint: 'username/link', placeholder: 'username' },
+            { key: 'cashapp',     label: 'Cash App',      icon: '💸', hint: '$cashtag',    placeholder: '$cashtag' },
+            { key: 'gmail',       label: 'Gmail',         icon: '📧', hint: 'email address', placeholder: 'you@gmail.com' },
         ];
 
         let pfpBase64 = "";
@@ -493,14 +786,20 @@
             const params = new URLSearchParams(window.location.search);
             currentViewedHandle = params.get('u');
 
-            // Build social inputs in editor
+            // Build social card inputs in editor
             const container = document.getElementById('social-inputs-container');
             SOCIAL_CONFIG.forEach(s => {
-                container.innerHTML += `
-                    <div class="social-input-wrapper">
-                        <div class="social-icon-label">${s.icon}</div>
-                        <input type="text" id="social-${s.key}" placeholder="${s.label} username/link">
-                    </div>`;
+                const card = document.createElement('div');
+                card.className = 'social-card';
+                card.innerHTML = `
+                    <div class="social-card-icon">${s.icon}</div>
+                    <div class="social-card-info">
+                        <div class="social-card-platform">${s.label}</div>
+                        <div class="social-card-hint">${s.hint || 'username'}</div>
+                    </div>
+                    <input type="text" id="social-${s.key}" placeholder="${s.placeholder || s.label}">
+                `;
+                container.appendChild(card);
             });
 
             // Self-heal: if handle is missing from localStorage, re-fetch from Supabase auth
@@ -588,7 +887,7 @@
                 bannerImg.style.display = 'none';
             }
 
-            // Social links — clickable icons or plain-text display
+            // Social links — chip style (squad-chat aesthetic)
             const socialDiv = document.getElementById('social-links');
             socialDiv.innerHTML = '';
             const socials = profile.socials || {};
@@ -597,18 +896,30 @@
                 if (!val) return;
                 const info = buildSocialInfo(s.key, val);
                 if (!info) return;
+                const displayVal = val.replace(/^https?:\/\/[^/]+\//, '').replace(/^@/, '').substring(0, 18);
                 if (info.isLink) {
-                    socialDiv.innerHTML += `<a href="${info.url}" target="_blank" class="social-link" title="${s.label}: ${val}">${s.icon}</a>`;
-                } else {
-                    // Plain text — show icon circle with label + value underneath
                     socialDiv.innerHTML += `
-                        <div class="social-text-item" title="${s.label}: ${val}">
-                            <div class="social-icon-circle">${s.icon}</div>
-                            <div class="social-text-label">${s.label}</div>
-                            <div class="social-text-value">${val}</div>
+                        <a href="${info.url}" target="_blank" class="social-chip" title="${s.label}: ${val}">
+                            <span class="social-chip-icon">${s.icon}</span>
+                            <div>
+                                <div class="social-chip-label">${s.label}</div>
+                                <div class="social-chip-val">${displayVal}</div>
+                            </div>
+                        </a>`;
+                } else {
+                    socialDiv.innerHTML += `
+                        <div class="social-chip" title="${s.label}: ${val}">
+                            <span class="social-chip-icon">${s.icon}</span>
+                            <div>
+                                <div class="social-chip-label">${s.label}</div>
+                                <div class="social-chip-val">${val.substring(0,18)}</div>
+                            </div>
                         </div>`;
                 }
             });
+
+            // Load & show user status
+            await loadUserStatus(handle);
 
             // Show share button for all public profiles
             document.getElementById('share-profile-btn').style.display = 'block';
@@ -683,7 +994,7 @@
             const folPrivacy = localStorage.getItem('cc-privacy-followers');
             if (folPrivacy === 'false' && currentViewedHandle !== myProfile.handle) return;
 
-            document.getElementById('fol-overlay').style.display = 'flex';
+            document.getElementById('fol-overlay').classList.add('open');
             document.getElementById('fol-title').innerText = type === 'followers' ? 'Followers' : 'Following';
             const list = document.getElementById('fol-list');
             list.innerHTML = '<div style="padding:20px;text-align:center;color:#555;">Loading...</div>';
@@ -719,17 +1030,21 @@
         }
 
         function closeFolModal() {
-            document.getElementById('fol-overlay').style.display = 'none';
+            document.getElementById('fol-overlay').classList.remove('open');
         }
 
         async function loadUserComics(handle) {
             const { data: comics } = await _supabase.from('comics').select('id, cover').eq('owner_handle', handle);
             const grid = document.getElementById('user-comic-grid');
-            grid.innerHTML = comics?.map(c => `
+            if (!comics || !comics.length) {
+                grid.innerHTML = '<div class="grid-empty">No comics yet</div>';
+                return;
+            }
+            grid.innerHTML = comics.map(c => `
                 <div class="grid-item" onclick="location.href='reader.html?id=${c.id}'">
-                    <img src="${c.cover}">
+                    <img src="${c.cover}" loading="lazy">
                 </div>
-            `).join('') || '';
+            `).join('');
         }
 
         function openEditor() {
@@ -772,6 +1087,10 @@
                 const input = document.getElementById(`social-${s.key}`);
                 if (input) input.value = socials[s.key] || '';
             });
+
+            // Load current status into picker
+            const currentStatus = myProfile.settings?.status || 'online';
+            selectStatus(currentStatus);
         }
 
         async function saveProfile() {
@@ -787,14 +1106,18 @@
                 if (val) socials[s.key] = val;
             });
 
+            const selectedStatusEl = document.querySelector('.status-opt.selected');
+            const newStatus = selectedStatusEl?.dataset.status || 'online';
+
             const updated = {
                 ...myProfile,
-                handle: myProfile.handle,   // always keep handle in the local object
+                handle: myProfile.handle,
                 name: document.getElementById('edit-name').value,
                 bio: document.getElementById('edit-bio').value,
                 pic: pfpBase64,
                 banner: bannerBase64,
-                socials
+                socials,
+                settings: { ...(myProfile.settings || {}), status: newStatus }
             };
 
             const { error } = await _supabase.from('profiles').upsert({
@@ -804,14 +1127,16 @@
                 pic: updated.pic,
                 banner: updated.banner,
                 socials: updated.socials,
+                settings: updated.settings,
                 permanent_id: myProfile.permanent_id || null
             }, { onConflict: 'handle' });
 
             if (!error) {
                 localStorage.setItem('user_profile', JSON.stringify(updated));
-                location.href = `profile.html?u=${myProfile.handle}`;
+                showToast('Profile saved!');
+                setTimeout(() => location.href = `profile.html?u=${myProfile.handle}`, 700);
             } else {
-                alert(error.message);
+                showToast('Error: ' + error.message);
             }
         }
 
@@ -851,11 +1176,11 @@
                     <img src="${url}" loading="lazy">
                 </div>`).join('');
             document.getElementById('pfp-gallery-confirm').classList.remove('visible');
-            document.getElementById('pfp-source-overlay').classList.add('active');
+            document.getElementById('pfp-source-overlay').classList.add('open');
         }
 
         function closePfpPicker() {
-            document.getElementById('pfp-source-overlay').classList.remove('active');
+            document.getElementById('pfp-source-overlay').classList.remove('open');
             selectedGalleryUrl = null;
         }
 
@@ -1128,11 +1453,11 @@
                 document.getElementById('native-share-btn').style.display = 'block';
             }
 
-            document.getElementById('share-overlay').classList.add('active');
+            document.getElementById('share-overlay').classList.add('open');
         }
 
         function closeShareModal() {
-            document.getElementById('share-overlay').classList.remove('active');
+            document.getElementById('share-overlay').classList.remove('open');
         }
 
         function getProfileUrl() {
@@ -1162,6 +1487,70 @@
                     url: getProfileUrl()
                 });
             } catch {}
+        }
+
+
+        // ══════════════════════════════════════════════════════
+        // STATUS SYSTEM
+        // ══════════════════════════════════════════════════════
+        const STATUS_META = {
+            online:  { label: 'Online',          color: '#32d74b', cls: 'online' },
+            afk:     { label: 'AFK',             color: '#ffcc00', cls: 'afk' },
+            dnd:     { label: 'Do Not Disturb',  color: '#ff3b30', cls: 'dnd' },
+            offline: { label: 'Appear Offline',  color: '#555',    cls: 'offline' },
+        };
+
+        let _currentStatusSelection = 'online';
+
+        function selectStatus(status) {
+            _currentStatusSelection = status;
+            document.querySelectorAll('.status-opt').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.status === status);
+            });
+        }
+
+        async function loadUserStatus(handle) {
+            // Fetch the status from the profile's settings column
+            const { data } = await _supabase.from('profiles')
+                .select('settings').eq('handle', handle).maybeSingle();
+            const status = data?.settings?.status || 'offline';
+            applyStatusToUI(status);
+        }
+
+        function applyStatusToUI(status) {
+            const meta = STATUS_META[status] || STATUS_META.offline;
+            // PFP dot
+            const dot = document.getElementById('view-status-dot');
+            if (dot) { dot.className = 'pfp-status-dot ' + meta.cls; }
+            // Status label row
+            const labelRow = document.getElementById('status-label-row');
+            const labelDot = document.getElementById('view-status-label-dot');
+            const labelText = document.getElementById('view-status-text');
+            if (labelRow && status !== 'offline') {
+                labelRow.style.display = 'flex';
+                if (labelDot) labelDot.className = 'status-label-dot ' + meta.cls;
+                if (labelText) labelText.textContent = meta.label;
+            } else if (labelRow) {
+                labelRow.style.display = 'none';
+            }
+        }
+
+        // ══════════════════════════════════════════════════════
+        // TOAST
+        // ══════════════════════════════════════════════════════
+        let _toastTimer = null;
+        function showToast(msg) {
+            let el = document.getElementById('cc-toast');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'cc-toast';
+                el.className = 'cc-toast';
+                document.body.appendChild(el);
+            }
+            el.textContent = msg;
+            el.classList.add('show');
+            clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
         }
 
         // Hide any theme-injected bottom nav
