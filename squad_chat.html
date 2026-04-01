@@ -9,195 +9,133 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
         /* ── Header ── */
-        .header {
-            padding: 12px 16px; border-bottom: 1px solid #1a1a1a;
-            background: rgba(0,0,0,0.92); backdrop-filter: blur(16px);
-            display: flex; align-items: center; gap: 12px; flex-shrink: 0; z-index: 10;
-        }
-        .back-btn {
-            width: 34px; height: 34px; border-radius: 10px; background: #111;
-            border: 1px solid #1e1e1e; display: flex; align-items: center;
-            justify-content: center; cursor: pointer; flex-shrink: 0; transition: .15s;
-            color: #888; font-size: 16px; text-decoration: none;
-        }
+        .header { padding: 12px 16px; border-bottom: 1px solid #1a1a1a; background: rgba(0,0,0,0.92); backdrop-filter: blur(16px); display: flex; align-items: center; gap: 12px; flex-shrink: 0; z-index: 10; }
+        .back-btn { width: 34px; height: 34px; border-radius: 10px; background: #111; border: 1px solid #1e1e1e; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: .15s; color: #888; font-size: 16px; text-decoration: none; }
         .back-btn:hover { border-color: #444; color: white; }
-
-        #chatPic {
-            width: 36px; height: 36px; border-radius: 10px;
-            background: #1a1a1a; background-size: cover; background-position: center;
-            border: 1px solid #1e1e1e; flex-shrink: 0;
-        }
-        .header-info { flex: 1; min-width: 0; }
-        .header-name { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #chatPic { width: 36px; height: 36px; border-radius: 10px; background: #1a1a1a; background-size: cover; background-position: center; border: 1px solid #1e1e1e; flex-shrink: 0; }
+        .header-info { flex: 1; min-width: 0; cursor: pointer; }
+        .header-info:hover .header-name { color: #ff7a00; }
+        .header-name { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: .15s; }
         .header-sub { font-size: 11px; color: #444; font-weight: 600; margin-top: 1px; }
 
         /* ── Chat container ── */
-        #chatContainer {
-            flex: 1; overflow-y: auto; padding: 16px;
-            display: flex; flex-direction: column; gap: 14px;
-            scroll-behavior: smooth;
-        }
+        #chatContainer { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
         #chatContainer::-webkit-scrollbar { width: 0; }
+
+        /* ── Empty state ── */
+        .chat-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 10px; color: #2a2a2a; text-align: center; padding: 40px 20px; }
+        .chat-empty-icon { font-size: 40px; }
+        .chat-empty-title { font-size: 14px; font-weight: 800; }
+        .chat-empty-sub { font-size: 12px; color: #222; }
+
+        /* ── Load more ── */
+        .load-more-btn { align-self: center; background: none; border: 1px solid #1e1e1e; color: #444; font-size: 11px; font-weight: 800; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-family: inherit; transition: .15s; }
+        .load-more-btn:hover { border-color: #444; color: #aaa; }
 
         /* ── Message rows ── */
         .msg-row { display: flex; align-items: flex-end; gap: 8px; width: 100%; }
         .mine { justify-content: flex-end; }
         .theirs { justify-content: flex-start; }
-
-        .msg-wrapper { display: flex; flex-direction: column; max-width: 78%; }
+        .msg-wrapper { display: flex; flex-direction: column; max-width: 78%; position: relative; }
         .sender-name { font-size: 10px; color: #444; font-weight: 800; margin-bottom: 3px; margin-left: 2px; }
         .mine .sender-name { display: none; }
 
-        .bubble {
-            padding: 10px 14px; border-radius: 18px;
-            font-size: 14px; line-height: 1.45; word-wrap: break-word;
-        }
-        .mine .bubble {
-            background: var(--accent); color: #000;
-            border-bottom-right-radius: 4px;
-        }
-        .theirs .bubble {
-            background: #1a1a1a; color: #f0f0f0;
-            border-bottom-left-radius: 4px; border: 1px solid #222;
-        }
+        .bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.45; word-wrap: break-word; white-space: pre-wrap; }
+        .mine .bubble { background: var(--accent); color: #000; border-bottom-right-radius: 4px; }
+        .theirs .bubble { background: #1a1a1a; color: #f0f0f0; border-bottom-left-radius: 4px; border: 1px solid #222; }
 
-        .reaction-badge {
-            position: absolute; bottom: -8px; right: 8px;
-            background: #111; border: 1px solid #222;
-            border-radius: 10px; padding: 2px 6px; font-size: 11px; z-index: 2;
-        }
-        .msg-wrapper { position: relative; }
+        .bubble-img { padding: 4px; }
+        .bubble-img img { width: 160px; border-radius: 12px; display: block; cursor: pointer; }
+
+        /* ── Reaction badge on message ── */
+        .reaction-badge { position: absolute; bottom: -8px; right: 8px; background: #111; border: 1px solid #222; border-radius: 10px; padding: 2px 6px; font-size: 11px; z-index: 2; }
+
+        /* ── Timestamp ── */
+        .msg-time { font-size: 9px; color: #2a2a2a; font-weight: 700; margin-top: 3px; padding: 0 2px; }
+        .mine .msg-time { text-align: right; }
+
+        /* ── Avatars ── */
+        .msg-avatar { width: 28px; height: 28px; border-radius: 8px; background: #1a1a1a; object-fit: cover; flex-shrink: 0; border: 1px solid #222; align-self: flex-end; }
+        .mine .msg-avatar { display: none; }
+        .avatar-spacer { width: 28px; flex-shrink: 0; }
+
+        /* ── Delete button ── */
+        .msg-delete { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%; background: #ff3b30; border: none; color: white; font-size: 10px; cursor: pointer; display: none; align-items: center; justify-content: center; line-height: 1; z-index: 5; }
+        .msg-wrapper:hover .msg-delete { display: flex; }
+
+        /* ── Date divider ── */
+        .date-divider { text-align: center; font-size: 10px; font-weight: 800; color: #2a2a2a; letter-spacing: 1px; text-transform: uppercase; padding: 4px 0; }
+
+        /* ── Typing indicator ── */
+        .typing-indicator { display: flex; align-items: center; gap: 8px; padding: 4px 0; min-height: 24px; }
+        .typing-dots { display: flex; gap: 3px; }
+        .typing-dot { width: 5px; height: 5px; border-radius: 50%; background: #333; animation: typingBounce 1.2s infinite ease-in-out; }
+        .typing-dot:nth-child(2) { animation-delay: .2s; }
+        .typing-dot:nth-child(3) { animation-delay: .4s; }
+        @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+        .typing-label { font-size: 10px; color: #333; font-weight: 700; }
 
         /* ── Input area ── */
-        .input-area {
-            padding: 12px 16px 28px; background: #000;
-            border-top: 1px solid #111;
-            display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-        }
-        .msg-input {
-            flex: 1; background: #0f0f0f; border: 1px solid #1e1e1e;
-            border-radius: 22px; padding: 11px 16px; color: white;
-            font-size: 14px; font-family: inherit; outline: none; transition: .15s;
-            line-height: 1.4;
-        }
+        .input-area { padding: 12px 16px 28px; background: #000; border-top: 1px solid #111; display: flex; align-items: flex-end; gap: 8px; flex-shrink: 0; position: relative; }
+        .msg-input { flex: 1; background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 22px; padding: 11px 16px; color: white; font-size: 14px; font-family: inherit; outline: none; transition: .15s; line-height: 1.4; resize: none; overflow: hidden; min-height: 44px; max-height: 120px; }
         .msg-input:focus { border-color: #2a2a2a; }
         .msg-input::placeholder { color: #2a2a2a; }
 
         /* ── Send button ── */
-        .send-btn {
-            width: 42px; height: 42px; border-radius: 50%;
-            background: var(--accent); border: none;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; flex-shrink: 0; transition: .15s;
-            box-shadow: 0 2px 10px rgba(255,122,0,0.3);
-        }
+        .send-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: .15s; box-shadow: 0 2px 10px rgba(255,122,0,0.3); }
         .send-btn:hover { opacity: .88; transform: scale(1.05); }
         .send-btn:active { transform: scale(0.95); }
-        .send-btn svg {
-            width: 18px; height: 18px; fill: #000;
-            transform: translateX(1px); /* optical center */
-        }
+        .send-btn svg { width: 18px; height: 18px; fill: #000; transform: translateX(1px); }
 
-        /* ── Error screen ── */
-        .error-screen {
-            display: none; flex-direction: column;
-            align-items: center; justify-content: center;
-            height: 100dvh; text-align: center; gap: 10px; padding: 30px;
-        }
-        .error-screen h2 { margin: 0; font-size: 20px; }
-        .error-screen p { color: #555; font-size: 13px; margin: 0; }
-        .error-btn {
-            margin-top: 10px; padding: 11px 24px; border-radius: 20px;
-            background: var(--accent); color: #000; border: none;
-            font-weight: 800; cursor: pointer; font-size: 13px; font-family: inherit;
-        }
-
-        /* ── Date divider ── */
-        .date-divider {
-            text-align: center; font-size: 10px; font-weight: 800;
-            color: #2a2a2a; letter-spacing: 1px; text-transform: uppercase;
-            padding: 4px 0;
-        }
-
-        /* ── Avatars ── */
-        .msg-avatar {
-            width: 28px; height: 28px; border-radius: 8px;
-            background: #1a1a1a; object-fit: cover; flex-shrink: 0;
-            border: 1px solid #222; align-self: flex-end;
-        }
-        .mine .msg-avatar { display: none; }
-        .avatar-spacer { width: 28px; flex-shrink: 0; }
-
-        /* ── Timestamp ── */
-        .msg-time {
-            font-size: 9px; color: #2a2a2a; font-weight: 700;
-            margin-top: 3px; padding: 0 2px;
-        }
-        .mine .msg-time { text-align: right; }
-
-        /* ── Reaction images in chat ── */
-        .bubble-img { padding: 4px; }
-        .bubble-img img { width: 140px; border-radius: 12px; display: block; }
-
-        /* ── Delete button ── */
-        .msg-delete {
-            position: absolute; top: -8px; right: -8px;
-            width: 20px; height: 20px; border-radius: 50%;
-            background: #ff3b30; border: none; color: white;
-            font-size: 10px; cursor: pointer; display: none;
-            align-items: center; justify-content: center;
-            line-height: 1; z-index: 5;
-        }
-        .msg-wrapper:hover .msg-delete { display: flex; }
-
-        /* ── Expanding textarea input ── */
-        .msg-input {
-            flex: 1; background: #0f0f0f; border: 1px solid #1e1e1e;
-            border-radius: 22px; padding: 11px 16px; color: white;
-            font-size: 14px; font-family: inherit; outline: none; transition: .15s;
-            line-height: 1.4; resize: none; overflow: hidden; min-height: 44px;
-            max-height: 120px;
-        }
-        .msg-input:focus { border-color: #2a2a2a; }
-        .msg-input::placeholder { color: #2a2a2a; }
-
-        /* ── Reaction image picker in chat ── */
-        .chat-reaction-btn {
-            width: 42px; height: 42px; border-radius: 50%;
-            background: #111; border: 1px solid #1e1e1e;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; flex-shrink: 0; transition: .15s;
-            font-size: 18px;
-        }
+        /* ── Reaction picker ── */
+        .chat-reaction-btn { width: 42px; height: 42px; border-radius: 50%; background: #111; border: 1px solid #1e1e1e; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: .15s; font-size: 18px; }
         .chat-reaction-btn.active { border-color: #ff7a00; background: rgba(255,122,0,.1); }
-        .chat-reaction-picker {
-            position: absolute; bottom: 70px; left: 0; right: 0;
-            background: #111; border-top: 1px solid #1e1e1e;
-            display: none; flex-direction: column;
-            max-height: 260px; z-index: 20;
-        }
+        .chat-reaction-picker { position: absolute; bottom: 70px; left: 0; right: 0; background: #111; border-top: 1px solid #1e1e1e; display: none; flex-direction: column; max-height: 260px; z-index: 20; }
         .chat-reaction-picker.open { display: flex; }
-        .chat-reaction-grid {
-            display: grid; grid-template-columns: repeat(5, 1fr);
-            gap: 6px; padding: 12px; overflow-y: auto;
-        }
-        .chat-reaction-img-btn {
-            aspect-ratio: 1; background: #1a1a1a; border-radius: 8px;
-            overflow: hidden; border: 1.5px solid transparent;
-            cursor: pointer; transition: .15s; padding: 0;
-        }
+        .chat-reaction-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; padding: 12px; overflow-y: auto; }
+        .chat-reaction-label { font-size: 9px; font-weight: 800; color: #444; letter-spacing: 1px; text-transform: uppercase; padding: 8px 12px 0; }
+        .chat-reaction-img-btn { aspect-ratio: 1; background: #1a1a1a; border-radius: 8px; overflow: hidden; border: 1.5px solid transparent; cursor: pointer; transition: .15s; padding: 0; }
         .chat-reaction-img-btn:hover { border-color: #ff7a00; transform: scale(1.05); }
         .chat-reaction-img-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .chat-reaction-label {
-            font-size: 9px; font-weight: 800; color: #444;
-            letter-spacing: 1px; text-transform: uppercase;
-            padding: 8px 12px 0;
-        }
+
+        /* ── Image upload btn ── */
+        .img-upload-btn { width: 42px; height: 42px; border-radius: 50%; background: #111; border: 1px solid #1e1e1e; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: .15s; font-size: 18px; }
+        .img-upload-btn:hover { border-color: #555; }
+
+        /* ── Squad info panel ── */
+        .info-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 500; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(10px); }
+        .info-overlay.open { display: flex; }
+        .info-sheet { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 24px 24px 0 0; width: 100%; max-width: 560px; padding: 24px 20px 40px; display: flex; flex-direction: column; gap: 14px; max-height: 80vh; overflow-y: auto; animation: slideUp .25s cubic-bezier(.4,0,.2,1); }
+        @keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .info-pfp { width: 64px; height: 64px; border-radius: 16px; background: #1a1a1a; background-size: cover; background-position: center; border: 1px solid #1e1e1e; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+        .info-name { font-size: 20px; font-weight: 900; }
+        .info-desc { font-size: 13px; color: #555; line-height: 1.5; }
+        .info-topics { display: flex; gap: 6px; flex-wrap: wrap; }
+        .info-topic-tag { background: #111; border: 1px solid #1a1a1a; color: #444; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 10px; }
+        .info-label { font-size: 9px; font-weight: 900; color: #333; letter-spacing: 2px; text-transform: uppercase; }
+        .info-member-list { display: flex; flex-direction: column; gap: 6px; }
+        .info-member-row { display: flex; align-items: center; gap: 10px; background: #111; border-radius: 10px; padding: 10px 12px; }
+        .info-member-avatar { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; background: #222; border: 1px solid #2a2a2a; flex-shrink: 0; }
+        .info-member-handle { font-size: 13px; font-weight: 700; color: #ccc; }
+        .info-owner-badge { font-size: 9px; color: #ff7a00; font-weight: 900; background: rgba(255,122,0,.1); border: 1px solid rgba(255,122,0,.2); padding: 1px 6px; border-radius: 5px; margin-left: 6px; }
+        .info-close-btn { background: #111; border: 1px solid #1e1e1e; color: #666; border-radius: 14px; padding: 13px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; transition: .15s; }
+        .info-close-btn:hover { border-color: #444; color: #aaa; }
+
+        /* ── Error screen ── */
+        .error-screen { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100dvh; text-align: center; gap: 10px; padding: 30px; }
+        .error-screen h2 { margin: 0; font-size: 20px; }
+        .error-screen p { color: #555; font-size: 13px; margin: 0; }
+        .error-btn { margin-top: 10px; padding: 11px 24px; border-radius: 20px; background: var(--accent); color: #000; border: none; font-weight: 800; cursor: pointer; font-size: 13px; font-family: inherit; }
+
+        /* ── Image lightbox ── */
+        .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9999; display: none; align-items: center; justify-content: center; }
+        .lightbox.open { display: flex; }
+        .lightbox img { max-width: 94vw; max-height: 88vh; border-radius: 12px; }
+        .lightbox-close { position: absolute; top: 20px; right: 20px; width: 36px; height: 36px; border-radius: 50%; background: #111; border: 1px solid #333; color: #aaa; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -209,47 +147,80 @@
     <button class="error-btn" onclick="location.href='squads.html'">Back to Squads</button>
 </div>
 
-<div id="mainUI" style="display:flex; flex-direction:column; height:100dvh;">
+<div id="mainUI" style="display:flex;flex-direction:column;height:100dvh;">
     <div class="header">
         <a class="back-btn" onclick="location.href='squads.html'">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                <polyline points="15 18 9 12 15 6"/>
-            </svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
         </a>
         <div id="chatPic"></div>
-        <div class="header-info">
+        <div class="header-info" onclick="openInfoPanel()">
             <div class="header-name" id="headerTitle">…</div>
-            <div class="header-sub" id="header-sub-text">Squad Chat</div>
+            <div class="header-sub" id="headerSub">Squad Chat · tap for info</div>
         </div>
     </div>
 
     <div id="chatContainer"></div>
 
-    <!-- Reaction image picker -->
+    <!-- Reaction picker -->
     <div class="chat-reaction-picker" id="chatReactionPicker">
         <div class="chat-reaction-label">Reactions</div>
         <div class="chat-reaction-grid" id="chatReactionGrid"></div>
     </div>
 
-    <div class="input-area" style="position:relative;">
+    <div class="input-area">
         <button class="chat-reaction-btn" id="chatReactionBtn" onclick="toggleChatReactionPicker()" title="Send a reaction image">🎭</button>
-        <textarea class="msg-input" id="msgInput" placeholder="Message the squad…" autocomplete="off" rows="1" oninput="autoResize(this)"></textarea>
+        <button class="img-upload-btn" onclick="document.getElementById('imgUploadInput').click()" title="Send image">🖼</button>
+        <input type="file" id="imgUploadInput" hidden accept="image/*" onchange="handleImageUpload(this)">
+        <textarea class="msg-input" id="msgInput" placeholder="Message the squad…" autocomplete="off" rows="1" oninput="autoResize(this);handleTyping()"></textarea>
         <button class="send-btn" onclick="sendMessage()" id="sendBtn">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
     </div>
 </div>
 
-<script>
-    const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
+<!-- Squad Info Panel -->
+<div class="info-overlay" id="infoOverlay">
+    <div class="info-sheet">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="display:flex;gap:14px;align-items:center;">
+                <div class="info-pfp" id="infoPfp"></div>
+                <div>
+                    <div class="info-name" id="infoName"></div>
+                    <div style="font-size:11px;color:#444;font-weight:700;margin-top:2px;" id="infoOwner"></div>
+                </div>
+            </div>
+            <span onclick="closeInfoPanel()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;flex-shrink:0;">✕</span>
+        </div>
+        <div class="info-desc" id="infoDesc" style="display:none;"></div>
+        <div id="infoTopicsWrap" style="display:none;">
+            <div class="info-label" style="margin-bottom:6px;">Topics</div>
+            <div class="info-topics" id="infoTopics"></div>
+        </div>
+        <div>
+            <div class="info-label" style="margin-bottom:8px;">Members</div>
+            <div class="info-member-list" id="infoMembers"><div style="font-size:12px;color:#333;">Loading…</div></div>
+        </div>
+        <button class="info-close-btn" onclick="closeInfoPanel()">Close</button>
+    </div>
+</div>
 
-    const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
-    const myHandle  = myProfile.handle;
+<!-- Image lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <div class="lightbox-close">✕</div>
+    <img id="lightboxImg" src="">
+</div>
+
+<script>
+    const _sb = supabase.createClient(
+        'https://mmycqeejhguzhtzkyjaj.supabase.co',
+        'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE',
+        { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
+    );
+
+    const myProfile     = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const myHandle      = myProfile.handle;
     const activeSquadId = new URLSearchParams(window.location.search).get('id');
 
-    // Profile picture cache
     const picCache = {};
     async function getPic(handle) {
         if (picCache[handle] !== undefined) return picCache[handle];
@@ -258,7 +229,7 @@
         return picCache[handle];
     }
 
-    // Reaction images from Supabase bucket
+    // Reaction images
     const BASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/reactions/';
     const ALL_REACTIONS = [
         { name: 'nuke the whole generation', src: BASE_URL + 'IMG_1823.webp' },
@@ -272,113 +243,187 @@
         { name: 'spongebob phone',           src: BASE_URL + 'IMG_1833.webp' },
     ];
     let pendingReactionSrc = null;
-
     let isSquadOwner = false;
+    let squadData    = null;
 
+    // Pagination
+    const PAGE_SIZE   = 40;
+    let   msgOffset   = 0;
+    let   hasMoreMsgs = false;
+
+    // Typing indicator
+    let typingTimeout  = null;
+    let typingChannel  = null;
+    const typingUsers  = new Set();
+    let typingTimers   = {};
+
+    function esc(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Init ─────────────────────────────────────────────
     async function init() {
         if (!activeSquadId || !myHandle) return showError();
 
         const { data: squad } = await _sb.from('team_tickets').select('*').eq('id', activeSquadId).single();
         if (!squad) return showError();
+        squadData = squad;
 
         isSquadOwner = squad.owner_handle === myHandle;
         if (!isSquadOwner) {
             const { data: req } = await _sb.from('team_requests')
-                .select('status')
-                .eq('ticket_id', activeSquadId)
-                .eq('sender_handle', myHandle)
-                .single();
+                .select('status').eq('ticket_id', activeSquadId).eq('sender_handle', myHandle).single();
             if (!req || req.status !== 'accepted') return showError();
         }
 
+        // Header
         document.getElementById('headerTitle').innerText = squad.team_name;
-        document.getElementById('header-sub-text').innerText =
-            isSquadOwner ? 'Squad Owner · Chat' : 'Squad Chat';
+        document.getElementById('headerSub').innerText   = isSquadOwner ? 'Squad Owner · tap for info' : 'Squad Chat · tap for info';
         if (squad.pfp) document.getElementById('chatPic').style.backgroundImage = `url(${squad.pfp})`;
 
-        await loadMessages();
+        // Keyboard listener after DOM ready
+        document.getElementById('msgInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        });
+
+        await loadMessages(true);
         setupRealtime();
+        setupTypingRealtime();
     }
 
     function showError() {
-        document.getElementById('mainUI').style.display = 'none';
+        document.getElementById('mainUI').style.display  = 'none';
         document.getElementById('errorScreen').style.display = 'flex';
     }
 
-    function setupRealtime() {
-        _sb.channel(`squad_chat_${activeSquadId}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, payload => {
-                const m = payload.new;
-                if (String(m.ticket_id) === String(activeSquadId)) appendMessage(m);
-            })
-            .subscribe();
-    }
+    // ── Messages with pagination ──────────────────────────
+    async function loadMessages(initial = false) {
+        if (initial) { msgOffset = 0; document.getElementById('chatContainer').innerHTML = ''; }
 
-    function isImg(text) {
-        if (!text) return false;
-        if (text.startsWith('data:image')) return true;
-        return /\.(jpeg|jpg|gif|png|webp|svg)/i.test(text) && text.startsWith('http');
-    }
-
-    function buildBubble(m) {
-        const content = m.content || '';
-        // IMG_REACTION format from comment system
-        if (content.startsWith('[IMG_REACTION]:')) {
-            const src = content.replace('[IMG_REACTION]:', '').trim();
-            return `<div class="bubble bubble-img"><img src="${esc(src)}" loading="lazy" onerror="this.style.display='none'"></div>`;
-        }
-        if (isImg(content)) {
-            return `<div class="bubble bubble-img"><img src="${esc(content)}" style="width:100%;border-radius:14px;display:block;" loading="lazy"></div>`;
-        }
-        return `<div class="bubble">${esc(content)}</div>`;
-    }
-
-    async function loadMessages() {
-        const { data } = await _sb.from('team_messages')
-            .select('*')
+        const { data, count } = await _sb.from('team_messages')
+            .select('*', { count: 'exact' })
             .eq('ticket_id', activeSquadId)
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: false })
+            .range(msgOffset, msgOffset + PAGE_SIZE - 1);
 
+        if (!data?.length) {
+            if (initial) renderEmptyState();
+            return;
+        }
+
+        const totalFetched = msgOffset + data.length;
+        hasMoreMsgs = count > totalFetched;
+        msgOffset   = totalFetched;
+
+        const msgs = [...data].reverse(); // chronological
         const container = document.getElementById('chatContainer');
-        container.innerHTML = '';
+        const wasEmpty  = container.children.length === 0 || container.querySelector('.chat-empty');
 
-        let lastDate = null;
-        data?.forEach(m => {
+        if (wasEmpty) container.innerHTML = '';
+
+        // Prepend "load more" button if needed
+        if (hasMoreMsgs && initial) {
+            const loadBtn = document.createElement('button');
+            loadBtn.className = 'load-more-btn';
+            loadBtn.innerText = 'Load older messages';
+            loadBtn.id = 'loadMoreBtn';
+            loadBtn.onclick = () => loadOlderMessages();
+            container.prepend(loadBtn);
+        }
+
+        // Insert messages in order
+        let lastDate = container.querySelector('[data-lastdate]')?.dataset.lastdate || null;
+        const insertAnchor = document.getElementById('loadMoreBtn')?.nextSibling || null;
+
+        for (const m of msgs) {
             const msgDate = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
             if (msgDate !== lastDate) {
                 const div = document.createElement('div');
                 div.className = 'date-divider';
                 div.innerText = msgDate;
-                container.appendChild(div);
+                div.dataset.lastdate = msgDate;
+                if (insertAnchor) container.insertBefore(div, insertAnchor);
+                else container.appendChild(div);
                 lastDate = msgDate;
             }
-            appendMessage(m);
-        });
+            await appendMessage(m, false, insertAnchor);
+        }
+
+        if (initial) container.scrollTop = container.scrollHeight;
     }
 
-    async function appendMessage(m, prepend = false) {
-        if (document.getElementById(`row-${m.id}`)) return;
-        const isMine = m.sender_handle === myHandle;
+    async function loadOlderMessages() {
         const container = document.getElementById('chatContainer');
+        const prevHeight = container.scrollHeight;
+        const prevScroll = container.scrollTop;
+
+        const btn = document.getElementById('loadMoreBtn');
+        if (btn) { btn.innerText = 'Loading…'; btn.disabled = true; }
+
+        const { data } = await _sb.from('team_messages')
+            .select('*')
+            .eq('ticket_id', activeSquadId)
+            .order('created_at', { ascending: false })
+            .range(msgOffset, msgOffset + PAGE_SIZE - 1);
+
+        if (!data?.length) { if (btn) btn.remove(); return; }
+        msgOffset += data.length;
+        hasMoreMsgs = data.length === PAGE_SIZE;
+
+        const msgs = [...data].reverse();
+        const anchor = btn ? btn.nextSibling : null;
+        let lastDate = null;
+
+        for (const m of msgs) {
+            const msgDate = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+            if (msgDate !== lastDate) {
+                const div = document.createElement('div');
+                div.className = 'date-divider'; div.innerText = msgDate;
+                if (anchor) container.insertBefore(div, anchor);
+                else container.appendChild(div);
+                lastDate = msgDate;
+            }
+            await appendMessage(m, false, anchor);
+        }
+
+        if (!hasMoreMsgs && btn) btn.remove();
+        else if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
+
+        // Preserve scroll position after prepend
+        container.scrollTop = prevScroll + (container.scrollHeight - prevHeight);
+    }
+
+    function renderEmptyState() {
+        const container = document.getElementById('chatContainer');
+        container.innerHTML = `<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-title">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>`;
+    }
+
+    // ── Append message ────────────────────────────────────
+    async function appendMessage(m, scrollToBottom = true, insertBefore = null) {
+        if (document.getElementById(`row-${m.id}`)) return;
+        const isMine    = m.sender_handle === myHandle;
+        const container = document.getElementById('chatContainer');
+
+        // Remove empty state if present
+        const empty = container.querySelector('.chat-empty');
+        if (empty) empty.remove();
 
         const row = document.createElement('div');
         row.className = `msg-row ${isMine ? 'mine' : 'theirs'}`;
         row.id = `row-${m.id}`;
 
-        // Get avatar
         const pic = await getPic(m.sender_handle);
         const avatarHtml = isMine
-            ? `<div class="avatar-spacer"></div>`
+            ? '<div class="avatar-spacer"></div>'
             : `<img class="msg-avatar" src="${esc(pic)}" onerror="this.style.display='none'" alt="">`;
 
-        // Timestamp
         const time = m.created_at
             ? new Date(m.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})
             : '';
 
-        // Delete button — show for own messages or if owner
         const canDelete = isMine || isSquadOwner;
-        const deleteBtn = canDelete && m.id
+        const deleteBtn = (canDelete && m.id && !String(m.id).startsWith('temp-'))
             ? `<button class="msg-delete" onclick="deleteMessage('${m.id}')" title="Delete">✕</button>`
             : '';
 
@@ -389,60 +434,75 @@
             <div class="sender-name">@${esc(m.sender_handle)}</div>
             ${buildBubble(m)}
             <div class="msg-time">${esc(time)}</div>
-            ${m.reaction ? `<div class="reaction-badge">${m.reaction}</div>` : ''}
-        `;
+            ${m.reaction ? `<div class="reaction-badge">${m.reaction}</div>` : ''}`;
+
+        const avatarEl = document.createElement('div');
+        avatarEl.innerHTML = avatarHtml;
+        const avatarNode = avatarEl.firstChild;
 
         if (isMine) {
             row.appendChild(wrapper);
-            row.appendChild(document.createElement('div')); // spacer right
+            row.appendChild(document.createElement('div'));
         } else {
-            row.appendChild(avatarHtml ? (() => { const d = document.createElement('div'); d.innerHTML = avatarHtml; return d.firstChild; })() : document.createElement('div'));
+            row.appendChild(avatarNode);
             row.appendChild(wrapper);
         }
 
-        container.appendChild(row);
-        container.scrollTop = container.scrollHeight;
+        if (insertBefore) container.insertBefore(row, insertBefore);
+        else container.appendChild(row);
+
+        if (scrollToBottom) container.scrollTop = container.scrollHeight;
     }
 
+    function isImg(text) {
+        if (!text) return false;
+        if (text.startsWith('data:image')) return true;
+        if (text.startsWith('[IMG_REACTION]:')) return false;
+        return /\.(jpeg|jpg|gif|png|webp|svg)(\?|$)/i.test(text) && (text.startsWith('http') || text.startsWith('blob:'));
+    }
+
+    function buildBubble(m) {
+        const content = m.content || '';
+        if (content.startsWith('[IMG_REACTION]:')) {
+            const src = content.replace('[IMG_REACTION]:','').trim();
+            return `<div class="bubble bubble-img"><img src="${esc(src)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(src)}')"></div>`;
+        }
+        if (isImg(content)) {
+            return `<div class="bubble bubble-img"><img src="${esc(content)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(content)}')"></div>`;
+        }
+        return `<div class="bubble">${esc(content)}</div>`;
+    }
+
+    // ── Send message ──────────────────────────────────────
     async function sendMessage() {
         const input = document.getElementById('msgInput');
         const val   = input.value.trim();
         if (!val && !pendingReactionSrc) return;
 
-        // Build content
         let content = val;
-        if (pendingReactionSrc) {
-            content = `[IMG_REACTION]:${pendingReactionSrc}`;
-        }
+        if (pendingReactionSrc) content = `[IMG_REACTION]:${pendingReactionSrc}`;
 
-        input.value = '';
-        input.style.height = '44px';
-        input.focus();
+        input.value = ''; input.style.height = '44px'; input.focus();
         pendingReactionSrc = null;
         document.getElementById('chatReactionBtn').classList.remove('active');
+        input.placeholder = 'Message the squad…';
         closeChatReactionPicker();
 
-        // Optimistic UI — show immediately
+        // Optimistic
         const tempId = 'temp-' + Date.now();
-        const optimistic = {
-            id: tempId,
-            sender_handle: myHandle,
-            content,
-            created_at: new Date().toISOString()
-        };
-        await appendMessage(optimistic);
+        await appendMessage({ id: tempId, sender_handle: myHandle, content, created_at: new Date().toISOString() });
 
-        // Persist to DB
+        // Persist
         const { data, error } = await _sb.from('team_messages').insert([{
-            ticket_id:     activeSquadId,
-            sender_handle: myHandle,
-            content
+            ticket_id: activeSquadId, sender_handle: myHandle, content
         }]).select().single();
 
-        // Replace temp row with real one once DB confirms
         if (data && !error) {
             const tempRow = document.getElementById(`row-${tempId}`);
             if (tempRow) tempRow.id = `row-${data.id}`;
+        } else if (error) {
+            const tempRow = document.getElementById(`row-${tempId}`);
+            if (tempRow) { tempRow.style.opacity = '0.5'; tempRow.title = 'Failed to send'; }
         }
     }
 
@@ -455,16 +515,119 @@
         if (row) row.remove();
     }
 
-    // Auto-resize textarea
+    // ── Image upload in chat ──────────────────────────────
+    async function handleImageUpload(input) {
+        if (!input.files[0]) return;
+        const file = input.files[0];
+        input.value = '';
+
+        // Show optimistic preview with blob URL
+        const blobUrl = URL.createObjectURL(file);
+        const tempId  = 'temp-img-' + Date.now();
+        await appendMessage({ id: tempId, sender_handle: myHandle, content: blobUrl, created_at: new Date().toISOString() });
+
+        // Convert to base64 for upload
+        const b64 = await new Promise(res => {
+            const r = new FileReader();
+            r.onload = e => res(e.target.result);
+            r.readAsDataURL(file);
+        });
+
+        const filename = `chat_${myHandle}_${Date.now()}.jpg`;
+        const url = await uploadToStorage('squad-pfps', filename, b64);
+
+        if (url) {
+            const { data, error } = await _sb.from('team_messages').insert([{
+                ticket_id: activeSquadId, sender_handle: myHandle, content: url
+            }]).select().single();
+            const tempRow = document.getElementById(`row-${tempId}`);
+            if (data && !error && tempRow) tempRow.id = `row-${data.id}`;
+        } else {
+            const tempRow = document.getElementById(`row-${tempId}`);
+            if (tempRow) { tempRow.style.opacity = '0.5'; tempRow.title = 'Upload failed'; }
+        }
+    }
+
+    // ── Storage helper (same as squads.html) ─────────────
+    async function uploadToStorage(bucket, filename, data) {
+        const path = `userimages/${filename}`;
+        let blob = data;
+        if (typeof data === 'string' && data.startsWith('data:')) {
+            const res = await fetch(data); blob = await res.blob();
+        }
+        const { error } = await _sb.storage.from(bucket).upload(path, blob, {
+            upsert: true, cacheControl: '3600', contentType: 'image/jpeg'
+        });
+        if (error) { console.error('Storage upload error:', error); return null; }
+        const url = _sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+        return `${url}?t=${Date.now()}`;
+    }
+
+    // ── Realtime messages ─────────────────────────────────
+    function setupRealtime() {
+        _sb.channel(`squad_chat_${activeSquadId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, payload => {
+                const m = payload.new;
+                if (String(m.ticket_id) === String(activeSquadId) && m.sender_handle !== myHandle) {
+                    appendMessage(m);
+                }
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'team_messages' }, payload => {
+                const row = document.getElementById(`row-${payload.old.id}`);
+                if (row) row.remove();
+            })
+            .subscribe();
+    }
+
+    // ── Typing indicator (Supabase Broadcast) ────────────
+    function setupTypingRealtime() {
+        typingChannel = _sb.channel(`typing_${activeSquadId}`);
+        typingChannel
+            .on('broadcast', { event: 'typing' }, ({ payload }) => {
+                if (payload.handle === myHandle) return;
+                typingUsers.add(payload.handle);
+                clearTimeout(typingTimers[payload.handle]);
+                typingTimers[payload.handle] = setTimeout(() => {
+                    typingUsers.delete(payload.handle);
+                    renderTypingIndicator();
+                }, 3000);
+                renderTypingIndicator();
+            })
+            .subscribe();
+    }
+
+    function handleTyping() {
+        clearTimeout(typingTimeout);
+        if (typingChannel) typingChannel.send({ type: 'broadcast', event: 'typing', payload: { handle: myHandle } });
+        typingTimeout = setTimeout(() => {}, 2000);
+    }
+
+    function renderTypingIndicator() {
+        let el = document.getElementById('typing-indicator-row');
+        if (typingUsers.size === 0) { if (el) el.remove(); return; }
+        const names = [...typingUsers].map(h => `@${h}`).join(', ');
+        const label = typingUsers.size === 1 ? `${names} is typing` : `${names} are typing`;
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'typing-indicator-row';
+            el.className = 'typing-indicator';
+            el.innerHTML = `<div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div><span class="typing-label" id="typing-label"></span>`;
+            document.getElementById('chatContainer').appendChild(el);
+        }
+        document.getElementById('typing-label').innerText = label;
+        const container = document.getElementById('chatContainer');
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // ── Auto-resize textarea ──────────────────────────────
     function autoResize(el) {
         el.style.height = '44px';
         el.style.height = Math.min(el.scrollHeight, 120) + 'px';
     }
 
-    // Reaction picker in chat
+    // ── Reaction picker ───────────────────────────────────
     function buildChatReactionGrid() {
-        const grid = document.getElementById('chatReactionGrid');
-        grid.innerHTML = ALL_REACTIONS.map(r =>
+        document.getElementById('chatReactionGrid').innerHTML = ALL_REACTIONS.map(r =>
             `<button class="chat-reaction-img-btn" title="${esc(r.name)}" onclick="selectChatReaction('${esc(r.src)}')">
                 <img src="${esc(r.src)}" alt="${esc(r.name)}" loading="lazy">
             </button>`
@@ -476,9 +639,7 @@
         const btn    = document.getElementById('chatReactionBtn');
         const isOpen = picker.classList.toggle('open');
         btn.classList.toggle('active', isOpen);
-        if (isOpen && !document.getElementById('chatReactionGrid').children.length) {
-            buildChatReactionGrid();
-        }
+        if (isOpen && !document.getElementById('chatReactionGrid').children.length) buildChatReactionGrid();
     }
 
     function closeChatReactionPicker() {
@@ -489,29 +650,73 @@
     function selectChatReaction(src) {
         pendingReactionSrc = src;
         closeChatReactionPicker();
-        // Show preview in input placeholder
-        document.getElementById('msgInput').placeholder = '📎 Reaction selected — tap send or add text';
+        document.getElementById('msgInput').placeholder = '📎 Reaction selected — tap send or type a message';
         document.getElementById('chatReactionBtn').classList.add('active');
     }
 
-    function esc(s) {
-        if (!s) return '';
-        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    window.onload = init;
-    document.getElementById('msgInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-    });
-
-    // Close reaction picker on outside tap
+    // Close picker on outside tap
     document.addEventListener('click', e => {
         const picker = document.getElementById('chatReactionPicker');
         const btn    = document.getElementById('chatReactionBtn');
-        if (picker && !picker.contains(e.target) && !btn.contains(e.target)) {
-            closeChatReactionPicker();
-        }
+        if (picker && !picker.contains(e.target) && btn && !btn.contains(e.target)) closeChatReactionPicker();
     });
+
+    // ── Info panel ────────────────────────────────────────
+    async function openInfoPanel() {
+        if (!squadData) return;
+        document.getElementById('infoName').innerText  = squadData.team_name;
+        document.getElementById('infoOwner').innerText = `by @${squadData.owner_handle}`;
+        const pfpEl = document.getElementById('infoPfp');
+        if (squadData.pfp) { pfpEl.style.backgroundImage = `url(${squadData.pfp})`; pfpEl.innerText = ''; }
+        else { pfpEl.style.backgroundImage = ''; pfpEl.innerText = '💬'; }
+
+        const descEl = document.getElementById('infoDesc');
+        if (squadData.description) { descEl.innerText = squadData.description; descEl.style.display = ''; }
+        else descEl.style.display = 'none';
+
+        const topics = Array.isArray(squadData.topics) ? squadData.topics : [];
+        const topicsWrap = document.getElementById('infoTopicsWrap');
+        if (topics.length) {
+            document.getElementById('infoTopics').innerHTML = topics.map(t =>
+                `<span class="info-topic-tag">${esc(t)}</span>`).join('');
+            topicsWrap.style.display = '';
+        } else topicsWrap.style.display = 'none';
+
+        document.getElementById('infoOverlay').classList.add('open');
+
+        // Load members
+        const membersEl = document.getElementById('infoMembers');
+        membersEl.innerHTML = '<div style="font-size:12px;color:#333;">Loading…</div>';
+
+        const { data: accepted } = await _sb.from('team_requests')
+            .select('sender_handle').eq('ticket_id', activeSquadId).eq('status','accepted');
+
+        const allHandles = [
+            { handle: squadData.owner_handle, isOwner: true },
+            ...(accepted || []).map(r => ({ handle: r.sender_handle, isOwner: false }))
+        ];
+
+        const rows = await Promise.all(allHandles.map(async m => {
+            const { data: prof } = await _sb.from('profiles').select('pic').eq('handle', m.handle).maybeSingle();
+            const pic = prof?.pic || '';
+            return `<div class="info-member-row">
+                <img class="info-member-avatar" src="${esc(pic)}" onerror="this.src=''" alt="">
+                <span class="info-member-handle">@${esc(m.handle)}${m.isOwner?'<span class="info-owner-badge">OWNER</span>':''}</span>
+            </div>`;
+        }));
+        membersEl.innerHTML = rows.join('') || '<div style="font-size:12px;color:#333;">No members yet.</div>';
+    }
+
+    function closeInfoPanel() { document.getElementById('infoOverlay').classList.remove('open'); }
+
+    // ── Lightbox ──────────────────────────────────────────
+    function openLightbox(src) {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('lightbox').classList.add('open');
+    }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+    window.onload = init;
 </script>
 </body>
 </html>
