@@ -112,6 +112,14 @@ body {
   #right-panel { display: none; }
   #tool-bar { display: none; }
   #mobile-bottom-bar { display: flex !important; }
+  /* Slim down top bar on mobile */
+  #top-bar { gap: 5px; padding: 0 8px; }
+  #sprite-name-input { min-width: 90px; max-width: 120px; font-size: 12px; padding: 6px 8px; }
+  .tb-btn { padding: 6px 8px; font-size: 11px; }
+  #save-status { display: none; } /* shown in mobile bar instead */
+}
+@media (max-width: 480px) {
+  #tb-clear-btn { display: none; } /* hide clear on very small, use long-press or menu */
 }
 #mobile-bottom-bar {
   display: none; flex-direction: column; background: var(--card);
@@ -202,6 +210,25 @@ body {
   font-family: inherit; transition: 0.12s; white-space: nowrap; flex-shrink: 0;
 }
 .opt-chip.active { background: rgba(255,122,0,0.15); border-color: var(--accent); color: var(--accent); }
+
+/* ── SIZE PRESET BUTTONS ── */
+.size-preset-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 8px 10px; background: #0d0d0f; border: 1.5px solid var(--border);
+  border-radius: 10px; cursor: pointer; font-family: inherit; transition: 0.15s;
+  text-align: left; width: 100%;
+}
+.size-preset-btn:hover { border-color: var(--accent); background: rgba(255,122,0,0.06); }
+.size-preset-btn.selected { border-color: var(--accent); background: rgba(255,122,0,0.12); }
+.preset-name { font-size: 12px; font-weight: 900; color: var(--text); }
+.preset-dim { font-size: 10px; font-weight: 800; color: var(--teal); }
+.preset-desc { font-size: 9px; font-weight: 700; color: #555; }
+
+/* ── CANVAS CURSOR PREVIEW ── */
+#cursor-canvas {
+  position: absolute; inset: 0; pointer-events: none; z-index: 10;
+  width: 100%; height: 100%;
+}
 
 /* ── BOTTOM STATUS ── */
 #status-bar {
@@ -300,7 +327,7 @@ body {
   <div class="tb-spacer"></div>
   <div id="save-status">● Unsaved</div>
   <div class="opt-sep"></div>
-  <button class="tb-btn" onclick="clearCanvas()" title="Clear canvas">🗑 Clear</button>
+  <button class="tb-btn" id="tb-clear-btn" onclick="clearCanvas()" title="Clear canvas">🗑 Clear</button>
   <button class="tb-btn" onclick="openResizeModal()" title="Resize">⬛ Size</button>
   <button class="tb-btn teal" onclick="saveCurrentActionAsNew()" title="Save frame as new action">+ Action</button>
   <button class="tb-btn accent" onclick="saveAndReturn()">💾 Save & Return</button>
@@ -392,9 +419,11 @@ body {
 
     <!-- Stage -->
     <div id="stage">
+      <canvas id="cursor-canvas"></canvas>
       <div id="canvas-wrapper">
         <canvas id="main-canvas" width="400" height="400"></canvas>
         <canvas id="grid-canvas" width="400" height="400"></canvas>
+        <canvas id="sel-canvas" width="400" height="400" style="position:absolute;inset:0;pointer-events:none;"></canvas>
       </div>
     </div>
 
@@ -490,15 +519,46 @@ body {
 
 <!-- Canvas Resize Modal -->
 <div class="modal-overlay" id="resize-modal">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:420px;">
     <div class="modal-title">Canvas Size</div>
-    <div class="modal-row">
-      <div class="modal-label">Width (px)</div>
-      <input type="number" class="modal-input" id="canvas-w-input" min="16" max="2048" value="400">
+    <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Presets</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;" id="size-preset-grid">
+      <button class="size-preset-btn" data-w="32" data-h="32">
+        <span class="preset-name">Tiny</span><span class="preset-dim">32 × 32</span>
+        <span class="preset-desc">Pixel art icons</span>
+      </button>
+      <button class="size-preset-btn" data-w="64" data-h="64">
+        <span class="preset-name">Small</span><span class="preset-dim">64 × 64</span>
+        <span class="preset-desc">Simple sprites</span>
+      </button>
+      <button class="size-preset-btn" data-w="128" data-h="128">
+        <span class="preset-name">Medium</span><span class="preset-dim">128 × 128</span>
+        <span class="preset-desc">Character sprites</span>
+      </button>
+      <button class="size-preset-btn" data-w="256" data-h="256">
+        <span class="preset-name">Large</span><span class="preset-dim">256 × 256</span>
+        <span class="preset-desc">Detailed portraits</span>
+      </button>
+      <button class="size-preset-btn" data-w="400" data-h="400">
+        <span class="preset-name">Standard</span><span class="preset-dim">400 × 400</span>
+        <span class="preset-desc">Default canvas</span>
+      </button>
+      <button class="size-preset-btn" data-w="512" data-h="512">
+        <span class="preset-name">HD</span><span class="preset-dim">512 × 512</span>
+        <span class="preset-desc">High detail</span>
+      </button>
     </div>
-    <div class="modal-row">
-      <div class="modal-label">Height (px)</div>
-      <input type="number" class="modal-input" id="canvas-h-input" min="16" max="2048" value="400">
+    <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Custom</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+      <div style="flex:1;">
+        <div class="modal-label">Width</div>
+        <input type="number" class="modal-input" id="canvas-w-input" min="16" max="2048" value="400">
+      </div>
+      <div style="color:#444;font-weight:900;padding-top:18px;">×</div>
+      <div style="flex:1;">
+        <div class="modal-label">Height</div>
+        <input type="number" class="modal-input" id="canvas-h-input" min="16" max="2048" value="400">
+      </div>
     </div>
     <div class="modal-row">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
@@ -547,6 +607,10 @@ const canvas = document.getElementById('main-canvas');
 const ctx    = canvas.getContext('2d');
 const gridCanvas = document.getElementById('grid-canvas');
 const gridCtx    = gridCanvas.getContext('2d');
+const selCanvas  = document.getElementById('sel-canvas');
+const selCtx     = selCanvas.getContext('2d');
+const cursorCanvasEl = document.getElementById('cursor-canvas');
+const cursorCtx  = cursorCanvasEl.getContext('2d');
 
 let currentTool   = 'pencil';
 let drawColor     = '#000000';
@@ -583,8 +647,7 @@ let editingContext = null; // { spriteId, spriteName, returnPage }
 const PALETTE = [
   '#000000','#ffffff','#ff3b30','#ff9500','#ffcc00','#34c759','#007aff','#5856d6',
   '#af52de','#ff2d55','#8e8e93','#636366','#3a3a3c','#2c2c2e','#1c1c1e',
-  '#f4a261','#e76f51','#264653','#2a9d8f','#e9c46a',
-  '#transparent'
+  '#f4a261','#e76f51','#264653','#2a9d8f','#e9c46a'
 ];
 
 // ══════════════════════════════════════════════════════════════
@@ -595,6 +658,20 @@ function init() {
   buildPaletteRight();
   fitCanvasToStage();
   window.addEventListener('resize', () => { fitCanvasToStage(); drawGrid(); });
+
+  // Setup size preset buttons
+  document.querySelectorAll('.size-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.size-preset-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('canvas-w-input').value = btn.dataset.w;
+      document.getElementById('canvas-h-input').value = btn.dataset.h;
+    });
+  });
+
+  // Clear canvas FIRST before any async load
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  saveHistory();
 
   // Load editing context from localStorage
   const raw = localStorage.getItem('sprite_editor_context');
@@ -624,11 +701,6 @@ function init() {
     } catch(e) { console.warn('Could not parse editor context:', e); }
   }
 
-  // Canvas background: white
-  ctx.fillStyle = 'rgba(0,0,0,0)';
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  saveHistory();
-
   // Set default thumb if none
   updateDefaultThumb();
   updateSaveStatus('unsaved');
@@ -640,18 +712,20 @@ function init() {
 function buildPalette() {
   const row = document.getElementById('palette-row');
   row.innerHTML = '';
+  // Transparent / eraser swatch
+  const eraseS = document.createElement('div');
+  eraseS.className = 'swatch';
+  eraseS.style.cssText = 'background:linear-gradient(to bottom right,#fff 46%,#ff3b30 46% 54%,#fff 54%);border-color:#333;';
+  eraseS.title = 'Transparent / Erase';
+  eraseS.onclick = () => { setDrawColor('rgba(0,0,0,0)'); setTool('eraser'); };
+  row.appendChild(eraseS);
+
   PALETTE.forEach(c => {
     const s = document.createElement('div');
     s.className = 'swatch';
-    if (c === '#transparent') {
-      s.style.cssText = 'background:linear-gradient(to bottom right,#fff 46%,#ff3b30 46% 54%,#fff 54%);border-color:#333;';
-      s.title = 'Transparent / Erase';
-      s.onclick = () => { setDrawColor('rgba(0,0,0,0)'); setTool('eraser'); };
-    } else {
-      s.style.background = c;
-      if (c === '#000000') s.classList.add('active');
-      s.onclick = () => { setDrawColor(c); if(currentTool==='eraser') setTool('pencil'); };
-    }
+    s.style.background = c;
+    if (c === '#000000') s.classList.add('active');
+    s.onclick = () => { setDrawColor(c); if(currentTool==='eraser') setTool('pencil'); };
     row.appendChild(s);
   });
 }
@@ -660,7 +734,6 @@ function buildPaletteRight() {
   const row = document.getElementById('palette-right');
   row.innerHTML = '';
   PALETTE.slice(0, 16).forEach(c => {
-    if (c === '#transparent') return;
     const s = document.createElement('div');
     s.className = 'swatch'; s.style.background = c; s.style.width='17px'; s.style.height='17px';
     s.onclick = () => { setDrawColor(c); if(currentTool==='eraser') setTool('pencil'); };
@@ -684,12 +757,16 @@ function setTool(tool) {
 
 function setDrawColor(c) {
   drawColor = c;
-  document.getElementById('color-picker-input').value = c.startsWith('#') ? c : '#000000';
-  const mobPicker = document.getElementById('mob-color-picker');
-  if (mobPicker) mobPicker.value = c.startsWith('#') ? c : '#000000';
-  // Update palette active
+  // Only update color picker if it's a valid hex color
+  if (c && c.startsWith('#') && c.length >= 7) {
+    document.getElementById('color-picker-input').value = c.slice(0, 7);
+    const mobPicker = document.getElementById('mob-color-picker');
+    if (mobPicker) mobPicker.value = c.slice(0, 7);
+  }
+  // Update palette active state
   document.querySelectorAll('.swatch').forEach(s => {
-    s.classList.toggle('active', s.style.background === c || s.style.backgroundColor === c);
+    const bg = s.style.background || s.style.backgroundColor;
+    s.classList.toggle('active', bg === c || s.style.background === c);
   });
 }
 
@@ -755,6 +832,12 @@ function fitCanvasToStage() {
   const scaleY = sh / canvas.height;
   canvasZoom = Math.min(scaleX, scaleY, 4);
   panX = 0; panY = 0;
+  // Sync sel canvas size
+  selCanvas.width  = canvas.width;
+  selCanvas.height = canvas.height;
+  // Size cursor overlay to fill stage
+  cursorCanvasEl.width  = stage.clientWidth;
+  cursorCanvasEl.height = stage.clientHeight;
   applyTransform();
 }
 
@@ -838,6 +921,9 @@ function onPointerDown(e) {
   if (currentTool === 'select') {
     shapeStartX = pos.x; shapeStartY = pos.y;
     selRect = null;
+    // Save snapshot so selection overlay doesn't corrupt main canvas
+    shapeSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
     return;
   }
   if (['rect','ellipse','line'].includes(currentTool)) {
@@ -864,22 +950,31 @@ function onPointerMove(e) {
     panX = e.clientX - panStartX;
     panY = e.clientY - panStartY;
     applyTransform();
+    drawCursorPreview(null);
     return;
   }
   const pos = getCanvasPos(e);
   document.getElementById('status-coords').innerText = `x:${pos.x} y:${pos.y}`;
+  drawCursorPreview(e);
 
   if (!isDrawing) return;
 
   if (currentTool === 'select') {
-    // draw selection rect
-    ctx.putImageData(shapeSnapshot || ctx.getImageData(0,0,canvas.width,canvas.height), 0, 0);
+    // Draw selection rect on the OVERLAY canvas, not the main canvas
+    selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
     const rx = Math.min(shapeStartX, pos.x), ry = Math.min(shapeStartY, pos.y);
     const rw = Math.abs(pos.x - shapeStartX), rh = Math.abs(pos.y - shapeStartY);
     selRect = {x:rx, y:ry, w:rw, h:rh};
-    ctx.save(); ctx.setLineDash([4,3]); ctx.strokeStyle='rgba(0,210,255,0.8)';
-    ctx.lineWidth=1; ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
-    ctx.strokeRect(rx, ry, rw, rh); ctx.restore();
+    selCtx.save();
+    selCtx.setLineDash([4,3]);
+    selCtx.strokeStyle = 'rgba(0,210,255,0.9)';
+    selCtx.lineWidth = 1;
+    selCtx.globalAlpha = 1;
+    selCtx.strokeRect(rx + 0.5, ry + 0.5, rw, rh);
+    // Semi-transparent fill to indicate selection area
+    selCtx.fillStyle = 'rgba(0,210,255,0.05)';
+    selCtx.fillRect(rx, ry, rw, rh);
+    selCtx.restore();
     return;
   }
 
@@ -932,6 +1027,11 @@ function onPointerUp(e) {
   if (!isDrawing) return;
   isDrawing = false;
   if (['rect','ellipse','line'].includes(currentTool)) saveHistory();
+  if (currentTool === 'pencil' || currentTool === 'eraser') saveHistory();
+  // Clear selection overlay on mouse up (selection is just a UI hint, not permanent)
+  if (currentTool !== 'select') {
+    selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+  }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   updateCurrentActionThumb();
@@ -949,6 +1049,48 @@ document.addEventListener('keydown', e => {
   if (shortcuts[e.key] && e.target.tagName !== 'INPUT') setTool(shortcuts[e.key]);
 });
 document.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+
+// Clear cursor preview when mouse leaves stage
+document.getElementById('stage').addEventListener('mouseleave', () => {
+  cursorCtx.clearRect(0, 0, cursorCanvasEl.width, cursorCanvasEl.height);
+});
+
+function drawCursorPreview(e) {
+  cursorCtx.clearRect(0, 0, cursorCanvasEl.width, cursorCanvasEl.height);
+  if (!e) return;
+  const stageRect = cursorCanvasEl.getBoundingClientRect();
+  const cx = e.clientX - stageRect.left;
+  const cy = e.clientY - stageRect.top;
+  const displayRadius = Math.max(2, (brushSize / 2) * canvasZoom);
+
+  cursorCtx.save();
+  if (currentTool === 'pencil' || currentTool === 'eraser') {
+    // Brush size circle
+    cursorCtx.beginPath();
+    cursorCtx.arc(cx, cy, displayRadius, 0, Math.PI * 2);
+    if (currentTool === 'eraser') {
+      cursorCtx.strokeStyle = 'rgba(255,255,255,0.6)';
+      cursorCtx.setLineDash([3, 2]);
+    } else {
+      cursorCtx.strokeStyle = 'rgba(255,255,255,0.7)';
+      cursorCtx.setLineDash([]);
+      // Inner color dot
+      cursorCtx.fillStyle = drawColor === 'rgba(0,0,0,0)' ? 'transparent' : drawColor;
+      cursorCtx.fill();
+    }
+    cursorCtx.lineWidth = 1.5;
+    cursorCtx.stroke();
+  } else {
+    // Simple crosshair for other tools
+    cursorCtx.strokeStyle = 'rgba(255,255,255,0.6)';
+    cursorCtx.lineWidth = 1;
+    cursorCtx.beginPath();
+    cursorCtx.moveTo(cx - 8, cy); cursorCtx.lineTo(cx + 8, cy);
+    cursorCtx.moveTo(cx, cy - 8); cursorCtx.lineTo(cx, cy + 8);
+    cursorCtx.stroke();
+  }
+  cursorCtx.restore();
+}
 
 // Wheel zoom on stage
 document.getElementById('stage').addEventListener('wheel', e => {
@@ -1041,6 +1183,11 @@ function flipV() {
 function openResizeModal() {
   document.getElementById('canvas-w-input').value = canvas.width;
   document.getElementById('canvas-h-input').value = canvas.height;
+  // Highlight matching preset if any
+  document.querySelectorAll('.size-preset-btn').forEach(btn => {
+    const match = parseInt(btn.dataset.w) === canvas.width && parseInt(btn.dataset.h) === canvas.height;
+    btn.classList.toggle('selected', match);
+  });
   document.getElementById('resize-modal').classList.add('open');
 }
 function closeResizeModal() {
@@ -1055,6 +1202,8 @@ function applyResize() {
   canvas.height = Math.max(16, Math.min(2048, nh));
   gridCanvas.width  = canvas.width;
   gridCanvas.height = canvas.height;
+  selCanvas.width   = canvas.width;
+  selCanvas.height  = canvas.height;
   if (oldData) ctx.putImageData(oldData, 0, 0);
   historyStack = []; redoStack = [];
   saveHistory();
@@ -1134,36 +1283,37 @@ function appendActionSlot(key, src) {
     <img class="action-thumb" src="${src||''}" alt="${key}">
     <div class="action-info">
       <div class="action-name" contenteditable="true" spellcheck="false"
-           onblur="renameAction(this, '${key}')"
            onclick="event.stopPropagation()">${key}</div>
       <div class="action-badge">Custom action</div>
     </div>
-    <button class="action-del" onclick="deleteAction('${key}', event)">🗑</button>
+    <button class="action-del" title="Delete action">🗑</button>
   `;
-  slot.onclick = () => selectActionSlot(key);
+  // Use event listeners instead of inline handlers so key reference is always current
+  const nameEl = slot.querySelector('.action-name');
+  nameEl.addEventListener('blur', () => renameAction(nameEl, slot.dataset.actionKey));
+  const delBtn = slot.querySelector('.action-del');
+  delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteAction(slot.dataset.actionKey); });
+  slot.addEventListener('click', () => selectActionSlot(slot.dataset.actionKey));
   list.appendChild(slot);
   return slot;
 }
 
 function addNewActionSlot() {
-  // Save current first
+  // Save current frame first
   spriteActions[currentActionKey] = canvas.toDataURL('image/png');
 
   const name = 'Action ' + (Object.keys(spriteActions).length);
-  spriteActions[name] = null; // blank canvas for this action
+  spriteActions[name] = null; // starts blank
 
   appendActionSlot(name, '');
-  selectActionSlot(name);
 
-  // Clear canvas for new action
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  saveHistory();
+  // Switch to it — selectActionSlot will save current then load null (blank)
+  selectActionSlot(name);
   showToast('New action: ' + name + ' — draw it!');
   updateSaveStatus('unsaved');
 }
 
-function deleteAction(key, e) {
-  e && e.stopPropagation();
+function deleteAction(key) {
   if (!confirm(`Delete action "${key}"?`)) return;
   delete spriteActions[key];
   const slot = document.querySelector(`.action-slot[data-action-key="${key}"]`);
@@ -1174,19 +1324,16 @@ function deleteAction(key, e) {
 
 function renameAction(el, oldKey) {
   const newKey = el.innerText.trim();
-  if (!newKey || newKey === oldKey || spriteActions[newKey]) {
-    el.innerText = oldKey; return;
+  if (!newKey || newKey === oldKey) { el.innerText = oldKey; return; }
+  if (spriteActions[newKey] !== undefined) {
+    showToast('⚠ Name already in use');
+    el.innerText = oldKey;
+    return;
   }
   spriteActions[newKey] = spriteActions[oldKey];
   delete spriteActions[oldKey];
   const slot = el.closest('.action-slot');
-  if (slot) {
-    slot.dataset.actionKey = newKey;
-    const delBtn = slot.querySelector('.action-del');
-    if (delBtn) delBtn.setAttribute('onclick', `deleteAction('${newKey}', event)`);
-    const nameEl = slot.querySelector('.action-name');
-    if (nameEl) nameEl.setAttribute('onblur', `renameAction(this, '${newKey}')`);
-  }
+  if (slot) slot.dataset.actionKey = newKey; // listener reads from dataset so it's always fresh
   if (currentActionKey === oldKey) currentActionKey = newKey;
   updateSaveStatus('unsaved');
 }
@@ -1284,8 +1431,19 @@ function closeMobileActions() {
 // SAVE TO SUPABASE & RETURN
 // ══════════════════════════════════════════════════════════════
 async function saveCurrentActionAsNew() {
-  spriteActions[currentActionKey] = canvas.toDataURL('image/png');
-  addNewActionSlot();
+  // Capture the current drawing as the source for the new action
+  const currentFrameData = canvas.toDataURL('image/png');
+  spriteActions[currentActionKey] = currentFrameData;
+
+  // Name the new action
+  const name = 'Action ' + (Object.keys(spriteActions).length);
+  // Pre-populate new action with a COPY of current frame as a starting point
+  spriteActions[name] = currentFrameData;
+
+  const slot = appendActionSlot(name, currentFrameData);
+  selectActionSlot(name);
+  showToast('Saved as new action: ' + name);
+  updateSaveStatus('unsaved');
 }
 
 async function saveAndReturn() {
@@ -1324,11 +1482,14 @@ async function saveAndReturn() {
 
     // Also upload action images
     const actionsUpload = {};
+    const uploadTs = Date.now();
+    let uploadIdx = 0;
     for (const [k, v] of Object.entries(actionsObj)) {
       if (v && handle) {
         try {
           const blob = await dataUrlToBlob(v);
-          const path = `user/${handle}/sprites/action_${Date.now()}_${k.replace(/\W/g,'_')}.png`;
+          const safeName = k.replace(/\W/g,'_');
+          const path = `user/${handle}/sprites/action_${uploadTs}_${uploadIdx++}_${safeName}.png`;
           const { error } = await _supabase.storage.from('avatars').upload(path, blob, { upsert: true });
           if (!error) {
             actionsUpload[k] = _supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
