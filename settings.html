@@ -260,10 +260,10 @@
     <div class="setting-item">
       <div class="item-info">
         <div class="item-label">Allow Squad Invites</div>
-        <div class="item-sub">Let squad owners send you join requests.</div>
+        <div class="item-sub">Let other users invite you to join their squads.</div>
       </div>
       <label class="switch">
-        <input type="checkbox" id="privacy-squad-invites" onchange="saveSetting('cc-privacy-squad-invites', this.checked)">
+        <input type="checkbox" id="privacy-squad-invites" onchange="saveProfileSetting('allow_squad_invites', this.checked)">
         <span class="slider"></span>
       </label>
     </div>
@@ -365,6 +365,16 @@
   // ── Persist generic setting ────────────────────────────────────────────────
   function saveSetting(key, value) {
     localStorage.setItem(key, value);
+  }
+
+  // ── Save a key into the user's profile settings column in Supabase ────────
+  async function saveProfileSetting(key, value) {
+    const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    if (!myProfile.handle) return;
+    const merged = { ...(myProfile.settings || {}), [key]: value };
+    myProfile.settings = merged;
+    localStorage.setItem('user_profile', JSON.stringify(myProfile));
+    await supabaseClient.from('profiles').update({ settings: merged }).eq('handle', myProfile.handle);
   }
 
   // ── Device Mode ────────────────────────────────────────────────────────────
@@ -489,9 +499,13 @@
 
     // Toggles
     document.getElementById('privacy-team').checked         = localStorage.getItem('cc-privacy-team') !== 'false';
-    document.getElementById('privacy-squad-invites').checked = localStorage.getItem('cc-privacy-squad-invites') !== 'false';
     document.getElementById('show-fps').checked             = localStorage.getItem('cc-show-fps') === 'true';
     document.getElementById('privacy-followers').checked    = localStorage.getItem('cc-privacy-followers') !== 'false';
+
+    // Squad invites — stored in profile settings in Supabase (not just localStorage)
+    const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    const allowInvites = myProfile.settings?.allow_squad_invites !== false;
+    document.getElementById('privacy-squad-invites').checked = allowInvites;
 
     // Selects
     document.getElementById('swipe-dir').value     = localStorage.getItem('cc-swipe-dir') || 'creator';

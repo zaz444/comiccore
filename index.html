@@ -209,6 +209,99 @@
       backdrop-filter: blur(20px); padding: 30px;
       font-family: 'Inter', sans-serif; animation: fadeIn 0.25s ease-out;
     }
+
+    /* ── INBOX / MAIL BUTTON ── */
+    .inbox-btn {
+      position: relative; width: 38px; height: 38px; border-radius: 50%;
+      background: var(--card2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 18px; transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .inbox-btn:hover { background: #303038; transform: scale(1.06); }
+    .inbox-badge {
+      position: absolute; top: -3px; right: -3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--orange); border: 2px solid var(--bg);
+      font-size: 9px; font-weight: 900; color: #000;
+      display: none; align-items: center; justify-content: center;
+    }
+    .inbox-badge.show { display: flex; }
+
+    /* ── SLIDE-DOWN PANEL ── */
+    .side-panel {
+      position: fixed; top: 0; right: -340px; width: 320px; max-width: 92vw;
+      height: 100dvh; background: #111115;
+      border-left: 1px solid var(--border);
+      z-index: 8000; display: flex; flex-direction: column;
+      transition: right 0.28s cubic-bezier(.4,0,.2,1);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.6);
+    }
+    .side-panel.open { right: 0; }
+    .panel-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 7999; display: none; backdrop-filter: blur(4px);
+    }
+    .panel-overlay.open { display: block; }
+    .side-panel-header {
+      padding: 18px 16px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .side-panel-title { font-size: 15px; font-weight: 900; }
+    .side-panel-close {
+      width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text-muted); font-size: 16px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .side-panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+    .panel-section-hdr {
+      font-size: 9px; font-weight: 900; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 1.5px;
+      padding: 8px 4px 6px; margin-bottom: 4px;
+    }
+    .inbox-item {
+      display: flex; align-items: flex-start; gap: 10px; padding: 11px 10px;
+      border-radius: 12px; border: 1px solid var(--border); background: var(--card);
+      margin-bottom: 8px; transition: background 0.15s;
+    }
+    .inbox-item:hover { background: var(--card2); }
+    .inbox-item-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+    .inbox-item-body { flex: 1; min-width: 0; }
+    .inbox-item-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
+    .inbox-item-sub { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+    .inbox-item-time { font-size: 10px; color: var(--text-dim); margin-top: 3px; }
+    .inbox-item-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .inbox-accept-btn {
+      padding: 6px 14px; border-radius: 20px; border: none;
+      background: var(--orange); color: #000; font-size: 11px; font-weight: 800;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    .inbox-decline-btn {
+      padding: 6px 12px; border-radius: 20px;
+      border: 1px solid var(--border); background: none; color: var(--text-muted);
+      font-size: 11px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+
+    /* ── REPORTS PANEL (owner only) ── */
+    .report-card {
+      padding: 11px 10px; border-radius: 12px; border: 1px solid rgba(255,59,48,0.2);
+      background: rgba(255,59,48,0.05); margin-bottom: 8px;
+    }
+    .report-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .report-card-who { font-size: 12px; font-weight: 800; color: var(--text); }
+    .report-card-reason { font-size: 11px; color: #ff6b5b; font-weight: 700; }
+    .report-card-meta { font-size: 10px; color: var(--text-dim); margin-bottom: 8px; }
+    .report-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .report-action-btn {
+      padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text-muted);
+      font-size: 10px; font-weight: 800; cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: 0.15s;
+    }
+    .report-action-btn.danger { color: #ff3b30; border-color: rgba(255,59,48,0.3); }
+    .report-action-btn.danger:hover { background: rgba(255,59,48,0.12); }
+    .report-action-btn:hover { background: #303038; color: var(--text); }
+    .empty-panel { text-align: center; padding: 40px 16px; color: var(--text-dim); font-size: 13px; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -220,7 +313,39 @@
     </div>
     <div class="header-title">ComicCore</div>
   </div>
-  <img id="nav-pfp" src="https://via.placeholder.com/50" class="corner-avatar" onclick="goToMyProfile()" title="View Profile">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <!-- Inbox / mail button — shows squad invites & (for owner) reports -->
+    <div class="inbox-btn" id="inbox-btn" onclick="openInboxPanel()" title="Inbox">
+      ✉️
+      <div class="inbox-badge" id="inbox-badge">0</div>
+    </div>
+    <img id="nav-pfp" src="https://via.placeholder.com/50" class="corner-avatar" onclick="goToMyProfile()" title="View Profile">
+  </div>
+</div>
+
+<!-- Panel backdrop -->
+<div class="panel-overlay" id="panel-overlay" onclick="closeInboxPanel()"></div>
+
+<!-- Inbox side panel -->
+<div class="side-panel" id="inbox-panel">
+  <div class="side-panel-header">
+    <div class="side-panel-title">✉️ Inbox</div>
+    <button class="side-panel-close" onclick="closeInboxPanel()">✕</button>
+  </div>
+  <div class="side-panel-body" id="inbox-panel-body">
+    <div class="empty-panel">Loading…</div>
+  </div>
+</div>
+
+<!-- Reports side panel (owner only) -->
+<div class="side-panel" id="reports-panel" style="right:-340px;">
+  <div class="side-panel-header">
+    <div class="side-panel-title">🚨 Reports</div>
+    <button class="side-panel-close" onclick="closeReportsPanel()">✕</button>
+  </div>
+  <div class="side-panel-body" id="reports-panel-body">
+    <div class="empty-panel">Loading…</div>
+  </div>
 </div>
 
 <div class="main">
@@ -288,6 +413,16 @@
         <div class="card-sub">Create &amp; customize sprites</div>
       </div>
       <div class="card-arrow">›</div>
+    </button>
+
+    <!-- Owner-only: reports shortcut card -->
+    <button id="reports-nav-btn" class="nav-card span-2" style="display:none;border-color:rgba(255,59,48,0.25);background:rgba(255,59,48,0.04);" onclick="openReportsPanel()">
+      <div class="card-body">
+        <div class="card-icon">🚨</div>
+        <div class="card-title" style="color:#ff6b5b;">Reports</div>
+        <div class="card-sub" id="reports-nav-sub">View pending user reports</div>
+      </div>
+      <div class="card-arrow" style="color:#ff6b5b;">›</div>
     </button>
 
   </div>
@@ -362,6 +497,9 @@
     auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
   });
 
+  let _myHandle = '';
+  let _isOwner = false;
+
   async function checkUser() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const user = session?.user ?? null;
@@ -375,16 +513,171 @@
           localStorage.setItem('user_profile', JSON.stringify(myProfile));
         }
       }
+      _myHandle = myProfile.handle || '';
+      _isOwner = _myHandle === 'jeffyplays';
+
       document.getElementById('user-display').innerText = myProfile.name || myProfile.handle || 'Creator';
       if (myProfile.pic) document.getElementById('nav-pfp').src = myProfile.pic;
       if (localStorage.getItem('cc-privacy-team') === 'false')
         document.getElementById('teams-btn').style.display = 'none';
+
+      // Show reports card for owner
+      if (_isOwner) {
+        document.getElementById('reports-nav-btn').style.display = '';
+        checkPendingReports();
+      }
+
       checkTeamNotifications(user.id);
+      checkInboxCount();
     } else {
       window.location.href = 'login.html';
     }
   }
 
+  // ── INBOX COUNT ──────────────────────────────────────────────
+  async function checkInboxCount() {
+    if (!_myHandle) return;
+    const { count } = await supabaseClient.from('squad_invites')
+      .select('*', { count: 'exact', head: true })
+      .eq('to_handle', _myHandle).eq('status', 'pending');
+    const total = count || 0;
+    const badge = document.getElementById('inbox-badge');
+    badge.textContent = total > 9 ? '9+' : total;
+    badge.classList.toggle('show', total > 0);
+  }
+
+  // ── OPEN / CLOSE PANELS ──────────────────────────────────────
+  function openInboxPanel() {
+    document.getElementById('inbox-panel').classList.add('open');
+    document.getElementById('panel-overlay').classList.add('open');
+    loadInboxPanel();
+  }
+  function closeInboxPanel() {
+    document.getElementById('inbox-panel').classList.remove('open');
+    document.getElementById('panel-overlay').classList.remove('open');
+  }
+  function openReportsPanel() {
+    document.getElementById('reports-panel').classList.add('open');
+    document.getElementById('panel-overlay').classList.add('open');
+    loadReportsPanel();
+  }
+  function closeReportsPanel() {
+    document.getElementById('reports-panel').classList.remove('open');
+    document.getElementById('panel-overlay').classList.remove('open');
+  }
+
+  // ── INBOX: squad invites ─────────────────────────────────────
+  async function loadInboxPanel() {
+    const body = document.getElementById('inbox-panel-body');
+    body.innerHTML = '<div class="empty-panel">Loading…</div>';
+
+    const { data: invites } = await supabaseClient.from('squad_invites')
+      .select('*').eq('to_handle', _myHandle).eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (!invites || !invites.length) {
+      body.innerHTML = '<div class="empty-panel">📭 No new notifications</div>';
+      return;
+    }
+
+    body.innerHTML = '<div class="panel-section-hdr">Squad Invites</div>';
+    invites.forEach(inv => {
+      const time = new Date(inv.created_at).toLocaleDateString();
+      const item = document.createElement('div');
+      item.className = 'inbox-item';
+      item.innerHTML = `
+        <div class="inbox-item-icon">🎯</div>
+        <div class="inbox-item-body">
+          <div class="inbox-item-title">${escHtml(inv.squad_name)}</div>
+          <div class="inbox-item-sub">@${escHtml(inv.from_handle)} invited you to join</div>
+          <div class="inbox-item-time">${time}</div>
+          <div class="inbox-item-actions">
+            <button class="inbox-accept-btn" onclick="respondInvite('${inv.id}','accepted',this)">Join</button>
+            <button class="inbox-decline-btn" onclick="respondInvite('${inv.id}','declined',this)">Decline</button>
+          </div>
+        </div>`;
+      body.appendChild(item);
+    });
+  }
+
+  async function respondInvite(inviteId, status, btn) {
+    btn.disabled = true;
+    const row = btn.closest('.inbox-item');
+    await supabaseClient.from('squad_invites').update({ status }).eq('id', inviteId);
+    if (status === 'accepted') {
+      // Add them to squad_members
+      const { data: inv } = await supabaseClient.from('squad_invites').select('squad_id').eq('id', inviteId).maybeSingle();
+      if (inv?.squad_id) {
+        await supabaseClient.from('squad_members').upsert([{ squad_id: inv.squad_id, handle: _myHandle }]);
+      }
+      row.innerHTML = `<div class="inbox-item-icon">✅</div><div class="inbox-item-body"><div class="inbox-item-title">Joined!</div><div class="inbox-item-sub">Squad invite accepted</div></div>`;
+    } else {
+      row.style.opacity = '0.4';
+      row.style.pointerEvents = 'none';
+    }
+    checkInboxCount();
+  }
+
+  // ── REPORTS PANEL (owner only) ────────────────────────────────
+  async function checkPendingReports() {
+    const { count } = await supabaseClient.from('reports')
+      .select('*', { count: 'exact', head: true }).eq('status', 'pending');
+    if (count > 0) {
+      document.getElementById('reports-nav-sub').innerText = `${count} pending report${count !== 1 ? 's' : ''}`;
+      document.getElementById('reports-nav-btn').classList.add('has-notification');
+    }
+  }
+
+  async function loadReportsPanel() {
+    if (!_isOwner) return;
+    const body = document.getElementById('reports-panel-body');
+    body.innerHTML = '<div class="empty-panel">Loading…</div>';
+    const { data: reports } = await supabaseClient.from('reports')
+      .select('*').eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (!reports || !reports.length) {
+      body.innerHTML = '<div class="empty-panel">✅ No pending reports</div>';
+      return;
+    }
+
+    body.innerHTML = '<div class="panel-section-hdr">Pending Reports</div>';
+    reports.forEach(r => {
+      const time = new Date(r.created_at).toLocaleDateString();
+      const card = document.createElement('div');
+      card.className = 'report-card';
+      card.innerHTML = `
+        <div class="report-card-header">
+          <div class="report-card-who">@${escHtml(r.reported_handle)}</div>
+          <div class="report-card-reason">${escHtml(r.reason)}</div>
+        </div>
+        <div class="report-card-meta">by @${escHtml(r.reporter_handle)} · ${time}</div>
+        <div class="report-card-actions">
+          <button class="report-action-btn" onclick="viewReportProfile('${r.reported_handle}')">View Profile</button>
+          <button class="report-action-btn danger" onclick="dismissReport('${r.id}', this)">Dismiss</button>
+        </div>`;
+      body.appendChild(card);
+    });
+  }
+
+  function viewReportProfile(handle) {
+    closeReportsPanel();
+    location.href = 'profile.html?u=' + handle;
+  }
+
+  async function dismissReport(id, btn) {
+    btn.disabled = true;
+    await supabaseClient.from('reports').update({ status: 'dismissed' }).eq('id', id);
+    btn.closest('.report-card').style.opacity = '0.35';
+    btn.closest('.report-card').style.pointerEvents = 'none';
+    checkPendingReports();
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── TEAM NOTIFICATIONS ───────────────────────────────────────
   async function checkTeamNotifications(userId) {
     const teamsBtn = document.getElementById('teams-btn');
     const { data: myTickets } = await supabaseClient
