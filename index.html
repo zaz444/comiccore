@@ -319,7 +319,7 @@
       ✉️
       <div class="inbox-badge" id="inbox-badge">0</div>
     </div>
-    <img id="nav-pfp" src="https://via.placeholder.com/50" class="corner-avatar" onclick="goToMyProfile()" title="View Profile">
+    <img id="nav-pfp" class="corner-avatar" onclick="goToMyProfile()" title="View Profile">
   </div>
 </div>
 
@@ -517,7 +517,15 @@
       _isOwner = _myHandle === 'jeffyplays';
 
       document.getElementById('user-display').innerText = myProfile.name || myProfile.handle || 'Creator';
-      if (myProfile.pic) document.getElementById('nav-pfp').src = myProfile.pic;
+      const rawPic = myProfile.pic || '';
+      const navPfp = document.getElementById('nav-pfp');
+      if (rawPic) {
+        navPfp.src = rawPic.startsWith('data:')
+          ? rawPic
+          : (rawPic.startsWith('avatars/')
+              ? supabaseClient.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data.publicUrl
+              : rawPic);
+      }
       if (localStorage.getItem('cc-privacy-team') === 'false')
         document.getElementById('teams-btn').style.display = 'none';
 
