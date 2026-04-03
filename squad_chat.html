@@ -1412,7 +1412,7 @@
         backdrop.classList.add('open');
 
         // Reset card to loading state
-        document.getElementById('ppAvatar').src = picCache[handle] || '';
+        document.getElementById('ppAvatar').src = picCache[handle] || 'https://via.placeholder.com/62x62?text=Avatar';
         document.getElementById('ppName').textContent = handle;
         document.getElementById('ppHandle').textContent = '@' + handle;
         document.getElementById('ppRoleTag').style.display = 'none';
@@ -1446,18 +1446,13 @@
             return;
         }
 
-        // Fetch profile data from view (prefer id query, fallback to handle query)
+        // Fetch profile data from view
         try {
-            let userId = ppProfileCache[handle]?.id || null;
-            // If we have member info with ID in future, use it for the primary query.
-            const memberEntry = memberList.find(m => m.handle === handle);
-            if (!userId && memberEntry && typeof memberEntry.id !== 'undefined') {
-                userId = memberEntry.id;
-            }
-
-            const query = _sb.from('profile_stats').select('*').single();
-            const request = userId ? query.eq('id', userId) : query.eq('handle', handle);
-            const { data: p, error } = await request;
+            const { data: p, error } = await _sb
+                .from('profile_stats')
+                .select('*')
+                .eq('handle', handle)
+                .maybeSingle();
 
             if (error) {
                 console.error('[ComicCore] openProfilePreview fetch error:', error.code, error.message);
@@ -1471,25 +1466,22 @@
             }
 
             if (p) {
-                const data = {
-                    id: p.id,
-                    handle: p.handle || handle,
-                    name: p.name || p.handle || handle,
+                const previewData = {
+                    handle: p.handle,
+                    name: p.name || p.handle,
                     pic: p.pic || '',
                     bio: p.bio || '',
                     banner: p.banner || '',
-                    followers: p.followerCount ?? p.follower_count ?? 0,
-                    following: p.followingCount ?? p.following_count ?? 0,
-                    works: p.worksCount ?? p.works_count ?? 0,
-                    role: p.role || p.settings?.role || null,
-                    status: deriveStatus(statusRow),
-                    authorHandle: p.authorHandle || p.author_handle || '',
-                    isPublished: (p.isPublished ?? p.is_published ?? false)
+                    followers: p.follower_count || 0,
+                    following: p.following_count || 0,
+                    works: p.works_count || 0,
+                    role: p.settings?.role || null,
+                    status: deriveStatus(statusRow)
                 };
 
-                ppProfileCache[handle] = data;
-                applyPreviewData(data);
-                console.log('[ComicCore] openProfilePreview success', handle, userId ? `(id=${userId})` : '(handle query)');
+                ppProfileCache[handle] = previewData;
+                applyPreviewData(previewData);
+                console.log('[ComicCore] openProfilePreview success', handle);
             } else {
                 console.error('[ComicCore] No profile data found for', handle);
                 document.getElementById('infoMembers').innerHTML = '<div style="font-size:12px;color:#333;">Unable to load profile.</div>';
