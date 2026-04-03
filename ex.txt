@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComicCore — Squads</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 90px; }
+
+        .sq-header { position: sticky; top: 0; z-index: 200; background: rgba(0,0,0,0.96); backdrop-filter: blur(20px); border-bottom: 1px solid #1a1a1a; padding: 14px 16px 0; }
+        .sq-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .sq-back { background: none; border: 1px solid #222; color: #666; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; transition: .15s; }
+        .sq-back:hover { border-color: #555; color: white; }
+        .sq-header-brand { font-size: 11px; font-weight: 900; color: #ff7a00; letter-spacing: 2px; }
+        .sq-header-title { font-size: 21px; font-weight: 900; margin: 0 0 2px; }
+        .sq-header-sub { font-size: 11px; color: #444; font-weight: 600; margin-bottom: 10px; }
+        .sq-tabs { display: flex; }
+        .sq-tab { flex: 1; padding: 10px 0; font-size: 12px; font-weight: 800; color: #444; cursor: pointer; border: none; background: none; font-family: inherit; border-bottom: 2.5px solid transparent; transition: .15s; }
+        .sq-tab.active { color: #ff7a00; border-bottom-color: #ff7a00; }
+
+        .sq-stats { display: flex; gap: 8px; padding: 10px 16px 6px; }
+        .sq-stat { background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 800; color: #444; }
+        .sq-stat b { color: #ff7a00; }
+        .sq-stat.over b { color: #ff3b30; }
+
+        /* ── My Squads horizontal strip (Amino-style) ── */
+        .sq-mine-section { padding: 12px 0 4px; }
+        .sq-mine-header { display: flex; align-items: center; justify-content: space-between; padding: 0 16px 8px; }
+        .sq-mine-title { font-size: 12px; font-weight: 900; color: #f5f5f7; letter-spacing: .5px; text-transform: uppercase; }
+        .sq-mine-see-all { font-size: 11px; font-weight: 800; color: #ff7a00; cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; }
+
+        .sq-mine-scroll { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 12px; scrollbar-width: none; }
+        .sq-mine-scroll::-webkit-scrollbar { display: none; }
+
+        .sq-mine-card {
+            flex-shrink: 0; width: 130px; border-radius: 14px; overflow: hidden;
+            background: #111; border: 1.5px solid #1e1e1e; cursor: pointer; transition: .18s;
+        }
+        .sq-mine-card:hover { border-color: #ff7a00; transform: translateY(-2px); }
+        .sq-mine-card:active { transform: scale(.97); }
+        .sq-mine-card-cover {
+            width: 100%; height: 80px; background: linear-gradient(135deg,#111,#1a1a2e);
+            display: flex; align-items: center; justify-content: center; font-size: 30px;
+            position: relative; overflow: hidden;
+        }
+        .sq-mine-card-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .sq-mine-card-yours { position: absolute; top: 5px; left: 5px; background: rgba(255,122,0,.9); color: #000; font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 5px; }
+        .sq-mine-card-body { padding: 8px 9px 10px; }
+        .sq-mine-card-name { font-size: 11px; font-weight: 800; color: #f5f5f7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+        .sq-mine-card-btn {
+            width: 100%; background: rgba(255,122,0,.12); color: #ff7a00;
+            border: 1px solid rgba(255,122,0,.25); border-radius: 8px;
+            padding: 5px 0; font-size: 11px; font-weight: 900; cursor: pointer;
+            font-family: inherit; transition: .15s; position: relative;
+        }
+        .sq-mine-card-btn:hover { background: rgba(255,122,0,.22); }
+
+        .sq-mine-join-card {
+            flex-shrink: 0; width: 90px; border-radius: 14px;
+            background: rgba(255,122,0,.05); border: 2px dashed rgba(255,122,0,.25);
+            cursor: pointer; transition: .18s; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 6px; padding: 12px 6px;
+            min-height: 138px;
+        }
+        .sq-mine-join-card:hover { border-color: #ff7a00; background: rgba(255,122,0,.1); }
+        .sq-mine-join-icon { font-size: 26px; color: #ff7a00; }
+        .sq-mine-join-label { font-size: 10px; font-weight: 800; color: #ff7a00; text-align: center; line-height: 1.3; }
+
+        /* ── Divider ── */
+        .sq-section-divider { height: 1px; background: linear-gradient(to right,transparent,#1a1a1a,transparent); margin: 2px 16px 14px; }
+
+        /* ── Recommended squads 2-col grid ── */
+        .sq-rec-section { padding: 0 0 16px; }
+        .sq-rec-header { display: flex; align-items: center; justify-content: space-between; padding: 0 16px 10px; }
+        .sq-rec-title { font-size: 12px; font-weight: 900; color: #f5f5f7; letter-spacing: .5px; text-transform: uppercase; }
+        .sq-rec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px; }
+        .sq-rec-card {
+            background: #111; border: 1.5px solid #1e1e1e; border-radius: 14px;
+            overflow: hidden; cursor: pointer; transition: .18s;
+        }
+        .sq-rec-card:hover { border-color: #ff7a00; transform: translateY(-2px); }
+        .sq-rec-card:active { transform: scale(.97); }
+        .sq-rec-cover {
+            width: 100%; aspect-ratio: 4/3; background: linear-gradient(135deg,#111,#1a1a2e);
+            display: flex; align-items: center; justify-content: center; font-size: 34px;
+            position: relative; overflow: hidden;
+        }
+        .sq-rec-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .sq-rec-private { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,.75); font-size: 9px; font-weight: 900; color: #888; padding: 2px 5px; border-radius: 5px; backdrop-filter: blur(4px); }
+        .sq-rec-active { position: absolute; bottom: 5px; left: 7px; font-size: 9px; font-weight: 900; color: #32d74b; }
+        .sq-rec-body { padding: 9px 10px 11px; }
+        .sq-rec-name { font-size: 12px; font-weight: 900; color: #f5f5f7; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sq-rec-meta { font-size: 10px; color: #444; font-weight: 700; margin-bottom: 7px; }
+        .sq-rec-join {
+            width: 100%; background: #ff7a00; color: #000; border: none;
+            border-radius: 8px; padding: 6px 0; font-size: 11px; font-weight: 900;
+            cursor: pointer; font-family: inherit; transition: .15s;
+        }
+        .sq-rec-join:hover { opacity: .85; }
+        .sq-rec-join.joined { background: rgba(255,255,255,.06); color: #555; border: 1px solid #1e1e1e; cursor: default; }
+        .sq-rec-join.pending { background: rgba(255,122,0,.08); color: #ff7a00; border: 1px solid rgba(255,122,0,.2); cursor: default; font-size: 10px; }
+
+        .sq-search-wrap { padding: 0 16px 6px; }
+        .sq-search { width: 100%; background: #0d0d0d; border: 1px solid #1a1a1a; color: white; padding: 10px 14px; border-radius: 12px; font-size: 13px; font-weight: 600; outline: none; font-family: inherit; transition: .15s; }
+        .sq-search:focus { border-color: #ff7a00; }
+        .sq-search::placeholder { color: #2a2a2a; }
+
+        .sq-filter-wrap { padding: 0 16px 8px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+        .sq-filter-wrap::-webkit-scrollbar { display: none; }
+        .sq-filter-chip { padding: 4px 12px; border-radius: 20px; border: 1.5px solid #1e1e1e; background: #0d0d0d; color: #444; font-size: 11px; font-weight: 800; cursor: pointer; transition: .15s; white-space: nowrap; flex-shrink: 0; font-family: inherit; }
+        .sq-filter-chip.on { border-color: #ff7a00; color: #ff7a00; background: rgba(255,122,0,.08); }
+
+        .sq-sort-wrap { padding: 0 16px 8px; display: flex; gap: 6px; align-items: center; }
+        .sq-sort-label { font-size: 10px; font-weight: 800; color: #333; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+        .sq-sort-btn { padding: 4px 10px; border-radius: 20px; border: 1px solid #1e1e1e; background: none; color: #444; font-size: 11px; font-weight: 800; cursor: pointer; transition: .15s; font-family: inherit; }
+        .sq-sort-btn.on { border-color: #555; color: #ccc; }
+
+        .sq-create-wrap { padding: 0 16px 14px; }
+        .sq-create-trigger { display: flex; align-items: center; gap: 10px; padding: 13px 16px; background: #0d0d0d; border: 1.5px dashed #222; border-radius: 16px; cursor: pointer; transition: .2s; }
+        .sq-create-trigger:hover { border-color: #ff7a00; }
+        .sq-create-trigger.disabled { opacity: .4; pointer-events: none; }
+        .sq-create-icon { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,122,0,.12); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+        .sq-create-text { font-size: 13px; font-weight: 700; color: #444; }
+        .sq-create-text span { color: #ff7a00; }
+
+        /* Modals */
+        .sq-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(10px); }
+        .sq-overlay.open { display: flex; }
+        .sq-sheet { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 24px 24px 0 0; width: 100%; max-width: 560px; padding: 24px 20px 40px; display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow-y: auto; animation: slideUp .25s cubic-bezier(.4,0,.2,1); }
+        @keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .sq-sheet-title { font-size: 16px; font-weight: 900; margin: 0; }
+        .sq-sheet-sub { font-size: 11px; color: #444; font-weight: 600; margin-top: 2px; }
+        .sq-input { width: 100%; background: #111; border: 1px solid #1e1e1e; color: white; padding: 12px 14px; border-radius: 12px; font-size: 13px; font-weight: 600; outline: none; font-family: inherit; transition: .15s; }
+        .sq-input:focus { border-color: #ff7a00; }
+        .sq-input::placeholder { color: #333; }
+        textarea.sq-input { resize: none; height: 72px; line-height: 1.5; }
+
+        .sq-pfp-row { display: flex; align-items: center; gap: 12px; }
+        .sq-pfp-pick { width: 56px; height: 56px; border-radius: 14px; background: #1a1a1a; border: 2px dashed #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; flex-shrink: 0; background-size: cover; background-position: center; transition: .15s; position: relative; overflow: hidden; }
+        .sq-pfp-pick:hover { border-color: #ff7a00; }
+        .sq-pfp-pick.has-img { border-style: solid; border-color: #ff7a00; }
+        .pfp-uploading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; border-radius: 12px; }
+        .pfp-spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,.2); border-top-color: #ff7a00; border-radius: 50%; animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .sq-label { font-size: 9px; font-weight: 900; color: #333; letter-spacing: 2px; text-transform: uppercase; }
+        .sq-topic-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+        .sq-topic { padding: 5px 12px; border-radius: 20px; border: 1.5px solid #1e1e1e; background: #0d0d0d; color: #444; font-size: 11px; font-weight: 800; cursor: pointer; transition: .15s; }
+        .sq-topic.on { border-color: #ff7a00; color: #ff7a00; background: rgba(255,122,0,.08); }
+
+        .sq-toggle-row { display: flex; align-items: center; justify-content: space-between; }
+        .sq-toggle-label { font-size: 13px; font-weight: 700; color: #ccc; }
+        .sq-toggle-detail { font-size: 10px; color: #333; margin-top: 2px; }
+        .ios-toggle { position: relative; width: 44px; height: 26px; cursor: pointer; flex-shrink: 0; display: block; }
+        .ios-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .ios-track { position: absolute; inset: 0; background: #222; border-radius: 13px; transition: .25s; }
+        .ios-toggle input:checked + .ios-track { background: #ff7a00; }
+        .ios-thumb { position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: .25s; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+        .ios-toggle input:checked ~ .ios-thumb { left: 21px; }
+
+        .sq-btn-primary { background: #ff7a00; color: #000; border: none; border-radius: 14px; padding: 14px; font-size: 14px; font-weight: 900; cursor: pointer; font-family: inherit; transition: .15s; }
+        .sq-btn-primary:hover { opacity: .88; }
+        .sq-btn-primary:disabled { opacity: .35; pointer-events: none; }
+        .sq-btn-danger { background: none; border: 1px solid #ff3b30; color: #ff3b30; border-radius: 12px; padding: 13px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; transition: .15s; }
+        .sq-btn-danger:hover { background: rgba(255,59,48,.08); }
+        .sq-btn-ghost { background: none; color: #444; border: none; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; padding: 6px; text-align: center; }
+        .sq-btn-ghost:hover { color: #888; }
+
+        /* Member items */
+        .sq-member-item { display: flex; align-items: center; justify-content: space-between; background: #111; border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; gap: 8px; }
+        .sq-member-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+        .sq-member-avatar { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #222; border: 1px solid #2a2a2a; }
+        .sq-member-handle { font-size: 13px; font-weight: 700; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sq-member-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .sq-mbtn { border: none; padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; font-family: inherit; }
+        .sq-mbtn-accept { background: #00c851; color: #000; }
+        .sq-mbtn-decline { background: #222; color: #888; }
+        .sq-mbtn-kick { background: #ff3b30; color: white; }
+
+        /* Feed cards */
+        .sq-feed { display: flex; flex-direction: column; }
+        .sq-card { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #111; transition: .12s; position: relative; }
+        .sq-card:first-child { border-top: 1px solid #111; }
+        .sq-card:hover { background: #080808; }
+        .sq-card.is-mine { border-left: 3px solid #ff7a00; padding-left: 13px; }
+        .sq-card-pfp { width: 48px; height: 48px; border-radius: 12px; background: #1a1a1a; flex-shrink: 0; border: 1px solid #1e1e1e; display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden; }
+        .sq-card-pfp img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block; }
+        .sq-card-body { flex: 1; min-width: 0; }
+        .sq-card-nameline { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; flex-wrap: wrap; }
+        .sq-card-name { font-size: 14px; font-weight: 800; color: #f5f5f7; }
+        .sq-tag-badge { font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 6px; }
+        .sq-badge-mine { background: rgba(255,122,0,.1); border: 1px solid rgba(255,122,0,.2); color: #ff7a00; }
+        .sq-badge-private { background: #1a1a1a; border: 1px solid #222; color: #555; }
+        .sq-card-owner { font-size: 11px; color: #444; font-weight: 700; margin-bottom: 5px; }
+        .sq-card-desc { font-size: 12px; color: #555; line-height: 1.4; margin-bottom: 7px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .sq-card-topics { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+        .sq-card-topic-tag { background: #111; border: 1px solid #1a1a1a; color: #444; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 10px; }
+        .sq-card-meta { font-size: 11px; color: #333; font-weight: 700; }
+        .sq-card-right { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; flex-shrink: 0; justify-content: center; }
+
+        .sq-action-btn { border-radius: 10px; padding: 7px 13px; font-size: 11px; font-weight: 900; cursor: pointer; font-family: inherit; transition: .15s; white-space: nowrap; border: none; }
+        .sq-btn-join { background: #ff7a00; color: #000; }
+        .sq-btn-join:hover { opacity: .85; }
+        .sq-btn-joined { background: rgba(255,255,255,.06); color: #555; border: 1px solid #1e1e1e !important; cursor: default; }
+        .sq-btn-pending { background: rgba(255,122,0,.06); color: #ff7a00; border: 1px solid rgba(255,122,0,.2) !important; cursor: default; font-size: 10px; }
+        .sq-btn-chat { background: rgba(255,122,0,.12); color: #ff7a00; border: 1px solid rgba(255,122,0,.25) !important; position: relative; }
+        .sq-btn-chat:hover { background: rgba(255,122,0,.22); }
+        .sq-btn-manage { background: #111; color: #666; border: 1px solid #1e1e1e !important; }
+        .sq-btn-manage:hover { border-color: #444 !important; color: #aaa; }
+        .sq-btn-leave { background: none; color: #ff3b30; border: 1px solid rgba(255,59,48,.25) !important; }
+        .sq-btn-leave:hover { background: rgba(255,59,48,.08); }
+        .sq-btn-members { background: #111; color: #555; border: 1px solid #1e1e1e !important; padding: 7px 10px; }
+        .sq-btn-members:hover { border-color: #444 !important; color: #aaa; }
+        .sq-unread-badge { position: absolute; top: -6px; right: -6px; background: #ff3b30; color: white; border-radius: 10px; font-size: 9px; font-weight: 900; padding: 1px 5px; min-width: 16px; text-align: center; pointer-events: none; }
+
+        .sq-empty { text-align: center; padding: 60px 20px; color: #2a2a2a; }
+        .sq-empty-icon { font-size: 40px; margin-bottom: 12px; }
+        .sq-empty-title { font-size: 14px; font-weight: 800; }
+        .sq-empty-sub { font-size: 12px; color: #222; margin-top: 4px; }
+
+        .sq-skeleton { background: linear-gradient(90deg,#0d0d0d 25%,#141414 50%,#0d0d0d 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 12px; }
+        @keyframes shimmer { 0%{background-position:200% 0}100%{background-position:-200% 0} }
+
+        /* Toast */
+        .sq-toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(16px); background: #222; border: 1px solid #333; color: #fff; font-size: 13px; font-weight: 700; padding: 10px 20px; border-radius: 20px; opacity: 0; transition: .25s; z-index: 9999; pointer-events: none; white-space: nowrap; }
+        .sq-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* Crop Modal */
+        .crop-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.96); z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px; }
+        .crop-overlay.open { display: flex; }
+        .crop-hint { font-size: 11px; font-weight: 700; color: #444; letter-spacing: 1px; text-transform: uppercase; }
+        .crop-box { width: min(80vw, 360px); height: min(80vw, 360px); background: #000; border-radius: 16px; overflow: hidden; }
+        .crop-box img { max-width: 100%; display: block; }
+        .crop-actions { display: flex; gap: 10px; }
+        .crop-btn { padding: 11px 28px; border-radius: 20px; font-weight: 800; font-size: 13px; cursor: pointer; font-family: inherit; border: none; }
+        .crop-btn-cancel { background: #222; color: #888; }
+        .crop-btn-apply { background: #ff7a00; color: #000; }
+
+        /* Invite row */
+        .sq-invite-row { display: flex; gap: 8px; align-items: center; }
+        .sq-invite-input { font-size: 11px !important; color: #555 !important; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+        .sq-owner-badge { font-size: 9px; color: #ff7a00; font-weight: 900; background: rgba(255,122,0,.1); border: 1px solid rgba(255,122,0,.2); padding: 1px 6px; border-radius: 5px; margin-left: 4px; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+</head>
+<body>
+
+<div class="sq-header">
+    <div class="sq-header-top">
+        <div class="sq-header-brand">COMICCORE</div>
+        <button class="sq-back" onclick="goBack()">← Back</button>
+    </div>
+    <div class="sq-header-title">Squads</div>
+    <div class="sq-header-sub">Join communities · chat · share ideas</div>
+    <div class="sq-tabs">
+        <button class="sq-tab active" id="tab-discover" onclick="switchTab('discover')">Discover</button>
+        <button class="sq-tab" id="tab-mine" onclick="switchTab('mine')">My Squads</button>
+    </div>
+</div>
+
+<div class="sq-stats">
+    <div class="sq-stat" id="stat-created-wrap">Created: <b id="stat-created">—</b>/5</div>
+    <div class="sq-stat" id="stat-joined-wrap">Joined: <b id="stat-joined">—</b>/15</div>
+</div>
+
+<!-- ── My Squads Strip (Amino-style, always visible) ── -->
+<div class="sq-mine-section" id="sq-mine-section" style="display:none;">
+    <div class="sq-mine-header">
+        <span class="sq-mine-title">💬 My Squads</span>
+        <button class="sq-mine-see-all" onclick="switchTab('mine')">See All →</button>
+    </div>
+    <div class="sq-mine-scroll" id="sq-mine-scroll"></div>
+</div>
+
+<!-- ── Recommended Squads 2-col grid ── -->
+<div class="sq-rec-section" id="sq-rec-section" style="display:none;">
+    <div class="sq-section-divider"></div>
+    <div class="sq-rec-header">
+        <span class="sq-rec-title">🏕️ Recommended Squads</span>
+    </div>
+    <div class="sq-rec-grid" id="sq-rec-grid"></div>
+    <div class="sq-section-divider" style="margin-top:16px;"></div>
+</div>
+
+<div class="sq-search-wrap">
+    <input class="sq-search" id="sq-search" placeholder="Search squads by name or topic…" oninput="renderFeed()">
+</div>
+
+<div class="sq-filter-wrap" id="filter-chips"></div>
+
+<div class="sq-sort-wrap">
+    <span class="sq-sort-label">Sort:</span>
+    <button class="sq-sort-btn on" id="sort-new"     onclick="setSort('new')">Newest</button>
+    <button class="sq-sort-btn"    id="sort-active"  onclick="setSort('active')">Active</button>
+    <button class="sq-sort-btn"    id="sort-members" onclick="setSort('members')">Members</button>
+</div>
+
+<div class="sq-create-wrap">
+    <div class="sq-create-trigger" id="create-trigger" onclick="openCreateModal()">
+        <div class="sq-create-icon">＋</div>
+        <div class="sq-create-text">Start a new <span>Squad</span> — public or private</div>
+    </div>
+</div>
+
+<div class="sq-feed" id="sq-feed"></div>
+<div class="sq-toast" id="sq-toast"></div>
+
+<!-- ── Create Modal ── -->
+<div class="sq-overlay" id="create-overlay">
+    <div class="sq-sheet">
+        <div>
+            <div class="sq-sheet-title">Create a Squad</div>
+            <div class="sq-sheet-sub">A community where members chat and share ideas.</div>
+        </div>
+        <div class="sq-pfp-row">
+            <div class="sq-pfp-pick" id="pfp-pick" onclick="document.getElementById('pfp-file').click()">🖼</div>
+            <input type="file" id="pfp-file" hidden accept="image/*" onchange="handlePfp(this,false)">
+            <input class="sq-input" id="sq-name" placeholder="Squad name" maxlength="40" style="flex:1;">
+        </div>
+        <textarea class="sq-input" id="sq-desc" placeholder="What's this squad about? (optional)" maxlength="200"></textarea>
+        <div>
+            <div class="sq-label">Topics (pick any)</div>
+            <div class="sq-topic-row" id="topic-row"></div>
+        </div>
+        <div class="sq-toggle-row">
+            <div><div class="sq-toggle-label">Private Squad</div><div class="sq-toggle-detail">Members must request to join</div></div>
+            <label class="ios-toggle"><input type="checkbox" id="sq-private"><div class="ios-track"></div><div class="ios-thumb"></div></label>
+        </div>
+        <button class="sq-btn-primary" id="create-btn" onclick="createSquad()">Create Squad</button>
+        <div class="sq-btn-ghost" onclick="closeCreateModal()">Cancel</div>
+    </div>
+</div>
+
+<!-- ── Manage Modal (owners) ── -->
+<div class="sq-overlay" id="manage-overlay">
+    <div class="sq-sheet">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="sq-sheet-title" id="manage-title">Manage Squad</div>
+            <span onclick="closeManageModal()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+        </div>
+        <div class="sq-pfp-row">
+            <div class="sq-pfp-pick" id="edit-pfp-pick" onclick="document.getElementById('edit-pfp-file').click()">✎</div>
+            <input type="file" id="edit-pfp-file" hidden accept="image/*" onchange="handlePfp(this,true)">
+            <input class="sq-input" id="edit-name" placeholder="Squad name" style="flex:1;">
+        </div>
+        <textarea class="sq-input" id="edit-desc" placeholder="Description" style="height:60px;"></textarea>
+        <div>
+            <div class="sq-label">Topics</div>
+            <div class="sq-topic-row" id="edit-topic-row"></div>
+        </div>
+        <div class="sq-toggle-row">
+            <div><div class="sq-toggle-label">Private Squad</div><div class="sq-toggle-detail">Members must request to join</div></div>
+            <label class="ios-toggle"><input type="checkbox" id="edit-private"><div class="ios-track"></div><div class="ios-thumb"></div></label>
+        </div>
+        <div>
+            <div class="sq-label" style="margin-bottom:8px;">Join Requests</div>
+            <div id="manage-requests"><div style="font-size:12px;color:#333;padding:6px 0;">No pending requests</div></div>
+        </div>
+        <div>
+            <div class="sq-label" style="margin-bottom:8px;">Members</div>
+            <div id="manage-members"><div style="font-size:12px;color:#333;padding:6px 0;">No members yet</div></div>
+        </div>
+        <div>
+            <div class="sq-label" style="margin-bottom:8px;">Invite Link</div>
+            <div class="sq-invite-row">
+                <input class="sq-input sq-invite-input" id="invite-link-input" readonly>
+                <button class="sq-btn-primary" style="padding:10px 14px;font-size:12px;white-space:nowrap;flex-shrink:0;" onclick="copyInviteLink()">Copy</button>
+            </div>
+            <div style="font-size:10px;color:#333;margin-top:5px;font-weight:700;">Share this link — anyone can join directly</div>
+        </div>
+        <button class="sq-btn-primary" id="save-btn" onclick="saveSquad()">Save Changes</button>
+        <button class="sq-btn-danger" onclick="deleteSquad()">Delete Squad</button>
+        <div class="sq-btn-ghost" onclick="closeManageModal()">Cancel</div>
+    </div>
+</div>
+
+<!-- ── Members View Modal (non-owners) ── -->
+<div class="sq-overlay" id="members-view-overlay">
+    <div class="sq-sheet" style="max-height:70vh;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="sq-sheet-title" id="members-view-title">Members</div>
+            <span onclick="closeMembersModal()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+        </div>
+        <div id="members-view-list"></div>
+        <div class="sq-btn-ghost" onclick="closeMembersModal()">Close</div>
+    </div>
+</div>
+
+<!-- Crop Modal -->
+<div class="crop-overlay" id="pfp-crop-overlay">
+    <div class="crop-hint">Drag to reposition · Pinch to zoom</div>
+    <div class="crop-box"><img id="pfp-crop-target" src=""></div>
+    <div class="crop-actions">
+        <button class="crop-btn crop-btn-cancel" onclick="cancelCrop()">Cancel</button>
+        <button class="crop-btn crop-btn-apply" onclick="applyCrop()">Use Photo</button>
+    </div>
+</div>
+
+<script>
+    const _sb = supabase.createClient(
+        'https://mmycqeejhguzhtzkyjaj.supabase.co',
+        'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE',
+        { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
+    );
+
+    const TOPICS    = ['Manga','Comics','Anime','Sprites','Art','Story','Sci-Fi','Horror','Fantasy','Action','Collab','Beginners'];
+    const MAX_CREATE = 5;
+    const MAX_JOIN   = 15;
+
+    let myHandle         = '';
+    let allSquads        = [];
+    let myRequests       = [];   // always string ticket_id
+    let allAccepted      = [];   // always string ticket_id
+    let activeTab        = 'discover';
+    let activeSort       = 'new';
+    let activeFilterTopic = null;
+    let activeManageId   = null;
+    let newPfp           = '';
+    let editPfp          = '';
+    let pfpCropper       = null;
+    let pfpCropTarget    = null;
+
+    function esc(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Toast ──────────────────────────────────────────────
+    let _toastTimer;
+    function toast(msg, color = '#1a1a1a') {
+        const t = document.getElementById('sq-toast');
+        t.innerText = msg; t.style.background = color;
+        t.classList.add('show');
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    // ── Storage — always writes to userimages/ subfolder ──
+    async function uploadToStorage(bucket, filename, data) {
+        const path = `userimages/${filename}`;
+        let blob = data;
+        if (typeof data === 'string' && data.startsWith('data:')) {
+            const res = await fetch(data); blob = await res.blob();
+        }
+        const { error } = await _sb.storage.from(bucket).upload(path, blob, {
+            upsert: true, cacheControl: '3600', contentType: 'image/jpeg'
+        });
+        if (error) { console.error('Storage upload error:', error); return null; }
+        const url = _sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+        return `${url}?t=${Date.now()}`;
+    }
+
+    // ── Init ──────────────────────────────────────────────
+    async function init() {
+        if (localStorage.getItem('cc-privacy-team') === 'false') {
+            document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#0a0a0a;color:#fff;text-align:center;gap:16px;"><div style="font-size:48px">🔒</div><h2 style="margin:0">Squads is Disabled</h2><p style="color:#666;margin:0">You've turned this off in Settings.</p><a href="settings.html" style="background:#FF7A00;color:#000;padding:12px 24px;border-radius:24px;font-weight:700;text-decoration:none;margin-top:8px">Go to Settings</a><a href="index.html" style="color:#666;font-size:13px">← Back Home</a></div>`;
+            return;
+        }
+        const local = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        const { data: { session: _sq } } = await _sb.auth.getSession();
+        const user = _sq?.user ?? null;
+        if (user) {
+            const { data: dbp, error: profileErr } = await _sb.from('profiles').select('handle').eq('id', user.id).maybeSingle();
+            if (profileErr) console.warn('Profile fetch error:', profileErr.message);
+            myHandle = dbp?.handle || local.handle;
+        } else { myHandle = local.handle; }
+        if (!myHandle || myHandle === 'anonymous') { alert('Please save your profile first!'); return location.href = 'profile.html'; }
+
+        buildTopics('topic-row');
+        buildTopics('edit-topic-row');
+        buildFilterChips();
+        await Promise.all([loadSquads(), updateStats()]);
+
+        // Handle invite auto-join: squads.html?join=squadId
+        const joinId = new URLSearchParams(location.search).get('join');
+        if (joinId) { await handleInviteJoin(joinId); history.replaceState({}, '', 'squads.html'); }
+    }
+
+    async function handleInviteJoin(joinId) {
+        const sid = String(joinId);
+        const squad = allSquads.find(s => String(s.id) === sid);
+        if (!squad) { toast('Squad not found.'); return; }
+        const alreadyMember = squad.owner_handle === myHandle
+            || allAccepted.some(r => r.ticket_id === sid && r.sender_handle === myHandle);
+        if (alreadyMember) { location.href = `squad_chat.html?id=${sid}`; return; }
+        const alreadyPending = myRequests.some(r => r.ticket_id === sid && r.status === 'pending');
+        if (alreadyPending) { toast('Your request is already pending.', '#ff7a00'); return; }
+        if (confirm(`Join "${squad.team_name}"?`)) {
+            await joinSquad(sid, squad.is_private);
+            if (!squad.is_private) location.href = `squad_chat.html?id=${sid}`;
+        }
+    }
+
+    // ── Topic builders ────────────────────────────────────
+    function buildTopics(containerId) {
+        document.getElementById(containerId).innerHTML = TOPICS.map(t =>
+            `<div class="sq-topic" data-t="${t}" onclick="this.classList.toggle('on')">${t}</div>`
+        ).join('');
+    }
+    function getTopicsFrom(containerId) {
+        return [...document.querySelectorAll(`#${containerId} .sq-topic.on`)].map(el => el.dataset.t);
+    }
+    function setTopicsIn(containerId, topics) {
+        document.querySelectorAll(`#${containerId} .sq-topic`).forEach(el =>
+            el.classList.toggle('on', (topics || []).includes(el.dataset.t))
+        );
+    }
+
+    // ── Topic filter chips ────────────────────────────────
+    function buildFilterChips() {
+        document.getElementById('filter-chips').innerHTML = TOPICS.map(t =>
+            `<button class="sq-filter-chip" data-t="${t}" onclick="toggleFilterTopic('${t}')">${t}</button>`
+        ).join('');
+    }
+    function toggleFilterTopic(t) {
+        activeFilterTopic = activeFilterTopic === t ? null : t;
+        document.querySelectorAll('.sq-filter-chip').forEach(el =>
+            el.classList.toggle('on', el.dataset.t === activeFilterTopic)
+        );
+        renderFeed();
+    }
+
+    // ── Sort ──────────────────────────────────────────────
+    function setSort(s) {
+        activeSort = s;
+        document.querySelectorAll('.sq-sort-btn').forEach(b => b.classList.remove('on'));
+        document.getElementById(`sort-${s}`).classList.add('on');
+        renderFeed();
+    }
+
+    // ── Load data ─────────────────────────────────────────
+    async function loadSquads() {
+        const feed = document.getElementById('sq-feed');
+        feed.innerHTML = `<div style="padding:20px 16px;display:flex;flex-direction:column;gap:10px;">${[1,2,3].map(()=>`<div class="sq-skeleton" style="height:90px;"></div>`).join('')}</div>`;
+
+        const [{ data: squads }, { data: reqs }, { data: accepted }, { data: lastMsgs }] = await Promise.all([
+            _sb.from('team_tickets').select('*').order('created_at', { ascending: false }),
+            _sb.from('team_requests').select('*').eq('sender_handle', myHandle),
+            _sb.from('team_requests').select('ticket_id,sender_handle').eq('status','accepted'),
+            _sb.from('team_messages').select('ticket_id,created_at,content,sender_handle')
+                .order('created_at', { ascending: false }).limit(500)
+        ]);
+
+        // Last message per squad (first in descending list)
+        const lastMsgMap = {};
+        (lastMsgs || []).forEach(m => { if (!lastMsgMap[String(m.ticket_id)]) lastMsgMap[String(m.ticket_id)] = m; });
+        window._lastMsgMap = lastMsgMap;
+
+        allSquads   = squads  || [];
+        // Normalise ticket_id to string for consistent comparisons
+        myRequests  = (reqs     || []).map(r => ({ ...r, ticket_id: String(r.ticket_id) }));
+        allAccepted = (accepted || []).map(r => ({ ...r, ticket_id: String(r.ticket_id) }));
+        renderFeed();
+    }
+
+    async function updateStats() {
+        const [{ count: c }, { count: j }] = await Promise.all([
+            _sb.from('team_tickets').select('*',{count:'exact',head:true}).eq('owner_handle', myHandle),
+            _sb.from('team_requests').select('*',{count:'exact',head:true}).eq('sender_handle', myHandle).eq('status','accepted')
+        ]);
+        const created = c || 0, joined = j || 0;
+        document.getElementById('stat-created').innerText = created;
+        document.getElementById('stat-joined').innerText  = joined;
+        document.getElementById('stat-created-wrap').classList.toggle('over', created >= MAX_CREATE);
+        document.getElementById('stat-joined-wrap').classList.toggle('over',  joined  >= MAX_JOIN);
+        // Disable create trigger at limit
+        const trigger = document.getElementById('create-trigger');
+        trigger.classList.toggle('disabled', created >= MAX_CREATE);
+    }
+
+    // ── Render ────────────────────────────────────────────
+    function switchTab(tab) {
+        activeTab = tab;
+        document.querySelectorAll('.sq-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        renderFeed();
+    }
+
+    function renderFeed() {
+        const q    = document.getElementById('sq-search').value.toLowerCase().trim();
+        const feed = document.getElementById('sq-feed');
+        feed.innerHTML = '';
+
+        let list = allSquads.filter(s => {
+            const sid = String(s.id);
+            if (s.is_private) {
+                if (s.owner_handle === myHandle) return true;
+                const r = myRequests.find(r => r.ticket_id === sid);
+                if (!r) return false;
+            }
+            return true;
+        });
+
+        if (activeTab === 'mine') {
+            list = list.filter(s => {
+                if (s.owner_handle === myHandle) return true;
+                const r = myRequests.find(r => r.ticket_id === String(s.id));
+                return r && r.status === 'accepted';
+            });
+        }
+
+        if (q) list = list.filter(s =>
+            s.team_name?.toLowerCase().includes(q) ||
+            s.description?.toLowerCase().includes(q) ||
+            (Array.isArray(s.topics) && s.topics.some(t => t.toLowerCase().includes(q)))
+        );
+
+        if (activeFilterTopic) list = list.filter(s =>
+            Array.isArray(s.topics) && s.topics.includes(activeFilterTopic)
+        );
+
+        // Sort
+        list = [...list].sort((a, b) => {
+            if (activeSort === 'members') {
+                const ca = allAccepted.filter(r => r.ticket_id === String(a.id)).length + 1;
+                const cb = allAccepted.filter(r => r.ticket_id === String(b.id)).length + 1;
+                return cb - ca;
+            }
+            if (activeSort === 'active') {
+                const la = window._lastMsgMap?.[String(a.id)]?.created_at || a.created_at;
+                const lb = window._lastMsgMap?.[String(b.id)]?.created_at || b.created_at;
+                return new Date(lb) - new Date(la);
+            }
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
+
+        if (!list.length) {
+            feed.innerHTML = `<div class="sq-empty"><div class="sq-empty-icon">🏕️</div><div class="sq-empty-title">${activeTab==='mine'?'No squads yet':'No squads found'}</div><div class="sq-empty-sub">${activeTab==='mine'?'Join or create a squad to get started':'Try a different search or create one!'}</div></div>`;
+            renderMySquadsStrip();
+            renderRecSquadsGrid();
+            return;
+        }
+
+        list.forEach(s => { feed.appendChild(buildCard(s)); hydrateMemberAvatars(s.id); });
+        hydrateUnreadBadges();
+        // Also keep Amino-style sections updated
+        renderMySquadsStrip();
+        renderRecSquadsGrid();
+    }
+
+    async function hydrateMemberAvatars(squadId) {
+        const wrap = document.getElementById(`avatars-${squadId}`);
+        if (!wrap) return;
+        const members = allAccepted.filter(r => r.ticket_id === String(squadId)).slice(0, 5);
+        if (!members.length) return;
+        const pics = await Promise.all(members.map(async m => {
+            const { data } = await _sb.from('profiles').select('pic,handle').eq('handle', m.sender_handle).maybeSingle();
+            return data;
+        }));
+        wrap.innerHTML = pics.filter(Boolean).map((p, i) =>
+            `<img src="${esc(p.pic||'')}" title="@${esc(p.handle)}" style="width:20px;height:20px;border-radius:6px;object-fit:cover;border:1.5px solid #111;margin-left:${i===0?0:-6}px;background:#222;" onerror="this.style.display='none'">`
+        ).join('');
+        const total = allAccepted.filter(r => r.ticket_id === String(squadId)).length;
+        if (total > 5) wrap.innerHTML += `<span style="font-size:9px;font-weight:800;color:#444;margin-left:4px;">+${total-5}</span>`;
+    }
+
+    function buildCard(s) {
+        const sid      = String(s.id);
+        const isOwner  = s.owner_handle === myHandle;
+        const myReq    = myRequests.find(r => r.ticket_id === sid);
+        const isMember = isOwner || (myReq && myReq.status === 'accepted');
+        const isPending= !isMember && myReq && myReq.status === 'pending';
+        const topics   = Array.isArray(s.topics) ? s.topics : [];
+
+        // Member count: accepted members + owner
+        const memberCount = allAccepted.filter(r => r.ticket_id === sid).length + 1;
+
+        const card = document.createElement('div');
+        card.className = `sq-card${isOwner ? ' is-mine' : ''}`;
+
+        const pfpHtml = s.pfp
+            ? `<div class="sq-card-pfp"><img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='💬'"></div>`
+            : `<div class="sq-card-pfp">💬</div>`;
+
+        const topicsHtml = topics.length
+            ? `<div class="sq-card-topics">${topics.map(t=>`<span class="sq-card-topic-tag">${esc(t)}</span>`).join('')}</div>`
+            : '';
+
+        let actions = '';
+        if (isOwner) {
+            actions = `
+                <button class="sq-action-btn sq-btn-manage" onclick="event.stopPropagation();openManageModal('${sid}')">Manage</button>
+                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')">💬 Chat</button>`;
+        } else if (isMember) {
+            actions = `
+                <button class="sq-action-btn sq-btn-joined">✓ Joined</button>
+                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')">💬 Chat</button>
+                <button class="sq-action-btn sq-btn-members" onclick="event.stopPropagation();openMembersModal('${sid}')" title="View members">👥</button>
+                <button class="sq-action-btn sq-btn-leave" onclick="event.stopPropagation();leaveSquad('${sid}')">Leave</button>`;
+        } else if (isPending) {
+            actions = `<button class="sq-action-btn sq-btn-pending">⏳ Pending…</button>`;
+        } else {
+            actions = `<button class="sq-action-btn sq-btn-join" id="jbtn-${sid}" onclick="event.stopPropagation();joinSquad('${sid}',${!!s.is_private})">${s.is_private?'🔒 Request':'Join'}</button>`;
+        }
+
+        const lastMsg = (window._lastMsgMap||{})[sid];
+        let activityHtml = '';
+        if (lastMsg) {
+            const diff = Date.now() - new Date(lastMsg.created_at);
+            const mins = Math.floor(diff/60000), hrs = Math.floor(diff/3600000), days = Math.floor(diff/86400000);
+            const when = mins<1?'Just now':mins<60?`${mins}m ago`:hrs<24?`${hrs}h ago`:`${days}d ago`;
+            const isActive = diff < 3600000;
+            activityHtml = `<span style="color:${isActive?'#32d74b':'#333'};font-size:10px;font-weight:800;">${isActive?'🟢':'⚫'} ${when}</span>`;
+        }
+
+        card.innerHTML = `
+            ${pfpHtml}
+            <div class="sq-card-body">
+                <div class="sq-card-nameline">
+                    <span class="sq-card-name">${esc(s.team_name)}</span>
+                    ${isOwner?'<span class="sq-tag-badge sq-badge-mine">YOURS</span>':''}
+                    ${s.is_private?'<span class="sq-tag-badge sq-badge-private">🔒 PRIVATE</span>':''}
+                </div>
+                <div class="sq-card-owner">by @${esc(s.owner_handle)}</div>
+                ${s.description?`<div class="sq-card-desc">${esc(s.description)}</div>`:''}
+                ${topicsHtml}
+                <div class="sq-card-meta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span>👥 ${memberCount} member${memberCount!==1?'s':''}</span>
+                    ${activityHtml}
+                </div>
+                <div id="avatars-${sid}" style="display:flex;align-items:center;margin-top:6px;"></div>
+            </div>
+            <div class="sq-card-right">${actions}</div>`;
+        return card;
+    }
+
+    // ── Join / Leave ──────────────────────────────────────
+    async function joinSquad(id, isPrivate) {
+        const sid = String(id);
+        const joinedCount = myRequests.filter(r => r.status === 'accepted').length;
+        if (joinedCount >= MAX_JOIN) { toast(`You've reached the ${MAX_JOIN} squad join limit.`, '#ff3b30'); return; }
+
+        const btn = document.getElementById(`jbtn-${sid}`);
+        if (btn) { btn.innerText = '…'; btn.disabled = true; }
+
+        const status = isPrivate ? 'pending' : 'accepted';
+        const { error } = await _sb.from('team_requests').insert([{ ticket_id: sid, sender_handle: myHandle, status }]);
+        if (error) {
+            if (btn) { btn.innerText = isPrivate?'🔒 Request':'Join'; btn.disabled = false; }
+            toast('Failed to join. Try again.', '#ff3b30'); return;
+        }
+        myRequests.push({ ticket_id: sid, sender_handle: myHandle, status });
+        if (!isPrivate) {
+            allAccepted.push({ ticket_id: sid, sender_handle: myHandle });
+            toast('Joined! 🎉', '#32d74b');
+        } else {
+            toast('Request sent! Waiting for approval.', '#ff7a00');
+        }
+        await updateStats();
+        renderFeed();
+    }
+
+    async function leaveSquad(id) {
+        const sid = String(id);
+        if (!confirm('Leave this squad?')) return;
+        await _sb.from('team_requests').delete().eq('ticket_id', sid).eq('sender_handle', myHandle);
+        myRequests  = myRequests.filter(r => r.ticket_id !== sid);
+        allAccepted = allAccepted.filter(r => !(r.ticket_id === sid && r.sender_handle === myHandle));
+        toast('Left squad.');
+        await updateStats();
+        renderFeed();
+    }
+
+    // ── Create modal ──────────────────────────────────────
+    function openCreateModal() { document.getElementById('create-overlay').classList.add('open'); }
+    function closeCreateModal() {
+        document.getElementById('create-overlay').classList.remove('open');
+        document.getElementById('sq-name').value = '';
+        document.getElementById('sq-desc').value = '';
+        document.getElementById('sq-private').checked = false;
+        document.querySelectorAll('#topic-row .sq-topic.on').forEach(t => t.classList.remove('on'));
+        newPfp = '';
+        const pp = document.getElementById('pfp-pick');
+        pp.style.backgroundImage = ''; pp.innerHTML = '🖼'; pp.classList.remove('has-img');
+    }
+
+    async function createSquad() {
+        const name = document.getElementById('sq-name').value.trim();
+        if (!name) { document.getElementById('sq-name').focus(); return; }
+        const createdCount = allSquads.filter(s => s.owner_handle === myHandle).length;
+        if (createdCount >= MAX_CREATE) { toast(`Creation limit reached (${MAX_CREATE} max).`, '#ff3b30'); return; }
+
+        const btn = document.getElementById('create-btn');
+        btn.innerText = 'Creating…'; btn.disabled = true;
+
+        const topics = getTopicsFrom('topic-row');
+        // Insert squad first (pfp = null if base64, we'll patch after upload)
+        const pfpIsBase64 = newPfp && newPfp.startsWith('data:');
+        const { data: newSquad, error } = await _sb.from('team_tickets').insert([{
+            owner_handle: myHandle,
+            team_name:    name,
+            description:  document.getElementById('sq-desc').value.trim(),
+            pfp:          pfpIsBase64 ? null : (newPfp || null),
+            topics,
+            is_private:   document.getElementById('sq-private').checked
+        }]).select().single();
+
+        btn.innerText = 'Create Squad'; btn.disabled = false;
+        if (error) { toast('Error: ' + error.message, '#ff3b30'); return; }
+
+        // Show squad immediately with base64 preview
+        const optimisticPfp = pfpIsBase64 ? newPfp : (newPfp || null);
+        allSquads.unshift({ ...newSquad, pfp: optimisticPfp });
+        closeCreateModal();
+        toast('Squad created! 🎉', '#32d74b');
+        await updateStats();
+        renderFeed();
+
+        // Upload to userimages/ and patch DB in background
+        if (pfpIsBase64 && newSquad?.id) {
+            const filename = `squad_${myHandle}_${newSquad.id}.jpg`;
+            const url = await uploadToStorage('squad-pfps', filename, newPfp);
+            if (url) {
+                await _sb.from('team_tickets').update({ pfp: url }).eq('id', newSquad.id);
+                const sq = allSquads.find(s => String(s.id) === String(newSquad.id));
+                if (sq) { sq.pfp = url; renderFeed(); }
+            }
+        } else {
+            // Reload to sync state
+            await loadSquads();
+        }
+    }
+
+    // ── Manage modal ──────────────────────────────────────
+    async function openManageModal(id) {
+        const sid = String(id);
+        activeManageId = sid;
+        const s = allSquads.find(s => String(s.id) === sid);
+        if (!s) return;
+
+        document.getElementById('manage-title').innerText = s.team_name;
+        document.getElementById('edit-name').value  = s.team_name;
+        document.getElementById('edit-desc').value  = s.description || '';
+        document.getElementById('edit-private').checked = s.is_private || false;
+        setTopicsIn('edit-topic-row', s.topics || []);
+
+        editPfp = s.pfp || '';
+        const ep = document.getElementById('edit-pfp-pick');
+        if (s.pfp) { ep.style.backgroundImage=`url(${s.pfp})`; ep.innerHTML=''; ep.classList.add('has-img'); }
+        else       { ep.style.backgroundImage=''; ep.innerHTML='✎'; ep.classList.remove('has-img'); }
+
+        document.getElementById('invite-link-input').value =
+            `${location.origin}${location.pathname.replace('squads.html','')}squad_chat.html?id=${sid}`;
+
+        await loadManageMembers(sid);
+        document.getElementById('manage-overlay').classList.add('open');
+    }
+    function closeManageModal() { document.getElementById('manage-overlay').classList.remove('open'); activeManageId = null; }
+
+    async function loadManageMembers(id) {
+        const { data: reqs } = await _sb.from('team_requests').select('*').eq('ticket_id', String(id));
+        const pending = (reqs||[]).filter(r => r.status==='pending');
+        const members = (reqs||[]).filter(r => r.status==='accepted');
+
+        async function makeRow(r, mode) {
+            const { data: prof } = await _sb.from('profiles').select('pic').eq('handle', r.sender_handle).maybeSingle();
+            const pic = prof?.pic || '';
+            const btns = mode === 'pending'
+                ? `<div class="sq-member-actions"><button class="sq-mbtn sq-mbtn-accept" onclick="respondReq('${r.id}','accepted')">Accept</button><button class="sq-mbtn sq-mbtn-decline" onclick="respondReq('${r.id}','declined')">Decline</button></div>`
+                : `<button class="sq-mbtn sq-mbtn-kick" onclick="kickMember('${r.id}')">Kick</button>`;
+            return `<div class="sq-member-item">
+                <div class="sq-member-left">
+                    <img class="sq-member-avatar" src="${esc(pic)}" onerror="this.src=''" alt="">
+                    <span class="sq-member-handle">@${esc(r.sender_handle)}</span>
+                </div>${btns}</div>`;
+        }
+
+        const pendingHtml = (await Promise.all(pending.map(r => makeRow(r,'pending')))).join('');
+        const membersHtml = (await Promise.all(members.map(r => makeRow(r,'member')))).join('');
+
+        document.getElementById('manage-requests').innerHTML = pendingHtml || '<div style="font-size:12px;color:#333;padding:6px 0;">No pending requests</div>';
+        document.getElementById('manage-members').innerHTML  = membersHtml || '<div style="font-size:12px;color:#333;padding:6px 0;">No members yet</div>';
+    }
+
+    async function respondReq(reqId, status) {
+        if (status==='declined') await _sb.from('team_requests').delete().eq('id', reqId);
+        else await _sb.from('team_requests').update({ status }).eq('id', reqId);
+        await Promise.all([loadManageMembers(activeManageId), loadSquads()]);
+    }
+
+    async function kickMember(reqId) {
+        if (!confirm('Kick this member?')) return;
+        await _sb.from('team_requests').delete().eq('id', reqId);
+        await Promise.all([loadManageMembers(activeManageId), loadSquads()]);
+    }
+
+    async function saveSquad() {
+        const name = document.getElementById('edit-name').value.trim();
+        if (!name) { toast('Name required.', '#ff3b30'); return; }
+
+        const btn = document.getElementById('save-btn');
+        btn.innerText = 'Saving…'; btn.disabled = true;
+
+        const pfpIsBase64 = editPfp && editPfp.startsWith('data:');
+        const topics = getTopicsFrom('edit-topic-row');
+
+        // Show instant preview
+        if (pfpIsBase64) {
+            const sq = allSquads.find(s => String(s.id) === String(activeManageId));
+            if (sq) { sq.pfp = editPfp; renderFeed(); }
+        }
+
+        await _sb.from('team_tickets').update({
+            team_name:   name,
+            description: document.getElementById('edit-desc').value.trim(),
+            pfp:         pfpIsBase64 ? null : (editPfp || null),
+            topics,
+            is_private:  document.getElementById('edit-private').checked
+        }).eq('id', activeManageId);
+
+        closeManageModal();
+        toast('Saved! ✓', '#32d74b');
+        await loadSquads();
+        btn.innerText = 'Save Changes'; btn.disabled = false;
+
+        // Upload pfp in background and patch
+        if (pfpIsBase64) {
+            const filename = `squad_${activeManageId}.jpg`;
+            const savedId  = activeManageId; // capture before it's cleared
+            const url = await uploadToStorage('squad-pfps', filename, editPfp);
+            if (url) {
+                await _sb.from('team_tickets').update({ pfp: url }).eq('id', savedId);
+                const sq = allSquads.find(s => String(s.id) === String(savedId));
+                if (sq) { sq.pfp = url; renderFeed(); }
+            }
+        }
+    }
+
+    async function deleteSquad() {
+        if (!confirm('Delete this squad forever? This cannot be undone.')) return;
+        await Promise.all([
+            _sb.from('team_requests').delete().eq('ticket_id', String(activeManageId)),
+            _sb.from('team_messages').delete().eq('ticket_id', String(activeManageId))
+        ]);
+        await _sb.from('team_tickets').delete().eq('id', activeManageId);
+        closeManageModal();
+        toast('Squad deleted.');
+        await Promise.all([loadSquads(), updateStats()]);
+    }
+
+    function copyInviteLink() {
+        const val = document.getElementById('invite-link-input').value;
+        navigator.clipboard.writeText(val)
+            .then(() => toast('Link copied! 📋'))
+            .catch(() => { document.getElementById('invite-link-input').select(); document.execCommand('copy'); toast('Link copied!'); });
+    }
+
+    // ── Members viewer (non-owners) ───────────────────────
+    async function openMembersModal(id) {
+        const sid = String(id);
+        const s   = allSquads.find(s => String(s.id) === sid);
+        document.getElementById('members-view-title').innerText = `${s?.team_name || 'Squad'} — Members`;
+        const list = document.getElementById('members-view-list');
+        list.innerHTML = '<div style="font-size:12px;color:#333;padding:10px 0;">Loading…</div>';
+        document.getElementById('members-view-overlay').classList.add('open');
+
+        const memberEntries = allAccepted.filter(r => r.ticket_id === sid);
+        const ownerHandle   = s?.owner_handle;
+        const allHandles = [
+            ...(ownerHandle ? [{ sender_handle: ownerHandle, isOwner: true }] : []),
+            ...memberEntries.map(m => ({ sender_handle: m.sender_handle, isOwner: false }))
+        ];
+
+        const rows = await Promise.all(allHandles.map(async m => {
+            const { data: prof } = await _sb.from('profiles').select('pic').eq('handle', m.sender_handle).maybeSingle();
+            const pic = prof?.pic || '';
+            return `<div class="sq-member-item">
+                <div class="sq-member-left">
+                    <img class="sq-member-avatar" src="${esc(pic)}" onerror="this.src=''" alt="">
+                    <span class="sq-member-handle">@${esc(m.sender_handle)}${m.isOwner?'<span class="sq-owner-badge">OWNER</span>':''}</span>
+                </div>
+            </div>`;
+        }));
+        list.innerHTML = rows.length ? rows.join('') : '<div style="font-size:12px;color:#333;padding:10px 0;">No members yet.</div>';
+    }
+    function closeMembersModal() { document.getElementById('members-view-overlay').classList.remove('open'); }
+
+    // ── Chat nav ──────────────────────────────────────────
+    function goToChat(squadId) {
+        localStorage.setItem(`sq-seen-${squadId}`, Date.now());
+        location.href = `squad_chat.html?id=${squadId}`;
+    }
+
+    function hydrateUnreadBadges() {
+        allSquads.forEach(s => {
+            const btn = document.getElementById(`chatbtn-${s.id}`);
+            if (!btn) return;
+            const lastSeen = parseInt(localStorage.getItem(`sq-seen-${s.id}`) || '0');
+            const lastMsg  = (window._lastMsgMap||{})[String(s.id)];
+            if (!lastMsg) return;
+            const isUnread = new Date(lastMsg.created_at).getTime() > lastSeen && lastMsg.sender_handle !== myHandle;
+            const old = btn.querySelector('.sq-unread-badge');
+            if (old) old.remove();
+            if (isUnread) {
+                const badge = document.createElement('span');
+                badge.className = 'sq-unread-badge'; badge.innerText = '●';
+                btn.appendChild(badge);
+            }
+        });
+    }
+
+    // ── PFP crop ──────────────────────────────────────────
+    function handlePfp(input, isEdit) {
+        if (!input.files[0]) return;
+        pfpCropTarget = isEdit ? 'edit' : 'new';
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = document.getElementById('pfp-crop-target');
+            if (pfpCropper) { pfpCropper.destroy(); pfpCropper = null; }
+            img.src = e.target.result;
+            img.onload = () => { pfpCropper = new Cropper(img, { aspectRatio:1, viewMode:1, autoCropArea:0.9 }); };
+            document.getElementById('pfp-crop-overlay').classList.add('open');
+        };
+        reader.readAsDataURL(input.files[0]);
+        input.value = '';
+    }
+
+    function applyCrop() {
+        if (!pfpCropper) return;
+        const b64 = pfpCropper.getCroppedCanvas({ width:400, height:400 }).toDataURL('image/jpeg', 0.88);
+        if (pfpCropTarget === 'edit') {
+            editPfp = b64;
+            const el = document.getElementById('edit-pfp-pick');
+            el.style.backgroundImage = `url(${b64})`; el.innerHTML = ''; el.classList.add('has-img');
+        } else {
+            newPfp = b64;
+            const el = document.getElementById('pfp-pick');
+            el.style.backgroundImage = `url(${b64})`; el.innerHTML = ''; el.classList.add('has-img');
+        }
+        cancelCrop();
+    }
+
+    function cancelCrop() {
+        document.getElementById('pfp-crop-overlay').classList.remove('open');
+        if (pfpCropper) { pfpCropper.destroy(); pfpCropper = null; }
+    }
+
+    // ── My Squads Strip + Recommended Grid ──────────────────
+    function renderMySquadsStrip() {
+        const mine = allSquads.filter(s => {
+            const sid = String(s.id);
+            if (s.owner_handle === myHandle) return true;
+            const r = myRequests.find(r => r.ticket_id === sid);
+            return r && r.status === 'accepted';
+        });
+
+        const scroll  = document.getElementById('sq-mine-scroll');
+        const section = document.getElementById('sq-mine-section');
+        if (!mine.length) { section.style.display = 'none'; return; }
+
+        scroll.innerHTML = mine.map(s => {
+            const sid = String(s.id);
+            const isOwner = s.owner_handle === myHandle;
+            const lastSeen = parseInt(localStorage.getItem(`sq-seen-${sid}`) || '0');
+            const lastMsg  = (window._lastMsgMap || {})[sid];
+            const isUnread = lastMsg && new Date(lastMsg.created_at).getTime() > lastSeen && lastMsg.sender_handle !== myHandle;
+            const coverHtml = s.pfp
+                ? `<img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='💬'">`
+                : '💬';
+            return `<div class="sq-mine-card" onclick="goToChat('${sid}')">
+                <div class="sq-mine-card-cover">
+                    ${coverHtml}
+                    ${isOwner ? '<span class="sq-mine-card-yours">YOURS</span>' : ''}
+                </div>
+                <div class="sq-mine-card-body">
+                    <div class="sq-mine-card-name">${esc(s.team_name)}</div>
+                    <button class="sq-mine-card-btn" onclick="event.stopPropagation();goToChat('${sid}')">
+                        💬 Chat${isUnread ? ' <span class="sq-unread-badge" style="position:absolute;top:-5px;right:-5px;">●</span>' : ''}
+                    </button>
+                </div>
+            </div>`;
+        }).join('') + `<div class="sq-mine-join-card" onclick="openCreateModal()">
+            <div class="sq-mine-join-icon">＋</div>
+            <div class="sq-mine-join-label">Create Squad</div>
+        </div>`;
+
+        section.style.display = '';
+    }
+
+    function renderRecSquadsGrid() {
+        const notMine = allSquads.filter(s => {
+            const sid = String(s.id);
+            if (s.owner_handle === myHandle) return false;
+            const r = myRequests.find(r => r.ticket_id === sid);
+            if (r) return false; // already joined or pending
+            if (s.is_private) return false; // hide private
+            return true;
+        }).slice(0, 6);
+
+        const grid    = document.getElementById('sq-rec-grid');
+        const section = document.getElementById('sq-rec-section');
+        if (!notMine.length) { section.style.display = 'none'; return; }
+
+        grid.innerHTML = notMine.map(s => {
+            const sid = String(s.id);
+            const cnt = allAccepted.filter(r => r.ticket_id === sid).length + 1;
+            const lastMsg = (window._lastMsgMap || {})[sid];
+            const isActive = lastMsg && (Date.now() - new Date(lastMsg.created_at)) < 3600000;
+            const coverHtml = s.pfp
+                ? `<img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='🏕️'">`
+                : '🏕️';
+            return `<div class="sq-rec-card">
+                <div class="sq-rec-cover" onclick="location.href='squads.html#${sid}'">
+                    ${coverHtml}
+                    ${s.is_private ? '<span class="sq-rec-private">🔒</span>' : ''}
+                    ${isActive ? '<span class="sq-rec-active">🟢 Active</span>' : ''}
+                </div>
+                <div class="sq-rec-body">
+                    <div class="sq-rec-name">${esc(s.team_name)}</div>
+                    <div class="sq-rec-meta">👥 ${cnt} member${cnt!==1?'s':''}</div>
+                    <button class="sq-rec-join" id="recjoin-${sid}" onclick="recJoinSquad(this,'${sid}',${!!s.is_private})">${s.is_private?'🔒 Request':'Join'}</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        section.style.display = '';
+    }
+
+    async function recJoinSquad(btn, id, isPrivate) {
+        const sid = String(id);
+        const joinedCount = myRequests.filter(r => r.status === 'accepted').length;
+        if (joinedCount >= MAX_JOIN) { toast(`You've reached the ${MAX_JOIN} squad join limit.`, '#ff3b30'); return; }
+        btn.disabled = true; btn.innerText = '…';
+        const status = isPrivate ? 'pending' : 'accepted';
+        const { error } = await _sb.from('team_requests').insert([{ ticket_id: sid, sender_handle: myHandle, status }]);
+        if (error) { btn.disabled = false; btn.innerText = isPrivate ? '🔒 Request' : 'Join'; toast('Error — try again', '#ff3b30'); return; }
+        myRequests.push({ ticket_id: sid, sender_handle: myHandle, status });
+        if (!isPrivate) {
+            allAccepted.push({ ticket_id: sid, sender_handle: myHandle });
+            btn.className = 'sq-rec-join joined'; btn.innerText = '✓ Joined';
+            toast('Joined! 🎉', '#32d74b');
+            renderMySquadsStrip();
+        } else {
+            btn.className = 'sq-rec-join pending'; btn.innerText = '⏳ Pending';
+            toast('Request sent!', '#ff7a00');
+        }
+        await updateStats();
+    }
+
+    function goBack() {
+        const base = 'https://zaz444.github.io/comiccore/';
+        const prev = document.referrer;
+        if (prev && prev.startsWith(base)) {
+            history.back();
+        } else {
+            location.href = base + 'index.html';
+        }
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
