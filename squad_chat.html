@@ -882,14 +882,12 @@
         const cutoff = new Date(Date.now() - 3600000).toISOString();
         try {
             console.log('[ComicCore] updateLiveTicker() start');
-            const { count, error } = await sbFetch(
-                _sb.from('team_messages')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('ticket_id', activeSquadId).gte('created_at', cutoff),
-                8000
-            );
+            const { data, error } = await _sb.rpc('get_squad_stats', { 
+                squad_id: activeSquadId, 
+                cutoff_time: cutoff 
+            });
             if (error) console.error('Supabase error in updateLiveTicker:', error);
-            const cnt    = count || 0;
+            const cnt    = data?.[0]?.message_count || 0;
             const memCnt = memberList.length;
             ticker.innerHTML = `<b>${memCnt}</b> member${memCnt!==1?'s':''} · <b>${cnt}</b> msg${cnt!==1?'s':''} this hour`;
             console.log('[ComicCore] updateLiveTicker() complete', { cnt, memCnt });
@@ -1423,51 +1421,45 @@
             return;
         }
 
-        // Fetch profile + follow counts + works count
+        // Fetch profile data from view
         try {
-            const [profileResp, followerResp, followingResp, worksResp] = await Promise.all([
-                sbFetch(_sb.from('profiles').select('name,pic,bio,banner,settings').eq('handle', handle).maybeSingle(), 10000),
-                sbFetch(_sb.from('follows').select('id', { count: 'exact', head: true }).eq('following', handle), 10000),
-                sbFetch(_sb.from('follows').select('id', { count: 'exact', head: true }).eq('follower', handle), 10000),
-                sbFetch(_sb.from('comics').select('id', { count: 'exact', head: true }).eq('author_handle', handle).eq('is_published', true), 10000)
-            ]);
+            const { data: p, error } = await _sb
+                .from('profile_stats')
+                .select('*')
+                .eq('handle', handle)
+                .maybeSingle();
 
-            if (profileResp.error || followerResp.error || followingResp.error || worksResp.error) {
-                console.error('[ComicCore] openProfilePreview data fetch errors', {
-                    profileErr: profileResp.error,
-                    followerErr: followerResp.error,
-                    followingErr: followingResp.error,
-                    worksErr: worksResp.error
-                });
+            if (error) {
+                console.error('[ComicCore] openProfilePreview fetch error:', error);
+                throw error;
             }
-
-            const profile = profileResp.data;
-            const followerCount  = followerResp.count || 0;
-            const followingCount = followingResp.count || 0;
-            const worksCount     = worksResp.count || 0;
 
             // Also fetch status
-            const statusResp = await sbFetch(_sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle(), 10000);
-            if (statusResp.error) {
-                console.error('[ComicCore] openProfilePreview status fetch error', statusResp.error);
+            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle();
+            if (statusErr) {
+                console.error('[ComicCore] openProfilePreview status fetch error', statusErr);
             }
 
-            const data = {
-                handle,
-                name:          profile?.name    || handle,
-                pic:           profile?.pic     || '',
-                bio:           profile?.bio     || '',
-                banner:        profile?.banner  || '',
-                role:          profile?.settings?.role || null,
-                followers:     followerCount    || 0,
-                following:     followingCount   || 0,
-                works:         worksCount       || 0,
-                status:        deriveStatus(statusResp?.data),
-            };
+            if (p) {
+                const data = {
+                    handle: p.handle,
+                    name: p.name || p.handle,
+                    pic: p.pic || '',
+                    bio: p.bio || '',
+                    banner: p.banner || '',
+                    followers: p.follower_count || 0,
+                    following: p.following_count || 0,
+                    works: p.works_count || 0,
+                    role: p.settings?.role || null,
+                    status: deriveStatus(statusRow)
+                };
 
-            ppProfileCache[handle] = data;
-            applyPreviewData(data);
-            console.log('[ComicCore] openProfilePreview success', handle);
+                ppProfileCache[handle] = data;
+                applyPreviewData(data);
+                console.log('[ComicCore] openProfilePreview success', handle);
+            } else {
+                console.error('[ComicCore] No profile data found for', handle);
+            }
         } catch (err) {
             console.error('[ComicCore] openProfilePreview failed:', err);
             document.getElementById('infoMembers').innerHTML = '<div style="font-size:12px;color:#333;">Unable to load profile.</div>';
