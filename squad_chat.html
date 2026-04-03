@@ -487,7 +487,7 @@
         .pp-bio {
             font-size: 13px; color: #999; line-height: 1.5;
             margin-bottom: 14px;
-            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; line-clamp: 3; overflow: hidden;
         }
 
         .pp-stats {
@@ -731,39 +731,44 @@
     async function init() {
         if (!activeSquadId || !myHandle) return showError();
 
-        const { data: squad } = await _sb.from('team_tickets').select('*').eq('id', activeSquadId).single();
-        if (!squad) return showError();
-        squadData    = squad;
-        isSquadOwner = squad.owner_handle === myHandle;
+        try {
+            const { data: squad, error: squadErr } = await _sb.from('team_tickets').select('*').eq('id', activeSquadId).maybeSingle();
+            if (squadErr || !squad) return showError();
+            squadData    = squad;
+            isSquadOwner = squad.owner_handle === myHandle;
 
-        if (!isSquadOwner) {
-            const { data: req } = await _sb.from('team_requests')
-                .select('status').eq('ticket_id', activeSquadId).eq('sender_handle', myHandle).single();
-            if (!req || req.status !== 'accepted') return showError();
+            if (!isSquadOwner) {
+                const { data: req } = await _sb.from('team_requests')
+                    .select('status').eq('ticket_id', activeSquadId).eq('sender_handle', myHandle).maybeSingle();
+                if (!req || req.status !== 'accepted') return showError();
+            }
+
+            // Background + hue wash
+            if (squad.pfp) document.getElementById('chatBg').style.backgroundImage = `url(${squad.pfp})`;
+            const hue = (squad.team_name || '').split('').reduce((a,c)=>a+c.charCodeAt(0),0) % 360;
+            document.getElementById('chatBg').style.cssText += `--wash: linear-gradient(155deg, hsla(${hue},35%,5%,0.80) 0%, rgba(4,4,10,0.84) 100%);`;
+
+            // Header
+            document.getElementById('headerTitle').innerText = squad.team_name;
+            document.getElementById('headerSub').innerText   = isSquadOwner ? 'Squad Owner' : 'Squad Chat';
+            if (squad.pfp) { document.getElementById('chatPic').style.backgroundImage = `url(${squad.pfp})`; document.getElementById('chatPic').innerText = ''; }
+
+            await loadMemberRoles(squad);
+            buildParticipantAvatarRow();
+            updateLiveTicker();
+
+            document.getElementById('msgInput').addEventListener('keydown', e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+            });
+
+            await loadMessages(true);
+            setupRealtime();
+            setupTypingRealtime();
+            setInterval(updateLiveTicker, 60000);
+        } catch (err) {
+            console.error('Squad chat init failed:', err);
+            showError();
         }
-
-        // Background + hue wash
-        if (squad.pfp) document.getElementById('chatBg').style.backgroundImage = `url(${squad.pfp})`;
-        const hue = (squad.team_name || '').split('').reduce((a,c)=>a+c.charCodeAt(0),0) % 360;
-        document.getElementById('chatBg').style.cssText += `--wash: linear-gradient(155deg, hsla(${hue},35%,5%,0.80) 0%, rgba(4,4,10,0.84) 100%);`;
-
-        // Header
-        document.getElementById('headerTitle').innerText = squad.team_name;
-        document.getElementById('headerSub').innerText   = isSquadOwner ? 'Squad Owner' : 'Squad Chat';
-        if (squad.pfp) { document.getElementById('chatPic').style.backgroundImage = `url(${squad.pfp})`; document.getElementById('chatPic').innerText = ''; }
-
-        await loadMemberRoles(squad);
-        buildParticipantAvatarRow();
-        updateLiveTicker();
-
-        document.getElementById('msgInput').addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-        });
-
-        await loadMessages(true);
-        setupRealtime();
-        setupTypingRealtime();
-        setInterval(updateLiveTicker, 60000);
     }
 
     async function loadMemberRoles(squad) {
@@ -838,6 +843,14 @@
         let lastDate     = container.querySelector('[data-lastdate]')?.dataset.lastdate || null;
         const anchor     = document.getElementById('loadMoreBtn')?.nextSibling || null;
 
+        // Batch-prefetch any avatar pics not yet cached — one query instead of N sequential ones
+        const unknownHandles = [...new Set(msgs.map(m => m.sender_handle))].filter(h => picCache[h] === undefined);
+        if (unknownHandles.length) {
+            const { data: picRows } = await _sb.from('profiles').select('handle,pic').in('handle', unknownHandles);
+            (picRows || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
+            unknownHandles.forEach(h => { if (picCache[h] === undefined) picCache[h] = ''; });
+        }
+
         for (const m of msgs) {
             const d = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
             if (d !== lastDate) {
@@ -867,8 +880,15 @@
         hasMoreMsgs  = data.length === PAGE_SIZE;
 
         const anchor = btn?.nextSibling || null;
+        const olderMsgs = [...data].reverse();
+        const unknownOlder = [...new Set(olderMsgs.map(m => m.sender_handle))].filter(h => picCache[h] === undefined);
+        if (unknownOlder.length) {
+            const { data: picRows } = await _sb.from('profiles').select('handle,pic').in('handle', unknownOlder);
+            (picRows || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
+            unknownOlder.forEach(h => { if (picCache[h] === undefined) picCache[h] = ''; });
+        }
         let lastDate = null;
-        for (const m of [...data].reverse()) {
+        for (const m of olderMsgs) {
             const d = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
             if (d !== lastDate) {
                 const div = document.createElement('div');
