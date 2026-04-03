@@ -890,25 +890,17 @@
                 });
             }
 
-            // Collect UUIDs from profiles for user_status query
-            const memberIds = profilesData ? profilesData.map(p => p.id) : [];
+            // Collect handles for user_status query
+            const memberHandlesForStatus = profilesData ? profilesData.map(p => p.handle).filter(Boolean) : [];
             const { data: statusData, error: statusErr } = await sbFetch(
-                _sb.from('user_status').select('id,status,updated_at').in('id', memberIds).order('updated_at', { ascending: false }),
+                _sb.from('user_status').select('handle,status,updated_at').in('handle', memberHandlesForStatus),
                 10000
             );
             if (statusErr) console.error('[ComicCore] Preload status error:', statusErr);
             if (statusData) {
-                const statusMap = {};
                 statusData.forEach(s => {
-                    if (!statusMap[s.id] || new Date(s.updated_at) > new Date(statusMap[s.id].updated_at)) {
-                        statusMap[s.id] = s;
-                    }
-                });
-                Object.keys(statusMap).forEach(id => {
-                    // Find the handle for this id
-                    const profile = profilesData.find(p => p.id === id);
-                    if (profile && ppProfileCache[profile.handle]) {
-                        ppProfileCache[profile.handle].status = deriveStatus(statusMap[id]);
+                    if (ppProfileCache[s.handle]) {
+                        ppProfileCache[s.handle].status = deriveStatus(s);
                     }
                 });
             }
@@ -1575,7 +1567,7 @@
             }
 
             // Also fetch status
-            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('id', p.id).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle();
             if (statusErr) {
                 console.error('[ComicCore] openProfilePreview status fetch error:', statusErr?.code, statusErr?.message);
             }
