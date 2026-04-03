@@ -884,7 +884,7 @@
             console.log('[ComicCore] updateLiveTicker() start');
             const { count, error } = await sbFetch(
                 _sb.from('team_messages')
-                    .select('*', { count: 'planned', head: true })
+                    .select('id', { count: 'exact', head: true })
                     .eq('ticket_id', activeSquadId).gte('created_at', cutoff),
                 8000
             );
@@ -1038,6 +1038,7 @@
             console.error('[ComicCore] loadOlderMessages failed:', err);
             if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
         }
+    }
 
     function renderEmptyState() {
         document.getElementById('chatContainer').innerHTML =
@@ -1426,9 +1427,9 @@
         try {
             const [profileResp, followerResp, followingResp, worksResp] = await Promise.all([
                 sbFetch(_sb.from('profiles').select('name,pic,bio,banner,settings').eq('handle', handle).maybeSingle(), 10000),
-                sbFetch(_sb.from('follows').select('*', { count: 'planned', head: true }).eq('following', handle), 10000),
-                sbFetch(_sb.from('follows').select('*', { count: 'planned', head: true }).eq('follower', handle), 10000),
-                sbFetch(_sb.from('comics').select('*', { count: 'planned', head: true }).eq('author_handle', handle).eq('is_published', true), 10000)
+                sbFetch(_sb.from('follows').select('id', { count: 'exact', head: true }).eq('following', handle), 10000),
+                sbFetch(_sb.from('follows').select('id', { count: 'exact', head: true }).eq('follower', handle), 10000),
+                sbFetch(_sb.from('comics').select('id', { count: 'exact', head: true }).eq('author_handle', handle).eq('is_published', true), 10000)
             ]);
 
             if (profileResp.error || followerResp.error || followingResp.error || worksResp.error) {
