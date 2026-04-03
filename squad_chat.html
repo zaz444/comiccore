@@ -731,8 +731,8 @@
         if (!pic) return 'https://via.placeholder.com/62x62?text=Avatar';
         if (pic.startsWith('data:image')) return pic;
         if (pic.startsWith('avatars/')) {
-            const key = pic.replace('avatars/', '');
-            const { data } = _sb.storage.from('avatars').getPublicUrl(key);
+            const cleanPath = pic.replace('avatars/', '');
+            const { data } = _sb.storage.from('avatars').getPublicUrl(cleanPath);
             return data.publicUrl;
         }
         return pic;
@@ -1355,7 +1355,7 @@
         }
         if (uploadData) {
             const { data: urlData } = _sb.storage.from(bucket).getPublicUrl(path);
-            const publicUrl = urlData?.publicUrl || null;
+            const publicUrl = urlData.publicUrl;
             console.log('[ComicCore] Storage upload success:', { path, publicUrl });
             if (!publicUrl) {
                 console.error('[ComicCore] Storage upload success, but publicUrl missing for', path);
@@ -1616,7 +1616,7 @@
             bannerImg.src = rawPic.startsWith('data:')
                 ? rawPic
                 : (rawPic.startsWith('avatars/')
-                    ? _sb.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data?.publicUrl || ''
+                    ? _sb.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data.publicUrl
                     : rawPic);
             bannerImg.style.display = 'block';
         } else {
