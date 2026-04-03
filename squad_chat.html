@@ -1332,12 +1332,21 @@
     }
 
     async function uploadToStorage(bucket, filename, data) {
-        const path = `userimages/${filename}`;
+        const path = `${filename}`;
         let blob = data;
         if (typeof data === 'string' && data.startsWith('data:')) { const res = await fetch(data); blob = await res.blob(); }
-        const { error } = await _sb.storage.from(bucket).upload(path, blob, { upsert: true, cacheControl: '3600', contentType: 'image/jpeg' });
-        if (error) { console.error('Storage upload error:', error); return null; }
-        return `${_sb.storage.from(bucket).getPublicUrl(path).data.publicUrl}?t=${Date.now()}`;
+        console.log('[ComicCore] uploadToStorage start:', { bucket, path, dataType: typeof data });
+        const { data: uploadData, error } = await _sb.storage.from(bucket).upload(path, blob, { upsert: true, cacheControl: '3600', contentType: 'image/jpeg' });
+        if (error) {
+            console.error('[ComicCore] Storage upload error:', error.code, error.message);
+            return null;
+        }
+        if (uploadData) {
+            const publicUrl = _sb.storage.from(bucket).getPublicUrl(path).publicUrl;
+            console.log('[ComicCore] Storage upload success:', { path, publicUrl });
+            return `${publicUrl}?t=${Date.now()}`;
+        }
+        return null;
     }
 
     // ── Realtime ──────────────────────────────────────────

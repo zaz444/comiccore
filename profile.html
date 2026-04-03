@@ -2139,6 +2139,35 @@
                 return;
             }
 
+            let picPath = myProfile.pic || '';
+
+            // Upload profile picture to storage if it's a data URL (newly cropped)
+            if (pfpBase64 && pfpBase64.startsWith('data:image')) {
+                try {
+                    console.log('[Profile] Uploading profile picture to avatars bucket...');
+                    const res = await fetch(pfpBase64);
+                    const blob = await res.blob();
+                    const filename = `${myProfile.handle}_${Date.now()}.jpg`;
+                    const { data, error } = await _supabase.storage.from('avatars').upload(filename, blob, {
+                        upsert: true,
+                        contentType: 'image/jpeg'
+                    });
+                    if (error) {
+                        console.error('[Profile] Storage upload error:', error.code, error.message);
+                        showToast('Error uploading image: ' + error.message);
+                        return;
+                    }
+                    if (data) {
+                        picPath = `avatars/${filename}`;
+                        console.log('[Profile] Profile picture uploaded:', picPath);
+                    }
+                } catch (err) {
+                    console.error('[Profile] Profile picture upload failed:', err);
+                    showToast('Error uploading image: ' + err.message);
+                    return;
+                }
+            }
+
             const socials = {};
             SOCIAL_CONFIG.forEach(s => {
                 const val = document.getElementById(`social-${s.key}`).value.trim();
@@ -2153,7 +2182,7 @@
                 handle: myProfile.handle,
                 name: document.getElementById('edit-name').value,
                 bio: document.getElementById('edit-bio').value,
-                pic: pfpBase64,
+                pic: picPath,
                 banner: bannerBase64,
                 socials,
                 settings: { ...(myProfile.settings || {}), status: newStatus }
