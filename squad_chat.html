@@ -871,8 +871,16 @@
         const extra = memberList.length - shown.length;
         wrap.innerHTML = shown.map(m => {
             const pic = picCache[m.handle] || '';
+            let src = '';
+            if (pic) {
+                if (pic.startsWith('data:image')) {
+                    src = esc(pic);
+                } else if (pic.startsWith('avatars/')) {
+                    src = _sb.storage.from('avatars').getPublicUrl(pic).data.publicUrl;
+                }
+            }
             return pic
-                ? `<img class="participant-avatar" src="data:image/jpeg;base64,${esc(pic)}" title="@${esc(m.handle)}" onerror="this.style.display='none'" onclick="openProfilePreview('${esc(m.handle)}', event)">`
+                ? `<img class="participant-avatar" src="${src}" title="@${esc(m.handle)}" onerror="this.style.display='none'" onclick="openProfilePreview('${esc(m.handle)}', event)">`
                 : `<div class="participant-avatar" style="font-size:10px;font-weight:900;color:#555;display:flex;align-items:center;justify-content:center;background:#1e1e22;" onclick="openProfilePreview('${esc(m.handle)}', event)">${esc((m.handle[0]||'?').toUpperCase())}</div>`;
         }).join('') + (extra > 0 ? `<div class="participant-count">+${extra}</div>` : '');
     }
@@ -889,17 +897,13 @@
 
         try {
             console.log('[ComicCore] updateLiveTicker() start');
-            const squadId = String(activeSquadId);
-            const { data, error } = await _sb.rpc('get_squad_stats', {
-                squad_id: squadId,
-                cutoff_time: cutoff
-            });
+            const { count, error } = await _sb.from('team_messages').select('*', { count: 'exact', head: true }).eq('ticket_id', activeSquadId).gte('created_at', cutoff);
 
             if (error) {
-                console.error('[ComicCore] updateLiveTicker Supabase RPC error:', error.code, error.message);
+                console.error('[ComicCore] updateLiveTicker Supabase error:', error.code, error.message);
             }
 
-            const cnt    = data?.[0]?.message_count || 0;
+            const cnt    = count || 0;
             const memCnt = memberList.length;
             ticker.innerHTML = `<b>${memCnt}</b> member${memCnt!==1?'s':''} · <b>${cnt}</b> msg${cnt!==1?'s':''} this hour`;
             console.log('[ComicCore] updateLiveTicker() complete', { cnt, memCnt });
@@ -1099,9 +1103,17 @@
             `<div class="msg-reaction-chip" onclick="toggleReaction('${m.id}','${e}')">${e}<span>${c}</span></div>`
         ).join('');
 
+        let avatarSrc = '';
+        if (pic) {
+            if (pic.startsWith('data:image')) {
+                avatarSrc = esc(pic);
+            } else if (pic.startsWith('avatars/')) {
+                avatarSrc = _sb.storage.from('avatars').getPublicUrl(pic).data.publicUrl;
+            }
+        }
         const avatarHtml = isMine
             ? `<div class="avatar-spacer"></div>`
-            : `<img class="msg-avatar" src="${pic ? 'data:image/jpeg;base64,' + esc(pic) : ''}" onerror="this.src=''" alt="" onclick="openProfilePreview('${esc(m.sender_handle)}', event)">`;
+            : `<img class="msg-avatar" src="${avatarSrc}" onerror="this.src=''" alt="" onclick="openProfilePreview('${esc(m.sender_handle)}', event)">`;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'msg-wrapper';
@@ -1391,8 +1403,16 @@
 
         const rows = await Promise.all(memberList.map(async m => {
             const pic = picCache[m.handle] || '';
+            let src = '';
+            if (pic) {
+                if (pic.startsWith('data:image')) {
+                    src = esc(pic);
+                } else if (pic.startsWith('avatars/')) {
+                    src = _sb.storage.from('avatars').getPublicUrl(pic).data.publicUrl;
+                }
+            }
             return `<div class="info-member-row" style="cursor:pointer;" onclick="openProfilePreview('${esc(m.handle)}', event); closeInfoPanel();">
-                <img class="info-member-avatar" src="${pic ? 'data:image/jpeg;base64,' + esc(pic) : ''}" onerror="this.src=''" alt="">
+                <img class="info-member-avatar" src="${src}" onerror="this.src=''" alt="">
                 <span class="info-member-handle">@${esc(m.handle)}${m.isOwner?'<span class="info-owner-badge">OWNER</span>':''}</span>
             </div>`;
         }));
@@ -1412,7 +1432,15 @@
         backdrop.classList.add('open');
 
         // Reset card to loading state
-        document.getElementById('ppAvatar').src = picCache[handle] ? 'data:image/jpeg;base64,' + picCache[handle] : 'https://via.placeholder.com/62x62?text=Avatar';
+        let resetAvatarSrc = 'https://via.placeholder.com/62x62?text=Avatar';
+        if (picCache[handle]) {
+            if (picCache[handle].startsWith('data:image')) {
+                resetAvatarSrc = picCache[handle];
+            } else if (picCache[handle].startsWith('avatars/')) {
+                resetAvatarSrc = _sb.storage.from('avatars').getPublicUrl(picCache[handle]).data.publicUrl;
+            }
+        }
+        document.getElementById('ppAvatar').src = resetAvatarSrc;
         document.getElementById('ppName').textContent = handle;
         document.getElementById('ppHandle').textContent = '@' + handle;
         document.getElementById('ppRoleTag').style.display = 'none';
@@ -1460,7 +1488,7 @@
             }
 
             // Also fetch status
-            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle();
+            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).order('updated_at', { ascending: false }).limit(1).maybeSingle();
             if (statusErr) {
                 console.error('[ComicCore] openProfilePreview status fetch error:', statusErr?.code, statusErr?.message);
             }
@@ -1503,7 +1531,15 @@
     }
 
     function applyPreviewData(d) {
-        document.getElementById('ppAvatar').src = d.pic ? 'data:image/jpeg;base64,' + d.pic : 'https://via.placeholder.com/62x62?text=Avatar';
+        let avatarSrc = 'https://via.placeholder.com/62x62?text=Avatar';
+        if (d.pic) {
+            if (d.pic.startsWith('data:image')) {
+                avatarSrc = d.pic;
+            } else if (d.pic.startsWith('avatars/')) {
+                avatarSrc = _sb.storage.from('avatars').getPublicUrl(d.pic).data.publicUrl;
+            }
+        }
+        document.getElementById('ppAvatar').src = avatarSrc;
         document.getElementById('ppName').textContent = d.name;
         document.getElementById('ppHandle').textContent = '@' + d.handle;
 
