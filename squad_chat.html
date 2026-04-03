@@ -1737,6 +1737,19 @@
 
     window.addEventListener('DOMContentLoaded', runInitOnce);
     window.addEventListener('load', runInitOnce);
+
+    // After 8 seconds, force-stop the browser loading spinner
+    // by navigating to a blank fragment and back — same trick as pressing X
+    setTimeout(() => {
+        if (document.readyState !== 'complete') {
+            window.stop();
+        }
+        // Even if readyState is complete the persistent realtime connection
+        // keeps the spinner going in some browsers — this kills it cleanly
+        const url = location.href.split('#')[0];
+        history.replaceState(null, '', url + '#_loaded');
+        history.replaceState(null, '', url);
+    }, 8000);
 </script>
 </body>
 </html>
