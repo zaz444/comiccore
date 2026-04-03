@@ -688,8 +688,43 @@
         console.error('[ComicCore] Invalid user_profile JSON in localStorage:', parseErr);
     }
 
-    const myHandle = myProfile && typeof myProfile === 'object' ? myProfile.handle : null;
+    let myHandle = myProfile && typeof myProfile === 'object' ? myProfile.handle : null;
     const activeSquadId = new URLSearchParams(window.location.search).get('id');
+
+    // If handle wasn't in localStorage, pull it from Supabase Auth session
+    async function resolveHandle() {
+        if (myHandle) return;
+        try {
+            const { data: { session } } = await _sb.auth.getSession();
+            const user = session?.user;
+            if (!user) return;
+            // Try user_metadata first (fastest)
+            myHandle = user.user_metadata?.handle;
+            if (myHandle) {
+                // Write back so future page loads are instant
+                const merged = { ...(myProfile || {}), handle: myHandle };
+                localStorage.setItem('user_profile', JSON.stringify(merged));
+                return;
+            }
+            // Fall back to profiles table
+            const { data: dbp } = await _sb.from('profiles').select('handle').eq('permanent_id', user.id).maybeSingle()
+                .catch(() => ({ data: null }));
+            if (!dbp) {
+                // try uuid column name if permanent_id doesn't exist
+                const { data: dbp2 } = await _sb.from('profiles').select('handle').eq('uuid', user.id).maybeSingle()
+                    .catch(() => ({ data: null }));
+                myHandle = dbp2?.handle;
+            } else {
+                myHandle = dbp?.handle;
+            }
+            if (myHandle) {
+                const merged = { ...(myProfile || {}), handle: myHandle };
+                localStorage.setItem('user_profile', JSON.stringify(merged));
+            }
+        } catch (e) {
+            console.error('[ComicCore] resolveHandle failed:', e);
+        }
+    }
 
     const picCache  = {};
     const roleCache = {};
@@ -775,6 +810,7 @@
     }
 
     async function init() {
+        await resolveHandle();
         console.log('[ComicCore] init() started', { activeSquadId, myHandle });
 
         if (!activeSquadId || !myHandle) {
