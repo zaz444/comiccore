@@ -396,6 +396,139 @@
         .lightbox.open { display: flex; }
         .lightbox img { max-width: 94vw; max-height: 88vh; border-radius: 14px; }
         .lightbox-close { position: absolute; top: 20px; right: 20px; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); color: #aaa; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+        /* ══════════════════════════════════════
+           PROFILE PREVIEW CARD (Discord-style)
+        ══════════════════════════════════════ */
+        .profile-preview-backdrop {
+            position: fixed; inset: 0; z-index: 5000;
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(4px);
+            display: none; align-items: flex-end; justify-content: center;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .profile-preview-backdrop.open { display: flex; animation: ppFadeIn .15s ease both; }
+        @keyframes ppFadeIn { from{opacity:0} to{opacity:1} }
+
+        .profile-preview-card {
+            width: 100%; max-width: 420px;
+            background: #0f0f14;
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 26px 26px 0 0;
+            overflow: hidden;
+            box-shadow: 0 -8px 40px rgba(0,0,0,0.6);
+            animation: ppSlideUp .22s cubic-bezier(.25,.46,.45,.94) both;
+        }
+        @keyframes ppSlideUp { from{transform:translateY(28px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+        /* banner strip */
+        .pp-banner {
+            width: 100%; height: 72px;
+            background: linear-gradient(135deg,#1a1a2e,#16213e);
+            position: relative; overflow: hidden; flex-shrink: 0;
+        }
+        .pp-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        /* close btn on banner */
+        .pp-close {
+            position: absolute; top: 10px; right: 12px;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.15);
+            color: #aaa; font-size: 13px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: .15s;
+        }
+        .pp-close:hover { background: rgba(255,255,255,0.14); color: white; }
+
+        .pp-body { padding: 0 18px 22px; position: relative; }
+
+        /* Avatar floated up from banner */
+        .pp-avatar-wrap { margin-top: -30px; margin-bottom: 10px; position: relative; display: inline-block; }
+        .pp-avatar {
+            width: 62px; height: 62px; border-radius: 50%;
+            border: 3px solid #0f0f14;
+            object-fit: cover; background: #1a1a1e;
+            display: block;
+        }
+        .pp-status-dot {
+            position: absolute; bottom: 3px; right: 3px;
+            width: 14px; height: 14px; border-radius: 50%;
+            border: 2.5px solid #0f0f14;
+            background: #555;
+        }
+        .pp-status-dot.online  { background: #32d74b; box-shadow: 0 0 6px rgba(50,215,75,.6); }
+        .pp-status-dot.afk     { background: #ffcc00; box-shadow: 0 0 6px rgba(255,204,0,.5); }
+        .pp-status-dot.dnd     { background: #ff3b30; box-shadow: 0 0 6px rgba(255,59,48,.5); }
+        .pp-status-dot.offline { background: #555; }
+
+        .pp-name-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 2px; }
+        .pp-name { font-size: 17px; font-weight: 900; color: #f0f0f5; }
+        .pp-role-tag {
+            font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 20px;
+            letter-spacing: .5px; text-transform: uppercase;
+            background: rgba(255,255,255,0.08); color: #888;
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .pp-role-tag.owner { background: rgba(255,122,0,0.15); color: #ff7a00; border-color: rgba(255,122,0,.35); }
+        .pp-role-tag.mod   { background: rgba(0,201,177,0.15); color: #00c9b1; border-color: rgba(0,201,177,.35); }
+
+        .pp-handle { font-size: 12px; color: rgba(255,255,255,0.4); font-weight: 600; margin-bottom: 4px; }
+
+        .pp-status-label {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.35);
+            margin-bottom: 12px;
+        }
+        .pp-status-label-dot { width: 6px; height: 6px; border-radius: 50%; background: #555; flex-shrink: 0; }
+        .pp-status-label-dot.online { background: #32d74b; }
+        .pp-status-label-dot.afk    { background: #ffcc00; }
+        .pp-status-label-dot.dnd    { background: #ff3b30; }
+
+        .pp-bio {
+            font-size: 13px; color: #999; line-height: 1.5;
+            margin-bottom: 14px;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+        }
+
+        .pp-stats {
+            display: flex; gap: 20px; margin-bottom: 16px;
+        }
+        .pp-stat b { display: block; font-size: 16px; font-weight: 900; color: white; }
+        .pp-stat span { font-size: 10px; color: rgba(255,255,255,0.35); text-transform: uppercase; font-weight: 700; letter-spacing: .4px; }
+
+        .pp-divider { height: 1px; background: rgba(255,255,255,0.06); margin-bottom: 14px; }
+
+        .pp-actions { display: flex; gap: 8px; }
+        .pp-view-btn {
+            flex: 1; padding: 11px 0; border-radius: 14px;
+            background: var(--accent); color: #000; border: none;
+            font-weight: 800; font-size: 13px; cursor: pointer;
+            font-family: inherit; transition: .15s;
+            box-shadow: 0 2px 14px rgba(255,122,0,.3);
+        }
+        .pp-view-btn:hover { filter: brightness(1.1); }
+        .pp-mention-btn {
+            padding: 11px 16px; border-radius: 14px;
+            background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+            color: #aaa; font-weight: 700; font-size: 13px; cursor: pointer;
+            font-family: inherit; transition: .15s; white-space: nowrap;
+        }
+        .pp-mention-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(255,122,0,.08); }
+
+        /* skeleton shimmer */
+        .pp-skeleton {
+            background: linear-gradient(90deg, #1a1a22 25%, #22222e 50%, #1a1a22 75%);
+            background-size: 200% 100%;
+            border-radius: 6px;
+            animation: ppShimmer 1.2s infinite linear;
+        }
+        @keyframes ppShimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        /* clickable message avatars & sender names */
+        .msg-avatar { cursor: pointer; transition: transform .12s, box-shadow .12s; }
+        .msg-avatar:hover { transform: scale(1.12); box-shadow: 0 0 0 2.5px rgba(255,122,0,0.6); }
+        .sender-name { cursor: pointer; }
+        .sender-name:hover { text-decoration: underline; text-underline-offset: 2px; }
     </style>
 </head>
 <body>
@@ -498,6 +631,42 @@
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
     <div class="lightbox-close">✕</div>
     <img id="lightboxImg" src="">
+</div>
+
+<!-- Profile Preview Card -->
+<div class="profile-preview-backdrop" id="profilePreviewBackdrop" onclick="handlePreviewBackdropClick(event)">
+    <div class="profile-preview-card" id="profilePreviewCard">
+        <div class="pp-banner" id="ppBanner">
+            <img id="ppBannerImg" src="" alt="" style="display:none;" onerror="this.style.display='none'">
+            <div class="pp-close" onclick="closeProfilePreview()">✕</div>
+        </div>
+        <div class="pp-body">
+            <div class="pp-avatar-wrap">
+                <img class="pp-avatar" id="ppAvatar" src="" alt="" onerror="this.src=''">
+                <div class="pp-status-dot offline" id="ppStatusDot"></div>
+            </div>
+            <div class="pp-name-row">
+                <span class="pp-name" id="ppName">…</span>
+                <span class="pp-role-tag" id="ppRoleTag" style="display:none;"></span>
+            </div>
+            <div class="pp-handle" id="ppHandle"></div>
+            <div class="pp-status-label" id="ppStatusLabel">
+                <div class="pp-status-label-dot offline" id="ppStatusLabelDot"></div>
+                <span id="ppStatusText">Offline</span>
+            </div>
+            <div class="pp-bio" id="ppBio" style="display:none;"></div>
+            <div class="pp-stats" id="ppStats">
+                <div class="pp-stat"><b id="ppFollowers">—</b><span>Followers</span></div>
+                <div class="pp-stat"><b id="ppFollowing">—</b><span>Following</span></div>
+                <div class="pp-stat"><b id="ppWorks">—</b><span>Works</span></div>
+            </div>
+            <div class="pp-divider"></div>
+            <div class="pp-actions">
+                <button class="pp-view-btn" id="ppViewBtn" onclick="">View Profile</button>
+                <button class="pp-mention-btn" id="ppMentionBtn">@ Mention</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -619,8 +788,8 @@
         wrap.innerHTML = shown.map(m => {
             const pic = picCache[m.handle] || '';
             return pic
-                ? `<img class="participant-avatar" src="${esc(pic)}" title="@${esc(m.handle)}" onerror="this.style.display='none'">`
-                : `<div class="participant-avatar" style="font-size:10px;font-weight:900;color:#555;display:flex;align-items:center;justify-content:center;background:#1e1e22;">${esc((m.handle[0]||'?').toUpperCase())}</div>`;
+                ? `<img class="participant-avatar" src="${esc(pic)}" title="@${esc(m.handle)}" onerror="this.style.display='none'" onclick="openProfilePreview('${esc(m.handle)}', event)">`
+                : `<div class="participant-avatar" style="font-size:10px;font-weight:900;color:#555;display:flex;align-items:center;justify-content:center;background:#1e1e22;" onclick="openProfilePreview('${esc(m.handle)}', event)">${esc((m.handle[0]||'?').toUpperCase())}</div>`;
         }).join('') + (extra > 0 ? `<div class="participant-count">+${extra}</div>` : '');
     }
 
@@ -752,14 +921,14 @@
 
         const avatarHtml = isMine
             ? `<div class="avatar-spacer"></div>`
-            : `<img class="msg-avatar" src="${esc(pic)}" onerror="this.src=''" alt="">`;
+            : `<img class="msg-avatar" src="${esc(pic)}" onerror="this.src=''" alt="" onclick="openProfilePreview('${esc(m.sender_handle)}', event)">`;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'msg-wrapper';
         wrapper.innerHTML = `
             ${delBtn}
             ${!isMine ? `<div class="sender-line">
-                <span class="sender-name" style="color:${ROLE_COLORS[role]}">@${esc(m.sender_handle)}</span>
+                <span class="sender-name" style="color:${ROLE_COLORS[role]}" onclick="openProfilePreview('${esc(m.sender_handle)}', event)">@${esc(m.sender_handle)}</span>
                 <span class="role-badge role-${role}">${ROLE_LABELS[role]}</span>
             </div>` : ''}
             ${buildBubble(m)}
@@ -1028,7 +1197,7 @@
 
         const rows = await Promise.all(memberList.map(async m => {
             const pic = picCache[m.handle] || '';
-            return `<div class="info-member-row">
+            return `<div class="info-member-row" style="cursor:pointer;" onclick="openProfilePreview('${esc(m.handle)}', event); closeInfoPanel();">
                 <img class="info-member-avatar" src="${esc(pic)}" onerror="this.src=''" alt="">
                 <span class="info-member-handle">@${esc(m.handle)}${m.isOwner?'<span class="info-owner-badge">OWNER</span>':''}</span>
             </div>`;
@@ -1038,6 +1207,155 @@
     function closeInfoPanel() { document.getElementById('infoOverlay').classList.remove('open'); }
     function openLightbox(src) { document.getElementById('lightboxImg').src = src; document.getElementById('lightbox').classList.add('open'); }
     function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+    // ── Profile Preview Card ──────────────────────────────
+    const ppProfileCache = {};
+
+    async function openProfilePreview(handle, event) {
+        if (event) event.stopPropagation();
+
+        const backdrop = document.getElementById('profilePreviewBackdrop');
+        backdrop.classList.add('open');
+
+        // Reset card to loading state
+        document.getElementById('ppAvatar').src = picCache[handle] || '';
+        document.getElementById('ppName').textContent = handle;
+        document.getElementById('ppHandle').textContent = '@' + handle;
+        document.getElementById('ppRoleTag').style.display = 'none';
+        document.getElementById('ppBio').style.display = 'none';
+        document.getElementById('ppFollowers').textContent = '—';
+        document.getElementById('ppFollowing').textContent = '—';
+        document.getElementById('ppWorks').textContent = '—';
+        setPreviewStatus('offline');
+        document.getElementById('ppBannerImg').style.display = 'none';
+        document.getElementById('ppBanner').style.background = 'linear-gradient(135deg,#1a1a2e,#16213e)';
+
+        // "View Profile" button
+        document.getElementById('ppViewBtn').onclick = () => {
+            location.href = `profile.html?u=${encodeURIComponent(handle)}`;
+        };
+
+        // "@Mention" button — inserts @handle into chat input
+        document.getElementById('ppMentionBtn').onclick = () => {
+            const input = document.getElementById('msgInput');
+            const cur   = input.value;
+            const mention = `@${handle} `;
+            input.value = cur ? cur.trimEnd() + ' ' + mention : mention;
+            input.focus();
+            autoResize(input);
+            closeProfilePreview();
+        };
+
+        // Don't re-fetch if cached
+        if (ppProfileCache[handle]) {
+            applyPreviewData(ppProfileCache[handle]);
+            return;
+        }
+
+        // Fetch profile + follow counts + works count
+        const [{ data: profile }, { count: followerCount }, { count: followingCount }, { count: worksCount }] = await Promise.all([
+            _sb.from('profiles').select('name,pic,bio,banner,settings').eq('handle', handle).maybeSingle(),
+            _sb.from('follows').select('*', { count: 'exact', head: true }).eq('following', handle),
+            _sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower', handle),
+            _sb.from('comics').select('*', { count: 'exact', head: true }).eq('author_handle', handle).eq('is_published', true)
+        ]);
+
+        // Also fetch status
+        const { data: statusRow } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle();
+
+        const data = {
+            handle,
+            name:          profile?.name    || handle,
+            pic:           profile?.pic     || '',
+            bio:           profile?.bio     || '',
+            banner:        profile?.banner  || '',
+            role:          profile?.settings?.role || null,
+            followers:     followerCount    || 0,
+            following:     followingCount   || 0,
+            works:         worksCount       || 0,
+            status:        deriveStatus(statusRow),
+        };
+
+        ppProfileCache[handle] = data;
+        applyPreviewData(data);
+    }
+
+    function deriveStatus(row) {
+        if (!row) return 'offline';
+        const minutesAgo = (Date.now() - new Date(row.updated_at).getTime()) / 60000;
+        if (minutesAgo > 10) return 'offline';
+        return row.status || 'online';
+    }
+
+    function applyPreviewData(d) {
+        document.getElementById('ppAvatar').src = d.pic || '';
+        document.getElementById('ppName').textContent = d.name;
+        document.getElementById('ppHandle').textContent = '@' + d.handle;
+
+        // Role tag
+        const rt = document.getElementById('ppRoleTag');
+        if (d.handle === 'jeffyplays') {
+            rt.textContent = 'Owner'; rt.className = 'pp-role-tag owner'; rt.style.display = 'inline-block';
+        } else if (d.role === 'mod') {
+            rt.textContent = 'Mod'; rt.className = 'pp-role-tag mod'; rt.style.display = 'inline-block';
+        } else {
+            rt.style.display = 'none';
+        }
+
+        // Bio
+        const bioEl = document.getElementById('ppBio');
+        if (d.bio) { bioEl.textContent = d.bio; bioEl.style.display = 'block'; }
+        else { bioEl.style.display = 'none'; }
+
+        // Stats
+        document.getElementById('ppFollowers').textContent = fmtNum(d.followers);
+        document.getElementById('ppFollowing').textContent = fmtNum(d.following);
+        document.getElementById('ppWorks').textContent = fmtNum(d.works);
+
+        // Status
+        setPreviewStatus(d.status);
+
+        // Banner
+        const bannerImg = document.getElementById('ppBannerImg');
+        if (d.banner) {
+            bannerImg.src = d.banner;
+            bannerImg.style.display = 'block';
+        } else {
+            bannerImg.style.display = 'none';
+            // Deterministic gradient from handle
+            const hue = d.handle.split('').reduce((a,c) => a + c.charCodeAt(0), 0) % 360;
+            document.getElementById('ppBanner').style.background =
+                `linear-gradient(135deg, hsl(${hue},30%,12%) 0%, hsl(${(hue+40)%360},20%,8%) 100%)`;
+        }
+    }
+
+    function setPreviewStatus(status) {
+        const dot    = document.getElementById('ppStatusDot');
+        const ldot   = document.getElementById('ppStatusLabelDot');
+        const ltext  = document.getElementById('ppStatusText');
+        const labels = { online: 'Online', afk: 'Away', dnd: 'Do Not Disturb', offline: 'Offline' };
+        const cls    = status || 'offline';
+        dot.className   = 'pp-status-dot '  + cls;
+        ldot.className  = 'pp-status-label-dot ' + cls;
+        ltext.textContent = labels[cls] || 'Offline';
+    }
+
+    function fmtNum(n) {
+        if (n === null || n === undefined || n === '—') return '—';
+        n = Number(n);
+        if (isNaN(n)) return '—';
+        if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (n >= 1000)    return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+        return String(n);
+    }
+
+    function closeProfilePreview() {
+        document.getElementById('profilePreviewBackdrop').classList.remove('open');
+    }
+
+    function handlePreviewBackdropClick(e) {
+        if (e.target === document.getElementById('profilePreviewBackdrop')) closeProfilePreview();
+    }
 
     window.onload = init;
 </script>
