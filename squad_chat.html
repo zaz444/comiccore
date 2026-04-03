@@ -730,7 +730,11 @@
     function getProfilePicUrl(pic) {
         if (!pic) return 'https://via.placeholder.com/62x62?text=Avatar';
         if (pic.startsWith('data:image')) return pic;
-        if (pic.startsWith('avatars/')) return _sb.storage.from('avatars').getPublicUrl(pic.replace('avatars/', '')).publicUrl;
+        if (pic.startsWith('avatars/')) {
+            const key = pic.replace('avatars/', '');
+            const { data } = _sb.storage.from('avatars').getPublicUrl(key);
+            return data?.publicUrl || 'https://via.placeholder.com/62x62?text=Avatar';
+        }
         return 'https://via.placeholder.com/62x62?text=Avatar';
     }
 
@@ -847,7 +851,7 @@
             }
 
             const { data: statusData, error: statusErr } = await sbFetch(
-                _sb.from('user_status').select('handle,status,updated_at').in('handle', memberHandles).order('updated_at', { ascending: false }),
+                _sb.from('public.user_status').select('handle,status,updated_at').in('handle', memberHandles).order('updated_at', { ascending: false }),
                 10000
             );
             if (statusErr) console.error('[ComicCore] Preload status error:', statusErr);
@@ -1342,8 +1346,13 @@
             return null;
         }
         if (uploadData) {
-            const publicUrl = _sb.storage.from(bucket).getPublicUrl(path).publicUrl;
+            const { data: urlData } = _sb.storage.from(bucket).getPublicUrl(path);
+            const publicUrl = urlData?.publicUrl || null;
             console.log('[ComicCore] Storage upload success:', { path, publicUrl });
+            if (!publicUrl) {
+                console.error('[ComicCore] Storage upload success, but publicUrl missing for', path);
+                return null;
+            }
             return `${publicUrl}?t=${Date.now()}`;
         }
         return null;
@@ -1522,7 +1531,7 @@
             }
 
             // Also fetch status
-            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+            const { data: statusRow, error: statusErr } = await _sb.from('public.user_status').select('status,updated_at').eq('handle', handle).order('updated_at', { ascending: false }).limit(1).maybeSingle();
             if (statusErr) {
                 console.error('[ComicCore] openProfilePreview status fetch error:', statusErr?.code, statusErr?.message);
             }

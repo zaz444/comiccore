@@ -1483,7 +1483,11 @@
         function getImageUrl(pic) {
             if (!pic) return '';
             if (pic.startsWith('data:image')) return pic;
-            if (pic.startsWith('avatars/')) return _supabase.storage.from('avatars').getPublicUrl(pic.replace('avatars/', '')).publicUrl;
+            if (pic.startsWith('avatars/')) {
+                const key = pic.replace('avatars/', '');
+                const { data } = _supabase.storage.from('avatars').getPublicUrl(key);
+                return data?.publicUrl || '';
+            }
             return pic;
         }
         let currentViewedHandle = "";
