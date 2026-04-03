@@ -676,8 +676,19 @@
         { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
     );
 
-    const myProfile     = JSON.parse(localStorage.getItem('user_profile') || '{}');
-    const myHandle      = myProfile.handle;
+    window.addEventListener('unhandledrejection', e => {
+        console.error('UNHANDLED PROMISE:', e.reason || e);
+        showError();
+    });
+
+    let myProfile = {};
+    try {
+        myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    } catch (parseErr) {
+        console.error('[ComicCore] Invalid user_profile JSON in localStorage:', parseErr);
+    }
+
+    const myHandle = myProfile && typeof myProfile === 'object' ? myProfile.handle : null;
     const activeSquadId = new URLSearchParams(window.location.search).get('id');
 
     const picCache  = {};
@@ -685,8 +696,17 @@
 
     async function getPic(handle) {
         if (picCache[handle] !== undefined) return picCache[handle];
-        const { data } = await _sb.from('profiles').select('pic').eq('handle', handle).maybeSingle();
-        picCache[handle] = data?.pic || '';
+        try {
+            const { data, error } = await sbFetch(
+                _sb.from('profiles').select('pic').eq('handle', handle).maybeSingle(),
+                8000
+            );
+            if (error) throw error;
+            picCache[handle] = data?.pic || '';
+        } catch (err) {
+            console.error('[ComicCore] getPic failed for', handle, err);
+            picCache[handle] = '';
+        }
         return picCache[handle];
     }
 
@@ -739,30 +759,43 @@
     }
 
     async function init() {
-        if (!activeSquadId || !myHandle) return showError();
+        console.log('[ComicCore] init() started', { activeSquadId, myHandle });
+
+        if (!activeSquadId || !myHandle) {
+            console.error('[ComicCore] init() missing required parameters', { activeSquadId, myHandle });
+            showError();
+            return;
+        }
 
         try {
-            // Force Supabase auth to finish initializing before any queries.
-            // In JS v2, autoRefreshToken can silently stall every fetch until the
-            // session refresh resolves — this unblocks it with a 5s safety timeout.
-            await Promise.race([
+            console.log('[ComicCore] init() auth.getSession race start');
+            const authSession = await Promise.race([
                 _sb.auth.getSession(),
                 new Promise(res => setTimeout(res, 5000))
             ]);
+            console.log('[ComicCore] init() auth.getSession race complete', authSession);
 
+            console.log('[ComicCore] init() loading squad data', activeSquadId);
             const { data: squad, error: squadErr } = await sbFetch(
                 _sb.from('team_tickets').select('*').eq('id', activeSquadId).maybeSingle()
             );
+            console.log('[ComicCore] init() squad query done', { squad, squadErr });
             if (squadErr || !squad) return showError();
             squadData    = squad;
             isSquadOwner = squad.owner_handle === myHandle;
 
             if (!isSquadOwner) {
-                const { data: req } = await sbFetch(
+                console.log('[ComicCore] init() checking team request approval for', myHandle);
+                const { data: req, error: reqErr } = await sbFetch(
                     _sb.from('team_requests')
                         .select('status').eq('ticket_id', activeSquadId).eq('sender_handle', myHandle).maybeSingle()
                 );
-                if (!req || req.status !== 'accepted') return showError();
+                console.log('[ComicCore] init() team request query done', { req, reqErr });
+                if (reqErr || !req || req.status !== 'accepted') {
+                    console.error('[ComicCore] not authorized for squad', { req, reqErr });
+                    showError();
+                    return;
+                }
             }
 
             // Background + hue wash
@@ -775,15 +808,24 @@
             document.getElementById('headerSub').innerText   = isSquadOwner ? 'Squad Owner' : 'Squad Chat';
             if (squad.pfp) { document.getElementById('chatPic').style.backgroundImage = `url(${squad.pfp})`; document.getElementById('chatPic').innerText = ''; }
 
+            console.log('[ComicCore] init() member role load start');
             await loadMemberRoles(squad);
+            console.log('[ComicCore] init() member role load complete');
+
             buildParticipantAvatarRow();
-            updateLiveTicker();
+
+            console.log('[ComicCore] init() live ticker update start');
+            await updateLiveTicker();
+            console.log('[ComicCore] init() live ticker update complete');
 
             document.getElementById('msgInput').addEventListener('keydown', e => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             });
 
+            console.log('[ComicCore] init() loadMessages(true) start');
             await loadMessages(true);
+            console.log('[ComicCore] init() loadMessages(true) complete');
+
             setupRealtime();
             setupTypingRealtime();
             setInterval(updateLiveTicker, 60000);
@@ -794,22 +836,33 @@
     }
 
     async function loadMemberRoles(squad) {
-        const { data: accepted } = await sbFetch(
-            _sb.from('team_requests')
-                .select('sender_handle').eq('ticket_id', activeSquadId).eq('status','accepted')
-        );
-        memberList = [
-            { handle: squad.owner_handle, isOwner: true },
-            ...(accepted || []).map(r => ({ handle: r.sender_handle, isOwner: false }))
-        ];
-        memberList.forEach(m => { roleCache[m.handle] = m.isOwner ? 'owner' : 'member'; });
-        if (!roleCache[myHandle]) roleCache[myHandle] = isSquadOwner ? 'owner' : 'member';
+        try {
+            console.log('[ComicCore] loadMemberRoles() start');
+            const { data: accepted, error: acceptedErr } = await sbFetch(
+                _sb.from('team_requests')
+                    .select('sender_handle').eq('ticket_id', activeSquadId).eq('status','accepted')
+            );
+            if (acceptedErr) throw acceptedErr;
 
-        const handles = [...new Set(memberList.map(m => m.handle))];
-        const { data: profiles } = await sbFetch(
-            _sb.from('profiles').select('handle,pic').in('handle', handles)
-        );
-        (profiles || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
+            memberList = [
+                { handle: squad.owner_handle, isOwner: true },
+                ...(accepted || []).map(r => ({ handle: r.sender_handle, isOwner: false }))
+            ];
+            memberList.forEach(m => { roleCache[m.handle] = m.isOwner ? 'owner' : 'member'; });
+            if (!roleCache[myHandle]) roleCache[myHandle] = isSquadOwner ? 'owner' : 'member';
+
+            const handles = [...new Set(memberList.map(m => m.handle))];
+            const { data: profiles, error: profilesErr } = await sbFetch(
+                _sb.from('profiles').select('handle,pic').in('handle', handles)
+            );
+            if (profilesErr) throw profilesErr;
+
+            (profiles || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
+            console.log('[ComicCore] loadMemberRoles() complete', { memberCount: memberList.length });
+        } catch (err) {
+            console.error('[ComicCore] loadMemberRoles failed:', err);
+            throw err;
+        }
     }
 
     function buildParticipantAvatarRow() {
@@ -827,12 +880,23 @@
     async function updateLiveTicker() {
         const ticker = document.getElementById('liveTicker');
         const cutoff = new Date(Date.now() - 3600000).toISOString();
-        const { count } = await _sb.from('team_messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('ticket_id', activeSquadId).gte('created_at', cutoff);
-        const cnt    = count || 0;
-        const memCnt = memberList.length;
-        ticker.innerHTML = `<b>${memCnt}</b> member${memCnt!==1?'s':''} · <b>${cnt}</b> msg${cnt!==1?'s':''} this hour`;
+        try {
+            console.log('[ComicCore] updateLiveTicker() start');
+            const { count, error } = await sbFetch(
+                _sb.from('team_messages')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('ticket_id', activeSquadId).gte('created_at', cutoff),
+                8000
+            );
+            if (error) throw error;
+            const cnt    = count || 0;
+            const memCnt = memberList.length;
+            ticker.innerHTML = `<b>${memCnt}</b> member${memCnt!==1?'s':''} · <b>${cnt}</b> msg${cnt!==1?'s':''} this hour`;
+            console.log('[ComicCore] updateLiveTicker() complete', { cnt, memCnt });
+        } catch (err) {
+            console.error('[ComicCore] updateLiveTicker error:', err); 
+            ticker.innerHTML = 'Live status unavailable';
+        }
     }
 
     function showError() {
@@ -842,6 +906,7 @@
 
     // ── Message loading ───────────────────────────────────
     async function loadMessages(initial = false) {
+        console.log('[ComicCore] loadMessages() start', { initial, activeSquadId, msgOffset });
         if (initial) {
             msgOffset = 0;
             document.getElementById('chatContainer').innerHTML = `
@@ -858,6 +923,7 @@
         }
 
         try {
+            console.log('[ComicCore] loadMessages() supabase query start');
             const { data, count, error } = await sbFetch(
                 _sb.from('team_messages')
                     .select('*', { count: 'exact' })
@@ -866,6 +932,7 @@
                     .range(msgOffset, msgOffset + PAGE_SIZE - 1),
                 12000
             );
+            console.log('[ComicCore] loadMessages() supabase query done', { dataLength: data?.length, count, error });
 
             const skeleton = document.getElementById('msgSkeleton');
             if (skeleton) skeleton.remove();
@@ -929,11 +996,22 @@
         const btn        = document.getElementById('loadMoreBtn');
         if (btn) { btn.innerText = 'Loading…'; btn.disabled = true; }
 
-        const { data } = await _sb.from('team_messages').select('*')
-            .eq('ticket_id', activeSquadId).order('created_at', { ascending: false })
-            .range(msgOffset, msgOffset + PAGE_SIZE - 1);
-
-        if (!data?.length) { if (btn) btn.remove(); return; }
+        try {
+            console.log('[ComicCore] loadOlderMessages() supabase query start', { msgOffset });
+            const { data, error } = await sbFetch(
+                _sb.from('team_messages').select('*')
+                    .eq('ticket_id', activeSquadId).order('created_at', { ascending: false })
+                    .range(msgOffset, msgOffset + PAGE_SIZE - 1),
+                12000
+            );
+            console.log('[ComicCore] loadOlderMessages() supabase query done', { dataLength: data?.length, error });
+            if (error) throw error;
+            if (!data?.length) { if (btn) btn.remove(); return; }
+        } catch (err) {
+            console.error('[ComicCore] loadOlderMessages failed:', err);
+            if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
+            return;
+        }
         msgOffset   += data.length;
         hasMoreMsgs  = data.length === PAGE_SIZE;
 
@@ -1065,18 +1143,26 @@
         const tempId = 'temp-' + Date.now();
         await appendMessage({ id: tempId, sender_handle: myHandle, content, created_at: new Date().toISOString() });
 
-        const { data, error } = await _sb.from('team_messages').insert([{
-            ticket_id: activeSquadId, sender_handle: myHandle, content
-        }]).select().single();
+        try {
+            console.log('[ComicCore] sendMessage insert start', { activeSquadId, myHandle });
+            const { data, error } = await sbFetch(
+                _sb.from('team_messages').insert([{ ticket_id: activeSquadId, sender_handle: myHandle, content }]).select().single(),
+                12000
+            );
+            console.log('[ComicCore] sendMessage insert complete', { data, error });
 
-        if (data && !error) {
-            const tempRow = document.getElementById(`row-${tempId}`);
-            if (tempRow) {
-                tempRow.id = `row-${data.id}`;
-                const rcpt = tempRow.querySelector('.read-receipt');
-                if (rcpt) { rcpt.innerText = '››'; rcpt.classList.add('delivered'); }
+            if (data && !error) {
+                const tempRow = document.getElementById(`row-${tempId}`);
+                if (tempRow) {
+                    tempRow.id = `row-${data.id}`;
+                    const rcpt = tempRow.querySelector('.read-receipt');
+                    if (rcpt) { rcpt.innerText = '››'; rcpt.classList.add('delivered'); }
+                }
+            } else {
+                throw error || new Error('Unknown sendMessage error');
             }
-        } else if (error) {
+        } catch (err) {
+            console.error('[ComicCore] sendMessage failed:', err);
             const tempRow = document.getElementById(`row-${tempId}`);
             if (tempRow) { tempRow.style.opacity = '0.5'; tempRow.title = 'Failed to send'; }
         }
@@ -1086,9 +1172,15 @@
         if (!confirm('Delete this message?')) return;
         const row = document.getElementById(`row-${id}`);
         if (row) row.style.opacity = '0.3';
-        const { error } = await _sb.from('team_messages').delete().eq('id', id);
-        if (error) { if (row) row.style.opacity = '1'; return; }
-        if (row) row.remove();
+
+        try {
+            const { error } = await sbFetch(_sb.from('team_messages').delete().eq('id', id), 8000);
+            if (error) throw error;
+            if (row) row.remove();
+        } catch (err) {
+            console.error('[ComicCore] deleteMessage failed:', err);
+            if (row) row.style.opacity = '1';
+        }
     }
 
     // ── Quick emoji reactions ─────────────────────────────
@@ -1331,31 +1423,55 @@
         }
 
         // Fetch profile + follow counts + works count
-        const [{ data: profile }, { count: followerCount }, { count: followingCount }, { count: worksCount }] = await Promise.all([
-            _sb.from('profiles').select('name,pic,bio,banner,settings').eq('handle', handle).maybeSingle(),
-            _sb.from('follows').select('*', { count: 'exact', head: true }).eq('following', handle),
-            _sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower', handle),
-            _sb.from('comics').select('*', { count: 'exact', head: true }).eq('author_handle', handle).eq('is_published', true)
-        ]);
+        try {
+            const [profileResp, followerResp, followingResp, worksResp] = await Promise.all([
+                sbFetch(_sb.from('profiles').select('name,pic,bio,banner,settings').eq('handle', handle).maybeSingle(), 10000),
+                sbFetch(_sb.from('follows').select('*', { count: 'exact', head: true }).eq('following', handle), 10000),
+                sbFetch(_sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower', handle), 10000),
+                sbFetch(_sb.from('comics').select('*', { count: 'exact', head: true }).eq('author_handle', handle).eq('is_published', true), 10000)
+            ]);
 
-        // Also fetch status
-        const { data: statusRow } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle();
+            if (profileResp.error || followerResp.error || followingResp.error || worksResp.error) {
+                console.error('[ComicCore] openProfilePreview data fetch errors', {
+                    profileErr: profileResp.error,
+                    followerErr: followerResp.error,
+                    followingErr: followingResp.error,
+                    worksErr: worksResp.error
+                });
+            }
 
-        const data = {
-            handle,
-            name:          profile?.name    || handle,
-            pic:           profile?.pic     || '',
-            bio:           profile?.bio     || '',
-            banner:        profile?.banner  || '',
-            role:          profile?.settings?.role || null,
-            followers:     followerCount    || 0,
-            following:     followingCount   || 0,
-            works:         worksCount       || 0,
-            status:        deriveStatus(statusRow),
-        };
+            const profile = profileResp.data;
+            const followerCount  = followerResp.count || 0;
+            const followingCount = followingResp.count || 0;
+            const worksCount     = worksResp.count || 0;
 
-        ppProfileCache[handle] = data;
-        applyPreviewData(data);
+            // Also fetch status
+            const statusResp = await sbFetch(_sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle(), 10000);
+            if (statusResp.error) {
+                console.error('[ComicCore] openProfilePreview status fetch error', statusResp.error);
+            }
+
+            const data = {
+                handle,
+                name:          profile?.name    || handle,
+                pic:           profile?.pic     || '',
+                bio:           profile?.bio     || '',
+                banner:        profile?.banner  || '',
+                role:          profile?.settings?.role || null,
+                followers:     followerCount    || 0,
+                following:     followingCount   || 0,
+                works:         worksCount       || 0,
+                status:        deriveStatus(statusResp?.data),
+            };
+
+            ppProfileCache[handle] = data;
+            applyPreviewData(data);
+            console.log('[ComicCore] openProfilePreview success', handle);
+        } catch (err) {
+            console.error('[ComicCore] openProfilePreview failed:', err);
+            document.getElementById('infoMembers').innerHTML = '<div style="font-size:12px;color:#333;">Unable to load profile.</div>';
+            showError();
+        }
     }
 
     function deriveStatus(row) {
@@ -1435,7 +1551,21 @@
         if (e.target === document.getElementById('profilePreviewBackdrop')) closeProfilePreview();
     }
 
-    window.onload = init;
+    let _initOnce = false;
+    async function runInitOnce() {
+        if (_initOnce) return;
+        _initOnce = true;
+        console.log('[ComicCore] init trigger event fired');
+        try {
+            await init();
+        } catch (err) {
+            console.error('[ComicCore] init() threw:', err);
+            showError();
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', runInitOnce);
+    window.addEventListener('load', runInitOnce);
 </script>
 </body>
 </html>
