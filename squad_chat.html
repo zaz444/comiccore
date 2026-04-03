@@ -728,18 +728,40 @@
     }
 
     // ── Init ──────────────────────────────────────────────
+    // Races any Supabase query against a timeout — prevents silent infinite hangs
+    function sbFetch(query, ms = 8000) {
+        return Promise.race([
+            query,
+            new Promise((_, rej) =>
+                setTimeout(() => rej(new Error('Supabase request timed out (' + ms + 'ms)')), ms)
+            )
+        ]);
+    }
+
     async function init() {
         if (!activeSquadId || !myHandle) return showError();
 
         try {
-            const { data: squad, error: squadErr } = await _sb.from('team_tickets').select('*').eq('id', activeSquadId).maybeSingle();
+            // Force Supabase auth to finish initializing before any queries.
+            // In JS v2, autoRefreshToken can silently stall every fetch until the
+            // session refresh resolves — this unblocks it with a 5s safety timeout.
+            await Promise.race([
+                _sb.auth.getSession(),
+                new Promise(res => setTimeout(res, 5000))
+            ]);
+
+            const { data: squad, error: squadErr } = await sbFetch(
+                _sb.from('team_tickets').select('*').eq('id', activeSquadId).maybeSingle()
+            );
             if (squadErr || !squad) return showError();
             squadData    = squad;
             isSquadOwner = squad.owner_handle === myHandle;
 
             if (!isSquadOwner) {
-                const { data: req } = await _sb.from('team_requests')
-                    .select('status').eq('ticket_id', activeSquadId).eq('sender_handle', myHandle).maybeSingle();
+                const { data: req } = await sbFetch(
+                    _sb.from('team_requests')
+                        .select('status').eq('ticket_id', activeSquadId).eq('sender_handle', myHandle).maybeSingle()
+                );
                 if (!req || req.status !== 'accepted') return showError();
             }
 
@@ -766,7 +788,7 @@
             setupTypingRealtime();
             setInterval(updateLiveTicker, 60000);
         } catch (err) {
-            console.error('[ComicCore] Squad chat init failed:', err);
+            console.error('[ComicCore] Squad chat init failed:', err.message);
             showError();
         }
     }
@@ -843,7 +865,7 @@
         let lastDate     = container.querySelector('[data-lastdate]')?.dataset.lastdate || null;
         const anchor     = document.getElementById('loadMoreBtn')?.nextSibling || null;
 
-        // Batch-prefetch any avatar pics not yet cached — 1 query instead of N sequential ones
+        // Batch-prefetch all unknown avatars in one query before the render loop
         const unknownHandles = [...new Set(msgs.map(m => m.sender_handle))].filter(h => picCache[h] === undefined);
         if (unknownHandles.length) {
             const { data: picRows } = await _sb.from('profiles').select('handle,pic').in('handle', unknownHandles);
