@@ -466,9 +466,12 @@
         const { data: { session: _sq } } = await _sb.auth.getSession();
         const user = _sq?.user ?? null;
         if (user) {
-            const { data: dbp, error: profileErr } = await _sb.from('profiles').select('handle').eq('id', user.id).maybeSingle();
-            if (profileErr) console.warn('Profile fetch error:', profileErr.message);
-            myHandle = dbp?.handle || local.handle;
+            myHandle = user.user_metadata?.handle || local.handle;
+            if (!myHandle) {
+                const { data: dbp, error: profileErr } = await _sb.from('profiles').select('handle').eq('uuid', user.id).maybeSingle();
+                if (profileErr) console.warn('Profile fetch error:', profileErr.message);
+                myHandle = dbp?.handle;
+            }
         } else { myHandle = local.handle; }
         if (!myHandle || myHandle === 'anonymous') { alert('Please save your profile first!'); return location.href = 'profile.html'; }
 
