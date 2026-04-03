@@ -884,11 +884,11 @@
             console.log('[ComicCore] updateLiveTicker() start');
             const { count, error } = await sbFetch(
                 _sb.from('team_messages')
-                    .select('*', { count: 'exact', head: true })
+                    .select('*', { count: 'planned', head: true })
                     .eq('ticket_id', activeSquadId).gte('created_at', cutoff),
                 8000
             );
-            if (error) throw error;
+            if (error) console.error('Supabase error in updateLiveTicker:', error);
             const cnt    = count || 0;
             const memCnt = memberList.length;
             ticker.innerHTML = `<b>${memCnt}</b> member${memCnt!==1?'s':''} · <b>${cnt}</b> msg${cnt!==1?'s':''} this hour`;
@@ -924,15 +924,16 @@
 
         try {
             console.log('[ComicCore] loadMessages() supabase query start');
-            const { data, count, error } = await sbFetch(
+            const { data, error } = await sbFetch(
                 _sb.from('team_messages')
-                    .select('*', { count: 'exact' })
+                    .select('*')
                     .eq('ticket_id', activeSquadId)
                     .order('created_at', { ascending: false })
                     .range(msgOffset, msgOffset + PAGE_SIZE - 1),
                 12000
             );
-            console.log('[ComicCore] loadMessages() supabase query done', { dataLength: data?.length, count, error });
+            console.log('[ComicCore] loadMessages() supabase query done', { dataLength: data?.length, error });
+            if (error) console.error('Supabase error in loadMessages:', error);
 
             const skeleton = document.getElementById('msgSkeleton');
             if (skeleton) skeleton.remove();
@@ -940,7 +941,7 @@
 
             if (error || !data?.length) { if (initial) renderEmptyState(); return; }
             const totalFetched = msgOffset + data.length;
-            hasMoreMsgs = count > totalFetched;
+            hasMoreMsgs = data.length === PAGE_SIZE;
             msgOffset   = totalFetched;
 
             const msgs      = [...data].reverse();
@@ -1005,39 +1006,38 @@
                 12000
             );
             console.log('[ComicCore] loadOlderMessages() supabase query done', { dataLength: data?.length, error });
+            if (error) console.error('Supabase error in loadOlderMessages:', error);
             if (error) throw error;
             if (!data?.length) { if (btn) btn.remove(); return; }
+            msgOffset   += data.length;
+            hasMoreMsgs  = data.length === PAGE_SIZE;
+
+            const anchor = btn?.nextSibling || null;
+            const olderMsgs = [...data].reverse();
+            const unknownOlder = [...new Set(olderMsgs.map(m => m.sender_handle))].filter(h => picCache[h] === undefined);
+            if (unknownOlder.length) {
+                const { data: picRows } = await _sb.from('profiles').select('handle,pic').in('handle', unknownOlder);
+                (picRows || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
+                unknownOlder.forEach(h => { if (picCache[h] === undefined) picCache[h] = ''; });
+            }
+            let lastDate = null;
+            for (const m of olderMsgs) {
+                const d = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+                if (d !== lastDate) {
+                    const div = document.createElement('div');
+                    div.className = 'date-divider'; div.innerText = d;
+                    anchor ? container.insertBefore(div, anchor) : container.appendChild(div);
+                    lastDate = d;
+                }
+                await appendMessage(m, false, anchor);
+            }
+            if (!hasMoreMsgs && btn) btn.remove();
+            else if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
+            container.scrollTop = prevS + (container.scrollHeight - prevH);
         } catch (err) {
             console.error('[ComicCore] loadOlderMessages failed:', err);
             if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
-            return;
         }
-        msgOffset   += data.length;
-        hasMoreMsgs  = data.length === PAGE_SIZE;
-
-        const anchor = btn?.nextSibling || null;
-        const olderMsgs = [...data].reverse();
-        const unknownOlder = [...new Set(olderMsgs.map(m => m.sender_handle))].filter(h => picCache[h] === undefined);
-        if (unknownOlder.length) {
-            const { data: picRows } = await _sb.from('profiles').select('handle,pic').in('handle', unknownOlder);
-            (picRows || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
-            unknownOlder.forEach(h => { if (picCache[h] === undefined) picCache[h] = ''; });
-        }
-        let lastDate = null;
-        for (const m of olderMsgs) {
-            const d = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-            if (d !== lastDate) {
-                const div = document.createElement('div');
-                div.className = 'date-divider'; div.innerText = d;
-                anchor ? container.insertBefore(div, anchor) : container.appendChild(div);
-                lastDate = d;
-            }
-            await appendMessage(m, false, anchor);
-        }
-        if (!hasMoreMsgs && btn) btn.remove();
-        else if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
-        container.scrollTop = prevS + (container.scrollHeight - prevH);
-    }
 
     function renderEmptyState() {
         document.getElementById('chatContainer').innerHTML =
@@ -1426,9 +1426,9 @@
         try {
             const [profileResp, followerResp, followingResp, worksResp] = await Promise.all([
                 sbFetch(_sb.from('profiles').select('name,pic,bio,banner,settings').eq('handle', handle).maybeSingle(), 10000),
-                sbFetch(_sb.from('follows').select('*', { count: 'exact', head: true }).eq('following', handle), 10000),
-                sbFetch(_sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower', handle), 10000),
-                sbFetch(_sb.from('comics').select('*', { count: 'exact', head: true }).eq('author_handle', handle).eq('is_published', true), 10000)
+                sbFetch(_sb.from('follows').select('*', { count: 'planned', head: true }).eq('following', handle), 10000),
+                sbFetch(_sb.from('follows').select('*', { count: 'planned', head: true }).eq('follower', handle), 10000),
+                sbFetch(_sb.from('comics').select('*', { count: 'planned', head: true }).eq('author_handle', handle).eq('is_published', true), 10000)
             ]);
 
             if (profileResp.error || followerResp.error || followingResp.error || worksResp.error) {
