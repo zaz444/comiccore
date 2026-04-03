@@ -794,8 +794,10 @@
     }
 
     async function loadMemberRoles(squad) {
-        const { data: accepted } = await _sb.from('team_requests')
-            .select('sender_handle').eq('ticket_id', activeSquadId).eq('status','accepted');
+        const { data: accepted } = await sbFetch(
+            _sb.from('team_requests')
+                .select('sender_handle').eq('ticket_id', activeSquadId).eq('status','accepted')
+        );
         memberList = [
             { handle: squad.owner_handle, isOwner: true },
             ...(accepted || []).map(r => ({ handle: r.sender_handle, isOwner: false }))
@@ -804,7 +806,9 @@
         if (!roleCache[myHandle]) roleCache[myHandle] = isSquadOwner ? 'owner' : 'member';
 
         const handles = [...new Set(memberList.map(m => m.handle))];
-        const { data: profiles } = await _sb.from('profiles').select('handle,pic').in('handle', handles);
+        const { data: profiles } = await sbFetch(
+            _sb.from('profiles').select('handle,pic').in('handle', handles)
+        );
         (profiles || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
     }
 
@@ -838,52 +842,84 @@
 
     // ── Message loading ───────────────────────────────────
     async function loadMessages(initial = false) {
-        if (initial) { msgOffset = 0; document.getElementById('chatContainer').innerHTML = ''; }
-
-        const { data, count } = await _sb.from('team_messages')
-            .select('*', { count: 'exact' })
-            .eq('ticket_id', activeSquadId)
-            .order('created_at', { ascending: false })
-            .range(msgOffset, msgOffset + PAGE_SIZE - 1);
-
-        if (!data?.length) { if (initial) renderEmptyState(); return; }
-        const totalFetched = msgOffset + data.length;
-        hasMoreMsgs = count > totalFetched;
-        msgOffset   = totalFetched;
-
-        const msgs      = [...data].reverse();
-        const container = document.getElementById('chatContainer');
-        if (container.querySelector('.chat-empty')) container.innerHTML = '';
-
-        if (hasMoreMsgs && initial) {
-            const btn = document.createElement('button');
-            btn.className = 'load-more-btn'; btn.innerText = 'Load older messages';
-            btn.id = 'loadMoreBtn'; btn.onclick = loadOlderMessages;
-            container.prepend(btn);
+        if (initial) {
+            msgOffset = 0;
+            document.getElementById('chatContainer').innerHTML = `
+                <div id="msgSkeleton" style="display:flex;flex-direction:column;gap:10px;padding:8px 0;">
+                    ${[1,2,3,4,5].map((_, i) => `
+                    <div style="display:flex;align-items:flex-end;gap:8px;flex-direction:${i%2===0?'row':'row-reverse'};">
+                        <div style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.06);flex-shrink:0;"></div>
+                        <div style="width:${40+Math.floor(i*13)}%;height:38px;border-radius:18px;background:rgba(255,255,255,0.06);
+                            background:linear-gradient(90deg,rgba(255,255,255,0.05) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.05) 75%);
+                            background-size:200% 100%;animation:shimmer 1.4s infinite;"></div>
+                    </div>`).join('')}
+                </div>
+                <style>@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>`;
         }
 
-        let lastDate     = container.querySelector('[data-lastdate]')?.dataset.lastdate || null;
-        const anchor     = document.getElementById('loadMoreBtn')?.nextSibling || null;
+        try {
+            const { data, count, error } = await sbFetch(
+                _sb.from('team_messages')
+                    .select('*', { count: 'exact' })
+                    .eq('ticket_id', activeSquadId)
+                    .order('created_at', { ascending: false })
+                    .range(msgOffset, msgOffset + PAGE_SIZE - 1),
+                12000
+            );
 
-        // Batch-prefetch all unknown avatars in one query before the render loop
-        const unknownHandles = [...new Set(msgs.map(m => m.sender_handle))].filter(h => picCache[h] === undefined);
-        if (unknownHandles.length) {
-            const { data: picRows } = await _sb.from('profiles').select('handle,pic').in('handle', unknownHandles);
-            (picRows || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
-            unknownHandles.forEach(h => { if (picCache[h] === undefined) picCache[h] = ''; });
-        }
+            const skeleton = document.getElementById('msgSkeleton');
+            if (skeleton) skeleton.remove();
+            if (!initial) document.getElementById('chatContainer').innerHTML = '';
 
-        for (const m of msgs) {
-            const d = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-            if (d !== lastDate) {
-                const div = document.createElement('div');
-                div.className = 'date-divider'; div.innerText = d; div.dataset.lastdate = d;
-                anchor ? container.insertBefore(div, anchor) : container.appendChild(div);
-                lastDate = d;
+            if (error || !data?.length) { if (initial) renderEmptyState(); return; }
+            const totalFetched = msgOffset + data.length;
+            hasMoreMsgs = count > totalFetched;
+            msgOffset   = totalFetched;
+
+            const msgs      = [...data].reverse();
+            const container = document.getElementById('chatContainer');
+            if (container.querySelector('.chat-empty')) container.innerHTML = '';
+
+            if (hasMoreMsgs && initial) {
+                const btn = document.createElement('button');
+                btn.className = 'load-more-btn'; btn.innerText = 'Load older messages';
+                btn.id = 'loadMoreBtn'; btn.onclick = loadOlderMessages;
+                container.prepend(btn);
             }
-            await appendMessage(m, false, anchor);
+
+            let lastDate = container.querySelector('[data-lastdate]')?.dataset.lastdate || null;
+            const anchor = document.getElementById('loadMoreBtn')?.nextSibling || null;
+
+            const unknownHandles = [...new Set(msgs.map(m => m.sender_handle))].filter(h => picCache[h] === undefined);
+            if (unknownHandles.length) {
+                const { data: picRows } = await sbFetch(
+                    _sb.from('profiles').select('handle,pic').in('handle', unknownHandles),
+                    8000
+                ).catch(() => ({ data: [] }));
+                (picRows || []).forEach(p => { picCache[p.handle] = p.pic || ''; });
+                unknownHandles.forEach(h => { if (picCache[h] === undefined) picCache[h] = ''; });
+            }
+
+            for (const m of msgs) {
+                const d = new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+                if (d !== lastDate) {
+                    const div = document.createElement('div');
+                    div.className = 'date-divider'; div.innerText = d; div.dataset.lastdate = d;
+                    anchor ? container.insertBefore(div, anchor) : container.appendChild(div);
+                    lastDate = d;
+                }
+                await appendMessage(m, false, anchor);
+            }
+            if (initial) container.scrollTop = container.scrollHeight;
+        } catch (err) {
+            console.error('[ComicCore] loadMessages failed:', err.message);
+            const skeleton = document.getElementById('msgSkeleton');
+            if (skeleton) skeleton.remove();
+            if (initial) {
+                document.getElementById('chatContainer').innerHTML =
+                    `<div class="chat-empty"><div class="chat-empty-icon">⚠️</div><div class="chat-empty-title">Couldn't load messages</div><div class="chat-empty-sub">Check your connection and refresh.</div></div>`;
+            }
         }
-        if (initial) container.scrollTop = container.scrollHeight;
     }
 
     async function loadOlderMessages() {
