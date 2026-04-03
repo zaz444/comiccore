@@ -2148,6 +2148,7 @@
             }
 
             let picPath = myProfile.pic || '';
+            let bannerPath = myProfile.banner || '';
 
             // Upload profile picture to storage if it's a data URL (newly cropped)
             if (pfpBase64 && pfpBase64.startsWith('data:image')) {
@@ -2155,14 +2156,14 @@
                     console.log('[Profile] Uploading profile picture to avatars bucket...');
                     const res = await fetch(pfpBase64);
                     const blob = await res.blob();
-                    const filename = `${myProfile.handle}_${Date.now()}.jpg`;
+                    const filename = `pfp_${myProfile.handle}_${Date.now()}.jpg`;
                     const { data, error } = await _supabase.storage.from('avatars').upload(filename, blob, {
                         upsert: true,
                         contentType: 'image/jpeg'
                     });
                     if (error) {
-                        console.error('[Profile] Storage upload error:', error.code, error.message);
-                        showToast('Error uploading image: ' + error.message);
+                        console.error('[Profile] PFP Storage upload error:', error.code, error.message);
+                        showToast('Error uploading profile picture: ' + error.message);
                         return;
                     }
                     if (data) {
@@ -2170,8 +2171,35 @@
                         console.log('[Profile] Profile picture uploaded:', picPath);
                     }
                 } catch (err) {
-                    console.error('[Profile] Profile picture upload failed:', err);
-                    showToast('Error uploading image: ' + err.message);
+                    console.error('[Profile] PFP upload failed:', err);
+                    showToast('Error uploading profile picture: ' + err.message);
+                    return;
+                }
+            }
+
+            // Upload banner to storage if it's a data URL (newly cropped)
+            if (bannerBase64 && bannerBase64.startsWith('data:image')) {
+                try {
+                    console.log('[Profile] Uploading banner to avatars bucket...');
+                    const res = await fetch(bannerBase64);
+                    const blob = await res.blob();
+                    const filename = `banner_${myProfile.handle}_${Date.now()}.jpg`;
+                    const { data, error } = await _supabase.storage.from('avatars').upload(filename, blob, {
+                        upsert: true,
+                        contentType: 'image/jpeg'
+                    });
+                    if (error) {
+                        console.error('[Profile] Banner Storage upload error:', error.code, error.message);
+                        showToast('Error uploading banner: ' + error.message);
+                        return;
+                    }
+                    if (data) {
+                        bannerPath = `avatars/${filename}`;
+                        console.log('[Profile] Banner uploaded:', bannerPath);
+                    }
+                } catch (err) {
+                    console.error('[Profile] Banner upload failed:', err);
+                    showToast('Error uploading banner: ' + err.message);
                     return;
                 }
             }
@@ -2191,7 +2219,7 @@
                 name: document.getElementById('edit-name').value,
                 bio: document.getElementById('edit-bio').value,
                 pic: picPath,
-                banner: bannerBase64,
+                banner: bannerPath,
                 socials,
                 settings: { ...(myProfile.settings || {}), status: newStatus }
             };
