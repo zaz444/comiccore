@@ -1622,20 +1622,34 @@
             }
             document.getElementById('view-handle').innerText = '@' + handle;
             document.getElementById('view-bio').innerText = profile.bio || '';
-            document.getElementById('view-pfp').src = getImageUrl(profile.pic || '');
+            const rawPic = profile.pic || '';
+            document.getElementById('view-pfp').src = rawPic.startsWith('data:')
+                ? rawPic
+                : (rawPic.startsWith('avatars/')
+                    ? _supabase.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data?.publicUrl || ''
+                    : rawPic);
 
             // Update Open Graph meta tags for rich link embeds when URL is shared
             updateOgTags({
                 title: (profile.name || handle) + ' (@' + handle + ') · ComicCore',
                 description: profile.bio || 'Check out ' + (profile.name || handle) + '\'s profile on ComicCore!',
-                image: getImageUrl(profile.pic || ''),
+                image: rawPic.startsWith('data:')
+                    ? rawPic
+                    : (rawPic.startsWith('avatars/')
+                        ? _supabase.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data?.publicUrl || ''
+                        : rawPic),
                 url: 'https://zaz444.github.io/comiccore/profile.html?u=' + handle
             });
 
             // Banner — always reset first to avoid stale state
             const bannerImg = document.getElementById('view-banner');
             if (profile.banner && profile.banner.length > 10) {
-                bannerImg.src = getImageUrl(profile.banner);
+                const rawBanner = profile.banner;
+                bannerImg.src = rawBanner.startsWith('data:')
+                    ? rawBanner
+                    : (rawBanner.startsWith('avatars/')
+                        ? _supabase.storage.from('avatars').getPublicUrl(rawBanner.replace('avatars/', '')).data?.publicUrl || ''
+                        : rawBanner);
                 bannerImg.style.display = 'block';
             } else {
                 bannerImg.src = '';
@@ -2335,7 +2349,7 @@
             pfpCropOffsetX = 0; pfpCropOffsetY = 0; pfpCropScale = 1;
             document.getElementById('pfp-crop-zoom').value = 1;
             const img = document.getElementById('pfp-crop-img');
-            img.src = src;
+            img.src = formatImageUrl(src);
             img.onload = () => {
                 pfpImgNatW = img.naturalWidth;
                 pfpImgNatH = img.naturalHeight;
@@ -2439,7 +2453,7 @@
             const overlay = document.getElementById('crop-overlay');
             const img = document.getElementById('crop-source');
             overlay.classList.add('active');
-            img.src = src;
+            img.src = formatImageUrl(src);
             img.onload = () => {
                 cropImgNaturalW = img.naturalWidth;
                 cropImgNaturalH = img.naturalHeight;
