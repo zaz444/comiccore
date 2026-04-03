@@ -726,6 +726,14 @@
         { name: 'spongebob phone',           src: BASE_URL + 'IMG_1833.webp' },
     ];
 
+    // Helper function for profile pictures
+    function getProfilePicUrl(pic) {
+        if (!pic) return 'https://via.placeholder.com/62x62?text=Avatar';
+        if (pic.startsWith('data:image')) return pic;
+        if (pic.startsWith('avatars/')) return _sb.storage.from('avatars').getPublicUrl(pic.replace('avatars/', '')).publicUrl;
+        return 'https://via.placeholder.com/62x62?text=Avatar';
+    }
+
     let pendingReactionSrc = null;
     let isSquadOwner       = false;
     let squadData          = null;
@@ -812,6 +820,52 @@
             await loadMemberRoles(squad);
             console.log('[ComicCore] init() member role load complete');
 
+            // Preload profile data and statuses for all members to avoid per-preview queries
+            console.log('[ComicCore] init() preload profiles start');
+            const memberHandles = memberList.map(m => m.handle);
+            const { data: profilesData, error: profilesErr } = await sbFetch(
+                _sb.from('profile_stats').select('*').in('handle', memberHandles),
+                10000
+            );
+            if (profilesErr) console.error('[ComicCore] Preload profiles error:', profilesErr);
+            if (profilesData) {
+                profilesData.forEach(p => {
+                    ppProfileCache[p.handle] = {
+                        id: p.id,
+                        handle: p.handle,
+                        name: p.name || p.handle,
+                        pic: p.pic || '',
+                        bio: p.bio || '',
+                        banner: p.banner || '',
+                        followers: p.follower_count || 0,
+                        following: p.following_count || 0,
+                        works: p.works_count || 0,
+                        role: p.settings?.role || null,
+                        status: 'offline' // will update below
+                    };
+                });
+            }
+
+            const { data: statusData, error: statusErr } = await sbFetch(
+                _sb.from('user_status').select('handle,status,updated_at').in('handle', memberHandles).order('updated_at', { ascending: false }),
+                10000
+            );
+            if (statusErr) console.error('[ComicCore] Preload status error:', statusErr);
+            if (statusData) {
+                const statusMap = {};
+                statusData.forEach(s => {
+                    if (!statusMap[s.handle] || new Date(s.updated_at) > new Date(statusMap[s.handle].updated_at)) {
+                        statusMap[s.handle] = s;
+                    }
+                });
+                Object.keys(statusMap).forEach(handle => {
+                    if (ppProfileCache[handle]) {
+                        ppProfileCache[handle].status = deriveStatus(statusMap[handle]);
+                    }
+                });
+            }
+            console.log('[ComicCore] init() preload profiles complete');
+
             buildParticipantAvatarRow();
 
             console.log('[ComicCore] init() live ticker update start');
@@ -871,14 +925,7 @@
         const extra = memberList.length - shown.length;
         wrap.innerHTML = shown.map(m => {
             const pic = picCache[m.handle] || '';
-            let src = '';
-            if (pic) {
-                if (pic.startsWith('data:image')) {
-                    src = esc(pic);
-                } else if (pic.startsWith('avatars/')) {
-                    src = _sb.storage.from('avatars').getPublicUrl(pic).data.publicUrl;
-                }
-            }
+            const src = getProfilePicUrl(pic);
             return pic
                 ? `<img class="participant-avatar" src="${src}" title="@${esc(m.handle)}" onerror="this.style.display='none'" onclick="openProfilePreview('${esc(m.handle)}', event)">`
                 : `<div class="participant-avatar" style="font-size:10px;font-weight:900;color:#555;display:flex;align-items:center;justify-content:center;background:#1e1e22;" onclick="openProfilePreview('${esc(m.handle)}', event)">${esc((m.handle[0]||'?').toUpperCase())}</div>`;
@@ -1103,14 +1150,7 @@
             `<div class="msg-reaction-chip" onclick="toggleReaction('${m.id}','${e}')">${e}<span>${c}</span></div>`
         ).join('');
 
-        let avatarSrc = '';
-        if (pic) {
-            if (pic.startsWith('data:image')) {
-                avatarSrc = esc(pic);
-            } else if (pic.startsWith('avatars/')) {
-                avatarSrc = _sb.storage.from('avatars').getPublicUrl(pic).data.publicUrl;
-            }
-        }
+        const avatarSrc = getProfilePicUrl(pic);
         const avatarHtml = isMine
             ? `<div class="avatar-spacer"></div>`
             : `<img class="msg-avatar" src="${avatarSrc}" onerror="this.src=''" alt="" onclick="openProfilePreview('${esc(m.sender_handle)}', event)">`;
@@ -1279,7 +1319,7 @@
         await appendMessage({ id: tempId, sender_handle: myHandle, content: blobUrl, created_at: new Date().toISOString() });
 
         const b64 = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
-        const url = await uploadToStorage('squad-pfps', `chat_${myHandle}_${Date.now()}.jpg`, b64);
+        const url = await uploadToStorage('avatars', `chat_${myHandle}_${Date.now()}.jpg`, b64);
 
         if (url) {
             const { data, error } = await _sb.from('team_messages').insert([{ ticket_id: activeSquadId, sender_handle: myHandle, content: url }]).select().single();
@@ -1403,14 +1443,7 @@
 
         const rows = await Promise.all(memberList.map(async m => {
             const pic = picCache[m.handle] || '';
-            let src = '';
-            if (pic) {
-                if (pic.startsWith('data:image')) {
-                    src = esc(pic);
-                } else if (pic.startsWith('avatars/')) {
-                    src = _sb.storage.from('avatars').getPublicUrl(pic).data.publicUrl;
-                }
-            }
+            const src = getProfilePicUrl(pic);
             return `<div class="info-member-row" style="cursor:pointer;" onclick="openProfilePreview('${esc(m.handle)}', event); closeInfoPanel();">
                 <img class="info-member-avatar" src="${src}" onerror="this.src=''" alt="">
                 <span class="info-member-handle">@${esc(m.handle)}${m.isOwner?'<span class="info-owner-badge">OWNER</span>':''}</span>
@@ -1432,15 +1465,7 @@
         backdrop.classList.add('open');
 
         // Reset card to loading state
-        let resetAvatarSrc = 'https://via.placeholder.com/62x62?text=Avatar';
-        if (picCache[handle]) {
-            if (picCache[handle].startsWith('data:image')) {
-                resetAvatarSrc = picCache[handle];
-            } else if (picCache[handle].startsWith('avatars/')) {
-                resetAvatarSrc = _sb.storage.from('avatars').getPublicUrl(picCache[handle]).data.publicUrl;
-            }
-        }
-        document.getElementById('ppAvatar').src = resetAvatarSrc;
+        document.getElementById('ppAvatar').src = getProfilePicUrl(picCache[handle]);
         document.getElementById('ppName').textContent = handle;
         document.getElementById('ppHandle').textContent = '@' + handle;
         document.getElementById('ppRoleTag').style.display = 'none';
@@ -1531,15 +1556,7 @@
     }
 
     function applyPreviewData(d) {
-        let avatarSrc = 'https://via.placeholder.com/62x62?text=Avatar';
-        if (d.pic) {
-            if (d.pic.startsWith('data:image')) {
-                avatarSrc = d.pic;
-            } else if (d.pic.startsWith('avatars/')) {
-                avatarSrc = _sb.storage.from('avatars').getPublicUrl(d.pic).data.publicUrl;
-            }
-        }
-        document.getElementById('ppAvatar').src = avatarSrc;
+        document.getElementById('ppAvatar').src = getProfilePicUrl(d.pic);
         document.getElementById('ppName').textContent = d.name;
         document.getElementById('ppHandle').textContent = '@' + d.handle;
 
