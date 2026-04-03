@@ -733,7 +733,7 @@
         if (pic.startsWith('avatars/')) {
             const key = pic.replace('avatars/', '');
             const { data } = _sb.storage.from('avatars').getPublicUrl(key);
-            return data?.publicUrl || 'https://via.placeholder.com/62x62?text=Avatar';
+            return data.publicUrl;
         }
         return pic;
     }
@@ -854,21 +854,25 @@
                 });
             }
 
+            // Collect UUIDs from profiles for user_status query
+            const memberIds = profilesData ? profilesData.map(p => p.id) : [];
             const { data: statusData, error: statusErr } = await sbFetch(
-                _sb.from('user_status').select('handle,status,updated_at').in('handle', memberHandles).order('updated_at', { ascending: false }),
+                _sb.from('user_status').select('id,status,updated_at').in('id', memberIds).order('updated_at', { ascending: false }),
                 10000
             );
             if (statusErr) console.error('[ComicCore] Preload status error:', statusErr);
             if (statusData) {
                 const statusMap = {};
                 statusData.forEach(s => {
-                    if (!statusMap[s.handle] || new Date(s.updated_at) > new Date(statusMap[s.handle].updated_at)) {
-                        statusMap[s.handle] = s;
+                    if (!statusMap[s.id] || new Date(s.updated_at) > new Date(statusMap[s.id].updated_at)) {
+                        statusMap[s.id] = s;
                     }
                 });
-                Object.keys(statusMap).forEach(handle => {
-                    if (ppProfileCache[handle]) {
-                        ppProfileCache[handle].status = deriveStatus(statusMap[handle]);
+                Object.keys(statusMap).forEach(id => {
+                    // Find the handle for this id
+                    const profile = profilesData.find(p => p.id === id);
+                    if (profile && ppProfileCache[profile.handle]) {
+                        ppProfileCache[profile.handle].status = deriveStatus(statusMap[id]);
                     }
                 });
             }
@@ -1535,7 +1539,7 @@
             }
 
             // Also fetch status
-            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('id', p.id).order('updated_at', { ascending: false }).limit(1).maybeSingle();
             if (statusErr) {
                 console.error('[ComicCore] openProfilePreview status fetch error:', statusErr?.code, statusErr?.message);
             }
