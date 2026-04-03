@@ -1478,6 +1478,14 @@
 
         let pfpBase64 = "";
         let bannerBase64 = "";
+
+        // Helper function for profile/banner pictures
+        function getImageUrl(pic) {
+            if (!pic) return '';
+            if (pic.startsWith('data:image')) return pic;
+            if (pic.startsWith('avatars/')) return _supabase.storage.from('avatars').getPublicUrl(pic.replace('avatars/', '')).publicUrl;
+            return pic;
+        }
         let currentViewedHandle = "";
         let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
 
@@ -1606,20 +1614,20 @@
             }
             document.getElementById('view-handle').innerText = '@' + handle;
             document.getElementById('view-bio').innerText = profile.bio || '';
-            document.getElementById('view-pfp').src = profile.pic || '';
+            document.getElementById('view-pfp').src = getImageUrl(profile.pic || '');
 
             // Update Open Graph meta tags for rich link embeds when URL is shared
             updateOgTags({
                 title: (profile.name || handle) + ' (@' + handle + ') · ComicCore',
                 description: profile.bio || 'Check out ' + (profile.name || handle) + '\'s profile on ComicCore!',
-                image: profile.pic || '',
+                image: getImageUrl(profile.pic || ''),
                 url: 'https://zaz444.github.io/comiccore/profile.html?u=' + handle
             });
 
             // Banner — always reset first to avoid stale state
             const bannerImg = document.getElementById('view-banner');
             if (profile.banner && profile.banner.length > 10) {
-                bannerImg.src = profile.banner;
+                bannerImg.src = getImageUrl(profile.banner);
                 bannerImg.style.display = 'block';
             } else {
                 bannerImg.src = '';
@@ -2105,14 +2113,14 @@
             } else {
                 pfpBase64 = myProfile.pic;
             }
-            document.getElementById('pfp-preview').src = pfpBase64;
+            document.getElementById('pfp-preview').src = getImageUrl(pfpBase64);
 
             bannerBase64 = myProfile.banner || '';
 
             const bPrev = document.getElementById('banner-preview');
             const bHint = document.getElementById('banner-hint');
             if (bannerBase64) {
-                bPrev.src = bannerBase64;
+                bPrev.src = getImageUrl(bannerBase64);
                 bPrev.style.display = 'block';
                 if (bHint) bHint.style.display = 'none';
             } else {
@@ -2262,16 +2270,19 @@
         function confirmGalleryPfp() {
             if (!selectedGalleryUrl) return;
             pfpBase64 = selectedGalleryUrl;
-            document.getElementById('pfp-preview').src = pfpBase64;
+            document.getElementById('pfp-preview').src = getImageUrl(pfpBase64);
             closePfpPicker();
         }
 
         // ── PFP file input → crop modal ──────────────────────
         document.getElementById('pfp-input').onchange = (e) => {
             if (!e.target.files[0]) return;
+            const file = e.target.files[0];
+            const localPreviewUrl = URL.createObjectURL(file);
+            document.getElementById('pfp-preview').src = localPreviewUrl;
             const reader = new FileReader();
             reader.onload = (ev) => openPfpCrop(ev.target.result);
-            reader.readAsDataURL(e.target.files[0]);
+            reader.readAsDataURL(file);
             e.target.value = '';
         };
 
@@ -2361,7 +2372,7 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, 400, 400);
             pfpBase64 = canvas.toDataURL('image/jpeg', 0.9);
-            document.getElementById('pfp-preview').src = pfpBase64;
+            document.getElementById('pfp-preview').src = getImageUrl(pfpBase64);
             closePfpCrop();
         }
 
@@ -2369,9 +2380,15 @@
         // Banner file input — opens crop modal
         document.getElementById('banner-input').onchange = (e) => {
             if (!e.target.files[0]) return;
+            const file = e.target.files[0];
+            const localPreviewUrl = URL.createObjectURL(file);
+            document.getElementById('banner-preview').src = localPreviewUrl;
+            document.getElementById('banner-preview').style.display = 'block';
+            const hint = document.getElementById('banner-hint');
+            if (hint) hint.style.display = 'none';
             const reader = new FileReader();
             reader.onload = (ev) => openCropModal(ev.target.result);
-            reader.readAsDataURL(e.target.files[0]);
+            reader.readAsDataURL(file);
             e.target.value = ''; // allow re-selecting same file
         };
 
@@ -2457,7 +2474,7 @@
             bannerBase64 = canvas.toDataURL('image/jpeg', 0.85);
 
             const prev = document.getElementById('banner-preview');
-            prev.src = bannerBase64;
+            prev.src = getImageUrl(bannerBase64);
             prev.style.display = 'block';
             document.getElementById('banner-hint').style.display = 'none';
             closeCropModal();
