@@ -880,19 +880,31 @@
     async function updateLiveTicker() {
         const ticker = document.getElementById('liveTicker');
         const cutoff = new Date(Date.now() - 3600000).toISOString();
+
+        if (!activeSquadId) {
+            console.error('[ComicCore] updateLiveTicker failed: missing activeSquadId');
+            ticker.innerHTML = 'Live status unavailable';
+            return;
+        }
+
         try {
             console.log('[ComicCore] updateLiveTicker() start');
-            const { data, error } = await _sb.rpc('get_squad_stats', { 
-                squad_id: activeSquadId, 
-                cutoff_time: cutoff 
+            const squadId = String(activeSquadId);
+            const { data, error } = await _sb.rpc('get_squad_stats', {
+                squad_id: squadId,
+                cutoff_time: cutoff
             });
-            if (error) console.error('Supabase error in updateLiveTicker:', error);
+
+            if (error) {
+                console.error('[ComicCore] updateLiveTicker Supabase RPC error:', error.code, error.message);
+            }
+
             const cnt    = data?.[0]?.message_count || 0;
             const memCnt = memberList.length;
             ticker.innerHTML = `<b>${memCnt}</b> member${memCnt!==1?'s':''} · <b>${cnt}</b> msg${cnt!==1?'s':''} this hour`;
             console.log('[ComicCore] updateLiveTicker() complete', { cnt, memCnt });
         } catch (err) {
-            console.error('[ComicCore] updateLiveTicker error:', err); 
+            console.error('[ComicCore] updateLiveTicker error:', err.code || err, err.message || err);
             ticker.innerHTML = 'Live status unavailable';
         }
     }
@@ -989,6 +1001,13 @@
     }
 
     async function loadOlderMessages() {
+        if (!hasMoreMsgs) {
+            console.log('[ComicCore] loadOlderMessages skipped: no more messages');
+            const btn = document.getElementById('loadMoreBtn');
+            if (btn) btn.remove();
+            return;
+        }
+
         const container  = document.getElementById('chatContainer');
         const prevH      = container.scrollHeight;
         const prevS      = container.scrollTop;
@@ -1007,8 +1026,14 @@
             if (error) console.error('Supabase error in loadOlderMessages:', error);
             if (error) throw error;
             if (!data?.length) { if (btn) btn.remove(); return; }
-            msgOffset   += data.length;
-            hasMoreMsgs  = data.length === PAGE_SIZE;
+            msgOffset += data.length;
+
+            if (data.length < PAGE_SIZE) {
+                hasMoreMsgs = false;
+                if (btn) btn.remove();
+            } else {
+                hasMoreMsgs = true;
+            }
 
             const anchor = btn?.nextSibling || null;
             const olderMsgs = [...data].reverse();
@@ -1033,7 +1058,7 @@
             else if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
             container.scrollTop = prevS + (container.scrollHeight - prevH);
         } catch (err) {
-            console.error('[ComicCore] loadOlderMessages failed:', err);
+            console.error('[ComicCore] loadOlderMessages failed:', err?.code || err, err?.message || err);
             if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
         }
     }
@@ -1421,47 +1446,57 @@
             return;
         }
 
-        // Fetch profile data from view
+        // Fetch profile data from view (prefer id query, fallback to handle query)
         try {
-            const { data: p, error } = await _sb
-                .from('profile_stats')
-                .select('*')
-                .eq('handle', handle)
-                .maybeSingle();
+            let userId = ppProfileCache[handle]?.id || null;
+            // If we have member info with ID in future, use it for the primary query.
+            const memberEntry = memberList.find(m => m.handle === handle);
+            if (!userId && memberEntry && typeof memberEntry.id !== 'undefined') {
+                userId = memberEntry.id;
+            }
+
+            const query = _sb.from('profile_stats').select('*').single();
+            const request = userId ? query.eq('id', userId) : query.eq('handle', handle);
+            const { data: p, error } = await request;
 
             if (error) {
-                console.error('[ComicCore] openProfilePreview fetch error:', error);
+                console.error('[ComicCore] openProfilePreview fetch error:', error.code, error.message);
                 throw error;
             }
 
             // Also fetch status
             const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle();
             if (statusErr) {
-                console.error('[ComicCore] openProfilePreview status fetch error', statusErr);
+                console.error('[ComicCore] openProfilePreview status fetch error:', statusErr?.code, statusErr?.message);
             }
 
             if (p) {
                 const data = {
-                    handle: p.handle,
-                    name: p.name || p.handle,
+                    id: p.id,
+                    handle: p.handle || handle,
+                    name: p.name || p.handle || handle,
                     pic: p.pic || '',
                     bio: p.bio || '',
                     banner: p.banner || '',
-                    followers: p.follower_count || 0,
-                    following: p.following_count || 0,
-                    works: p.works_count || 0,
-                    role: p.settings?.role || null,
-                    status: deriveStatus(statusRow)
+                    followers: p.followerCount ?? p.follower_count ?? 0,
+                    following: p.followingCount ?? p.following_count ?? 0,
+                    works: p.worksCount ?? p.works_count ?? 0,
+                    role: p.role || p.settings?.role || null,
+                    status: deriveStatus(statusRow),
+                    authorHandle: p.authorHandle || p.author_handle || '',
+                    isPublished: (p.isPublished ?? p.is_published ?? false)
                 };
 
                 ppProfileCache[handle] = data;
                 applyPreviewData(data);
-                console.log('[ComicCore] openProfilePreview success', handle);
+                console.log('[ComicCore] openProfilePreview success', handle, userId ? `(id=${userId})` : '(handle query)');
             } else {
                 console.error('[ComicCore] No profile data found for', handle);
+                document.getElementById('infoMembers').innerHTML = '<div style="font-size:12px;color:#333;">Unable to load profile.</div>';
+                showError();
             }
         } catch (err) {
-            console.error('[ComicCore] openProfilePreview failed:', err);
+            console.error('[ComicCore] openProfilePreview failed:', err?.code || err, err?.message || err);
             document.getElementById('infoMembers').innerHTML = '<div style="font-size:12px;color:#333;">Unable to load profile.</div>';
             showError();
         }
