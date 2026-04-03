@@ -2246,6 +2246,14 @@
                 settings: { ...(myProfile.settings || {}), status: newStatus }
             };
 
+            // Sync status to user_status table so squad chat previews reflect it instantly
+            try {
+                await _supabase.from('user_status').upsert(
+                    { handle: myProfile.handle, status: newStatus, updated_at: new Date().toISOString() },
+                    { onConflict: 'handle' }
+                );
+            } catch(e) { console.warn('[Profile] user_status upsert failed:', e); }
+
             const { error } = await _supabase.from('profiles').upsert({
                 handle: myProfile.handle,
                 name: updated.name,

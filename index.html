@@ -537,10 +537,13 @@
   // ── INBOX COUNT ──────────────────────────────────────────────
   async function checkInboxCount() {
     if (!_myHandle) return;
-    const { count } = await supabaseClient.from('squad_invites')
-      .select('*', { count: 'exact', head: true })
-      .eq('to_handle', _myHandle).eq('status', 'pending');
-    const total = count || 0;
+    const [{ count: invCount }, { count: mentionCount }] = await Promise.all([
+      supabaseClient.from('squad_invites').select('*', { count: 'exact', head: true })
+        .eq('to_handle', _myHandle).eq('status', 'pending'),
+      supabaseClient.from('mentions').select('*', { count: 'exact', head: true })
+        .eq('to_handle', _myHandle).eq('is_read', false)
+    ]);
+    const total = (invCount || 0) + (mentionCount || 0);
     const badge = document.getElementById('inbox-badge');
     badge.textContent = total > 9 ? '9+' : total;
     badge.classList.toggle('show', total > 0);
@@ -566,38 +569,83 @@
     document.getElementById('panel-overlay').classList.remove('open');
   }
 
-  // ── INBOX: squad invites ─────────────────────────────────────
+  // ── INBOX: squad invites + mentions ──────────────────────────
   async function loadInboxPanel() {
     const body = document.getElementById('inbox-panel-body');
     body.innerHTML = '<div class="empty-panel">Loading…</div>';
 
-    const { data: invites } = await supabaseClient.from('squad_invites')
-      .select('*').eq('to_handle', _myHandle).eq('status', 'pending')
-      .order('created_at', { ascending: false });
+    const [{ data: invites }, { data: mentions }] = await Promise.all([
+      supabaseClient.from('squad_invites').select('*')
+        .eq('to_handle', _myHandle).eq('status', 'pending')
+        .order('created_at', { ascending: false }),
+      supabaseClient.from('mentions').select('*')
+        .eq('to_handle', _myHandle).eq('is_read', false)
+        .order('created_at', { ascending: false })
+    ]);
 
-    if (!invites || !invites.length) {
+    const hasInvites  = invites  && invites.length;
+    const hasMentions = mentions && mentions.length;
+
+    if (!hasInvites && !hasMentions) {
       body.innerHTML = '<div class="empty-panel">📭 No new notifications</div>';
       return;
     }
 
-    body.innerHTML = '<div class="panel-section-hdr">Squad Invites</div>';
-    invites.forEach(inv => {
-      const time = new Date(inv.created_at).toLocaleDateString();
-      const item = document.createElement('div');
-      item.className = 'inbox-item';
-      item.innerHTML = `
-        <div class="inbox-item-icon">🎯</div>
-        <div class="inbox-item-body">
-          <div class="inbox-item-title">${escHtml(inv.squad_name)}</div>
-          <div class="inbox-item-sub">@${escHtml(inv.from_handle)} invited you to join</div>
-          <div class="inbox-item-time">${time}</div>
-          <div class="inbox-item-actions">
-            <button class="inbox-accept-btn" onclick="respondInvite('${inv.id}','accepted',this)">Join</button>
-            <button class="inbox-decline-btn" onclick="respondInvite('${inv.id}','declined',this)">Decline</button>
-          </div>
-        </div>`;
-      body.appendChild(item);
-    });
+    body.innerHTML = '';
+
+    // ── Mentions ──
+    if (hasMentions) {
+      const hdr = document.createElement('div');
+      hdr.className = 'panel-section-hdr';
+      hdr.textContent = 'Mentions';
+      body.appendChild(hdr);
+
+      // Mark all as read
+      supabaseClient.from('mentions').update({ is_read: true })
+        .eq('to_handle', _myHandle).eq('is_read', false).then(() => checkInboxCount());
+
+      mentions.forEach(m => {
+        const time = new Date(m.created_at).toLocaleDateString();
+        const item = document.createElement('div');
+        item.className = 'inbox-item';
+        item.style.cursor = 'pointer';
+        item.onclick = () => location.href = `squad_chat.html?id=${encodeURIComponent(m.squad_id)}`;
+        item.innerHTML = `
+          <div class="inbox-item-icon">💬</div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">@${escHtml(m.from_handle)} mentioned you</div>
+            <div class="inbox-item-sub">In <b>${escHtml(m.squad_name || 'a squad')}</b>: ${escHtml((m.message_text || '').slice(0,80))}</div>
+            <div class="inbox-item-time">${time}</div>
+          </div>`;
+        body.appendChild(item);
+      });
+    }
+
+    // ── Squad Invites ──
+    if (hasInvites) {
+      const hdr = document.createElement('div');
+      hdr.className = 'panel-section-hdr';
+      hdr.textContent = 'Squad Invites';
+      body.appendChild(hdr);
+
+      invites.forEach(inv => {
+        const time = new Date(inv.created_at).toLocaleDateString();
+        const item = document.createElement('div');
+        item.className = 'inbox-item';
+        item.innerHTML = `
+          <div class="inbox-item-icon">🎯</div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">${escHtml(inv.squad_name)}</div>
+            <div class="inbox-item-sub">@${escHtml(inv.from_handle)} invited you to join</div>
+            <div class="inbox-item-time">${time}</div>
+            <div class="inbox-item-actions">
+              <button class="inbox-accept-btn" onclick="respondInvite('${inv.id}','accepted',this)">Join</button>
+              <button class="inbox-decline-btn" onclick="respondInvite('${inv.id}','declined',this)">Decline</button>
+            </div>
+          </div>`;
+        body.appendChild(item);
+      });
+    }
   }
 
   async function respondInvite(inviteId, status, btn) {

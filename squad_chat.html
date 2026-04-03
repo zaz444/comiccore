@@ -1275,8 +1275,10 @@
                 if (tempRow) {
                     tempRow.id = `row-${data.id}`;
                     const rcpt = tempRow.querySelector('.read-receipt');
-                    if (rcpt) { rcpt.innerText = '››'; rcpt.classList.add('delivered'); }
+                    if (rcpt) { rcpt.innerText = '\u203a\u203a'; rcpt.classList.add('delivered'); }
                 }
+                // Detect @mentions and notify mentioned users
+                await processMentions(content, activeSquadId, squadData?.team_name || '');
             } else {
                 throw error || new Error('Unknown sendMessage error');
             }
@@ -1284,6 +1286,39 @@
             console.error('[ComicCore] sendMessage failed:', err);
             const tempRow = document.getElementById(`row-${tempId}`);
             if (tempRow) { tempRow.style.opacity = '0.5'; tempRow.title = 'Failed to send'; }
+        }
+    }
+
+    // ── Mention notifications ────────────────────────────────
+    async function processMentions(messageText, squadId, squadName) {
+        // Extract all @handles from the message
+        const mentioned = [...new Set((messageText.match(/@([a-zA-Z0-9_]+)/g) || []).map(m => m.slice(1)))];
+        if (!mentioned.length) return;
+        // Don't notify yourself
+        const others = mentioned.filter(h => h !== myHandle);
+        if (!others.length) return;
+
+        // Check each mentioned user's notif_mentions setting
+        try {
+            const { data: profiles } = await _sb
+                .from('profiles').select('handle,settings').in('handle', others);
+            if (!profiles) return;
+
+            const toNotify = profiles.filter(p => p.settings?.notif_mentions !== false);
+            if (!toNotify.length) return;
+
+            const rows = toNotify.map(p => ({
+                to_handle:    p.handle,
+                from_handle:  myHandle,
+                squad_id:     String(squadId),
+                squad_name:   squadName,
+                message_text: messageText.slice(0, 200),
+                is_read:      false
+            }));
+
+            await _sb.from('mentions').insert(rows);
+        } catch(e) {
+            console.warn('[ComicCore] processMentions failed:', e);
         }
     }
 
