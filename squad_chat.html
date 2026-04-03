@@ -872,7 +872,7 @@
         wrap.innerHTML = shown.map(m => {
             const pic = picCache[m.handle] || '';
             return pic
-                ? `<img class="participant-avatar" src="${esc(pic)}" title="@${esc(m.handle)}" onerror="this.style.display='none'" onclick="openProfilePreview('${esc(m.handle)}', event)">`
+                ? `<img class="participant-avatar" src="data:image/jpeg;base64,${esc(pic)}" title="@${esc(m.handle)}" onerror="this.style.display='none'" onclick="openProfilePreview('${esc(m.handle)}', event)">`
                 : `<div class="participant-avatar" style="font-size:10px;font-weight:900;color:#555;display:flex;align-items:center;justify-content:center;background:#1e1e22;" onclick="openProfilePreview('${esc(m.handle)}', event)">${esc((m.handle[0]||'?').toUpperCase())}</div>`;
         }).join('') + (extra > 0 ? `<div class="participant-count">+${extra}</div>` : '');
     }
@@ -1101,7 +1101,7 @@
 
         const avatarHtml = isMine
             ? `<div class="avatar-spacer"></div>`
-            : `<img class="msg-avatar" src="${esc(pic)}" onerror="this.src=''" alt="" onclick="openProfilePreview('${esc(m.sender_handle)}', event)">`;
+            : `<img class="msg-avatar" src="${pic ? 'data:image/jpeg;base64,' + esc(pic) : ''}" onerror="this.src=''" alt="" onclick="openProfilePreview('${esc(m.sender_handle)}', event)">`;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'msg-wrapper';
@@ -1392,7 +1392,7 @@
         const rows = await Promise.all(memberList.map(async m => {
             const pic = picCache[m.handle] || '';
             return `<div class="info-member-row" style="cursor:pointer;" onclick="openProfilePreview('${esc(m.handle)}', event); closeInfoPanel();">
-                <img class="info-member-avatar" src="${esc(pic)}" onerror="this.src=''" alt="">
+                <img class="info-member-avatar" src="${pic ? 'data:image/jpeg;base64,' + esc(pic) : ''}" onerror="this.src=''" alt="">
                 <span class="info-member-handle">@${esc(m.handle)}${m.isOwner?'<span class="info-owner-badge">OWNER</span>':''}</span>
             </div>`;
         }));
@@ -1412,7 +1412,7 @@
         backdrop.classList.add('open');
 
         // Reset card to loading state
-        document.getElementById('ppAvatar').src = picCache[handle] || 'https://via.placeholder.com/62x62?text=Avatar';
+        document.getElementById('ppAvatar').src = picCache[handle] ? 'data:image/jpeg;base64,' + picCache[handle] : 'https://via.placeholder.com/62x62?text=Avatar';
         document.getElementById('ppName').textContent = handle;
         document.getElementById('ppHandle').textContent = '@' + handle;
         document.getElementById('ppRoleTag').style.display = 'none';
@@ -1467,6 +1467,7 @@
 
             if (p) {
                 const previewData = {
+                    id: p.permanent_id || p.id,
                     handle: p.handle,
                     name: p.name || p.handle,
                     pic: p.pic || '',
@@ -1502,7 +1503,7 @@
     }
 
     function applyPreviewData(d) {
-        document.getElementById('ppAvatar').src = d.pic || 'https://via.placeholder.com/62x62?text=Avatar';
+        document.getElementById('ppAvatar').src = d.pic ? 'data:image/jpeg;base64,' + d.pic : 'https://via.placeholder.com/62x62?text=Avatar';
         document.getElementById('ppName').textContent = d.name;
         document.getElementById('ppHandle').textContent = '@' + d.handle;
 
