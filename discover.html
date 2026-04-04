@@ -77,11 +77,11 @@ transition: .15s; white-space: nowrap;
 
 .comics-page-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px; padding: 4px 16px 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px; padding: 4px 12px 8px;
 }
-@media (min-width: 480px) { .comics-page-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 720px) { .comics-page-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 600px) { .comics-page-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; } }
+@media (min-width: 900px) { .comics-page-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
 
 .comics-page-grid .comic-card {
   width: auto; flex-shrink: unset;
@@ -226,11 +226,11 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 .comics-carousel::-webkit-scrollbar { display: none; }
 
 .comic-card {
-  flex-shrink: 0; width: 160px; cursor: pointer;
+  flex-shrink: 0; width: 120px; cursor: pointer;
   transition: transform .2s; position: relative;
 }
-@media (min-width: 500px) { .comic-card { width: 180px; } }
-@media (min-width: 768px) { .comic-card { width: 200px; } }
+@media (min-width: 500px) { .comic-card { width: 140px; } }
+@media (min-width: 768px) { .comic-card { width: 160px; } }
 
 .comic-card:hover { transform: translateY(-4px); }
 .comic-card:active { transform: scale(.97); }
@@ -286,12 +286,12 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 }
 
 .comic-card-info {
-  padding: 10px 2px 0;
+  padding: 6px 1px 0;
 }
 .comic-card-title {
-  font-size: 13px; font-weight: 800; color: #f5f5f7;
+  font-size: 11px; font-weight: 800; color: #f5f5f7;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .comic-card-meta {
   display: flex; align-items: center; gap: 6px;
@@ -687,7 +687,7 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
     </div>
     <button class="nav-tab"        id="tab-continue" onclick="switchTab('continue')">▶ Continue</button>
     <button class="nav-tab"        id="tab-stories"  onclick="switchTab('stories')">Stories</button>
-    <button class="nav-tab"        id="tab-projects" onclick="switchTab('projects')">Teams</button>
+    <button class="nav-tab"        id="tab-projects" onclick="switchTab('projects')">Squads</button>
   </div>
 </div>
 
@@ -713,7 +713,7 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <div class="feed-divider"></div>
 
-<!-- ── My Squads Strip (Amino-style) ── -->
+<!-- ── My Squads Strip (Amino-style) — hidden from home, shown in Squads tab ── -->
 <div class="my-squads-section" id="my-squads-section" style="display:none;">
   <div class="my-squads-header">
     <span class="my-squads-title">💬 My Squads</span>
@@ -724,7 +724,7 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
   </div>
 </div>
 
-<!-- ── Recommended Squads Grid ── -->
+<!-- ── Recommended Squads Grid — hidden from home, shown in Squads tab ── -->
 <div class="rec-squads-section" id="rec-squads-section" style="display:none;">
   <div class="rec-squads-header">
     <span class="rec-squads-title">🏕️ Recommended Squads</span>
@@ -740,8 +740,11 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <div id="section-recents">
   <div class="grid-header-row">
-    <span class="grid-section-label" id="comics-label">Latest Comics</span>
-    <button class="random-btn" onclick="openRandomComic()" title="Random pick">🎲 Random</button>
+    <span class="grid-section-label" id="comics-label">🔥 Top Comics</span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="carousel-nav-btn" id="home-prev-btn" onclick="homeNavPrev()" title="Previous algorithm" style="position:static;transform:none;width:32px;height:32px;font-size:15px;">‹</button>
+      <button class="carousel-nav-btn" id="home-next-btn" onclick="homeNavNext()" title="Next algorithm" style="position:static;transform:none;width:32px;height:32px;font-size:15px;">›</button>
+    </div>
   </div>
   <div class="comics-page-grid" id="recentFeed"></div>
   <div class="pagination-row"  id="pagination-row"></div>
@@ -767,8 +770,24 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
   <div id="storiesFeed"></div>
 </div>
 <div id="section-projects" style="display:none;">
-  <div class="section-label">Team Projects</div>
-  <div class="comics-grid" id="projectsFeed"></div>
+  <!-- My Squads strip -->
+  <div class="my-squads-section" id="projects-my-squads-section" style="display:none;">
+    <div class="my-squads-header">
+      <span class="my-squads-title">💬 My Squads</span>
+      <a class="my-squads-see-all" onclick="location.href='squads.html'">See All →</a>
+    </div>
+    <div class="my-squads-scroll" id="projects-my-squads-scroll"></div>
+  </div>
+  <!-- Recommended Squads grid -->
+  <div class="rec-squads-section" id="projects-rec-squads-section">
+    <div class="rec-squads-header">
+      <span class="rec-squads-title">🏕️ Squads</span>
+      <a class="my-squads-see-all" onclick="location.href='squads.html'">Explore →</a>
+    </div>
+    <div class="rec-squads-grid" id="projects-rec-squads-grid">
+      <div style="color:#333;font-size:12px;font-weight:700;padding:20px;grid-column:1/-1;">Loading squads…</div>
+    </div>
+  </div>
 </div>
 
 <div id="section-favorites" style="display:none;">
@@ -886,9 +905,9 @@ let activeComicId   = null;
 let globalStars     = [];
 let activePopupComic   = null;
 let activePopupStarred = false;
-let currentSort     = 'recent';
+let currentSort     = 'popular';
 let currentPage     = 0;
-const ITEMS_PER_PAGE = 12;
+const ITEMS_PER_PAGE = 8;
 let storiesLoaded   = false;
 let shareComicId    = null;
 let shareComicTitle = null;
@@ -1030,6 +1049,53 @@ function getProgress(comicId, totalFrames) {
   } catch(e) { return null; }
 }
 
+// ── Home Carousel Nav (arrow buttons cycle through sort algorithms) ─────────
+const HOME_ALGO_SEQUENCE = ['popular', 'recent', 'oldest', 'smart_random'];
+const HOME_ALGO_LABELS   = { popular: '🔥 Top Comics', recent: '🕐 Latest', oldest: '📅 Oldest First', smart_random: '✨ Discover' };
+let homeAlgoIndex = 0; // start at 'popular'
+
+function homeNavPrev() {
+  homeAlgoIndex = (homeAlgoIndex - 1 + HOME_ALGO_SEQUENCE.length) % HOME_ALGO_SEQUENCE.length;
+  applyHomeAlgo();
+}
+
+function homeNavNext() {
+  homeAlgoIndex = (homeAlgoIndex + 1) % HOME_ALGO_SEQUENCE.length;
+  applyHomeAlgo();
+}
+
+function applyHomeAlgo() {
+  const algo = HOME_ALGO_SEQUENCE[homeAlgoIndex];
+  document.getElementById('comics-label').innerText = HOME_ALGO_LABELS[algo] || algo;
+  if (algo === 'smart_random') {
+    currentSort = 'smart_random';
+    currentPage = 0;
+    renderComics(allComics, globalStars);
+  } else {
+    currentSort = algo;
+    currentPage = 0;
+    renderComics(allComics, globalStars);
+  }
+  // Sync dropdown label
+  const dropLabels = { recent: 'Recent ▾', popular: 'Top ▾', oldest: 'Oldest ▾', smart_random: 'Discover ▾' };
+  const btn = document.getElementById('sort-dropdown-btn');
+  if (btn) btn.textContent = dropLabels[algo] || 'All ▾';
+}
+
+/** Smart-random: weighted shuffle biasing toward popular but adding variety */
+function smartRandomSort(comics, stars) {
+  const starMap = {};
+  stars.forEach(s => { starMap[s.receiver_hand] = (starMap[s.receiver_hand] || 0) + 1; });
+  // Give each comic a score = stars + small random noise
+  const maxStars = Math.max(1, ...comics.map(c => starMap[c.id] || 0));
+  return [...comics].sort((a, b) => {
+    const scoreA = ((starMap[a.id] || 0) / maxStars) * 0.6 + Math.random() * 0.4;
+    const scoreB = ((starMap[b.id] || 0) / maxStars) * 0.6 + Math.random() * 0.4;
+    return scoreB - scoreA;
+  });
+}
+
+
 // ── Sort ─────────────────────────────────────────────────
 function setSort(s) {
   currentSort = s;
@@ -1038,8 +1104,11 @@ function setSort(s) {
     const el = document.getElementById('chip-'+k);
     if (el) el.classList.toggle('on', k === s);
   });
-  const labels = { recent:'Latest Comics', popular:'Trending', oldest:'Oldest First' };
-  document.getElementById('comics-label').innerText = labels[s] || 'Latest Comics';
+  const labels = { recent:'🕐 Latest', popular:'🔥 Top Comics', oldest:'📅 Oldest First' };
+  document.getElementById('comics-label').innerText = labels[s] || '🔥 Top Comics';
+  // Sync homeAlgoIndex so arrows stay in sync
+  const idx = HOME_ALGO_SEQUENCE.indexOf(s);
+  if (idx >= 0) homeAlgoIndex = idx;
   renderComics(allComics, globalStars);
 }
 
@@ -1052,6 +1121,7 @@ function sortedComics(comics, stars) {
     );
   }
   if (currentSort === 'oldest') return c.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  if (currentSort === 'smart_random') return smartRandomSort(c, stars);
   return c.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
@@ -1866,9 +1936,13 @@ function switchTab(type) {
   document.getElementById('section-stories').style.display   = type === 'stories'   ? 'block' : 'none';
   document.getElementById('section-projects').style.display  = type === 'projects'  ? 'block' : 'none';
   document.getElementById('section-favorites').style.display = type === 'favorites' ? 'block' : 'none';
+  // Top creators only on home
+  const tcSection = document.getElementById('top-creators-section');
+  if (tcSection) tcSection.style.display = type === 'all' ? '' : 'none';
   if (type === 'stories') { if (!storiesLoaded) loadStories(); }
   if (type === 'continue') renderContinueReading();
   if (type === 'favorites') loadFavoritesSection();
+  if (type === 'projects') loadSquadsTab();
 }
 
 function renderSkeletons(n) {
@@ -1959,21 +2033,42 @@ async function loadStories() {
   renderStories(stories || []);
 }
 
-// ── Discover Squads (My Squads strip + Recommended grid) ────────────────────
+// ── Discover Squads — now rendered only in the Squads tab via loadSquadsTab ──
 async function loadDiscoverSquads() {
+  // Squads are no longer shown on the home page.
+  // They load on demand when the user taps the Squads tab.
+}
+
+
+
+let squadsTabLoaded = false;
+
+async function loadSquadsTab() {
+  if (squadsTabLoaded) return;
+  squadsTabLoaded = true;
+
   const myHandle = myProfile.handle;
-  if (!myHandle || myHandle === 'guest') return;
+  const mySection  = document.getElementById('projects-my-squads-section');
+  const myStrip    = document.getElementById('projects-my-squads-scroll');
+  const recSection = document.getElementById('projects-rec-squads-section');
+  const recGrid    = document.getElementById('projects-rec-squads-grid');
+
+  recGrid.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;grid-column:1/-1;">Loading squads…</div>';
 
   const [{ data: squads }, { data: myReqs }, { data: accepted }, { data: lastMsgs }] = await Promise.all([
-    _sb.from('team_tickets').select('id,team_name,pfp,owner_handle,is_private,description').order('created_at', { ascending: false }).limit(40),
-    _sb.from('team_requests').select('ticket_id,status').eq('sender_handle', myHandle),
+    _sb.from('team_tickets').select('id,team_name,pfp,owner_handle,is_private,description').order('created_at', { ascending: false }).limit(60),
+    myHandle && myHandle !== 'guest'
+      ? _sb.from('team_requests').select('ticket_id,status').eq('sender_handle', myHandle)
+      : Promise.resolve({ data: [] }),
     _sb.from('team_requests').select('ticket_id').eq('status','accepted'),
     _sb.from('team_messages').select('ticket_id,created_at').order('created_at',{ascending:false}).limit(200)
   ]);
 
-  if (!squads?.length) return;
+  if (!squads?.length) {
+    recGrid.innerHTML = '<div style="color:#555;font-size:13px;font-weight:700;padding:40px 20px;grid-column:1/-1;text-align:center;">No squads yet. <a href="squads.html" style="color:#ff7a00;">Create one!</a></div>';
+    return;
+  }
 
-  // Normalise ids
   const reqs   = (myReqs  || []).map(r=>({...r, ticket_id:String(r.ticket_id)}));
   const acc    = (accepted|| []).map(r=>({...r, ticket_id:String(r.ticket_id)}));
   const lastMsgMap = {};
@@ -1985,66 +2080,54 @@ async function loadDiscoverSquads() {
   const isMember    = s   => isOwner(s) || (myReq(s)?.status === 'accepted');
   const isPending   = s   => !isMember(s) && myReq(s)?.status === 'pending';
 
-  // ── My Squads strip ──────────────────
-  const mine = squads.filter(isMember);
-  const myStrip  = document.getElementById('my-squads-scroll');
-  const mySection = document.getElementById('my-squads-section');
-
-  if (mine.length) {
-    myStrip.innerHTML = mine.map(s => {
-      const pfpHtml = s.pfp
-        ? `<div class="my-squad-avatar" onclick="location.href='squad_chat.html?id=${esc(String(s.id))}'"><img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='💬'"></div>`
-        : `<div class="my-squad-avatar" onclick="location.href='squad_chat.html?id=${esc(String(s.id))}'">💬</div>`;
-      return `<div class="my-squad-chip">
-        ${pfpHtml}
-        <div class="my-squad-name">${esc(s.team_name)}</div>
+  // My Squads strip
+  if (myHandle && myHandle !== 'guest') {
+    const mine = squads.filter(isMember);
+    if (mine.length) {
+      myStrip.innerHTML = mine.map(s => {
+        const pfpHtml = s.pfp
+          ? `<div class="my-squad-avatar" onclick="location.href='squad_chat.html?id=${esc(String(s.id))}'"><img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='💬'"></div>`
+          : `<div class="my-squad-avatar" onclick="location.href='squad_chat.html?id=${esc(String(s.id))}'">💬</div>`;
+        return `<div class="my-squad-chip">${pfpHtml}<div class="my-squad-name">${esc(s.team_name)}</div></div>`;
+      }).join('') + `<div class="my-squad-join-chip" onclick="location.href='squads.html'">
+        <div class="my-squad-join-btn">＋</div>
+        <div class="my-squad-name" style="color:#ff7a00;">Explore</div>
       </div>`;
-    }).join('') + `<div class="my-squad-join-chip" onclick="location.href='squads.html'">
-      <div class="my-squad-join-btn">＋</div>
-      <div class="my-squad-name" style="color:#ff7a00;">Explore</div>
+      mySection.style.display = '';
+    }
+  }
+
+  // All squads grid
+  const visibleSquads = squads.filter(s => !s.is_private || isMember(s));
+  recGrid.innerHTML = visibleSquads.map(s => {
+    const sid = String(s.id);
+    const cnt = memberCount(sid);
+    const lastMsg = lastMsgMap[sid];
+    const isActive = lastMsg && (Date.now() - new Date(lastMsg.created_at)) < 3600000;
+    const member = isMember(s);
+    const pending = isPending(s);
+    let btnClass = '', btnLabel = 'Join';
+    if (member)  { btnClass = 'joined';  btnLabel = '✓ Member'; }
+    if (pending) { btnClass = 'pending'; btnLabel = '⏳ Pending'; }
+
+    const coverHtml = s.pfp ? `<img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='🏕️'">` : `🏕️`;
+    return `<div class="rec-squad-card" onclick="location.href='squad_chat.html?id=${sid}'">
+      <div class="rec-squad-cover">${coverHtml}
+        ${s.is_private ? '<div class="rec-squad-private-badge">🔒 Private</div>' : ''}
+      </div>
+      <div class="rec-squad-body">
+        <div class="rec-squad-name">${esc(s.team_name)}</div>
+        <div class="rec-squad-meta">
+          <span>👥 ${cnt}</span>
+          ${isActive ? '<span class="rec-squad-active">🟢 Active</span>' : ''}
+        </div>
+        ${!member ? `<button class="rec-squad-join-btn ${btnClass}" onclick="event.stopPropagation();squadsTabJoin(this,'${sid}',${!!s.is_private})">${btnLabel}</button>` : ''}
+      </div>
     </div>`;
-    mySection.style.display = '';
-    document.getElementById('squads-divider').style.display = '';
-  }
-
-  // ── Recommended Squads grid ──────────
-  const rec = squads.filter(s => !isMember(s) && !s.is_private).slice(0, 6);
-  const recGrid    = document.getElementById('rec-squads-grid');
-  const recSection = document.getElementById('rec-squads-section');
-
-  if (rec.length) {
-    recGrid.innerHTML = rec.map(s => {
-      const sid = String(s.id);
-      const cnt = memberCount(sid);
-      const lastMsg = lastMsgMap[sid];
-      const isActive = lastMsg && (Date.now() - new Date(lastMsg.created_at)) < 3600000;
-      const pending = isPending(s);
-      const btnClass = pending ? 'pending' : '';
-      const btnLabel = pending ? '⏳ Pending' : 'Join';
-
-      const coverHtml = s.pfp
-        ? `<img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='🏕️'">`
-        : `🏕️`;
-      return `<div class="rec-squad-card" onclick="location.href='squads.html'">
-        <div class="rec-squad-cover">${coverHtml}
-          ${s.is_private ? '<div class="rec-squad-private-badge">🔒 Private</div>' : ''}
-        </div>
-        <div class="rec-squad-body">
-          <div class="rec-squad-name">${esc(s.team_name)}</div>
-          <div class="rec-squad-meta">
-            <span>👥 ${cnt}</span>
-            ${isActive ? '<span class="rec-squad-active">🟢 Active</span>' : ''}
-          </div>
-          <button class="rec-squad-join-btn ${btnClass}" onclick="event.stopPropagation();discoverJoinSquad(this,'${sid}',${!!s.is_private})">${btnLabel}</button>
-        </div>
-      </div>`;
-    }).join('');
-    recSection.style.display = '';
-    document.getElementById('squads-divider').style.display = '';
-  }
+  }).join('') || '<div style="color:#555;font-size:13px;font-weight:700;padding:40px 20px;grid-column:1/-1;text-align:center;">No public squads yet.</div>';
 }
 
-async function discoverJoinSquad(btn, id, isPrivate) {
+async function squadsTabJoin(btn, id, isPrivate) {
   const myHandle = myProfile.handle;
   if (!myHandle || myHandle === 'guest') { showToast('Log in to join squads!'); return; }
   btn.disabled = true; btn.innerText = '…';
@@ -2053,15 +2136,6 @@ async function discoverJoinSquad(btn, id, isPrivate) {
   if (error) { btn.disabled = false; btn.innerText = 'Join'; showToast('Error joining — try again'); return; }
   if (isPrivate) { btn.className = 'rec-squad-join-btn pending'; btn.innerText = '⏳ Pending'; showToast('Request sent!'); }
   else { btn.className = 'rec-squad-join-btn joined'; btn.innerText = '✓ Joined'; showToast('Joined! 🎉'); }
-}
-
-function renderTeams(teams) {
-  document.getElementById('projectsFeed').innerHTML = teams.length
-    ? teams.map(t => `<div class="comic-tile" onclick="location.href='teams.html'" style="cursor:pointer;">
-        <img src="${esc(t.pfp||'')}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentNode.innerHTML='<div class=no-cover>⚡</div>'">
-        <div style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:10px;font-weight:900;color:white;background:rgba(0,0,0,.7);padding:3px;">${esc(t.team_name)}</div>
-      </div>`).join('')
-    : '<div class="empty-feed" style="grid-column:1/-1;">No team projects yet.</div>';
 }
 
 // ── Share (friend DM) ─────────────────────────────────────

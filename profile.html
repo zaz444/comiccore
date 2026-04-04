@@ -461,15 +461,23 @@
         /* ── ADMIN / MOD PANEL ── */
         .admin-panel {
             display: none; width: 100%; max-width: 440px;
-            background: rgba(255,59,48,0.06); border: 1px solid rgba(255,59,48,0.2);
+            background: rgba(255,59,48,0.05); border: 1px solid rgba(255,59,48,0.18);
             border-radius: 18px; padding: 14px 16px; margin: 0 0 16px;
         }
         .admin-panel.open { display: block; }
         .admin-panel-title {
-            font-size: 9px; font-weight: 900; color: rgba(255,59,48,0.8);
-            text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px;
+            font-size: 9px; font-weight: 900; color: rgba(255,59,48,0.7);
+            text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px;
             display: flex; align-items: center; gap: 6px;
         }
+        /* Current status bar inside panel */
+        .admin-status-bar {
+            display: none; align-items: center; gap: 8px;
+            padding: 8px 11px; border-radius: 10px; margin-bottom: 10px;
+            font-size: 11px; font-weight: 700;
+        }
+        .admin-status-bar.paused { background: rgba(255,152,0,0.1); border: 1px solid rgba(255,152,0,0.25); color: #ffcc00; }
+        .admin-status-bar.banned { background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.25); color: #ff3b30; }
         .admin-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .admin-btn {
             padding: 9px 10px; border-radius: 12px; border: 1px solid var(--border);
@@ -484,48 +492,108 @@
         .admin-btn.teal:hover { background: rgba(0,201,177,0.1); border-color: rgba(0,201,177,0.5); }
         .admin-btn.warn { color: #ffcc00; border-color: rgba(255,204,0,0.25); }
         .admin-btn.warn:hover { background: rgba(255,204,0,0.1); border-color: rgba(255,204,0,0.5); }
+        .admin-btn.pause-col { color: #ff9800; border-color: rgba(255,152,0,0.25); }
+        .admin-btn.pause-col:hover { background: rgba(255,152,0,0.1); border-color: rgba(255,152,0,0.5); }
 
-        /* ── BAN MODAL ── */
+        /* ── UNIFIED ACTION MODAL (pause / ban) ── */
         .ban-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
-            z-index: 5000; display: none; align-items: center; justify-content: center;
-            backdrop-filter: blur(12px); padding: 20px;
+            position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+            z-index: 5000; display: none; align-items: flex-end; justify-content: center;
+            backdrop-filter: blur(14px);
         }
         .ban-overlay.open { display: flex; }
         .ban-box {
-            background: #0f0f14; border: 1px solid rgba(255,59,48,0.3);
-            border-radius: 22px; padding: 28px 22px; width: 100%; max-width: 360px;
+            background: #0f0f14; border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 24px 24px 0 0; padding: 24px 20px calc(32px + env(safe-area-inset-bottom));
+            width: 100%; max-width: 500px;
             animation: slideUp .22s cubic-bezier(.4,0,.2,1);
         }
-        .ban-title { font-size: 16px; font-weight: 900; color: #ff3b30; margin-bottom: 6px; }
-        .ban-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
-        .ban-duration-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
+        .ban-handle-bar { width: 36px; height: 4px; background: #2a2a2e; border-radius: 2px; margin: 0 auto 20px; }
+        .ban-title { font-size: 15px; font-weight: 900; margin-bottom: 4px; }
+        .ban-title.is-pause { color: #ff9800; }
+        .ban-title.is-ban  { color: #ff3b30; }
+        .ban-sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+
+        .ban-mode-tabs { display: flex; gap: 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 16px; }
+        .ban-mode-tab {
+            flex: 1; padding: 9px; text-align: center; font-size: 11px; font-weight: 900;
+            cursor: pointer; background: rgba(255,255,255,0.03); color: var(--muted);
+            border: none; font-family: 'Inter', sans-serif; transition: .15s; letter-spacing: .3px;
+        }
+        .ban-mode-tab.active-pause { background: rgba(255,152,0,0.12); color: #ff9800; }
+        .ban-mode-tab.active-ban   { background: rgba(255,59,48,0.12);  color: #ff3b30; }
+
+        .ban-section-label {
+            font-size: 9px; font-weight: 900; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px;
+        }
+        .ban-duration-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-bottom: 14px; }
         .ban-dur-btn {
             padding: 10px 6px; border-radius: 12px; border: 1.5px solid var(--border);
             background: rgba(255,255,255,0.04); color: var(--muted);
-            font-size: 11px; font-weight: 800; cursor: pointer;
-            font-family: 'Inter', sans-serif; transition: .15s; text-align: center;
+            font-size: 10px; font-weight: 800; cursor: pointer;
+            font-family: 'Inter', sans-serif; transition: .15s; text-align: center; line-height: 1.3;
         }
-        .ban-dur-btn:hover, .ban-dur-btn.selected { border-color: #ff3b30; color: #ff3b30; background: rgba(255,59,48,0.1); }
+        .ban-dur-btn .dur-sub { font-size: 8px; font-weight: 600; opacity: .65; margin-top: 2px; }
+        .ban-dur-btn:hover { background: rgba(255,255,255,0.08); }
+        .ban-dur-btn.sel-pause { border-color: #ff9800; color: #ff9800; background: rgba(255,152,0,0.1); }
+        .ban-dur-btn.sel-ban   { border-color: #ff3b30; color: #ff3b30; background: rgba(255,59,48,0.1);  }
+
         .ban-reason-input {
             width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
             border-radius: 12px; padding: 11px 14px; color: white;
             font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
-            transition: border-color .15s; margin-bottom: 16px; resize: vertical; min-height: 72px;
+            transition: border-color .15s; margin-bottom: 14px; resize: vertical; min-height: 68px;
         }
-        .ban-reason-input:focus { border-color: rgba(255,59,48,0.5); }
+        .ban-reason-input:focus { border-color: rgba(255,122,0,0.4); }
         .ban-reason-input::placeholder { color: var(--dim); }
         .ban-actions { display: flex; gap: 10px; }
         .ban-confirm-btn {
             flex: 1; padding: 13px; border: none; border-radius: 12px;
-            background: #ff3b30; color: white; font-size: 14px; font-weight: 900;
-            cursor: pointer; font-family: 'Inter', sans-serif;
+            color: white; font-size: 14px; font-weight: 900;
+            cursor: pointer; font-family: 'Inter', sans-serif; transition: .15s;
         }
+        .ban-confirm-btn.mode-pause { background: #ff9800; color: #000; }
+        .ban-confirm-btn.mode-ban   { background: #ff3b30; }
+        .ban-confirm-btn:hover { filter: brightness(1.08); }
         .ban-cancel-btn {
             padding: 13px 18px; border: 1px solid var(--border); border-radius: 12px;
             background: none; color: var(--muted); font-size: 13px; font-weight: 700;
             cursor: pointer; font-family: 'Inter', sans-serif;
         }
+
+        /* ── BAN LOG MODAL (owner only) ── */
+        .banlog-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+            z-index: 5000; display: none; align-items: flex-end; justify-content: center;
+            backdrop-filter: blur(14px);
+        }
+        .banlog-overlay.open { display: flex; }
+        .banlog-sheet {
+            background: #0f0f14; border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 24px 24px 0 0; padding: 24px 20px calc(32px + env(safe-area-inset-bottom));
+            width: 100%; max-width: 500px; max-height: 75vh; overflow-y: auto;
+            animation: slideUp .25s cubic-bezier(.4,0,.2,1);
+        }
+        .banlog-title { font-size: 15px; font-weight: 900; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .banlog-row {
+            padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .banlog-row:last-child { border-bottom: none; }
+        .banlog-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .banlog-type {
+            font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 5px;
+            letter-spacing: .5px; text-transform: uppercase;
+        }
+        .bl-pause  { background: rgba(255,152,0,0.12); color: #ff9800; border: 1px solid rgba(255,152,0,0.25); }
+        .bl-ban    { background: rgba(255,59,48,0.12);  color: #ff3b30; border: 1px solid rgba(255,59,48,0.25); }
+        .bl-unban  { background: rgba(50,215,75,0.12);  color: #32d74b; border: 1px solid rgba(50,215,75,0.25); }
+        .banlog-target { font-size: 13px; font-weight: 900; color: var(--text); }
+        .banlog-dur { font-size: 10px; color: var(--muted); font-weight: 600; }
+        .banlog-reason { font-size: 11px; color: rgba(255,255,255,0.4); }
+        .banlog-meta { font-size: 10px; color: var(--dim); display: flex; gap: 10px; flex-wrap: wrap; }
+        .banlog-empty { text-align: center; padding: 40px 0; color: var(--dim); font-size: 13px; font-weight: 600; }
 
         /* ── REPORT MODAL ── */
         .report-overlay {
@@ -843,25 +911,42 @@
         </div>
     </div>
 
-    <!-- Ban Modal -->
-    <div class="ban-overlay" id="ban-overlay">
-        <div class="ban-box">
-            <div class="ban-title">⛔ Ban User</div>
-            <div class="ban-sub" id="ban-sub-text">Select duration and reason</div>
-            <div class="ban-duration-grid" id="ban-dur-grid">
-                <button class="ban-dur-btn" data-dur="1h" onclick="selectBanDur(this,'1h')">1 Hour</button>
-                <button class="ban-dur-btn" data-dur="12h" onclick="selectBanDur(this,'12h')">12 Hours</button>
-                <button class="ban-dur-btn" data-dur="1d" onclick="selectBanDur(this,'1d')">1 Day</button>
-                <button class="ban-dur-btn" data-dur="3d" onclick="selectBanDur(this,'3d')">3 Days</button>
-                <button class="ban-dur-btn" data-dur="7d" onclick="selectBanDur(this,'7d')">1 Week</button>
-                <button class="ban-dur-btn" data-dur="30d" onclick="selectBanDur(this,'30d')">30 Days</button>
-                <button class="ban-dur-btn" data-dur="perm" onclick="selectBanDur(this,'perm')" style="grid-column:span 3;">Permanent</button>
+    <!-- Pause / Ban Modal -->
+    <div class="ban-overlay" id="ban-overlay" onclick="if(event.target===this)closeBanModal()">
+        <div class="ban-box" onclick="event.stopPropagation()">
+            <div class="ban-handle-bar"></div>
+
+            <!-- Mode tabs -->
+            <div class="ban-mode-tabs">
+                <button class="ban-mode-tab" id="mod-tab-pause" onclick="switchBanMode('pause')">⏸ Pause</button>
+                <button class="ban-mode-tab" id="mod-tab-ban"   onclick="switchBanMode('ban')">⛔ Ban</button>
             </div>
-            <textarea class="ban-reason-input" id="ban-reason-input" placeholder="Reason for ban (optional)…"></textarea>
+
+            <div class="ban-title" id="ban-title-el">⏸ Pause Account</div>
+            <div class="ban-sub"   id="ban-sub-text">Select duration and reason</div>
+
+            <div class="ban-section-label">Duration</div>
+            <div class="ban-duration-grid" id="ban-dur-grid"></div>
+
+            <div class="ban-section-label">Reason <span style="color:var(--dim);font-weight:600;text-transform:none;letter-spacing:0;">(logged)</span></div>
+            <textarea class="ban-reason-input" id="ban-reason-input" placeholder="e.g. Spam, rule violation…"></textarea>
+
             <div class="ban-actions">
                 <button class="ban-cancel-btn" onclick="closeBanModal()">Cancel</button>
-                <button class="ban-confirm-btn" onclick="confirmBan()">Ban User</button>
+                <button class="ban-confirm-btn mode-pause" id="ban-confirm-btn" onclick="confirmBanAction()">⏸ Confirm Pause</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Ban Log Modal (owner only) -->
+    <div class="banlog-overlay" id="banlog-overlay" onclick="if(event.target===this)closeBanLog()">
+        <div class="banlog-sheet" onclick="event.stopPropagation()">
+            <div class="ban-handle-bar"></div>
+            <div class="banlog-title">
+                📋 Action Log
+                <span class="modal-close" onclick="closeBanLog()">✕</span>
+            </div>
+            <div id="banlog-list"></div>
         </div>
     </div>
 
@@ -947,6 +1032,7 @@
             <!-- Admin/Mod panel — only visible to owner/mods viewing other profiles -->
             <div class="admin-panel" id="admin-panel">
                 <div class="admin-panel-title">🛡 Admin Controls</div>
+                <div class="admin-status-bar" id="admin-status-bar"></div>
                 <div class="admin-action-grid" id="admin-action-grid"></div>
             </div>
 
@@ -1797,54 +1883,98 @@
                 const viewedIsOwner = handle === 'jeffyplays';
                 const viewedIsMod = profileRole === 'mod';
                 const adminPanel = document.getElementById('admin-panel');
-                const adminGrid = document.getElementById('admin-action-grid');
+                const adminGrid  = document.getElementById('admin-action-grid');
+                const adminStatusBar = document.getElementById('admin-status-bar');
                 adminGrid.innerHTML = '';
+                adminStatusBar.style.display = 'none';
 
-                if (amMod && !viewedIsOwner) {
-                    // Mods and owner can ban
-                    const canActOnTarget = amOwner || !viewedIsMod;
-                    if (canActOnTarget) {
-                        // Check if currently banned
-                        const { data: banRow } = await _supabase.from('bans')
-                            .select('id, expires_at').eq('banned_handle', handle).maybeSingle();
-                        const isBanned = !!banRow;
+                // Mods can never act on owners or other mods
+                const canActOnTarget = amMod && !viewedIsOwner && (amOwner || !viewedIsMod);
 
-                        if (!isBanned) {
-                            const banBtn = document.createElement('button');
-                            banBtn.className = 'admin-btn danger';
-                            banBtn.innerText = '⛔ Ban User';
-                            banBtn.onclick = () => openBanModal(handle, profile.name || handle);
-                            adminGrid.appendChild(banBtn);
-                        } else {
-                            const unbanBtn = document.createElement('button');
-                            unbanBtn.className = 'admin-btn warn';
-                            const exp = banRow.expires_at ? new Date(banRow.expires_at).toLocaleDateString() : 'Permanent';
-                            unbanBtn.innerText = `✓ Unban (${exp})`;
-                            unbanBtn.onclick = async () => {
-                                await _supabase.from('bans').delete().eq('banned_handle', handle);
-                                showToast('User unbanned');
-                                loadPublicProfile(handle);
-                            };
-                            adminGrid.appendChild(unbanBtn);
-                        }
+                if (canActOnTarget) {
+                    // Fetch ban/pause row
+                    const { data: banRow } = await _supabase.from('bans')
+                        .select('id, expires_at, action_type, reason').eq('banned_handle', handle).maybeSingle();
+                    const currentAction = banRow?.action_type || null; // 'pause' | 'ban' | null
 
-                        // Owner-only: promote/demote mod
-                        if (amOwner) {
-                            const modBtn = document.createElement('button');
-                            if (viewedIsMod) {
-                                modBtn.className = 'admin-btn warn';
-                                modBtn.innerText = '✕ Revoke Mod';
-                                modBtn.onclick = () => setModRole(handle, false);
-                            } else {
-                                modBtn.className = 'admin-btn teal';
-                                modBtn.innerText = '⭐ Make Mod';
-                                modBtn.onclick = () => setModRole(handle, true);
-                            }
-                            adminGrid.appendChild(modBtn);
-                        }
-
-                        adminPanel.classList.add('open');
+                    // Show current status bar
+                    if (currentAction) {
+                        const exp = banRow.expires_at ? new Date(banRow.expires_at).toLocaleDateString() : 'Forever';
+                        const isPause = currentAction === 'pause';
+                        adminStatusBar.className = 'admin-status-bar ' + (isPause ? 'paused' : 'banned');
+                        adminStatusBar.style.display = 'flex';
+                        adminStatusBar.innerHTML = `
+                            <span>${isPause ? '⏸' : '⛔'}</span>
+                            <span style="flex:1;">${isPause ? 'Paused' : 'Banned'} · until ${exp}</span>
+                        `;
                     }
+
+                    if (!currentAction) {
+                        // Neither banned nor paused — show pause + ban
+                        const pauseBtn = document.createElement('button');
+                        pauseBtn.className = 'admin-btn pause-col';
+                        pauseBtn.innerText = '⏸ Pause';
+                        pauseBtn.onclick = () => openBanModal(handle, profile.name || handle, 'pause');
+                        adminGrid.appendChild(pauseBtn);
+
+                        const banBtn = document.createElement('button');
+                        banBtn.className = 'admin-btn danger';
+                        banBtn.innerText = '⛔ Ban';
+                        banBtn.onclick = () => openBanModal(handle, profile.name || handle, 'ban');
+                        adminGrid.appendChild(banBtn);
+                    } else {
+                        // Already actioned — show restore + switch option
+                        const restoreBtn = document.createElement('button');
+                        restoreBtn.className = 'admin-btn warn';
+                        restoreBtn.innerText = '✓ Restore';
+                        restoreBtn.onclick = async () => {
+                            await _supabase.from('bans').delete().eq('banned_handle', handle);
+                            await logBanAction(handle, 'restore', null, 'Account restored', null);
+                            showToast('✓ @' + handle + ' restored');
+                            loadPublicProfile(handle);
+                        };
+                        adminGrid.appendChild(restoreBtn);
+
+                        // Allow switching from pause → ban or ban → pause
+                        const switchBtn = document.createElement('button');
+                        if (currentAction === 'pause') {
+                            switchBtn.className = 'admin-btn danger';
+                            switchBtn.innerText = '⛔ Escalate to Ban';
+                            switchBtn.onclick = () => openBanModal(handle, profile.name || handle, 'ban');
+                        } else {
+                            switchBtn.className = 'admin-btn pause-col';
+                            switchBtn.innerText = '⏸ Change to Pause';
+                            switchBtn.onclick = () => openBanModal(handle, profile.name || handle, 'pause');
+                        }
+                        adminGrid.appendChild(switchBtn);
+                    }
+
+                    // Owner-only: promote/demote mod + view log
+                    if (amOwner) {
+                        const modBtn = document.createElement('button');
+                        if (viewedIsMod) {
+                            modBtn.className = 'admin-btn warn';
+                            modBtn.innerText = '✕ Revoke Mod';
+                            modBtn.onclick = () => setModRole(handle, false);
+                        } else {
+                            modBtn.className = 'admin-btn teal';
+                            modBtn.innerText = '⭐ Make Mod';
+                            modBtn.onclick = () => setModRole(handle, true);
+                        }
+                        adminGrid.appendChild(modBtn);
+
+                        const logBtn = document.createElement('button');
+                        logBtn.className = 'admin-btn';
+                        logBtn.innerText = '📋 Ban Log';
+                        logBtn.onclick = () => openBanLog(handle);
+                        adminGrid.appendChild(logBtn);
+                    }
+
+                    adminPanel.classList.add('open');
+                } else if (amMod && (viewedIsOwner || viewedIsMod)) {
+                    // Mod viewing a protected account — show panel but locked
+                    adminGrid.innerHTML = `<div style="grid-column:span 2;font-size:11px;color:var(--dim);font-weight:700;padding:4px 2px;">🔒 Protected account — no actions available</div>`;
+                    adminPanel.classList.add('open');
                 }
             }
 
@@ -1864,51 +1994,159 @@
         }
 
         // ══════════════════════════════════════════════════════
-        // BAN SYSTEM
+        // PAUSE / BAN SYSTEM
         // ══════════════════════════════════════════════════════
         let _banTargetHandle = '';
+        let _banMode = 'pause'; // 'pause' | 'ban'
         let _banDuration = '';
 
-        function openBanModal(handle, name) {
+        const PAUSE_DURATIONS = [
+            { label: '1 Day',   sub: '24 hrs',   val: '1d'   },
+            { label: '3 Days',  sub: '72 hrs',   val: '3d'   },
+            { label: '7 Days',  sub: '1 week',   val: '7d'   },
+            { label: '14 Days', sub: '2 weeks',  val: '14d'  },
+            { label: '30 Days', sub: '1 month',  val: '30d'  },
+            { label: 'Forever', sub: 'Paused termination', val: 'perm' },
+        ];
+        const BAN_DURATIONS = [
+            { label: '1 Day',   sub: '24 hrs',   val: '1d'   },
+            { label: '7 Days',  sub: '1 week',   val: '7d'   },
+            { label: '30 Days', sub: '1 month',  val: '30d'  },
+            { label: '90 Days', sub: '3 months', val: '90d'  },
+            { label: '1 Year',  sub: '365 days', val: '365d' },
+            { label: 'Permanent', sub: 'Termination', val: 'perm' },
+        ];
+
+        function openBanModal(handle, name, mode = 'pause') {
             _banTargetHandle = handle;
             _banDuration = '';
-            document.getElementById('ban-sub-text').innerText = 'Ban @' + handle + ' (' + name + ')';
+            _banMode = mode;
             document.getElementById('ban-reason-input').value = '';
-            document.querySelectorAll('.ban-dur-btn').forEach(b => b.classList.remove('selected'));
+            switchBanMode(mode);
+            document.getElementById('ban-sub-text').innerText = '@' + handle + (name && name !== handle ? ' · ' + name : '');
             document.getElementById('ban-overlay').classList.add('open');
+        }
+
+        function switchBanMode(mode) {
+            _banMode = mode;
+            _banDuration = '';
+            const isPause = mode === 'pause';
+
+            document.getElementById('ban-title-el').textContent = isPause ? '⏸ Pause Account' : '⛔ Ban Account';
+            document.getElementById('ban-title-el').className = 'ban-title ' + (isPause ? 'is-pause' : 'is-ban');
+
+            document.getElementById('mod-tab-pause').className = 'ban-mode-tab' + (isPause ? ' active-pause' : '');
+            document.getElementById('mod-tab-ban').className   = 'ban-mode-tab' + (!isPause ? ' active-ban' : '');
+
+            const confirmBtn = document.getElementById('ban-confirm-btn');
+            confirmBtn.className = 'ban-confirm-btn ' + (isPause ? 'mode-pause' : 'mode-ban');
+            confirmBtn.textContent = isPause ? '⏸ Confirm Pause' : '⛔ Confirm Ban';
+
+            const durations = isPause ? PAUSE_DURATIONS : BAN_DURATIONS;
+            const selClass  = isPause ? 'sel-pause' : 'sel-ban';
+            const grid = document.getElementById('ban-dur-grid');
+            grid.innerHTML = durations.map(d => `
+                <button class="ban-dur-btn" data-val="${d.val}" onclick="selectBanDur(this,'${d.val}','${selClass}')">
+                    ${d.label}
+                    <div class="dur-sub">${d.sub}</div>
+                </button>
+            `).join('');
         }
 
         function closeBanModal() {
             document.getElementById('ban-overlay').classList.remove('open');
         }
 
-        function selectBanDur(btn, dur) {
-            document.querySelectorAll('.ban-dur-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            _banDuration = dur;
+        function selectBanDur(btn, val, selClass) {
+            document.querySelectorAll('.ban-dur-btn').forEach(b => b.className = 'ban-dur-btn');
+            btn.classList.add(selClass);
+            _banDuration = val;
         }
 
-        function banDurToExpiry(dur) {
-            if (dur === 'perm') return null;
-            const ms = { '1h': 3600000, '12h': 43200000, '1d': 86400000, '3d': 259200000, '7d': 604800000, '30d': 2592000000 };
-            return new Date(Date.now() + (ms[dur] || 86400000)).toISOString();
+        function banDurToExpiry(val) {
+            if (val === 'perm') return null;
+            const days = { '1d':1,'3d':3,'7d':7,'14d':14,'30d':30,'90d':90,'365d':365 };
+            const d = days[val] || 1;
+            return new Date(Date.now() + d * 86400000).toISOString();
         }
 
-        async function confirmBan() {
+        async function logBanAction(targetHandle, actionType, expiresAt, reason, durationLabel) {
+            await _supabase.from('bans_log').insert([{
+                target_handle:  targetHandle,
+                action_by:      myProfile.handle,
+                action_type:    actionType,
+                expires_at:     expiresAt,
+                reason:         reason || null,
+                duration_label: durationLabel || null,
+                created_at:     new Date().toISOString(),
+            }]);
+        }
+
+        async function confirmBanAction() {
             if (!_banDuration) { showToast('Pick a duration first'); return; }
-            const reason = document.getElementById('ban-reason-input').value.trim();
+            const reason    = document.getElementById('ban-reason-input').value.trim();
             const expiresAt = banDurToExpiry(_banDuration);
+            const durLabels = [...PAUSE_DURATIONS, ...BAN_DURATIONS];
+            const durLabel  = durLabels.find(d => d.val === _banDuration)?.label || _banDuration;
+
             const { error } = await _supabase.from('bans').upsert([{
                 banned_handle: _banTargetHandle,
-                banned_by: myProfile.handle,
-                reason: reason || null,
-                expires_at: expiresAt,
-                created_at: new Date().toISOString()
+                banned_by:     myProfile.handle,
+                action_type:   _banMode,
+                reason:        reason || null,
+                expires_at:    expiresAt,
+                created_at:    new Date().toISOString(),
             }], { onConflict: 'banned_handle' });
+
             if (error) { showToast('Error: ' + error.message); return; }
+
+            await logBanAction(_banTargetHandle, _banMode, expiresAt, reason, durLabel + (_banDuration === 'perm' ? '' : ''));
+
             closeBanModal();
-            showToast('⛔ @' + _banTargetHandle + ' banned' + (_banDuration === 'perm' ? ' permanently' : ' for ' + _banDuration));
+            const label = _banMode === 'pause' ? '⏸ Paused' : '⛔ Banned';
+            showToast(label + ' @' + _banTargetHandle + ' · ' + durLabel);
             loadPublicProfile(_banTargetHandle);
+        }
+
+        // ── Ban Log (owner only) ──
+        async function openBanLog(filterHandle) {
+            document.getElementById('banlog-overlay').classList.add('open');
+            const list = document.getElementById('banlog-list');
+            list.innerHTML = '<div style="text-align:center;color:#444;padding:24px;">Loading…</div>';
+
+            let query = _supabase.from('bans_log').select('*').order('created_at', { ascending: false }).limit(80);
+            if (filterHandle) query = query.eq('target_handle', filterHandle);
+
+            const { data, error } = await query;
+            if (error || !data?.length) {
+                list.innerHTML = '<div class="banlog-empty">No actions logged yet.</div>';
+                return;
+            }
+
+            const typeTag = { pause: 'bl-pause', ban: 'bl-ban', restore: 'bl-unban' };
+            const typeLabel = { pause: '⏸ Pause', ban: '⛔ Ban', restore: '✓ Restore' };
+
+            list.innerHTML = data.map(r => {
+                const when = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+                const exp  = r.expires_at ? ' · until ' + new Date(r.expires_at).toLocaleDateString() : (r.action_type !== 'restore' ? ' · Forever' : '');
+                return `
+                <div class="banlog-row">
+                    <div class="banlog-top">
+                        <span class="banlog-type ${typeTag[r.action_type] || 'bl-ban'}">${typeLabel[r.action_type] || r.action_type}</span>
+                        <span class="banlog-target">@${r.target_handle}</span>
+                        ${r.duration_label ? `<span class="banlog-dur">${r.duration_label}${exp}</span>` : ''}
+                    </div>
+                    ${r.reason ? `<div class="banlog-reason">${r.reason}</div>` : ''}
+                    <div class="banlog-meta">
+                        <span>by @${r.action_by}</span>
+                        <span>${when}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function closeBanLog() {
+            document.getElementById('banlog-overlay').classList.remove('open');
         }
 
         // ══════════════════════════════════════════════════════
