@@ -270,6 +270,21 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 }
 .comic-card .tile-progress-fill { height: 100%; background: #ff7a00; }
 
+/* ── Star Rating ── */
+.star-rating {
+  display: flex; align-items: center; gap: 1px;
+  margin: 4px 2px 0; line-height: 1;
+}
+.star-rating .star {
+  position: relative; display: inline-block;
+  width: 13px; height: 13px; flex-shrink: 0;
+}
+.star svg { width: 13px; height: 13px; display: block; }
+.star-rating .star-count {
+  font-size: 9px; font-weight: 800; color: #555;
+  margin-left: 3px; white-space: nowrap;
+}
+
 .comic-card-info {
   padding: 10px 2px 0;
 }
@@ -664,9 +679,10 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
     <div class="sort-dropdown-wrap">
       <button class="nav-tab" id="sort-dropdown-btn" onclick="toggleSortDropdown(event)">All ▾</button>
       <div class="sort-dropdown-menu" id="sort-dropdown-menu">
-        <button id="sort-opt-recent"  class="sort-active" onclick="setSortFromDropdown('recent')">🕐 Recent</button>
-        <button id="sort-opt-popular"                     onclick="setSortFromDropdown('popular')">🔥 Top</button>
-        <button id="sort-opt-oldest"                      onclick="setSortFromDropdown('oldest')">📅 Oldest</button>
+        <button id="sort-opt-recent"    class="sort-active" onclick="setSortFromDropdown('recent')">🕐 Recent</button>
+        <button id="sort-opt-popular"                       onclick="setSortFromDropdown('popular')">🔥 Top</button>
+        <button id="sort-opt-oldest"                        onclick="setSortFromDropdown('oldest')">📅 Oldest</button>
+        <button id="sort-opt-favorites"                     onclick="setSortFromDropdown('favorites')">⭐ Favorites</button>
       </div>
     </div>
     <button class="nav-tab"        id="tab-continue" onclick="switchTab('continue')">▶ Continue</button>
@@ -753,6 +769,16 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 <div id="section-projects" style="display:none;">
   <div class="section-label">Team Projects</div>
   <div class="comics-grid" id="projectsFeed"></div>
+</div>
+
+<div id="section-favorites" style="display:none;">
+  <div class="grid-header-row">
+    <span class="grid-section-label">⭐ My Favorites</span>
+  </div>
+  <div class="comics-page-grid" id="favoritesFeed">
+    <div style="color:#555;font-size:13px;font-weight:700;padding:20px;grid-column:1/-1;">Loading favorites…</div>
+  </div>
+  <div class="pagination-row" id="favorites-pagination-row"></div>
 </div>
 
 <!-- ── Comic Detail Popup ── -->
@@ -1261,6 +1287,7 @@ function renderComics(comics, stars) {
       </div>
       <div class="comic-card-info">
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
+        ${renderStarRating(starCount)}
         <div class="comic-card-meta">
           <img class="comic-card-avatar" data-handle="${ownerHandle}" src="" alt=""
             onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
@@ -1336,14 +1363,22 @@ function toggleSortDropdown(e) {
 function setSortFromDropdown(sort) {
   document.getElementById('sort-dropdown-menu').classList.remove('open');
   // Highlight active option
-  ['recent','popular','oldest'].forEach(s => {
+  ['recent','popular','oldest','favorites'].forEach(s => {
     document.getElementById('sort-opt-' + s)?.classList.toggle('sort-active', s === sort);
   });
   // Update dropdown button label
-  const labels = { recent: 'Recent ▾', popular: 'Top ▾', oldest: 'Oldest ▾' };
+  const labels = { recent: 'Recent \u25be', popular: 'Top \u25be', oldest: 'Oldest \u25be', favorites: '\u2b50 Favorites \u25be' };
   const btn = document.getElementById('sort-dropdown-btn');
-  if (btn) btn.textContent = labels[sort] || 'All ▾';
-  setSort(sort);
+  if (btn) btn.textContent = labels[sort] || 'All \u25be';
+
+  if (sort === 'favorites') {
+    switchTab('favorites');
+  } else {
+    if (document.getElementById('section-favorites').style.display !== 'none') {
+      switchTab('all');
+    }
+    setSort(sort);
+  }
 }
 
 // Close dropdown when clicking outside
@@ -1820,13 +1855,20 @@ async function filterSearch() {
 // ── Tabs ──────────────────────────────────────────────────
 function switchTab(type) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-'+type).classList.add('active');
-  document.getElementById('section-recents').style.display  = type === 'all'      ? 'block' : 'none';
-  document.getElementById('section-continue').style.display = type === 'continue' ? 'block' : 'none';
-  document.getElementById('section-stories').style.display  = type === 'stories'  ? 'block' : 'none';
-  document.getElementById('section-projects').style.display = type === 'projects' ? 'block' : 'none';
+  const activeTabEl = document.getElementById('tab-'+type);
+  if (activeTabEl) activeTabEl.classList.add('active');
+  // If favorites is picked from dropdown, highlight the dropdown btn
+  if (type === 'favorites') {
+    document.getElementById('sort-dropdown-btn')?.classList.add('active');
+  }
+  document.getElementById('section-recents').style.display   = type === 'all'       ? 'block' : 'none';
+  document.getElementById('section-continue').style.display  = type === 'continue'  ? 'block' : 'none';
+  document.getElementById('section-stories').style.display   = type === 'stories'   ? 'block' : 'none';
+  document.getElementById('section-projects').style.display  = type === 'projects'  ? 'block' : 'none';
+  document.getElementById('section-favorites').style.display = type === 'favorites' ? 'block' : 'none';
   if (type === 'stories') { if (!storiesLoaded) loadStories(); }
   if (type === 'continue') renderContinueReading();
+  if (type === 'favorites') loadFavoritesSection();
 }
 
 function renderSkeletons(n) {
@@ -2119,6 +2161,7 @@ function renderContinueReading() {
       </div>
       <div class="comic-card-info">
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
+        ${renderStarRating(starCount)}
         <div style="font-size:10px;color:#ff7a00;font-weight:800;margin-top:2px;">
           Frame ${prog ? prog.frame : '?'} of ${frameCount} · ${prog ? prog.pct : 0}%
         </div>
@@ -2245,6 +2288,155 @@ function switchReactionCategory(tab, btn) {
   btn.classList.add('active');
   if (tab === 'trending') loadTrendingReactions();
   else loadRecentReactions();
+}
+
+// ── Star Rating (5-star display from count) ───────────────
+// Maps raw star count → 0-5 rating with half-star resolution
+// Scale: 0 stars = 0, 1 star ≈ 5+, 2 stars ≈ 15+, 3 stars ≈ 35+, 4 stars ≈ 70+, 5 stars ≈ 120+
+function starCountToRating(count) {
+  if (!count || count <= 0) return 0;
+  if (count >= 120) return 5;
+  if (count >= 90)  return 4.5;
+  if (count >= 70)  return 4;
+  if (count >= 50)  return 3.5;
+  if (count >= 35)  return 3;
+  if (count >= 22)  return 2.5;
+  if (count >= 15)  return 2;
+  if (count >= 9)   return 1.5;
+  if (count >= 5)   return 1;
+  if (count >= 2)   return 0.5;
+  return 0;
+}
+
+function renderStarRating(starCount) {
+  const rating = starCountToRating(starCount);
+  if (rating === 0) return '';
+  const GOLD = '#ffd700';
+  const EMPTY = '#2a2a2c';
+  let starsHtml = '';
+  for (let i = 1; i <= 5; i++) {
+    const fill = Math.min(1, Math.max(0, rating - (i - 1)));
+    if (fill >= 1) {
+      // Full star
+      starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${GOLD}" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
+    } else if (fill >= 0.5) {
+      // Half star
+      const id = 'hg_' + i + '_' + Math.random().toString(36).slice(2,6);
+      starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><defs><linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="50%" stop-color="${GOLD}"/><stop offset="50%" stop-color="${EMPTY}"/></linearGradient></defs><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="url(#${id})" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
+    } else {
+      // Empty star
+      starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${EMPTY}" stroke="#444" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
+    }
+  }
+  return `<div class="star-rating">${starsHtml}<span class="star-count">${starCount}</span></div>`;
+}
+
+// ── Favorites Section ─────────────────────────────────────
+let favoritesPage = 0;
+let favoriteComics = [];
+const FAV_PER_PAGE = 12;
+
+async function loadFavoritesSection() {
+  const container = document.getElementById('favoritesFeed');
+  if (!myProfile.handle || myProfile.handle === 'guest') {
+    container.innerHTML = '<div style="color:#555;font-size:13px;font-weight:700;padding:40px 20px;grid-column:1/-1;text-align:center;">Log in to see your favorites!</div>';
+    return;
+  }
+
+  container.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:40px 20px;grid-column:1/-1;text-align:center;">Loading favorites…</div>';
+
+  const { data: starEntries } = await _sb
+    .from('messages')
+    .select('receiver_hand')
+    .eq('sender_handle', myProfile.handle)
+    .eq('reaction', '\u2b50');
+
+  if (!starEntries || !starEntries.length) {
+    container.innerHTML = '<div style="color:#555;font-size:13px;font-weight:700;padding:40px 20px;grid-column:1/-1;text-align:center;">No favorites yet.\u2028Star comics to see them here!</div>';
+    document.getElementById('favorites-pagination-row').innerHTML = '';
+    return;
+  }
+
+  const favoriteIds = starEntries.map(e => e.receiver_hand);
+  favoriteComics = allComics.filter(c => favoriteIds.includes(c.id));
+
+  // If some IDs not in allComics (edge case), fetch them
+  const missing = favoriteIds.filter(id => !allComics.find(c => c.id === id));
+  if (missing.length) {
+    const { data: extras } = await _sb
+      .from('comics')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir')
+      .in('id', missing);
+    if (extras) favoriteComics = [...favoriteComics, ...extras.filter(c => c.title && c.owner_handle)];
+  }
+
+  renderFavoritesPage();
+}
+
+function renderFavoritesPage() {
+  const container = document.getElementById('favoritesFeed');
+  const pagRow = document.getElementById('favorites-pagination-row');
+  const totalPages = Math.max(1, Math.ceil(favoriteComics.length / FAV_PER_PAGE));
+  if (favoritesPage >= totalPages) favoritesPage = 0;
+
+  if (!favoriteComics.length) {
+    container.innerHTML = '<div style="color:#555;font-size:13px;font-weight:700;padding:40px 20px;grid-column:1/-1;text-align:center;">No favorites found.</div>';
+    pagRow.innerHTML = '';
+    return;
+  }
+
+  const slice = favoriteComics.slice(favoritesPage * FAV_PER_PAGE, (favoritesPage + 1) * FAV_PER_PAGE);
+  container.innerHTML = slice.map(c => {
+    const starCount = globalStars.filter(s => s.receiver_hand === c.id).length;
+    const isMine = c.owner_handle === myProfile.handle;
+    const prog = getProgress(c.id, getCachedFrameCount(c.id));
+    const coverHtml = c.cover
+      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>\ud83d\udcd6</div>'">`
+      : '<div class="no-cover">\ud83d\udcd6</div>';
+    const progressHtml = prog ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
+    const ownerHandle = esc(c.owner_handle || 'unknown');
+    const followBtn = (!isMine && myProfile.handle !== 'guest')
+      ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
+
+    return `<div class="comic-card" data-id="${esc(c.id)}">
+      <div class="comic-card-cover">
+        ${coverHtml}
+        <div class="tile-stars">\u2b50 FAV</div>
+        ${progressHtml}
+      </div>
+      <div class="comic-card-info">
+        <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
+        ${renderStarRating(starCount)}
+        <div class="comic-card-meta">
+          <img class="comic-card-avatar" data-handle="${ownerHandle}" src="" alt=""
+            onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
+            onerror="this.style.display='none'">
+          <span class="comic-card-handle" onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'">@${ownerHandle}</span>
+          ${followBtn}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.comic-card').forEach(card => {
+    card.addEventListener('click', () => openPopup(card.dataset.id));
+  });
+  hydrateCardAvatars(container);
+  hydrateFollowButtons(container);
+
+  // Pagination
+  if (totalPages <= 1) { pagRow.innerHTML = ''; return; }
+  pagRow.innerHTML = `
+    <button class="page-btn pg-arrow" onclick="goToFavPage(${favoritesPage - 1})" ${favoritesPage <= 0 ? 'disabled' : ''}>\u2039</button>
+    ${Array.from({length: totalPages}, (_,i) => `<button class="page-btn ${i===favoritesPage?'pg-active':''}" onclick="goToFavPage(${i})">${i+1}</button>`).join('')}
+    <button class="page-btn pg-arrow" onclick="goToFavPage(${favoritesPage + 1})" ${favoritesPage >= totalPages - 1 ? 'disabled' : ''}>\u203a</button>`;
+}
+
+function goToFavPage(n) {
+  const totalPages = Math.ceil(favoriteComics.length / FAV_PER_PAGE);
+  favoritesPage = Math.max(0, Math.min(n, totalPages - 1));
+  renderFavoritesPage();
+  document.getElementById('section-favorites')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 window.onload = init;
