@@ -75,12 +75,32 @@ transition: .15s; white-space: nowrap;
 .random-btn:hover { border-color: #ff7a00; color: #ff7a00; }
 .random-btn:active { transform: scale(.95); }
 
+/* ── Home grid: overlay side arrows ── */
+.home-grid-wrap {
+  position: relative;
+}
+.home-arrow {
+  position: absolute; top: 0; bottom: 0; z-index: 10;
+  width: 38px; border: none; background: transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 900; color: rgba(255,255,255,.75);
+  transition: color .15s; padding: 0; line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.home-arrow-left  { left: 0;
+  background: linear-gradient(to right, rgba(15,15,17,.92) 20%, transparent 100%); }
+.home-arrow-right { right: 0;
+  background: linear-gradient(to left,  rgba(15,15,17,.92) 20%, transparent 100%); }
+.home-arrow:not(:disabled):hover { color: #ff7a00; }
+.home-arrow:not(:disabled):active { transform: scale(.88); }
+.home-arrow:disabled { color: rgba(255,255,255,.15); cursor: default; }
+
 .comics-page-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px; padding: 4px 12px 8px;
+  gap: 10px; padding: 4px 46px 8px;
 }
-@media (min-width: 600px) { .comics-page-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
+@media (min-width: 600px) { .comics-page-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; padding-left: 50px; padding-right: 50px; } }
 @media (min-width: 900px) { .comics-page-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
 
 .comics-page-grid .comic-card {
@@ -690,7 +710,7 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
     <button class="nav-tab active" id="tab-all" onclick="switchTab('all')">Home</button>
     <div class="sort-dropdown-wrap">
       <button class="nav-tab" id="sort-dropdown-btn" onclick="toggleSortDropdown(event)">All ▾</button>
-      <div class="sort-dropdown-menu" id="sort-dropdown-menu">
+      <div class="sort-dropdown-menu" id="sort-dropdown-menu" onclick="event.stopPropagation()">
         <button id="sort-opt-recent"    class="sort-active" onclick="setSortFromDropdown('recent')">🕐 Recent</button>
         <button id="sort-opt-popular"                       onclick="setSortFromDropdown('popular')">🔥 Top</button>
         <button id="sort-opt-oldest"                        onclick="setSortFromDropdown('oldest')">📅 Oldest</button>
@@ -729,14 +749,13 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <div id="section-recents">
   <div class="grid-header-row">
-    <span class="grid-section-label" id="comics-label">Recent Comics</span>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <button class="carousel-nav-btn" id="home-prev-btn" onclick="homeNavPrev()" title="Previous algorithm" style="position:static;transform:none;width:32px;height:32px;font-size:15px;">‹</button>
-      <button class="carousel-nav-btn" id="home-next-btn" onclick="homeNavNext()" title="Next algorithm" style="position:static;transform:none;width:32px;height:32px;font-size:15px;">›</button>
-    </div>
+    <span class="grid-section-label" id="comics-label">🕐 Latest</span>
   </div>
-  <div class="comics-page-grid" id="recentFeed"></div>
-  <div class="pagination-row"  id="pagination-row"></div>
+  <div class="home-grid-wrap">
+    <button class="home-arrow home-arrow-left"  id="home-prev-btn" onclick="goToPage(currentPage - 1)" disabled>‹</button>
+    <div class="comics-page-grid" id="recentFeed"></div>
+    <button class="home-arrow home-arrow-right" id="home-next-btn" onclick="goToPage(currentPage + 1)">›</button>
+  </div>
 </div>
 
 <div id="section-continue" style="display:none;">
@@ -894,7 +913,7 @@ let activeComicId   = null;
 let globalStars     = [];
 let activePopupComic   = null;
 let activePopupStarred = false;
-let currentSort     = 'popular';
+let currentSort     = 'recent';
 let currentPage     = 0;
 const ITEMS_PER_PAGE = 12;
 let storiesLoaded   = false;
@@ -1372,35 +1391,10 @@ function renderComics(comics, stars) {
 }
 
 function renderPagination(totalPages) {
-  const row = document.getElementById('pagination-row');
-  if (!row) return;
-  if (totalPages <= 1) { row.innerHTML = ''; return; }
-
-  const MAX_VISIBLE = 5;
-  let pages = [];
-
-  if (totalPages <= MAX_VISIBLE + 2) {
-    pages = Array.from({ length: totalPages }, (_, i) => i);
-  } else {
-    pages = [0];
-    let start = Math.max(1, currentPage - 1);
-    let end   = Math.min(totalPages - 2, currentPage + 1);
-    // Expand window if near edges
-    if (currentPage <= 2) { start = 1; end = Math.min(totalPages - 2, 3); }
-    if (currentPage >= totalPages - 3) { start = Math.max(1, totalPages - 4); end = totalPages - 2; }
-    if (start > 1) pages.push('…');
-    for (let i = start; i <= end; i++) pages.push(i);
-    if (end < totalPages - 2) pages.push('…');
-    pages.push(totalPages - 1);
-  }
-
-  row.innerHTML = `
-    <button class="page-btn pg-arrow" onclick="goToPage(${currentPage - 1})" ${currentPage === 0 ? 'disabled' : ''}>‹</button>
-    ${pages.map(p => p === '…'
-      ? `<span class="page-ellipsis">…</span>`
-      : `<button class="page-btn ${p === currentPage ? 'pg-active' : ''}" onclick="goToPage(${p})">${p + 1}</button>`
-    ).join('')}
-    <button class="page-btn pg-arrow" onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>›</button>`;
+  const prev = document.getElementById('home-prev-btn');
+  const next = document.getElementById('home-next-btn');
+  if (prev) prev.disabled = (currentPage === 0);
+  if (next) next.disabled = (currentPage >= totalPages - 1);
 }
 
 function goToPage(n) {
