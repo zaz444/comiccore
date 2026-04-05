@@ -1707,6 +1707,18 @@
                     </div>
                     <!-- Sprites sub-panel -->
                     <div id="sb-sprites-subpanel" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+                        <!-- ── MOD PANEL: only visible to @jeffyplays ── -->
+                        <div id="spr-mod-panel" style="display:none;background:rgba(255,122,0,0.07);border:1.5px solid rgba(255,122,0,0.35);border-radius:10px;padding:10px 12px;margin:0 10px 8px;flex-shrink:0;flex-direction:column;">
+                            <div style="font-size:9px;font-weight:900;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">⚙ Mod — Set Default Size</div>
+                            <div id="spr-mod-selected" style="font-size:11px;font-weight:800;color:#aaa;margin-bottom:8px;padding:6px 8px;background:#111;border-radius:6px;text-align:center;">← Click a sprite card below to select it</div>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="number" id="spr-mod-scale-input" min="50" max="900" value="200" placeholder="px"
+                                    style="width:80px;background:#111;border:1px solid #444;color:var(--accent);padding:7px 10px;border-radius:8px;font-size:13px;font-weight:800;font-family:inherit;outline:none;text-align:center;">
+                                <span style="font-size:10px;color:#555;font-weight:700;">px wide</span>
+                                <button onclick="saveSprDefaultScale()" style="flex:1;padding:8px 10px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">💾 Save</button>
+                            </div>
+                            <div id="spr-mod-current" style="font-size:9px;color:#555;font-weight:700;margin-top:6px;text-align:center;"></div>
+                        </div>
                         <input class="sp-search" id="sb-sprite-search" placeholder="Search sprites..." oninput="filterSidebarSprites()">
                         <div style="display:flex;align-items:center;gap:6px;margin:6px 10px 4px;">
                             <select id="sb-sprite-sort" onchange="filterSidebarSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;outline:none;font-family:inherit;">
@@ -2506,7 +2518,7 @@
         saveState();
         const cw = canvas.offsetWidth || 600;
         const ch = canvas.offsetHeight || 600;
-        const TARGET_W = Math.round(cw * 0.33);
+        const TARGET_W = (pack && pack.default_scale) ? pack.default_scale : Math.round(cw * 0.33);
         const nl = { type: 'img', src, w: TARGET_W, h: TARGET_W, x: Math.round(cw * 0.33), y: Math.round(ch * 0.33), rotation: 0, flipped: false, packData: pack, id: Date.now() };
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
@@ -5024,9 +5036,12 @@
         JSON.parse(localStorage.getItem('user_profile') || '{}').handle === 'jeffyplays'
             ? (_isOwner = true)
             : (_isOwner = false);
-        const panel = document.getElementById('efx-mod-panel');
-        if (panel) panel.style.display = _isOwner ? 'flex' : 'none';
-        if (_isOwner && panel) panel.style.flexDirection = 'column';
+        const efxPanel = document.getElementById('efx-mod-panel');
+        if (efxPanel) efxPanel.style.display = _isOwner ? 'flex' : 'none';
+        if (_isOwner && efxPanel) efxPanel.style.flexDirection = 'column';
+        const sprPanel = document.getElementById('spr-mod-panel');
+        if (sprPanel) sprPanel.style.display = _isOwner ? 'flex' : 'none';
+        if (_isOwner && sprPanel) sprPanel.style.flexDirection = 'column';
     }
 
     function _efxModSelectPack(pack) {
@@ -5105,6 +5120,61 @@
         showKbFlash(`✅ Confirmed: "${_efxModPack.name}" default = ${scale}px`);
     }
 
+    // ── SPRITE MOD PANEL (jeffyplays only) ──────────────────────────────
+    let _sprModPack = null;
+
+    function _sprModSelectPack(pack) {
+        if (!_isOwner) return;
+        _sprModPack = pack;
+        const input    = document.getElementById('spr-mod-scale-input');
+        const current  = document.getElementById('spr-mod-current');
+        const selected = document.getElementById('spr-mod-selected');
+        if (input)    input.value = pack.default_scale || 200;
+        if (selected) { selected.innerText = '✏️ ' + (pack.name || 'Untitled'); selected.style.color = 'var(--accent)'; }
+        if (current)  current.innerText = pack.default_scale ? `Current: ${pack.default_scale}px` : 'No default set yet';
+    }
+
+    async function saveSprDefaultScale() {
+        if (!_isOwner || !_sprModPack) { showKbFlash('Select a sprite first (click its card)'); return; }
+        const input = document.getElementById('spr-mod-scale-input');
+        const scale = parseInt(input?.value);
+        if (!scale || scale < 50 || scale > 900) { showKbFlash('Enter a valid scale between 50–900px'); return; }
+        const btn = document.querySelector('#spr-mod-panel button');
+        if (btn) { btn.innerText = 'Saving…'; btn.disabled = true; }
+
+        const { error } = await _supabase.rpc('set_sprite_default_scale', {
+            p_sprite_id: String(_sprModPack.id),
+            p_scale: scale
+        });
+
+        if (btn) { btn.innerText = '💾 Save'; btn.disabled = false; }
+
+        if (error) {
+            alert('❌ Save failed:\n' + error.message + '\n\nMake sure you have run:\nALTER TABLE sprites_library ADD COLUMN IF NOT EXISTS default_scale INTEGER;');
+            return;
+        }
+
+        // Read back to verify
+        const { data: verify, error: verifyErr } = await _supabase
+            .from('sprites_library').select('id, default_scale').eq('id', _sprModPack.id).single();
+
+        if (verifyErr || !verify) { alert('❌ Could not verify save. Check Supabase RLS policies allow updates.'); return; }
+        if (verify.default_scale !== scale) { alert(`❌ Verification failed — DB shows ${verify.default_scale} but tried to save ${scale}.`); return; }
+
+        // Confirmed — update in-memory and clear caches
+        _sprModPack.default_scale = scale;
+        if (sidebarSprites) { const s = sidebarSprites.find(s => s.id === _sprModPack.id); if (s) s.default_scale = scale; }
+        localStorage.removeItem('sb-full-' + _sprModPack.id);
+        localStorage.removeItem('cc_sprites_meta_v1');
+        sbFullCache.delete(_sprModPack.id);
+
+        const current = document.getElementById('spr-mod-current');
+        if (current) current.innerText = `✓ Verified in DB: ${scale}px`;
+        const selected = document.getElementById('spr-mod-selected');
+        if (selected) selected.style.color = '#00d2ff';
+        showKbFlash(`✅ Confirmed: "${_sprModPack.name}" default = ${scale}px`);
+    }
+
     function toggleSidePanel(name) {
         const panel = document.getElementById('sidebar-panel');
         // Close if same panel clicked
@@ -5125,7 +5195,7 @@
         const btn = document.querySelector('.sb-icon-btn[data-panel="' + name + '"]');
         if (btn) btn.classList.add('active');
         // Panel-specific init
-        if (name === 'sprites' && !sidebarSprites) loadSidebarSprites();
+        if (name === 'sprites' && sidebarSprites === null) loadSidebarSprites();
         if (name === 'mysprites') loadMySprites();
         if (name === 'effects') { if (!sidebarEffects) loadSidebarEffects(); _initModPanel(); }
         if (name === 'background') loadSidebarBgs();
@@ -5163,8 +5233,8 @@
             return p;
         } catch(e) { return null; }
     }
-    function sbSetFullCache(id, imageData, actions) {
-        try { localStorage.setItem('sb-full-' + id, JSON.stringify({ img: imageData, actions: actions || {}, ts: Date.now() })); } catch(e) {}
+    function sbSetFullCache(id, imageData, actions, defaultScale) {
+        try { localStorage.setItem('sb-full-' + id, JSON.stringify({ img: imageData, actions: actions || {}, default_scale: defaultScale || null, ts: Date.now() })); } catch(e) {}
     }
 
     // Full data cache (image_data + actions) — in-memory + localStorage backed
@@ -5176,22 +5246,22 @@
         // localStorage hit — zero network call
         const lsCached = sbGetFullCache(id);
         if (lsCached) {
-            const result = { id, image_data: lsCached.img, actions: lsCached.actions };
+            const result = { id, image_data: lsCached.img, actions: lsCached.actions, default_scale: lsCached.default_scale || null };
             sbFullCache.set(id, result);
             const sp = (sidebarSprites || []).find(s => s.id === id);
-            if (sp) { sp.image_data = lsCached.img; sp.actions = lsCached.actions; }
+            if (sp) { sp.image_data = lsCached.img; sp.actions = lsCached.actions; if (lsCached.default_scale) sp.default_scale = lsCached.default_scale; }
             sbSetImg(id, lsCached.img);
             return result;
         }
 
         const { data } = await _supabase.from('sprites_library')
-            .select('id, image_data, actions').eq('id', id).single();
+            .select('id, image_data, actions, default_scale').eq('id', id).single();
         if (data) {
             sbFullCache.set(id, data);
             const sp = (sidebarSprites || []).find(s => s.id === id);
-            if (sp) { sp.image_data = data.image_data; sp.actions = data.actions; }
+            if (sp) { sp.image_data = data.image_data; sp.actions = data.actions; if (data.default_scale) sp.default_scale = data.default_scale; }
             sbSetImg(id, data.image_data);
-            sbSetFullCache(id, data.image_data, data.actions);
+            sbSetFullCache(id, data.image_data, data.actions, data.default_scale);
         }
         return data;
     }
@@ -5311,10 +5381,12 @@
             div.onclick = async () => {
                 // Track last-used for sort
                 lsSet('sprite-used-' + pack.id, Date.now());
+                // Update mod panel selection (jeffyplays only — no-op for others)
+                _sprModSelectPack(pack);
                 // Need full data (image_data + actions) before opening modal
                 const hasFull = pack.image_data && pack.actions !== undefined;
                 if (hasFull) {
-                    openActionModal(pack);
+                    openActionModal({ ...pack, default_scale: pack.default_scale });
                 } else {
                     div.style.opacity = '0.5';
                     const full = await sbFetchFull(pack.id);
@@ -5618,9 +5690,10 @@
             grid.innerHTML = '<div class="sp-load-msg">Loading effects...</div>';
         }
         try {
-            const { data } = await _supabase.from('effects_library')
+            const { data, error } = await _supabase.from('effects_library')
                 .select('id, name, tags, creator, created_at, default_scale')
                 .order('created_at', {ascending: false});
+            if (error) { if (!cached) grid.innerHTML = '<div class="sp-load-msg">Error loading effects</div>'; return; }
             const fresh = data || [];
             const cachedIds = (sidebarEffects||[]).map(e=>e.id).join(',');
             const freshIds  = fresh.map(e=>e.id).join(',');
@@ -5712,7 +5785,7 @@
                     openEffectModal({ ...pack, image_data: cached.img, actions: cached.actions, default_scale: cached.default_scale || pack.default_scale });
                 } else {
                     div.style.opacity = '0.5';
-                    const { data } = await _supabase.from('effects_library')
+                    const { data, error } = await _supabase.from('effects_library')
                         .select('id, image_data, actions, default_scale').eq('id', pack.id).single();
                     div.style.opacity = '';
                     if (data) {

@@ -897,6 +897,18 @@
         </div>
         <!-- Sprites sub-panel -->
         <div id="mob-sprites-subpanel">
+            <!-- ── MOD PANEL: only visible to @jeffyplays ── -->
+            <div id="mob-spr-mod-panel" style="display:none;background:rgba(255,122,0,0.07);border:1.5px solid rgba(255,122,0,0.35);border-radius:10px;padding:10px 12px;margin-bottom:8px;flex-direction:column;">
+                <div style="font-size:9px;font-weight:900;color:#ff7a00;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">⚙ Mod — Set Default Size</div>
+                <div id="mob-spr-mod-selected" style="font-size:11px;font-weight:800;color:#aaa;margin-bottom:8px;padding:6px 8px;background:#111;border-radius:6px;text-align:center;">← Tap a sprite card to select it</div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="number" id="mob-spr-mod-scale-input" min="50" max="900" value="200" placeholder="px"
+                        style="width:80px;background:#111;border:1px solid #444;color:#ff7a00;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:800;font-family:inherit;outline:none;text-align:center;">
+                    <span style="font-size:10px;color:#555;font-weight:700;">px wide</span>
+                    <button onclick="mobSaveSprDefaultScale()" style="flex:1;padding:8px 10px;background:#ff7a00;color:#000;border:none;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">💾 Save</button>
+                </div>
+                <div id="mob-spr-mod-current" style="font-size:9px;color:#555;font-weight:700;margin-top:6px;text-align:center;"></div>
+            </div>
             <input class="pub-input" id="mob-sprite-search" placeholder="Search sprites..." oninput="filterMobSprites()" style="margin-bottom:6px;">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
                 <select id="mob-sprite-sort" onchange="filterMobSprites()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:7px 10px;border-radius:10px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
@@ -1447,8 +1459,10 @@ function openSheet(name) {
     document.getElementById('sheet-overlay').classList.add('open');
     const sheetEl = document.getElementById('sheet-' + name);
     if (sheetEl) sheetEl.classList.add('open');
-    if (name === 'sprites' && !sidebarSprites) loadMobSprites();
+    if (name === 'sprites' && sidebarSprites === null) loadMobSprites();
+    if (name === 'sprites') _initMobSprModPanel();
     if (name === 'mysprites') loadMySprites();
+    if (name === 'effects' && mobSidebarEffects === null) loadMobEffects();
     if (name === 'bg') loadMobBgs();
     if (name === 'layers') renderMobLayers();
     if (name === 'frames') renderMobFrames();
@@ -2426,6 +2440,59 @@ function applyTransform() {
     render();
 }
 
+// ── SPRITE MOD PANEL (jeffyplays only) ──────────────────────────────────
+let _mobSprIsOwner = JSON.parse(localStorage.getItem('user_profile') || '{}').handle === 'jeffyplays';
+let _mobSprModPack = null;
+
+function _initMobSprModPanel() {
+    _mobSprIsOwner = JSON.parse(localStorage.getItem('user_profile') || '{}').handle === 'jeffyplays';
+    const panel = document.getElementById('mob-spr-mod-panel');
+    if (panel) panel.style.display = _mobSprIsOwner ? 'flex' : 'none';
+}
+
+function _mobSprModSelectPack(pack) {
+    if (!_mobSprIsOwner) return;
+    _mobSprModPack = pack;
+    const input    = document.getElementById('mob-spr-mod-scale-input');
+    const current  = document.getElementById('mob-spr-mod-current');
+    const selected = document.getElementById('mob-spr-mod-selected');
+    if (input)    input.value = pack.default_scale || 200;
+    if (selected) { selected.innerText = '✏️ ' + (pack.name || 'Untitled'); selected.style.color = '#ff7a00'; }
+    if (current)  current.innerText = pack.default_scale ? `Current: ${pack.default_scale}px` : 'No default set yet';
+}
+
+async function mobSaveSprDefaultScale() {
+    if (!_mobSprIsOwner || !_mobSprModPack) { showToast('Select a sprite first'); return; }
+    const input = document.getElementById('mob-spr-mod-scale-input');
+    const scale = parseInt(input?.value);
+    if (!scale || scale < 50 || scale > 900) { showToast('Enter 50–900px'); return; }
+    const btn = document.querySelector('#mob-spr-mod-panel button');
+    if (btn) { btn.innerText = 'Saving…'; btn.disabled = true; }
+
+    const { error } = await _supabase.rpc('set_sprite_default_scale', {
+        p_sprite_id: String(_mobSprModPack.id),
+        p_scale: scale
+    });
+
+    if (btn) { btn.innerText = '💾 Save'; btn.disabled = false; }
+
+    if (error) { showToast('❌ Save failed: ' + error.message); return; }
+
+    const { data: verify, error: vErr } = await _supabase
+        .from('sprites_library').select('id, default_scale').eq('id', _mobSprModPack.id).single();
+
+    if (vErr || !verify || verify.default_scale !== scale) { showToast('❌ Verification failed'); return; }
+
+    _mobSprModPack.default_scale = scale;
+    if (sidebarSprites) { const s = sidebarSprites.find(s => s.id === _mobSprModPack.id); if (s) s.default_scale = scale; }
+
+    const current = document.getElementById('mob-spr-mod-current');
+    if (current) current.innerText = `✓ Verified in DB: ${scale}px`;
+    const selected = document.getElementById('mob-spr-mod-selected');
+    if (selected) selected.style.color = '#00d2ff';
+    showToast(`✅ "${_mobSprModPack.name}" default = ${scale}px`);
+}
+
 // ── SPRITES ──
 let allSidebarMeta = [];
 async function loadMobSprites() {
@@ -2447,6 +2514,7 @@ function renderMobSpriteGrid(sprites) {
         card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
         card.onclick = async () => {
             lsSet('sprite-used-' + pack.id, Date.now());
+            _mobSprModSelectPack(pack);
             const full = await sbFetchFull(pack.id);
             if (full) { closeSheet('sprites'); openActionModal({ ...pack, ...full }); }
         };
@@ -3224,17 +3292,17 @@ function sbGetFullCache(id) {
         return p;
     } catch(e) { return null; }
 }
-function sbSetFullCache(id, imageData, actions) {
-    try { localStorage.setItem('sb-full-' + id, JSON.stringify({ img: imageData, actions: actions || {}, ts: Date.now() })); } catch(e) {}
+function sbSetFullCache(id, imageData, actions, defaultScale) {
+    try { localStorage.setItem('sb-full-' + id, JSON.stringify({ img: imageData, actions: actions || {}, default_scale: defaultScale || null, ts: Date.now() })); } catch(e) {}
 }
 
 async function sbFetchFull(id) {
     // Full cache hit (image + actions) — zero network calls
     const fullCached = sbGetFullCache(id);
-    if (fullCached) return { image_data: fullCached.img, actions: fullCached.actions };
+    if (fullCached) return { image_data: fullCached.img, actions: fullCached.actions, default_scale: fullCached.default_scale || null };
 
     const { data } = await _supabase.from('sprites_library').select('*').eq('id', id).single();
-    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {});
+    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
     return data;
 }
 
@@ -3347,7 +3415,7 @@ function addSpriteToCanvas(src, pack) {
     saveState();
     const cw = canvas.offsetWidth || 300;
     const ch = canvas.offsetHeight || 300;
-    const initW = Math.round(cw * 0.4);
+    const initW = (pack && pack.default_scale) ? pack.default_scale : Math.round(cw * 0.4);
     const nl = { type: 'img', src, w: initW, h: initW, x: Math.round(cw * 0.3), y: Math.round(ch * 0.3), rotation: 0, flipped: false, packData: pack, id: Date.now() };
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
