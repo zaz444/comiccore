@@ -260,14 +260,15 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 .comic-card:active { transform: scale(.97); }
 
 .comic-card-cover {
-  width: 100%; aspect-ratio: 2/3; border-radius: 14px; overflow: visible;
+  width: 100%; aspect-ratio: 2/3; border-radius: 14px; overflow: hidden;
   background: #111; position: relative;
   box-shadow: 0 4px 16px rgba(0,0,0,.55);
 }
-/* In grid context, cap height so cards don't get too tall on wide screens */
+/* Grid cards: fixed height so 4-col doesn't make giant cards */
 .comics-page-grid .comic-card-cover {
   aspect-ratio: unset;
-  height: clamp(160px, 22vw, 260px);
+  height: clamp(140px, 18vw, 240px);
+  overflow: hidden;
 }
 .comic-card-cover > div:first-child {
   width: 100%; height: 100%; border-radius: 14px; overflow: hidden; position: relative;
@@ -302,14 +303,11 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 }
 .comic-card .tile-progress-fill { height: 100%; background: #ff7a00; }
 
-/* Overlapping pfp — sits at bottom-right of cover */
-.comic-card-pfp-wrap {
-  position: absolute; bottom: -11px; right: 8px; z-index: 2;
-}
+/* PFP in card meta row */
+.comic-card-pfp-wrap { display: none; } /* hide the overlapping version */
 .comic-card-pfp {
-  width: 26px; height: 26px; border-radius: 50%; object-fit: cover;
-  background: #222; border: 2px solid #0f0f11; display: block; cursor: pointer;
-  flex-shrink: 0;
+  width: 16px; height: 16px; border-radius: 50%; object-fit: cover;
+  background: #222; border: 1px solid #333; display: inline-block; cursor: pointer; flex-shrink: 0;
 }
 .comic-card-pfp.hidden { display: none; }
 
@@ -329,7 +327,7 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 }
 
 .comic-card-info {
-  padding: 12px 2px 0; /* top pad for overlapping pfp */
+  padding: 6px 2px 0;
 }
 .comic-card-title {
   font-size: 12px; font-weight: 800; color: #f5f5f7;
@@ -1272,8 +1270,6 @@ async function loadFeeds() {
     updateContinueBadge();
     loadTopCreators(currentRankTab);
     loadDiscoverSquads();
-    // Still fetch teams (small) in background
-    _sb.from('team_tickets').select('id,team_name,pfp,owner_handle').limit(30).then(({data}) => renderTeams(data||[]));
     return;
   }
 
@@ -1287,13 +1283,12 @@ async function loadFeeds() {
   }
 
   // ── 3. Fetch only what's needed — no full data blobs ────
-  const [{ data: comics }, { data: stars }, { data: teams }] = await Promise.all([
+  const [{ data: comics }, { data: stars }] = await Promise.all([
     _sb.from('comics')
       .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir')
       .order('created_at', { ascending: false })
       .limit(80),
     _sb.from('messages').select('receiver_hand,sender_handle').eq('reaction','⭐').limit(2000),
-    _sb.from('team_tickets').select('id,team_name,pfp,owner_handle').limit(30),
   ]);
 
   allComics = (comics || []).filter(c => c.title && c.owner_handle);
@@ -1314,7 +1309,6 @@ async function loadFeeds() {
   }
 
   renderComics(allComics, globalStars);
-  renderTeams(teams || []);
   loadTopCreators(currentRankTab);
   loadDiscoverSquads();
   updateContinueBadge();
@@ -1372,16 +1366,14 @@ function renderComics(comics, stars) {
         <div style="width:100%;height:100%;border-radius:14px;overflow:hidden;position:relative;">
           ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}
         </div>
-        <div class="comic-card-pfp-wrap">
-          <img class="comic-card-pfp" data-handle="${ownerHandle}" src="" alt=""
-            onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
-            onerror="this.classList.add('hidden')">
-        </div>
       </div>
       <div class="comic-card-info">
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
         ${renderStarRating(starCount)}
         <div class="comic-card-meta">
+          <img class="comic-card-avatar comic-card-pfp" data-handle="${ownerHandle}" src="" alt=""
+            onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
+            onerror="this.style.display='none'">
           <span class="comic-card-handle" onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'">@${ownerHandle}</span>
           ${followBtn}
         </div>
