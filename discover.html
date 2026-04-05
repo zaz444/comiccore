@@ -29,7 +29,7 @@ font-family: inherit; font-size: 13px; outline: none; transition: .2s;
 .search-box::placeholder { color: #444; }
 
 /* ── Nav tabs ── */
-.nav-tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; padding-bottom: 2px; }
+.nav-tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; overflow-y: visible; padding-bottom: 2px; }
 .nav-tabs::-webkit-scrollbar { display: none; }
 .nav-tab {
 flex-shrink: 0; padding: 6px 16px; border-radius: 20px;
@@ -46,11 +46,11 @@ transition: .15s; white-space: nowrap;
   display: flex; align-items: center; gap: 4px;
 }
 .sort-dropdown-menu {
-  display: none; position: absolute;
-  top: calc(100% + 8px); left: 0; z-index: 400;
+  display: none; position: fixed;
+  z-index: 9999;
   background: #141416; border: 1.5px solid #2a2a2c;
-  border-radius: 14px; overflow: hidden; min-width: 150px;
-  box-shadow: 0 10px 32px rgba(0,0,0,.7);
+  border-radius: 14px; overflow: hidden; min-width: 160px;
+  box-shadow: 0 10px 32px rgba(0,0,0,.85);
 }
 .sort-dropdown-menu.open { display: block; }
 .sort-dropdown-menu button {
@@ -264,10 +264,10 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
   background: #111; position: relative;
   box-shadow: 0 4px 16px rgba(0,0,0,.55);
 }
-/* Grid cards: fixed height so 4-col doesn't make giant cards */
+/* Grid cards: portrait but capped so they don't get too tall */
 .comics-page-grid .comic-card-cover {
   aspect-ratio: unset;
-  height: clamp(140px, 18vw, 240px);
+  height: clamp(160px, 20vw, 280px);
   overflow: hidden;
 }
 .comic-card-cover > div:first-child {
@@ -304,10 +304,11 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 .comic-card .tile-progress-fill { height: 100%; background: #ff7a00; }
 
 /* PFP in card meta row */
-.comic-card-pfp-wrap { display: none; } /* hide the overlapping version */
+.comic-card-pfp-wrap { display: none; }
 .comic-card-pfp {
-  width: 16px; height: 16px; border-radius: 50%; object-fit: cover;
-  background: #222; border: 1px solid #333; display: inline-block; cursor: pointer; flex-shrink: 0;
+  width: 18px; height: 18px; border-radius: 50%; object-fit: cover;
+  background: #222; border: 1px solid #333; display: inline-block;
+  cursor: pointer; flex-shrink: 0; vertical-align: middle;
 }
 .comic-card-pfp.hidden { display: none; }
 
@@ -1414,7 +1415,15 @@ function openRandomComic() {
 // ── Sort dropdown ─────────────────────────────────────────
 function toggleSortDropdown(e) {
   e?.stopPropagation();
-  document.getElementById('sort-dropdown-menu').classList.toggle('open');
+  const menu = document.getElementById('sort-dropdown-menu');
+  const btn  = document.getElementById('sort-dropdown-btn');
+  const isOpen = menu.classList.contains('open');
+  if (isOpen) { menu.classList.remove('open'); return; }
+  // Position the fixed menu below the button
+  const rect = btn.getBoundingClientRect();
+  menu.style.top  = (rect.bottom + 6) + 'px';
+  menu.style.left = rect.left + 'px';
+  menu.classList.add('open');
 }
 
 function setSortFromDropdown(sort) {
@@ -2230,7 +2239,7 @@ function renderContinueReading() {
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
         ${renderStarRating(starCount)}
         <div style="font-size:10px;color:#ff7a00;font-weight:800;margin-top:2px;">
-          Frame ${prog ? prog.frame : '?'} of ${frameCount} · ${prog ? prog.pct : 0}%
+          ${frameCount > 0 && prog ? `Frame ${prog.frame} of ${frameCount} · ${prog.pct}%` : ''}
         </div>
       </div>
     </div>`;
