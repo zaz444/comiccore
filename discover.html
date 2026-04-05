@@ -264,6 +264,11 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
   background: #111; position: relative;
   box-shadow: 0 4px 16px rgba(0,0,0,.55);
 }
+/* In grid context, cap height so cards don't get too tall on wide screens */
+.comics-page-grid .comic-card-cover {
+  aspect-ratio: unset;
+  height: clamp(160px, 22vw, 260px);
+}
 .comic-card-cover > div:first-child {
   width: 100%; height: 100%; border-radius: 14px; overflow: hidden; position: relative;
 }
@@ -1132,54 +1137,59 @@ async function loadTopCreators(tab) {
 
   list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">Loading…</div>';
 
-  if (tab === 'stars') {
-    // Build star counts per owner using globalStars + allComics
-    const starsByOwner = {};
-    globalStars.forEach(s => {
-      const comic = allComics.find(c => c.id === s.receiver_hand);
-      if (comic?.owner_handle) starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
-    });
+  try {
+    if (tab === 'stars') {
+      // Primary: count stars per owner via comic ownership
+      const starsByOwner = {};
+      globalStars.forEach(s => {
+        const comic = allComics.find(c => c.id === s.receiver_hand);
+        if (comic?.owner_handle) starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
+      });
 
-    let sorted = Object.entries(starsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
-
-    // Fallback: if no stars at all, rank by comic count instead
-    if (!sorted.length && allComics.length) {
+      // Always also count comics per owner as a signal
       const comicsByOwner = {};
       allComics.forEach(c => { if (c.owner_handle) comicsByOwner[c.owner_handle] = (comicsByOwner[c.owner_handle] || 0) + 1; });
-      sorted = Object.entries(comicsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
+
+      // Merge: use star count if available, else comic count
+      const allOwners = [...new Set([...Object.keys(starsByOwner), ...Object.keys(comicsByOwner)])];
+      const ranked = allOwners
+        .map(h => ({ handle: h, count: starsByOwner[h] || comicsByOwner[h] || 0 }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      if (!ranked.length) { list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">No data yet</div>'; return; }
+
+      const handles = ranked.map(r => r.handle);
+      const { data: profiles } = await _sb.from('profiles').select('handle,name,pic').in('handle', handles);
+      const profMap = Object.fromEntries((profiles||[]).map(p => [p.handle, p]));
+      profiles?.forEach(p => { profileCache[p.handle] = p; });
+      topCreatorsData.stars = ranked.map(r => ({ ...r, ...(profMap[r.handle]||{}) }));
+
+    } else if (tab === 'follows') {
+      const { data: followCounts } = await _sb.from('follows').select('following').limit(2000);
+      const countMap = {};
+      (followCounts || []).forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
+
+      // Fallback to comic count if no follows data
+      if (!Object.keys(countMap).length) {
+        allComics.forEach(c => { if (c.owner_handle) countMap[c.owner_handle] = (countMap[c.owner_handle] || 0) + 1; });
+      }
+
+      const sorted = Object.entries(countMap).sort((a,b) => b[1]-a[1]).slice(0,10);
+      if (!sorted.length) { list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">No data yet</div>'; return; }
+
+      const handles = sorted.map(([h]) => h);
+      const { data: profiles } = await _sb.from('profiles').select('handle,name,pic').in('handle', handles);
+      const profMap = Object.fromEntries((profiles||[]).map(p => [p.handle, p]));
+      profiles?.forEach(p => { profileCache[p.handle] = p; });
+      topCreatorsData.follows = sorted.map(([handle, count]) => ({ handle, count, ...(profMap[handle]||{}) }));
     }
 
-    if (!sorted.length) { renderTopCreators([], tab); return; }
-
-    const handles = sorted.map(([h]) => h);
-    const { data: profiles } = await _sb.from('profiles').select('handle,name,pic').in('handle', handles);
-    const profMap = Object.fromEntries((profiles||[]).map(p => [p.handle, p]));
-    profiles?.forEach(p => { profileCache[p.handle] = p; });
-    topCreatorsData.stars = sorted.map(([handle, count]) => ({ handle, count, ...(profMap[handle]||{}) }));
-
-  } else if (tab === 'follows') {
-    const { data: followCounts } = await _sb.from('follows').select('following').limit(2000);
-    const countMap = {};
-    (followCounts || []).forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
-    let sorted = Object.entries(countMap).sort((a,b) => b[1]-a[1]).slice(0,10);
-
-    // Fallback to comic count if no follows
-    if (!sorted.length && allComics.length) {
-      const comicsByOwner = {};
-      allComics.forEach(c => { if (c.owner_handle) comicsByOwner[c.owner_handle] = (comicsByOwner[c.owner_handle] || 0) + 1; });
-      sorted = Object.entries(comicsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
-    }
-
-    if (!sorted.length) { renderTopCreators([], tab); return; }
-
-    const handles = sorted.map(([h]) => h);
-    const { data: profiles } = await _sb.from('profiles').select('handle,name,pic').in('handle', handles);
-    const profMap = Object.fromEntries((profiles||[]).map(p => [p.handle, p]));
-    profiles?.forEach(p => { profileCache[p.handle] = p; });
-    topCreatorsData.follows = sorted.map(([handle, count]) => ({ handle, count, ...(profMap[handle]||{}) }));
+    renderTopCreators(topCreatorsData[tab], tab);
+  } catch(e) {
+    console.error('loadTopCreators error:', e);
+    list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">Could not load creators</div>';
   }
-
-  renderTopCreators(topCreatorsData[tab], tab);
 }
 
 const RANK_MEDALS = ['🥇','🥈','🥉','4','5','6','7','8','9','10'];
