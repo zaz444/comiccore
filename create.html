@@ -230,9 +230,6 @@
         border: 3px solid #000;
         border-radius: 50%;
     }
-    .thought-dot-1 { width: 11px; height: 11px; bottom: -18px; left: 30px; }
-    .thought-dot-2 { width: 7px;  height: 7px;  bottom: -29px; left: 23px; }
-    .thought-dot-3 { width: 4px;  height: 4px;  bottom: -37px; left: 17px; }
     .thought-dot-1 { width: 12px; height: 12px; bottom: -20px; left: 24px; }
     .thought-dot-2 { width: 8px;  height: 8px;  bottom: -32px; left: 18px; }
     .thought-dot-3 { width: 5px;  height: 5px;  bottom: -40px; left: 13px; }
@@ -383,7 +380,7 @@
 
     #global-frame-indicator {
         position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%);
-        font-weight: 900; font-size: 12px; color: #444; letter-spacing: 2px;
+        font-weight: 900; font-size: 12px; color: #666; letter-spacing: 2px;
     }
 
     .pub-input { width: 100%; padding: 14px; background: #111; border: 1px solid #333; color: white; border-radius: 12px; margin-bottom: 12px; box-sizing: border-box; font-family: inherit; }
@@ -539,7 +536,9 @@
     /* Filter chip scroll row */
     .filter-row {
         display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
+        min-height: 0;
     }
+    .filter-row:empty { display: none; }
     .filter-row::-webkit-scrollbar { height: 3px; }
     .filter-row::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
     .filter-chip {
@@ -597,19 +596,47 @@
         display: none; margin-top: 6px;
     }
 
-    /* ── FX Panel (layer blur + filter) ── */
+    /* ── FX Blur Cards ── */
+    .fx-blur-card {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+        padding: 9px 10px; background: #1e1e20; border: 1.5px solid #2a2a2c;
+        border-radius: 10px; cursor: pointer; transition: .15s; text-align: left;
+        font-family: inherit; width: 100%;
+    }
+    .fx-blur-card:hover { border-color: #444; background: #252527; }
+    .fx-blur-card.active { background: rgba(0,210,255,.1); border-color: var(--teal); }
+    .fx-blur-icon { font-size: 15px; line-height: 1; color: #aaa; }
+    .fx-blur-card.active .fx-blur-icon { color: var(--teal); }
+    .fx-blur-name { font-size: 11px; font-weight: 800; color: #ccc; }
+    .fx-blur-card.active .fx-blur-name { color: var(--teal); }
+    .fx-blur-desc { font-size: 9px; font-weight: 600; color: #555; letter-spacing: .2px; }
+
+    /* ── Layers panel order buttons ── */
+    .layer-order-btn {
+        flex-shrink: 0; width: 22px; height: 22px; border-radius: 5px;
+        background: #1e1e20; border: 1px solid #2a2a2c; color: #666;
+        font-size: 10px; cursor: pointer; display: flex; align-items: center;
+        justify-content: center; transition: .12s; padding: 0;
+    }
+    .layer-order-btn:hover { background: #2a2a2c; color: #ccc; border-color: #444; }
+
+    /* ── BG thumb preview in transform UI ── */
+    #bg-thumb-preview { transition: .2s; }
+
+    /* ── FX Panel wider ── */
     #fx-panel {
-        position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+        position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
         background: var(--card); border: 1px solid var(--border); border-radius: 20px;
-        padding: 16px; width: min(380px, 96vw); display: none; flex-direction: column; gap: 12px;
-        z-index: 2300; box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+        padding: 16px; width: min(440px, 96vw); display: none; flex-direction: column; gap: 12px;
+        z-index: 3500; box-shadow: 0 12px 40px rgba(0,0,0,0.7);
     }
     #fx-panel .fx-title {
         font-size: 11px; font-weight: 900; color: var(--teal); letter-spacing: 1px;
         text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;
     }
     .fx-section-label { font-size: 10px; font-weight: 900; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
-    .fx-filter-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 3px; }
+    .fx-filter-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 3px; min-height: 0; }
+    .fx-filter-row:empty { display: none; }
     .fx-filter-row::-webkit-scrollbar { height: 3px; }
     .fx-filter-row::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
     .fx-chip {
@@ -629,8 +656,7 @@
     .sb-layer-item .lock-btn:hover { color: #aaa; }
     .sb-layer-item.locked-l .lock-btn { color: #ff9500; }
 
-    /* Selection outline opacity control */
-    .layer.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+    /* Selection outline — dynamically overridden via JS styleEl */
 
     /* BG Edit Panel number inputs */
     .bg-num-input {
@@ -654,7 +680,7 @@
     }
     #ui-reveal-btn:hover { width: 28px; }
 
-    /* Selection opacity: applied via CSS variable */
+    /* Selection outline — color is overridden dynamically via JS styleEl */
     .layer.active { outline-color: rgba(var(--sel-r,255), var(--sel-g,122), var(--sel-b,0), var(--sel-opacity, 1)); }
 
     /* Bg recrop button */
@@ -746,7 +772,6 @@
     }
     .sb-icon-btn:hover { background: rgba(255,255,255,0.05); color: #aaa; }
     .sb-icon-btn.active { background: rgba(255,122,0,0.15); color: var(--accent); }
-    .sb-icon-btn.teal-icon.active { background: rgba(0,210,255,0.12); color: var(--teal); }
     .sb-icon-btn.teal-icon.active { background: rgba(0,210,255,0.12); color: var(--teal); }
     .sb-icon-btn.danger-icon.active { background: rgba(255,59,48,0.12); color: var(--danger); }
     .sb-icon { font-size: 21px; line-height: 1; }
@@ -904,7 +929,7 @@
 
     /* Add panel */
     .sp-section-label {
-        font-size: 9px; font-weight: 900; color: #2a2a2a; text-transform: uppercase;
+        font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase;
         letter-spacing: 1.5px; padding: 10px 14px 4px; flex-shrink: 0;
     }
     .sp-action-btn {
@@ -956,7 +981,7 @@
     #canvas-container { position: relative; display: inline-block; }
     #global-frame-indicator {
         position: absolute; bottom: -26px; left: 50%; transform: translateX(-50%);
-        font-weight: 900; font-size: 11px; color: #2a2a2a; letter-spacing: 2px;
+        font-weight: 900; font-size: 11px; color: #555; letter-spacing: 2px;
         white-space: nowrap;
     }
 
@@ -1196,45 +1221,102 @@
     </div>
 </div>
 
-<!-- ── FX Panel (layer-level blur + filters, multi-select) ── -->
-
-<!-- ── FLOATING PANELS (unchanged) ── -->
+<!-- ── FX Panel (full blur system + filters + opacity) ── -->
 <div id="fx-panel">
     <div class="fx-title">
         <span>🎨 FX — LAYER EFFECTS</span>
-        <span style="cursor:pointer;color:#555;" onclick="closeFxPanel()">✕</span>
+        <span style="cursor:pointer;color:#555;font-size:18px;line-height:1;" onclick="closeFxPanel()">✕</span>
     </div>
-    <div id="fx-selected-hint">Select layer(s) in LAYERS panel first</div>
+    <div id="fx-selected-hint" style="font-size:11px;color:#555;font-weight:700;text-align:center;padding:10px 0 6px;display:none;">⚠️ Select a layer first to apply effects</div>
 
-    <!-- Blur -->
-    <div class="fx-section-label">Blur</div>
-    <div style="display:flex; gap:6px;">
-        <button class="fx-chip active" id="fx-blur-none" onclick="setFxBlur('none')">None</button>
-        <button class="fx-chip" id="fx-blur-soft" onclick="setFxBlur('soft')">Soft</button>
-        <button class="fx-chip" id="fx-blur-pixel" onclick="setFxBlur('pixel')">Pixelate</button>
+    <!-- All controls hidden until a layer is selected -->
+    <div id="fx-controls-body" style="display:none;flex-direction:column;gap:10px;">
+
+    <!-- ── BLUR SECTION ── -->
+    <div class="fx-section-label" style="display:flex;align-items:center;gap:6px;">
+        <span style="width:3px;height:10px;background:var(--teal);border-radius:2px;display:inline-block;flex-shrink:0;"></span>BLUR
     </div>
+    <!-- Blur type cards grid -->
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;" id="fx-blur-grid">
+        <button class="fx-blur-card active" id="fx-blur-none" onclick="setFxBlur('none')" title="No blur">
+            <span class="fx-blur-icon">○</span>
+            <span class="fx-blur-name">None</span>
+        </button>
+        <button class="fx-blur-card" id="fx-blur-gaussian" onclick="setFxBlur('gaussian')" title="Smooth, even blur — great for glows and soft focus">
+            <span class="fx-blur-icon">◎</span>
+            <span class="fx-blur-name">Gaussian</span>
+            <span class="fx-blur-desc">Soft & even</span>
+        </button>
+        <button class="fx-blur-card" id="fx-blur-motion" onclick="setFxBlur('motion')" title="Directional streak — simulates fast movement">
+            <span class="fx-blur-icon">➾</span>
+            <span class="fx-blur-name">Motion</span>
+            <span class="fx-blur-desc">Directional streak</span>
+        </button>
+        <button class="fx-blur-card" id="fx-blur-lens" onclick="setFxBlur('lens')" title="Cinematic depth-of-field bokeh effect">
+            <span class="fx-blur-icon">⬡</span>
+            <span class="fx-blur-name">Lens / Bokeh</span>
+            <span class="fx-blur-desc">Cinematic DOF</span>
+        </button>
+        <button class="fx-blur-card" id="fx-blur-frosted" onclick="setFxBlur('frosted')" title="Frosted glass — scrambled pixel texture">
+            <span class="fx-blur-icon">❄</span>
+            <span class="fx-blur-name">Frosted Glass</span>
+            <span class="fx-blur-desc">Icy & grainy</span>
+        </button>
+        <button class="fx-blur-card" id="fx-blur-zoom" onclick="setFxBlur('zoom')" title="Warp-speed zoom blur from center point">
+            <span class="fx-blur-icon">⊛</span>
+            <span class="fx-blur-name">Zoom Burst</span>
+            <span class="fx-blur-desc">Tunnel warp</span>
+        </button>
+        <button class="fx-blur-card" id="fx-blur-radial" onclick="setFxBlur('radial')" title="Spinning rotational blur around center">
+            <span class="fx-blur-icon">↻</span>
+            <span class="fx-blur-name">Radial / Spin</span>
+            <span class="fx-blur-desc">Spinning wheel</span>
+        </button>
+        <button class="fx-blur-card" id="fx-blur-pixel" onclick="setFxBlur('pixel')" title="Mosaic — pixelated 8-bit censorship look">
+            <span class="fx-blur-icon">⊞</span>
+            <span class="fx-blur-name">Mosaic</span>
+            <span class="fx-blur-desc">8-bit pixelate</span>
+        </button>
+    </div>
+
+    <!-- Amount slider (shown for non-none blurs) -->
     <div id="fx-blur-amt-row" style="display:none;" class="bg-slider-row">
         <span>Amount</span>
         <input type="range" id="fx-blur-amt" min="1" max="20" value="4" oninput="applyFxToSelected()">
         <span class="val-label" id="fx-blur-amt-val">4px</span>
     </div>
 
-    <!-- Filter -->
-    <div class="fx-section-label">Filter</div>
+    <!-- Motion direction (only for motion blur) -->
+    <div id="fx-motion-dir-row" style="display:none;">
+        <div style="font-size:9px;font-weight:900;color:#555;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Direction (°)</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="fx-motion-angle" min="0" max="360" value="0" style="flex:1;accent-color:var(--teal);" oninput="document.getElementById('fx-motion-angle-val').innerText=this.value+'°';applyFxToSelected()">
+            <span style="font-size:10px;font-weight:800;color:var(--teal);min-width:34px;text-align:right;" id="fx-motion-angle-val">0°</span>
+        </div>
+    </div>
+
+    <!-- ── FILTER SECTION ── -->
+    <div class="fx-section-label" style="display:flex;align-items:center;gap:6px;">
+        <span style="width:3px;height:10px;background:var(--accent);border-radius:2px;display:inline-block;flex-shrink:0;"></span>FILTER
+    </div>
     <div class="fx-filter-row" id="fx-filter-row"></div>
 
-    <!-- Opacity -->
-    <div class="fx-section-label">Opacity</div>
+    <!-- ── OPACITY SECTION ── -->
+    <div class="fx-section-label" style="display:flex;align-items:center;gap:6px;">
+        <span style="width:3px;height:10px;background:#888;border-radius:2px;display:inline-block;flex-shrink:0;"></span>OPACITY
+    </div>
     <div class="bg-slider-row">
         <span>Opacity</span>
         <input type="range" id="fx-opacity" min="10" max="100" value="100" oninput="applyFxToSelected()">
         <span class="val-label" id="fx-opacity-val">100%</span>
     </div>
 
-    <div style="display:flex;gap:8px;">
-        <button onclick="clearFxFromSelected()" style="flex:1;padding:8px;background:#222;color:#aaa;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;">Clear FX</button>
-        <button onclick="closeFxPanel()" style="flex:1;padding:8px;background:var(--teal);color:#000;border:none;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;">Done</button>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+        <button onclick="clearFxFromSelected()" style="flex:1;padding:9px;background:#1e1e20;color:#888;border:1px solid #333;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;transition:.15s;">Clear FX</button>
+        <button onclick="closeFxPanel()" style="flex:1;padding:9px;background:var(--teal);color:#000;border:none;border-radius:10px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">Done</button>
     </div>
+
+    </div><!-- /fx-controls-body -->
 </div>
 
 <!-- ── Background Edit Panel ── -->
@@ -1265,8 +1347,10 @@
         <input type="range" id="bg-y" min="-100" max="100" value="0" oninput="applyBgTransform()">
         <input type="number" class="bg-num-input" id="bg-y-num" min="-100" max="100" value="0" oninput="document.getElementById('bg-y').value=this.value; applyBgTransform()">
     </div>
-    <div style="font-size:10px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; margin-top:4px;">Filter</div>
-    <div class="filter-row" id="filter-row"></div>
+    <div id="bg-filter-section" style="display:none;">
+        <div style="font-size:10px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; margin-top:4px;">Filter</div>
+        <div class="filter-row" id="filter-row"></div>
+    </div>
     <label style="display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; color:#666; cursor:pointer;">
         <input type="checkbox" id="bg-apply-all" style="accent-color:var(--accent);">
         Apply transform to all frames
@@ -1396,66 +1480,80 @@
         </div>
     </div>
 
-    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;" class="transform-ui-collapsible">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:10px; font-weight:900; color:#666; text-transform:uppercase; letter-spacing:1px;">Position</span>
-            <button id="position-collapse-btn" onclick="togglePositionArrows()" class="nav-btn" style="padding:2px 8px; font-size:11px;" title="Minimize arrows">⬇</button>
+    <!-- ── POSITION PANEL (redesigned) ── -->
+    <div class="transform-ui-collapsible" id="pos-panel" style="display:flex;flex-direction:column;gap:8px;border-top:1px solid #222;padding-top:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;">Position</span>
+            <button id="position-collapse-btn" onclick="togglePositionArrows()" style="background:none;border:none;color:#444;font-size:13px;cursor:pointer;padding:2px 4px;border-radius:5px;transition:.15s;" title="Toggle arrows">⊞</button>
         </div>
 
-        <!-- X / Y coordinate inputs -->
-        <div style="display:flex; gap:6px;">
-            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
-                <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center;">X</span>
-                <input type="number" id="pos-x-input" class="slider-num-input" style="width:100%; box-sizing:border-box;"
-                    placeholder="0"
-                    oninput="if(activeLayer){ activeLayer.x = parseInt(this.value)||0; render(); }">
+        <!-- XYZ coordinate row -->
+        <div style="display:flex;gap:6px;">
+            <!-- X -->
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px;">
+                    <span style="font-size:9px;font-weight:900;color:var(--accent);letter-spacing:1px;">X</span>
+                    <div style="display:flex;gap:1px;">
+                        <button onclick="if(activeLayer){activeLayer.x=Math.max(0,activeLayer.x-1);document.getElementById('pos-x-input').value=Math.round(activeLayer.x);render();}" style="width:14px;height:14px;background:#2a2a2c;border:none;color:#888;font-size:9px;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">‹</button>
+                        <button onclick="if(activeLayer){activeLayer.x=activeLayer.x+1;document.getElementById('pos-x-input').value=Math.round(activeLayer.x);render();}" style="width:14px;height:14px;background:#2a2a2c;border:none;color:#888;font-size:9px;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">›</button>
+                    </div>
+                </div>
+                <input type="number" id="pos-x-input" placeholder="0"
+                    style="width:100%;background:#111;border:1.5px solid #2a2a2c;color:var(--accent);padding:6px 6px;border-radius:8px;font-size:12px;font-weight:800;text-align:center;outline:none;font-family:inherit;box-sizing:border-box;"
+                    oninput="if(activeLayer){activeLayer.x=parseInt(this.value)||0;render();}">
             </div>
-            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
-                <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center;">Y</span>
-                <input type="number" id="pos-y-input" class="slider-num-input" style="width:100%; box-sizing:border-box;"
-                    placeholder="0"
-                    oninput="if(activeLayer){ activeLayer.y = parseInt(this.value)||0; render(); }">
+            <!-- Y -->
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px;">
+                    <span style="font-size:9px;font-weight:900;color:var(--accent);letter-spacing:1px;">Y</span>
+                    <div style="display:flex;gap:1px;">
+                        <button onclick="if(activeLayer){activeLayer.y=Math.max(0,activeLayer.y-1);document.getElementById('pos-y-input').value=Math.round(activeLayer.y);render();}" style="width:14px;height:14px;background:#2a2a2c;border:none;color:#888;font-size:9px;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">‹</button>
+                        <button onclick="if(activeLayer){activeLayer.y=activeLayer.y+1;document.getElementById('pos-y-input').value=Math.round(activeLayer.y);render();}" style="width:14px;height:14px;background:#2a2a2c;border:none;color:#888;font-size:9px;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">›</button>
+                    </div>
+                </div>
+                <input type="number" id="pos-y-input" placeholder="0"
+                    style="width:100%;background:#111;border:1.5px solid #2a2a2c;color:var(--accent);padding:6px 6px;border-radius:8px;font-size:12px;font-weight:800;text-align:center;outline:none;font-family:inherit;box-sizing:border-box;"
+                    oninput="if(activeLayer){activeLayer.y=parseInt(this.value)||0;render();}">
             </div>
-            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
-                <span style="font-size:9px; font-weight:900; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center;">Z</span>
-                <div style="display:flex; gap:3px;">
-                    <button onclick="moveLayerZ(1)"  class="nav-btn" style="flex:1; padding:4px 0; font-size:13px;" title="Bring Forward">↑</button>
-                    <button onclick="moveLayerZ(-1)" class="nav-btn" style="flex:1; padding:4px 0; font-size:13px;" title="Send Backward">↓</button>
+            <!-- Z layer order -->
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                <span style="font-size:9px;font-weight:900;color:#555;letter-spacing:1px;text-align:center;">Z-ORDER</span>
+                <div style="display:flex;gap:3px;height:100%;">
+                    <button onclick="moveLayerZ(1)" title="Bring Forward" style="flex:1;background:#1e1e20;border:1px solid #333;color:#aaa;border-radius:7px;font-size:14px;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;padding:4px 0;">↑</button>
+                    <button onclick="moveLayerZ(-1)" title="Send Backward" style="flex:1;background:#1e1e20;border:1px solid #333;color:#aaa;border-radius:7px;font-size:14px;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;padding:4px 0;">↓</button>
                 </div>
             </div>
         </div>
 
-        <div id="position-arrows-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:5px;">
-            <button onclick="alignLayer('left',   null)"   class="nav-btn" title="Align Left">⬅</button>
-            <button onclick="alignLayer('center', null)"   class="nav-btn" title="Center H">↔</button>
-            <button onclick="alignLayer('right',  null)"   class="nav-btn" title="Align Right">➡</button>
-            <button onclick="alignLayer(null,     'top')"  class="nav-btn" title="Align Top">⬆</button>
-            <button onclick="centerLayer()"                class="nav-btn" title="Center Both" style="color:var(--accent); font-weight:900;">⊕</button>
-            <button onclick="alignLayer(null,     'bottom')" class="nav-btn" title="Align Bottom">⬇</button>
-            <button style="grid-column:span 3;" onclick="alignLayer('center','middle')" class="nav-btn" title="Center Vertically">↕ Center V</button>
+        <!-- Nudge / align grid -->
+        <div id="position-arrows-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+            <button onclick="alignLayer('left',null)"    title="Align Left"   style="background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;padding:8px 0;font-size:13px;cursor:pointer;transition:.15s;">⬅</button>
+            <button onclick="alignLayer('center',null)"  title="Center H"     style="background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;padding:8px 0;font-size:13px;cursor:pointer;transition:.15s;">↔</button>
+            <button onclick="alignLayer('right',null)"   title="Align Right"  style="background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;padding:8px 0;font-size:13px;cursor:pointer;transition:.15s;">➡</button>
+            <button onclick="alignLayer(null,'top')"     title="Align Top"    style="background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;padding:8px 0;font-size:13px;cursor:pointer;transition:.15s;">⬆</button>
+            <button onclick="centerLayer()"              title="Center Both"  style="background:rgba(255,122,0,.15);border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:8px 0;font-size:14px;font-weight:900;cursor:pointer;transition:.15s;">⊕</button>
+            <button onclick="alignLayer(null,'bottom')"  title="Align Bottom" style="background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;padding:8px 0;font-size:13px;cursor:pointer;transition:.15s;">⬇</button>
+            <button onclick="alignLayer('center','middle')" title="Center Vertically" style="grid-column:span 3;background:#1e1e20;border:1px solid #2a2a2c;color:#888;border-radius:8px;padding:7px 0;font-size:11px;font-weight:800;cursor:pointer;transition:.15s;letter-spacing:.3px;">↕ CENTER VERTICAL</button>
         </div>
     </div>
-    <button id="edit-bg-btn" onclick="openBgPanel()" class="transform-ui-collapsible">🖼️ Edit Background</button>
+
+    <!-- ── EDIT BG button — replaced with icon + Edit button ── -->
+    <div class="transform-ui-collapsible" id="edit-bg-btn-wrap" style="display:flex;align-items:center;gap:10px;background:#111;border:1px solid #222;border-radius:12px;padding:8px 10px;cursor:pointer;" onclick="openBgPanel()">
+        <div id="bg-thumb-preview" style="width:36px;height:36px;border-radius:8px;background:#1a1a1e;background-size:cover;background-position:center;border:1.5px solid #333;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;">🖼️</div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:800;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="bg-thumb-label">Background</div>
+            <div style="font-size:9px;color:#555;font-weight:700;letter-spacing:.3px;">Tap to edit</div>
+        </div>
+        <button id="edit-bg-btn" onclick="event.stopPropagation();openBgPanel()" style="background:rgba(255,122,0,.15);border:1px solid rgba(255,122,0,.4);color:var(--accent);padding:5px 10px;border-radius:8px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:inherit;letter-spacing:.3px;">EDIT</button>
+    </div>
     <div style="display:flex; gap:8px;" class="transform-ui-collapsible">
         <button onclick="deleteLayer()" style="flex:1; background:var(--danger); color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer;">DELETE</button>
         <button onclick="resetTransform()" style="flex:1; background:#333; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer;">RESET</button>
         <button onclick="toggleTransform()" style="flex:2; border:none; background:var(--accent); color:white; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer;">DONE</button>
     </div>
 
-    <!-- Sprite blur section (only shown for img layers) -->
-    <div id="sprite-blur-row" class="transform-ui-collapsible">
-        <div style="font-size:10px; font-weight:900; color:#555; letter-spacing:1px; text-transform:uppercase;">Blur</div>
-        <div class="blur-type-row">
-            <button class="blur-type-btn" id="blur-none-btn" onclick="setSpriteBlur('none')">None</button>
-            <button class="blur-type-btn" id="blur-soft-btn" onclick="setSpriteBlur('soft')">Soft Blur</button>
-            <button class="blur-type-btn" id="blur-pixel-btn" onclick="setSpriteBlur('pixel')">Pixelate</button>
-        </div>
-        <div class="bg-slider-row" id="blur-amount-row" style="display:none;">
-            <span>Amount</span>
-            <input type="range" id="blur-amount" min="1" max="20" value="4" oninput="updateSpriteBlur()">
-            <span class="val-label" id="blur-amount-val">4px</span>
-        </div>
-    </div>
+    <!-- Sprite blur moved to FX panel — only shown there -->
+    <div id="sprite-blur-row" style="display:none;"></div>
 
     <!-- Sprite name tag (editor-only, private) -->
     <div id="sprite-nametag-row" style="display:none; border-top:1px solid #333; padding-top:10px; gap:8px; flex-direction:column;" class="transform-ui-collapsible">
@@ -1805,6 +1903,13 @@
                         <button class="sb-lay-btn" onclick="sbPasteLayer()">📋 Paste</button>
                         <button class="sb-lay-btn" onclick="toggleSelectedLayerLock()">🔒 Lock</button>
                         <button class="sb-lay-btn danger" onclick="deleteLayer()">🗑 Del</button>
+                    </div>
+                    <!-- Layer order controls -->
+                    <div style="display:flex;gap:5px;padding:6px 8px 0;flex-wrap:wrap;">
+                        <button onclick="moveLayerToFront()" title="Move to Front" style="flex:1;min-width:0;padding:5px 4px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:7px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;transition:.15s;">⬆⬆ FRONT</button>
+                        <button onclick="moveLayerZ(1)" title="Move Forward One" style="flex:1;min-width:0;padding:5px 4px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:7px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;transition:.15s;">↑ FORWARD</button>
+                        <button onclick="moveLayerZ(-1)" title="Move Backward One" style="flex:1;min-width:0;padding:5px 4px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:7px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;transition:.15s;">↓ BACK</button>
+                        <button onclick="moveLayerToBack()" title="Move to Back" style="flex:1;min-width:0;padding:5px 4px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:7px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;transition:.15s;">⬇⬇ BACK</button>
                     </div>
                     <div id="sb-layer-list"></div>
                 </div>
@@ -2203,6 +2308,7 @@
         if(dir > 0 && idx < layers.length - 1) [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]];
         else if(dir < 0 && idx > 0) [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]];
         render();
+        if (typeof renderSidebarLayers === 'function') renderSidebarLayers();
     }
 
     function resetTransform() {
@@ -2459,6 +2565,8 @@
             const yEl = document.getElementById('pos-y-input');
             if (xEl && document.activeElement !== xEl) xEl.value = Math.round(activeLayer.x) || 0;
             if (yEl && document.activeElement !== yEl) yEl.value = Math.round(activeLayer.y) || 0;
+            // Keep BG thumb in sync whenever a re-render happens
+            if (typeof updateBgThumbPreview === 'function') updateBgThumbPreview();
         }
 
         // Classify the background value
@@ -2949,22 +3057,16 @@
             textUi.style.display    = isTextType ? 'flex' : 'none';
             scaleGroup.style.display = isTextType ? 'none' : 'flex';
 
-            // Show blur + nametag panels only for image layers
-            blurRow.style.display    = isImgType ? 'flex' : 'none';
+            // blur row is now hidden (moved to FX only), nametag still shows for img
+            blurRow.style.display    = 'none';
             nametagRow.style.display = isImgType ? 'flex' : 'none';
-            // Always show Edit Background button in EDIT panel
+            // Always show the BG thumb widget
+            const bgWrap = document.getElementById('edit-bg-btn-wrap');
+            if (bgWrap) bgWrap.style.display = 'flex';
             document.getElementById('edit-bg-btn').style.display = 'block';
+            updateBgThumbPreview();
 
             if (isImgType) {
-                // Sync blur UI
-                const bType = activeLayer.blurType || 'none';
-                const bAmt  = activeLayer.blurAmount || 4;
-                ['none','soft','pixel'].forEach(t => {
-                    document.getElementById('blur-' + t + '-btn').classList.toggle('active', t === bType);
-                });
-                document.getElementById('blur-amount').value       = bAmt;
-                document.getElementById('blur-amount-val').innerText = bAmt + 'px';
-                document.getElementById('blur-amount-row').style.display = bType === 'none' ? 'none' : 'flex';
                 // Sync nametag
                 document.getElementById('sprite-nametag-input').value = activeLayer.nameTag || '';
             }
@@ -4332,14 +4434,17 @@
             };
             row.appendChild(chip);
         });
+        const sec = document.getElementById('bg-filter-section');
+        if (sec) sec.style.display = row.children.length ? 'block' : 'none';
     }
 
     function openBgPanel() {
-        toggleMenu('plus-menu');
+        // Don't call toggleMenu — the new bg widget is in transform-ui not plus-menu
         const f = frames[currentIdx];
         if (!f.background || f.background === '#ffffff') {
             alert('Add a background image first!'); return;
         }
+        updateBgThumbPreview();
         buildFilterChips();
         const s = f.bgSettings || {};
         document.getElementById('bg-scale').value  = s.scale  ?? 1;
@@ -4519,14 +4624,34 @@
     function getSpriteFilterCSS(layer) {
         if (!layer.blurType || layer.blurType === 'none') return '';
         const amt = layer.blurAmount || 4;
-        if (layer.blurType === 'soft') return `blur(${amt}px)`;
-        if (layer.blurType === 'pixel') {
-            // Pixelate simulation: tiny scale down → upscale makes pixel blocks
-            // We use blur + contrast to fake pixel look via CSS
-            // More robust: use canvas for real pixelation, but CSS approach for realtime editing
-            return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
+        switch (layer.blurType) {
+            case 'gaussian': return `blur(${amt}px)`;
+            case 'soft':     return `blur(${amt}px)`;                            // legacy alias
+            case 'motion': {
+                // Motion blur: CSS approximation using multi-step blur + translate
+                const angle  = layer.blurAngle || 0;
+                const rad    = (angle * Math.PI) / 180;
+                const bx     = Math.cos(rad) * amt;
+                const by     = Math.sin(rad) * amt;
+                return `blur(${Math.max(1, Math.abs(bx)).toFixed(1)}px)`;       // CSS limitation — best single-axis approximation
+            }
+            case 'lens':
+                // Lens/bokeh: larger radius + slight brightness boost mimics light gathering
+                return `blur(${amt * 1.4}px) brightness(${100 + amt * 2}%)`;
+            case 'frosted':
+                // Frosted glass: high-contrast micro-blur + saturation scramble
+                return `blur(${Math.max(1, amt * 0.5)}px) contrast(${120 + amt * 3}%) saturate(${80 + amt * 3}%)`;
+            case 'zoom':
+                // Zoom burst: layered blur + slight brightness
+                return `blur(${amt * 0.8}px) brightness(${100 + amt}%)`;
+            case 'radial':
+                // Radial/spin: blur + slight hue offset
+                return `blur(${amt * 0.7}px) saturate(${120 + amt * 2}%)`;
+            case 'pixel':
+                // Mosaic / pixelate
+                return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
+            default: return '';
         }
-        return '';
     }
 
     // ═══════════════════════════════════════
@@ -4730,21 +4855,30 @@
         document.getElementById('fx-btn').classList.remove('active-tool');
     }
 
+    const FX_BLUR_TYPES = ['none','gaussian','motion','lens','frosted','zoom','radial','pixel'];
+
     function syncFxToLayer(layer) {
         if (!layer) return;
-        const bType = layer.blurType  || 'none';
-        const bAmt  = layer.blurAmount || 4;
-        const fCss  = layer.layerFilter || 'none';
+        const bType   = layer.blurType  || 'none';
+        const bAmt    = layer.blurAmount || 4;
+        const bAngle  = layer.blurAngle  || 0;
+        const fCss    = layer.layerFilter || 'none';
         const opacity = layer.opacity != null ? layer.opacity : 100;
 
-        ['none','soft','pixel'].forEach(t => {
-            document.getElementById('fx-blur-' + t).classList.toggle('active', t === bType);
+        // Highlight the matching blur card (support 'soft' legacy → 'gaussian')
+        const resolvedType = bType === 'soft' ? 'gaussian' : bType;
+        FX_BLUR_TYPES.forEach(t => {
+            const el = document.getElementById('fx-blur-' + t);
+            if (el) el.classList.toggle('active', t === resolvedType);
         });
-        document.getElementById('fx-blur-amt').value     = bAmt;
-        document.getElementById('fx-blur-amt-val').innerText = bAmt + 'px';
-        document.getElementById('fx-blur-amt-row').style.display = bType === 'none' ? 'none' : 'flex';
-        document.getElementById('fx-opacity').value      = opacity;
-        document.getElementById('fx-opacity-val').innerText = opacity + '%';
+        document.getElementById('fx-blur-amt').value          = bAmt;
+        document.getElementById('fx-blur-amt-val').innerText  = bAmt + 'px';
+        document.getElementById('fx-blur-amt-row').style.display      = bType === 'none' ? 'none' : 'flex';
+        document.getElementById('fx-motion-dir-row').style.display    = bType === 'motion' ? 'flex' : 'none';
+        document.getElementById('fx-motion-angle').value              = bAngle;
+        document.getElementById('fx-motion-angle-val').innerText      = bAngle + '°';
+        document.getElementById('fx-opacity').value           = opacity;
+        document.getElementById('fx-opacity-val').innerText   = opacity + '%';
 
         // Highlight matching filter chip
         document.querySelectorAll('.fx-chip').forEach(ch => {
@@ -4752,20 +4886,20 @@
         });
     }
 
-    function updateFxHint() {
-        const hint = document.getElementById('fx-selected-hint');
-        const count = selectedLayers.length || (activeLayer ? 1 : 0);
-        hint.innerText = count
-            ? count + ' layer' + (count > 1 ? 's' : '') + ' selected'
-            : 'Tap LAYERS and select layer(s) first';
-        hint.style.color = count ? 'var(--teal)' : '#555';
-    }
-
     function setFxBlur(type) {
-        document.getElementById('fx-blur-amt-row').style.display = type === 'none' ? 'none' : 'flex';
-        ['none','soft','pixel'].forEach(t => {
-            document.getElementById('fx-blur-' + t).classList.toggle('active', t === type);
+        // Deactivate all blur cards
+        FX_BLUR_TYPES.forEach(t => {
+            const el = document.getElementById('fx-blur-' + t);
+            if (el) el.classList.remove('active');
         });
+        const activeCard = document.getElementById('fx-blur-' + type);
+        if (activeCard) activeCard.classList.add('active');
+
+        const amtRow = document.getElementById('fx-blur-amt-row');
+        const motRow = document.getElementById('fx-motion-dir-row');
+        amtRow.style.display = type === 'none' ? 'none' : 'flex';
+        motRow.style.display = type === 'motion' ? 'flex' : 'none';
+
         applyFxToSelected();
     }
 
@@ -4774,8 +4908,10 @@
         const targets = selectedLayers.length ? selectedLayers : (activeLayer ? [activeLayer] : []);
         if (!targets.length) return;
 
-        const blurType   = ['none','soft','pixel'].find(t => document.getElementById('fx-blur-' + t).classList.contains('active')) || 'none';
+        // Read active blur type from cards
+        const blurType   = FX_BLUR_TYPES.find(t => document.getElementById('fx-blur-' + t)?.classList.contains('active')) || 'none';
         const blurAmount = parseInt(document.getElementById('fx-blur-amt').value);
+        const blurAngle  = parseInt(document.getElementById('fx-motion-angle')?.value || 0);
         const filterCss  = [...document.querySelectorAll('#fx-filter-row .fx-chip')].find(ch => ch.classList.contains('active'))?.dataset.css || 'none';
         const opacity    = parseInt(document.getElementById('fx-opacity').value);
 
@@ -4785,10 +4921,24 @@
         targets.forEach(layer => {
             layer.blurType    = blurType;
             layer.blurAmount  = blurAmount;
+            layer.blurAngle   = blurAngle;
             layer.layerFilter = filterCss;
             layer.opacity     = opacity;
         });
         render();
+    }
+
+    function updateFxHint() {
+        const hint = document.getElementById('fx-selected-hint');
+        const body = document.getElementById('fx-controls-body');
+        const count = selectedLayers.length || (activeLayer ? 1 : 0);
+        if (count) {
+            hint.style.display = 'none';
+            if (body) { body.style.display = 'flex'; body.style.flexDirection = 'column'; body.style.gap = '10px'; }
+        } else {
+            hint.style.display = 'block';
+            if (body) body.style.display = 'none';
+        }
     }
 
     function clearFxFromSelected() {
@@ -4797,11 +4947,66 @@
         targets.forEach(layer => {
             layer.blurType    = 'none';
             layer.blurAmount  = 4;
+            layer.blurAngle   = 0;
             layer.layerFilter = 'none';
             layer.opacity     = 100;
         });
         syncFxToLayer(targets[0]);
         render();
+    }
+
+    // ── Layer order: move to absolute front or back ──
+    function moveLayerToFront() {
+        if (!activeLayer) return;
+        saveState();
+        const layers = frames[currentIdx].layers;
+        const idx = layers.findIndex(l => l.id === activeLayer.id);
+        if (idx === -1 || idx === layers.length - 1) return;
+        layers.push(layers.splice(idx, 1)[0]);
+        render();
+        if (typeof renderSidebarLayers === 'function') renderSidebarLayers();
+    }
+
+    function moveLayerToBack() {
+        if (!activeLayer) return;
+        saveState();
+        const layers = frames[currentIdx].layers;
+        const idx = layers.findIndex(l => l.id === activeLayer.id);
+        if (idx === -1 || idx === 0) return;
+        layers.unshift(layers.splice(idx, 1)[0]);
+        render();
+        if (typeof renderSidebarLayers === 'function') renderSidebarLayers();
+    }
+
+    // ── Sync BG thumbnail preview in transform UI ──
+    function updateBgThumbPreview() {
+        const thumb = document.getElementById('bg-thumb-preview');
+        const label = document.getElementById('bg-thumb-label');
+        if (!thumb) return;
+        const f = frames[currentIdx];
+        const bg = f.background;
+        if (bg && bg !== '#ffffff' && (bg.startsWith('http') || bg.startsWith('data:'))) {
+            thumb.style.backgroundImage = `url(${bg})`;
+            thumb.style.backgroundSize  = 'cover';
+            thumb.style.backgroundPosition = 'center';
+            thumb.innerText = '';
+            if (label) label.innerText = 'Background Image';
+        } else if (bg && (bg.startsWith('linear') || bg.startsWith('radial'))) {
+            thumb.style.backgroundImage = bg;
+            thumb.style.backgroundSize  = 'cover';
+            thumb.innerText = '';
+            if (label) label.innerText = 'Gradient BG';
+        } else if (bg && bg.startsWith('#')) {
+            thumb.style.backgroundImage = 'none';
+            thumb.style.background = bg;
+            thumb.innerText = '';
+            if (label) label.innerText = 'Solid Color BG';
+        } else {
+            thumb.style.backgroundImage = 'none';
+            thumb.style.background = '#1a1a1e';
+            thumb.innerText = '🖼️';
+            if (label) label.innerText = 'Background';
+        }
     }
 
 </script>
