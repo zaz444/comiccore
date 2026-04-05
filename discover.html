@@ -41,6 +41,10 @@ transition: .15s; white-space: nowrap;
 
 /* ── Sort dropdown ── */
 .sort-dropdown-wrap { position: relative; flex-shrink: 0; }
+#sort-dropdown-btn {
+  background: #ff7a00 !important; color: #000 !important; border-color: #ff7a00 !important;
+  display: flex; align-items: center; gap: 4px;
+}
 .sort-dropdown-menu {
   display: none; position: absolute;
   top: calc(100% + 8px); left: 0; z-index: 400;
@@ -75,33 +79,31 @@ transition: .15s; white-space: nowrap;
 .random-btn:hover { border-color: #ff7a00; color: #ff7a00; }
 .random-btn:active { transform: scale(.95); }
 
-/* ── Home grid: overlay side arrows ── */
+/* ── Home grid: header row with label + arrows ── */
 .home-grid-wrap {
   position: relative;
 }
-.home-arrow {
-  position: absolute; top: 0; bottom: 0; z-index: 10;
-  width: 38px; border: none; background: transparent;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  font-size: 26px; font-weight: 900; color: rgba(255,255,255,.75);
-  transition: color .15s; padding: 0; line-height: 1;
-  -webkit-tap-highlight-color: transparent;
+.home-grid-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px 8px;
 }
-.home-arrow-left  { left: 0;
-  background: linear-gradient(to right, rgba(15,15,17,.92) 20%, transparent 100%); }
-.home-arrow-right { right: 0;
-  background: linear-gradient(to left,  rgba(15,15,17,.92) 20%, transparent 100%); }
-.home-arrow:not(:disabled):hover { color: #ff7a00; }
-.home-arrow:not(:disabled):active { transform: scale(.88); }
-.home-arrow:disabled { color: rgba(255,255,255,.15); cursor: default; }
+.home-arrow {
+  height: 26px; padding: 0 10px; border-radius: 13px;
+  background: #1a1a1c; border: 1.5px solid #2a2a2c;
+  color: rgba(255,255,255,.8); font-size: 16px; font-weight: 900;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: .15s; line-height: 1;
+  -webkit-tap-highlight-color: transparent; flex-shrink: 0;
+}
+.home-arrow:not(:disabled):hover { background: #2a2a2c; color: #fff; }
+.home-arrow:not(:disabled):active { transform: scale(.92); }
+.home-arrow:disabled { color: rgba(255,255,255,.18); cursor: default; }
 
 .comics-page-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px; padding: 4px 46px 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px; padding: 4px 12px 8px;
 }
-@media (min-width: 600px) { .comics-page-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; padding-left: 50px; padding-right: 50px; } }
-@media (min-width: 900px) { .comics-page-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
 
 .comics-page-grid .comic-card {
   width: auto; flex-shrink: unset;
@@ -258,9 +260,12 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 .comic-card:active { transform: scale(.97); }
 
 .comic-card-cover {
-  width: 100%; aspect-ratio: 2/3; border-radius: 14px; overflow: hidden;
+  width: 100%; aspect-ratio: 2/3; border-radius: 14px; overflow: visible;
   background: #111; position: relative;
   box-shadow: 0 4px 16px rgba(0,0,0,.55);
+}
+.comic-card-cover > div:first-child {
+  width: 100%; height: 100%; border-radius: 14px; overflow: hidden; position: relative;
 }
 .comic-card-cover img {
   width: 100%; height: 100%; object-fit: cover; display: block;
@@ -294,31 +299,32 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 
 /* Overlapping pfp — sits at bottom-right of cover */
 .comic-card-pfp-wrap {
-  position: absolute; bottom: -10px; right: 8px; z-index: 2;
+  position: absolute; bottom: -11px; right: 8px; z-index: 2;
 }
 .comic-card-pfp {
-  width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
+  width: 26px; height: 26px; border-radius: 50%; object-fit: cover;
   background: #222; border: 2px solid #0f0f11; display: block; cursor: pointer;
+  flex-shrink: 0;
 }
 .comic-card-pfp.hidden { display: none; }
 
 /* ── Star Rating ── */
 .star-rating {
   display: flex; align-items: center; gap: 1px;
-  margin: 2px 0 0; line-height: 1;
+  margin: 1px 0 0; line-height: 1;
 }
 .star-rating .star {
   position: relative; display: inline-block;
-  width: 11px; height: 11px; flex-shrink: 0;
+  width: 10px; height: 10px; flex-shrink: 0;
 }
-.star svg { width: 11px; height: 11px; display: block; }
+.star svg { width: 10px; height: 10px; display: block; }
 .star-rating .star-count {
   font-size: 9px; font-weight: 800; color: #555;
   margin-left: 2px; white-space: nowrap;
 }
 
 .comic-card-info {
-  padding: 14px 2px 0; /* extra top pad for overlapping pfp */
+  padding: 12px 2px 0; /* top pad for overlapping pfp */
 }
 .comic-card-title {
   font-size: 12px; font-weight: 800; color: #f5f5f7;
@@ -749,12 +755,14 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
 
 <div id="section-recents">
   <div class="grid-header-row">
-    <span class="grid-section-label" id="comics-label">🕐 Latest</span>
+    <span class="grid-section-label" id="comics-label">Latest</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button class="home-arrow" id="home-prev-btn" onclick="goToPage(currentPage - 1)" disabled>‹</button>
+      <button class="home-arrow" id="home-next-btn" onclick="goToPage(currentPage + 1)">›</button>
+    </div>
   </div>
   <div class="home-grid-wrap">
-    <button class="home-arrow home-arrow-left"  id="home-prev-btn" onclick="goToPage(currentPage - 1)" disabled>‹</button>
     <div class="comics-page-grid" id="recentFeed"></div>
-    <button class="home-arrow home-arrow-right" id="home-next-btn" onclick="goToPage(currentPage + 1)">›</button>
   </div>
 </div>
 
@@ -1057,38 +1065,8 @@ function getProgress(comicId, totalFrames) {
   } catch(e) { return null; }
 }
 
-// ── Home Carousel Nav (arrow buttons cycle through sort algorithms) ─────────
-const HOME_ALGO_SEQUENCE = ['popular', 'recent', 'oldest', 'smart_random'];
-const HOME_ALGO_LABELS   = { popular: 'Top Comics', recent: 'Latest', oldest: 'Oldest First', smart_random: 'Discover' };
-let homeAlgoIndex = 0; // start at 'popular'
-
-function homeNavPrev() {
-  homeAlgoIndex = (homeAlgoIndex - 1 + HOME_ALGO_SEQUENCE.length) % HOME_ALGO_SEQUENCE.length;
-  applyHomeAlgo();
-}
-
-function homeNavNext() {
-  homeAlgoIndex = (homeAlgoIndex + 1) % HOME_ALGO_SEQUENCE.length;
-  applyHomeAlgo();
-}
-
-function applyHomeAlgo() {
-  const algo = HOME_ALGO_SEQUENCE[homeAlgoIndex];
-  document.getElementById('comics-label').innerText = HOME_ALGO_LABELS[algo] || algo;
-  if (algo === 'smart_random') {
-    currentSort = 'smart_random';
-    currentPage = 0;
-    renderComics(allComics, globalStars);
-  } else {
-    currentSort = algo;
-    currentPage = 0;
-    renderComics(allComics, globalStars);
-  }
-  // Sync dropdown label
-  const dropLabels = { recent: 'Recent ▾', popular: 'Top ▾', oldest: 'Oldest ▾', smart_random: 'Discover ▾' };
-  const btn = document.getElementById('sort-dropdown-btn');
-  if (btn) btn.textContent = dropLabels[algo] || 'All ▾';
-}
+// ── Home arrow buttons are pure page navigation ─────────
+// (arrows in header row call goToPage directly)
 
 /** Smart-random: weighted shuffle biasing toward popular but adding variety */
 function smartRandomSort(comics, stars) {
@@ -1113,10 +1091,7 @@ function setSort(s) {
     if (el) el.classList.toggle('on', k === s);
   });
   const labels = { recent:'Latest', popular:'Top Comics', oldest:'Oldest First' };
-  document.getElementById('comics-label').innerText = labels[s] || 'Top Comics';
-  // Sync homeAlgoIndex so arrows stay in sync
-  const idx = HOME_ALGO_SEQUENCE.indexOf(s);
-  if (idx >= 0) homeAlgoIndex = idx;
+  document.getElementById('comics-label').innerText = labels[s] || 'Latest';
   renderComics(allComics, globalStars);
 }
 
@@ -1141,29 +1116,41 @@ function switchRankTab(tab, el) {
   currentRankTab = tab;
   document.querySelectorAll('.creator-rank-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  renderTopCreators(topCreatorsData[tab], tab);
+  topCreatorsData[tab] = []; // clear cache so it re-fetches fresh
+  loadTopCreators(tab);
 }
 
 async function loadTopCreators(tab) {
   const list = document.getElementById('top-creators-list');
   if (!list) return;
 
-  // Render cached immediately if available
+  // Only use cache if it has real data
   if (topCreatorsData[tab]?.length) {
     renderTopCreators(topCreatorsData[tab], tab);
     return;
   }
 
+  list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">Loading…</div>';
+
   if (tab === 'stars') {
+    // Build star counts per owner using globalStars + allComics
     const starsByOwner = {};
     globalStars.forEach(s => {
       const comic = allComics.find(c => c.id === s.receiver_hand);
       if (comic?.owner_handle) starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
     });
-    const sorted = Object.entries(starsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
+
+    let sorted = Object.entries(starsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
+
+    // Fallback: if no stars at all, rank by comic count instead
+    if (!sorted.length && allComics.length) {
+      const comicsByOwner = {};
+      allComics.forEach(c => { if (c.owner_handle) comicsByOwner[c.owner_handle] = (comicsByOwner[c.owner_handle] || 0) + 1; });
+      sorted = Object.entries(comicsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
+    }
+
     if (!sorted.length) { renderTopCreators([], tab); return; }
 
-    // ONE batch query instead of 10 individual requests
     const handles = sorted.map(([h]) => h);
     const { data: profiles } = await _sb.from('profiles').select('handle,name,pic').in('handle', handles);
     const profMap = Object.fromEntries((profiles||[]).map(p => [p.handle, p]));
@@ -1174,7 +1161,15 @@ async function loadTopCreators(tab) {
     const { data: followCounts } = await _sb.from('follows').select('following').limit(2000);
     const countMap = {};
     (followCounts || []).forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
-    const sorted = Object.entries(countMap).sort((a,b) => b[1]-a[1]).slice(0,10);
+    let sorted = Object.entries(countMap).sort((a,b) => b[1]-a[1]).slice(0,10);
+
+    // Fallback to comic count if no follows
+    if (!sorted.length && allComics.length) {
+      const comicsByOwner = {};
+      allComics.forEach(c => { if (c.owner_handle) comicsByOwner[c.owner_handle] = (comicsByOwner[c.owner_handle] || 0) + 1; });
+      sorted = Object.entries(comicsByOwner).sort((a,b) => b[1]-a[1]).slice(0,10);
+    }
+
     if (!sorted.length) { renderTopCreators([], tab); return; }
 
     const handles = sorted.map(([h]) => h);
@@ -1294,6 +1289,9 @@ async function loadFeeds() {
   allComics = (comics || []).filter(c => c.title && c.owner_handle);
   globalStars = stars || [];
 
+  // Reset top creators cache so it re-renders with fresh data
+  topCreatorsData = { stars: [], follows: [] };
+
   // Save to cache
   try {
     localStorage.setItem('cc-comics-cache', JSON.stringify(allComics));
@@ -1360,7 +1358,7 @@ function renderComics(comics, stars) {
       ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
 
     return `<div class="comic-card" data-id="${esc(c.id)}">
-      <div class="comic-card-cover" style="overflow:visible;">
+      <div class="comic-card-cover">
         <div style="width:100%;height:100%;border-radius:14px;overflow:hidden;position:relative;">
           ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}
         </div>
@@ -1424,9 +1422,9 @@ function setSortFromDropdown(sort) {
     document.getElementById('sort-opt-' + s)?.classList.toggle('sort-active', s === sort);
   });
   // Update dropdown button label
-  const labels = { recent: 'Recent \u25be', popular: 'Top \u25be', oldest: 'Oldest \u25be', favorites: '\u2b50 Favorites \u25be' };
+  const labels = { recent: 'Recent ▾', popular: 'Top ▾', oldest: 'Oldest ▾', favorites: '⭐ Favs ▾' };
   const btn = document.getElementById('sort-dropdown-btn');
-  if (btn) btn.textContent = labels[sort] || 'All \u25be';
+  if (btn) btn.textContent = labels[sort] || 'All ▾';
 
   if (sort === 'favorites') {
     switchTab('favorites');
