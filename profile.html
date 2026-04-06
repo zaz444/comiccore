@@ -1578,6 +1578,39 @@
             return pic;
         }
 
+        // Migrate base64 images to Supabase storage
+        async function migrateBase64ToStorage(base64Data, type, handle) {
+            if (!base64Data || !base64Data.startsWith('data:image')) return base64Data;
+
+            try {
+                console.log(`[Profile] Migrating ${type} from base64 to storage for @${handle}...`);
+                const res = await fetch(base64Data);
+                const blob = await res.blob();
+                const filename = `${type}_${handle}_${Date.now()}.jpg`;
+                const { data, error } = await _supabase.storage.from('avatars').upload(filename, blob, {
+                    upsert: true,
+                    contentType: 'image/jpeg'
+                });
+
+                if (error) {
+                    console.error(`[Profile] ${type} migration failed:`, error);
+                    return base64Data; // Return original if migration fails
+                }
+
+                const storagePath = `avatars/${filename}`;
+
+                // Update database with new storage path
+                const updateField = type === 'pfp' ? 'pic' : 'banner';
+                await _supabase.from('profiles').update({ [updateField]: storagePath }).eq('handle', handle);
+
+                console.log(`[Profile] ${type} migrated to:`, storagePath);
+                return storagePath;
+            } catch (err) {
+                console.error(`[Profile] ${type} migration error:`, err);
+                return base64Data;
+            }
+        }
+
         function getImageUrl(pic) {
             return formatImageUrl(pic);
         }
@@ -1710,21 +1743,24 @@
             document.getElementById('view-handle').innerText = '@' + handle;
             document.getElementById('view-bio').innerText = profile.bio || '';
             const rawPic = profile.pic || '';
-            document.getElementById('view-pfp').src = rawPic.startsWith('data:')
-                ? rawPic
-                : (rawPic.startsWith('avatars/')
-                    ? _supabase.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data.publicUrl
-                    : rawPic);
+
+            // Migrate base64 images to storage if needed
+            let displayPic = rawPic;
+            if (rawPic.startsWith('data:image')) {
+                displayPic = await migrateBase64ToStorage(rawPic, 'pfp', handle);
+                if (displayPic !== rawPic) {
+                    // Update the profile object with migrated path
+                    profile.pic = displayPic;
+                }
+            }
+
+            document.getElementById('view-pfp').src = formatImageUrl(displayPic);
 
             // Update Open Graph meta tags for rich link embeds when URL is shared
             updateOgTags({
                 title: (profile.name || handle) + ' (@' + handle + ') · ComicCore',
                 description: profile.bio || 'Check out ' + (profile.name || handle) + '\'s profile on ComicCore!',
-                image: rawPic.startsWith('data:')
-                    ? rawPic
-                    : (rawPic.startsWith('avatars/')
-                        ? _supabase.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data.publicUrl
-                        : rawPic),
+                image: formatImageUrl(displayPic),
                 url: 'https://zaz444.github.io/comiccore/profile.html?u=' + handle
             });
 
@@ -1732,11 +1768,18 @@
             const bannerImg = document.getElementById('view-banner');
             if (profile.banner && profile.banner.length > 10) {
                 const rawBanner = profile.banner;
-                bannerImg.src = rawBanner.startsWith('data:')
-                    ? rawBanner
-                    : (rawBanner.startsWith('avatars/')
-                        ? _supabase.storage.from('avatars').getPublicUrl(rawBanner.replace('avatars/', '')).data.publicUrl
-                        : rawBanner);
+
+                // Migrate base64 banner to storage if needed
+                let displayBanner = rawBanner;
+                if (rawBanner.startsWith('data:image')) {
+                    displayBanner = await migrateBase64ToStorage(rawBanner, 'banner', handle);
+                    if (displayBanner !== rawBanner) {
+                        // Update the profile object with migrated path
+                        profile.banner = displayBanner;
+                    }
+                }
+
+                bannerImg.src = formatImageUrl(displayBanner);
                 bannerImg.style.display = 'block';
             } else {
                 bannerImg.src = '';
@@ -2327,7 +2370,7 @@
                 row.className = 'fol-row';
                 row.onclick = () => location.href = 'profile.html?u=' + h;
                 row.innerHTML = `
-                    <img src="${p?.pic || ''}" class="fol-pic" onerror="this.style.display='none'">
+                    <img src="${formatImageUrl(p?.pic)}" class="fol-pic" onerror="this.style.display='none'">
                     <div>
                         <div class="fol-name">${p?.name || h}</div>
                         <div class="fol-handle">@${h}</div>
