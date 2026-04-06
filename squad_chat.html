@@ -677,8 +677,9 @@
     );
 
     window.addEventListener('unhandledrejection', e => {
-        console.error('UNHANDLED PROMISE:', e.reason || e);
-        showError();
+        // Only log — do NOT call showError() here. Random Supabase/realtime
+        // promise rejections would falsely trigger the Access Denied screen.
+        console.error('[ComicCore] UNHANDLED PROMISE:', e.reason || e);
     });
 
     let myProfile = {};
@@ -691,35 +692,55 @@
     let myHandle = myProfile && typeof myProfile === 'object' ? myProfile.handle : null;
     const activeSquadId = new URLSearchParams(window.location.search).get('id');
 
+    // If there's no squad ID in the URL at all, redirect to squads list immediately
+    if (!activeSquadId) {
+        console.warn('[ComicCore] No squad ID in URL — redirecting to squads.html');
+        location.replace('squads.html');
+    }
+
     // If handle wasn't in localStorage, pull it from Supabase Auth session
     async function resolveHandle() {
-        if (myHandle) return;
+        if (myHandle) { console.log('[ComicCore] resolveHandle: found in localStorage:', myHandle); return; }
         try {
             const { data: { session } } = await _sb.auth.getSession();
             const user = session?.user;
-            if (!user) return;
-            // Try user_metadata first (fastest)
-            myHandle = user.user_metadata?.handle;
-            if (myHandle) {
-                // Write back so future page loads are instant
-                const merged = { ...(myProfile || {}), handle: myHandle };
-                localStorage.setItem('user_profile', JSON.stringify(merged));
-                return;
-            }
-            // Fall back to profiles table
-            const { data: dbp } = await _sb.from('profiles').select('handle').eq('permanent_id', user.id).maybeSingle()
-                .catch(() => ({ data: null }));
-            if (!dbp) {
-                // try uuid column name if permanent_id doesn't exist
-                const { data: dbp2 } = await _sb.from('profiles').select('handle').eq('uuid', user.id).maybeSingle()
+            if (!user) { console.warn('[ComicCore] resolveHandle: no auth session'); return; }
+
+            console.log('[ComicCore] resolveHandle: user id =', user.id);
+
+            // 1) user_metadata (fastest — set at signup)
+            myHandle = user.user_metadata?.handle || null;
+            if (myHandle) { console.log('[ComicCore] resolveHandle: got handle from user_metadata:', myHandle); }
+
+            // 2) profiles table via uuid column (same as squads.html)
+            if (!myHandle) {
+                const { data: dbp } = await _sb.from('profiles').select('handle').eq('uuid', user.id).maybeSingle()
                     .catch(() => ({ data: null }));
-                myHandle = dbp2?.handle;
-            } else {
-                myHandle = dbp?.handle;
+                myHandle = dbp?.handle || null;
+                if (myHandle) { console.log('[ComicCore] resolveHandle: got handle from profiles.uuid:', myHandle); }
             }
+
+            // 3) profiles table via permanent_id column
+            if (!myHandle) {
+                const { data: dbp } = await _sb.from('profiles').select('handle').eq('permanent_id', user.id).maybeSingle()
+                    .catch(() => ({ data: null }));
+                myHandle = dbp?.handle || null;
+                if (myHandle) { console.log('[ComicCore] resolveHandle: got handle from profiles.permanent_id:', myHandle); }
+            }
+
+            // 4) profiles table via id column
+            if (!myHandle) {
+                const { data: dbp } = await _sb.from('profiles').select('handle').eq('id', user.id).maybeSingle()
+                    .catch(() => ({ data: null }));
+                myHandle = dbp?.handle || null;
+                if (myHandle) { console.log('[ComicCore] resolveHandle: got handle from profiles.id:', myHandle); }
+            }
+
             if (myHandle) {
                 const merged = { ...(myProfile || {}), handle: myHandle };
                 localStorage.setItem('user_profile', JSON.stringify(merged));
+            } else {
+                console.error('[ComicCore] resolveHandle: could not find handle for user', user.id);
             }
         } catch (e) {
             console.error('[ComicCore] resolveHandle failed:', e);
@@ -811,11 +832,16 @@
 
     async function init() {
         await resolveHandle();
-        console.log('[ComicCore] init() started', { activeSquadId, myHandle });
+        console.log('[ComicCore] init() started — activeSquadId:', activeSquadId, '| myHandle:', myHandle);
 
-        if (!activeSquadId || !myHandle) {
-            console.error('[ComicCore] init() missing required parameters', { activeSquadId, myHandle });
-            showError();
+        if (!activeSquadId) {
+            console.error('[ComicCore] init() no squad ID — redirecting');
+            location.replace('squads.html');
+            return;
+        }
+        if (!myHandle) {
+            console.error('[ComicCore] init() no handle resolved — redirecting to profile');
+            location.replace('profile.html');
             return;
         }
 
@@ -843,7 +869,18 @@
                         .select('status').eq('ticket_id', activeSquadId).eq('sender_handle', myHandle).maybeSingle()
                 );
                 console.log('[ComicCore] init() team request query done', { req, reqErr });
-                if (reqErr || !req || req.status !== 'accepted') {
+                if (req && req.status === 'accepted') {
+                    // Already a member — all good
+                } else if (!squad.is_private && (!req || req.status !== 'accepted')) {
+                    // Public squad — auto-create/fix the membership row so they can chat
+                    console.log('[ComicCore] public squad — auto-accepting membership for', myHandle);
+                    if (!req) {
+                        await _sb.from('team_requests').insert([{ ticket_id: activeSquadId, sender_handle: myHandle, status: 'accepted' }]);
+                    } else {
+                        await _sb.from('team_requests').update({ status: 'accepted' }).eq('ticket_id', activeSquadId).eq('sender_handle', myHandle);
+                    }
+                } else {
+                    // Private squad — not approved
                     console.error('[ComicCore] not authorized for squad', { req, reqErr });
                     showError();
                     return;
