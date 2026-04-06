@@ -1248,15 +1248,26 @@ function renderTopCreators(creators, tab) {
     const medal = RANK_MEDALS[i] || (i+1);
     const rankClass = RANK_CLASSES[i] || '';
     const isMedal = i < 3;
+    const avatarHtml = c.pic
+      ? `<img class="creator-rank-avatar" data-handle="${esc(c.handle)}" src="${esc(c.pic)}" onerror="this.onerror=null;this.src='';this.style.display='none';this.nextElementSibling.style.display='flex';" alt="${esc(c.handle)}"><div class="creator-rank-avatar" style="display:none;align-items:center;justify-content:center;font-size:22px;background:#222;border:2px solid #333;">👤</div>`
+      : `<div class="creator-rank-avatar" style="display:flex;align-items:center;justify-content:center;font-size:22px;background:#222;border:2px solid #333;">👤</div>`;
     return `
       <a class="creator-rank-card ${rankClass}" href="profile.html?u=${esc(c.handle)}">
         ${isMedal ? `<div class="rank-badge">${medal}</div>` : `<div style="position:absolute;top:6px;left:8px;font-size:9px;color:#444;font-weight:900;">#${i+1}</div>`}
-        <img class="creator-rank-avatar" src="${esc(c.pic||'')}" onerror="this.src=''" alt="${esc(c.handle)}">
+        ${avatarHtml}
         <div class="creator-rank-name">${esc(c.name||c.handle)}</div>
         <div class="creator-rank-handle">@${esc(c.handle)}</div>
         <div class="creator-rank-stat">${statLabel} ${c.count}</div>
       </a>`;
   }).join('');
+
+  // Re-hydrate any avatars that were missing from the initial data
+  list.querySelectorAll('img.creator-rank-avatar[src=""]').forEach(async img => {
+    const handle = img.dataset.handle;
+    if (!handle) return;
+    const p = await getCachedProfile(handle);
+    if (p?.pic) { img.src = p.pic; img.style.display = ''; }
+  });
 }
 
 // ── Load ─────────────────────────────────────────────────
