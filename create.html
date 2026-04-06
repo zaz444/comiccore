@@ -3334,6 +3334,8 @@
             const url = await uploadBgToStorage(src);
             toast.remove();
             if (url) finalSrc = url;
+            // Invalidate Mine tab so the new upload appears next open
+            invalidateSbBgCache();
             // If upload failed, finalSrc stays as base64 (graceful fallback)
         }
 
@@ -5637,34 +5639,54 @@
         applySbBgColor(css);
     }
 
-        let sbBgTab = 'official'; // 'official' | 'mine'
+    let sbBgTab = 'official'; // 'official' | 'mine'
     let sbBgOfficial = null;
     let sbBgMine = null;
+    let _sbBgLoaded = false;        // guard: only fetch metadata once per session
+    let _sbBgLoading = false;       // guard: prevent concurrent fetches
 
     // ── Batch lazy-loader for background images ──
     let _sbBgLazyQueue = [];
     let _sbBgLazyTimer = null;
 
+    function _sbBgScheduleBatch() {
+        if (_sbBgLazyTimer) return;
+        _sbBgLazyTimer = setTimeout(_sbBgFlushBatch, 40);
+    }
+
+    // Observer uses the scrollable grid as root so only visible cards trigger loads
     const _sbBgObserver = new IntersectionObserver(entries => {
         entries.forEach(entry => {
             if (!entry.isIntersecting) return;
             _sbBgObserver.unobserve(entry.target);
             const id = entry.target.dataset.bgId;
             if (!id) return;
+            // Already loaded synchronously by the time observer fires?
+            if (entry.target._imgSrc) return;
             const cached = (() => { try { return sessionStorage.getItem('cc_bg_img_' + id); } catch(e) { return null; } })();
             if (cached) { _sbBgApplyImg(entry.target, cached); return; }
             _sbBgLazyQueue.push(id);
-            if (!_sbBgLazyTimer) _sbBgLazyTimer = setTimeout(_sbBgFlushBatch, 40);
+            _sbBgScheduleBatch();
         });
-    }, { rootMargin: '400px 0px' });
+    }, { rootMargin: '200px 0px' });
 
     async function _sbBgFlushBatch() {
         _sbBgLazyTimer = null;
         if (!_sbBgLazyQueue.length) return;
         const batch = [...new Set(_sbBgLazyQueue.splice(0, 10))];
-        const { data } = await _supabase.from('backgrounds_library').select('id, image_data').in('id', batch);
+        let data;
+        try {
+            const res = await _supabase.from('backgrounds_library').select('id, image_data').in('id', batch);
+            data = res.data;
+        } catch(e) {
+            console.warn('BG batch load failed:', e);
+            // Re-queue so they can be retried on scroll
+            _sbBgLazyQueue.unshift(...batch);
+            return;
+        }
         if (!data) return;
         data.forEach(row => {
+            if (!row.image_data) return;
             try { sessionStorage.setItem('cc_bg_img_' + row.id, row.image_data); } catch(e) {}
             const card = document.querySelector(`.sb-bg-card[data-bg-id="${row.id}"]`);
             if (card) { card._imgSrc = row.image_data; _sbBgApplyImg(card, row.image_data); }
@@ -5673,17 +5695,19 @@
             const inMine = (sbBgMine||[]).find(b => b.id === row.id);
             if (inMine) inMine.image_data = row.image_data;
         });
-        if (_sbBgLazyQueue.length) { _sbBgLazyTimer = setTimeout(_sbBgFlushBatch, 40); }
+        if (_sbBgLazyQueue.length) _sbBgScheduleBatch();
     }
 
     function _sbBgApplyImg(card, src) {
         const skeleton = card.querySelector('.sb-bg-skeleton');
+        // Set _imgSrc immediately so click handler and observer both see it right away
+        card._imgSrc = src;
         if (!skeleton) return;
         const img = document.createElement('img');
         img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border-radius:6px;';
-        img.onload = () => skeleton.replaceWith(img);
+        img.onload = () => { if (skeleton.parentNode) skeleton.replaceWith(img); };
+        img.onerror = () => { if (skeleton.parentNode) skeleton.style.background = '#1a1a1a'; };
         img.src = src;
-        card._imgSrc = src;
     }
 
     function setSbBgTab(tab) {
@@ -5695,29 +5719,52 @@
         renderSidebarBgGrid();
     }
 
+    // Call this after uploading a new background so "Mine" tab refreshes
+    function invalidateSbBgCache() {
+        _sbBgLoaded = false;
+        sbBgMine = null;
+    }
+
     async function loadSidebarBgs() {
         const grid = document.getElementById('sb-bg-grid');
         if (!grid) return;
+
+        // Already loaded and not stale — just re-render (avoids refetch on every panel open)
+        if (_sbBgLoaded && sbBgOfficial !== null) { renderSidebarBgGrid(); return; }
+        if (_sbBgLoading) return;
+        _sbBgLoading = true;
+
         grid.innerHTML = '<div class="sp-load-msg">Loading…</div>';
 
-        // Fetch metadata only — images lazy-loaded per card
-        const { data: offData } = await _supabase.from('backgrounds_library')
-            .select('id, name, ratio')
-            .eq('is_official', true)
-            .order('id', { ascending: false });
-        sbBgOfficial = offData || [];
-
-        const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
-        const handle  = profile.handle;
-        if (handle) {
-            const { data: mineData } = await _supabase.from('backgrounds_library')
+        try {
+            // Fetch metadata only — images lazy-loaded per card
+            const { data: offData, error: offErr } = await _supabase.from('backgrounds_library')
                 .select('id, name, ratio')
-                .eq('uploaded_by', handle)
+                .eq('is_official', true)
                 .order('id', { ascending: false });
-            sbBgMine = mineData || [];
-        } else {
-            sbBgMine = [];
+            if (offErr) throw offErr;
+            sbBgOfficial = offData || [];
+
+            const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+            const handle  = profile.handle;
+            if (handle) {
+                const { data: mineData } = await _supabase.from('backgrounds_library')
+                    .select('id, name, ratio')
+                    .eq('uploaded_by', handle)
+                    .order('id', { ascending: false });
+                sbBgMine = mineData || [];
+            } else {
+                sbBgMine = [];
+            }
+            _sbBgLoaded = true;
+        } catch(e) {
+            console.warn('loadSidebarBgs error:', e);
+            grid.innerHTML = '<div class="sp-load-msg" style="color:#ff453a;">Failed to load — tap to retry</div>';
+            grid.onclick = () => { grid.onclick = null; _sbBgLoading = false; loadSidebarBgs(); };
+            _sbBgLoading = false;
+            return;
         }
+        _sbBgLoading = false;
         renderSidebarBgGrid();
     }
 
@@ -5762,15 +5809,24 @@
             card.onmouseover = () => card.style.borderColor = '#ff7a00';
             card.onmouseout  = () => card.style.borderColor = '#1e1e1e';
             card.onclick = async () => {
+                if (card._bgFetching) return; // prevent double-click during fetch
                 let src = card._imgSrc || bg.image_data;
                 if (!src) {
+                    card._bgFetching = true;
                     card.style.opacity = '0.6';
-                    const { data } = await _supabase.from('backgrounds_library').select('image_data').eq('id', bg.id).single();
+                    try {
+                        const { data, error } = await _supabase.from('backgrounds_library').select('image_data').eq('id', bg.id).single();
+                        if (error || !data?.image_data) { card.style.opacity = ''; card._bgFetching = false; return; }
+                        src = data.image_data;
+                        bg.image_data = src;
+                        _sbBgApplyImg(card, src);
+                    } catch(e) {
+                        card.style.opacity = '';
+                        card._bgFetching = false;
+                        return;
+                    }
                     card.style.opacity = '';
-                    if (!data?.image_data) return;
-                    src = data.image_data;
-                    bg.image_data = src;
-                    _sbBgApplyImg(card, src);
+                    card._bgFetching = false;
                 }
                 toggleSidePanel('background');
                 currentImportType = 'bg';

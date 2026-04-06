@@ -2903,7 +2903,10 @@ const _bgObserver = new IntersectionObserver(entries => {
         _bgObserver.unobserve(entry.target);
         const id = entry.target.dataset.bgId;
         if (!id) return;
-        const cached = sessionStorage.getItem('cc_bg_img_' + id);
+        // Already resolved by a previous load? Skip.
+        if (entry.target._imgSrc) return;
+        let cached;
+        try { cached = sessionStorage.getItem('cc_bg_img_' + id); } catch(e) {}
         if (cached) {
             _bgApplyImg(entry.target, cached);
         } else {
@@ -2911,7 +2914,7 @@ const _bgObserver = new IntersectionObserver(entries => {
             _bgScheduleBatch();
         }
     });
-}, { rootMargin: '400px 0px' });
+}, { rootMargin: '200px 0px' });
 
 function _bgScheduleBatch() {
     if (_bgLazyTimer) return;
@@ -2922,10 +2925,20 @@ async function _bgFlushBatch() {
     _bgLazyTimer = null;
     if (!_bgLazyQueue.length) return;
     const batch = [...new Set(_bgLazyQueue.splice(0, 10))];
-    const { data } = await _supabase.from('backgrounds_library')
-        .select('id, image_data').in('id', batch);
+    let data;
+    try {
+        const res = await _supabase.from('backgrounds_library')
+            .select('id, image_data').in('id', batch);
+        data = res.data;
+    } catch(e) {
+        console.warn('BG batch load failed:', e);
+        // Re-queue so cards can retry on next scroll nudge
+        _bgLazyQueue.unshift(...batch);
+        return;
+    }
     if (!data) return;
     data.forEach(row => {
+        if (!row.image_data) return;
         try { sessionStorage.setItem('cc_bg_img_' + row.id, row.image_data); } catch(e) {}
         const card = document.querySelector(`.mob-bg-card[data-bg-id="${row.id}"]`);
         if (card) _bgApplyImg(card, row.image_data);
@@ -2939,14 +2952,15 @@ async function _bgFlushBatch() {
 }
 
 function _bgApplyImg(card, src) {
+    // Set _imgSrc immediately so click handler sees it before onload fires
+    card._imgSrc = src;
     const skeleton = card.querySelector('.bg-skeleton');
     if (!skeleton) return;
     const img = document.createElement('img');
     img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0;';
-    img.onload = () => skeleton.replaceWith(img);
+    img.onload  = () => { if (skeleton.parentNode) skeleton.replaceWith(img); };
+    img.onerror = () => { if (skeleton.parentNode) skeleton.style.background = '#1a1a1a'; };
     img.src = src;
-    // Store on card for click handler
-    card._imgSrc = src;
 }
 
 async function loadMobEffects() {
@@ -3099,6 +3113,7 @@ let mobBgTab = 'official';
 let mobBgOfficial = null;
 let mobBgMine = null;
 let mobBgLoaded = false;
+let _mobBgLoading = false; // prevent concurrent fetches
 
 
 // ── Mobile BG: Colors + Gradients ──────────────────────────────────────
@@ -3203,24 +3218,39 @@ function triggerBgCropImport() {
 }
 
 async function loadMobBgs() {
-    if (mobBgLoaded) { renderMobBgGrid(); return; }
+    if (mobBgLoaded && mobBgOfficial !== null) { renderMobBgGrid(); return; }
+    if (_mobBgLoading) return;
+    _mobBgLoading = true;
+
     const grid = document.getElementById('mob-bg-grid');
     if (grid) grid.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;grid-column:span 2;text-align:center;">Loading…</div>';
 
-    // Fetch metadata only — images lazy-loaded per card
-    const { data: offData } = await _supabase.from('backgrounds_library')
-        .select('id, name').eq('is_official', true).order('id', { ascending: false });
-    mobBgOfficial = offData || [];
+    try {
+        // Fetch metadata only — images lazy-loaded per card
+        const { data: offData, error: offErr } = await _supabase.from('backgrounds_library')
+            .select('id, name').eq('is_official', true).order('id', { ascending: false });
+        if (offErr) throw offErr;
+        mobBgOfficial = offData || [];
 
-    const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
-    const handle  = profile.handle;
-    if (handle) {
-        const { data: mineData } = await _supabase.from('backgrounds_library')
-            .select('id, name').eq('uploaded_by', handle).order('id', { ascending: false });
-        mobBgMine = mineData || [];
-    } else { mobBgMine = []; }
+        const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        const handle  = profile.handle;
+        if (handle) {
+            const { data: mineData } = await _supabase.from('backgrounds_library')
+                .select('id, name').eq('uploaded_by', handle).order('id', { ascending: false });
+            mobBgMine = mineData || [];
+        } else { mobBgMine = []; }
 
-    mobBgLoaded = true;
+        mobBgLoaded = true;
+    } catch(e) {
+        console.warn('loadMobBgs error:', e);
+        if (grid) {
+            grid.innerHTML = '<div style="color:#ff453a;font-size:12px;padding:16px;grid-column:span 2;text-align:center;cursor:pointer;">Failed to load — tap to retry</div>';
+            grid.onclick = () => { grid.onclick = null; _mobBgLoading = false; loadMobBgs(); };
+        }
+        _mobBgLoading = false;
+        return;
+    }
+    _mobBgLoading = false;
     renderMobBgGrid();
 }
 
@@ -3270,19 +3300,28 @@ function renderMobBgGrid() {
         }
 
         card.onclick = async () => {
+            if (card._bgFetching) return; // prevent double-tap during fetch
             let src = card._imgSrc || bg.image_data;
             if (!src) {
                 // Image not loaded yet — fetch it now
+                card._bgFetching = true;
                 card.style.opacity = '0.6';
-                const { data } = await _supabase.from('backgrounds_library')
-                    .select('image_data').eq('id', bg.id).single();
+                try {
+                    const { data, error } = await _supabase.from('backgrounds_library')
+                        .select('image_data').eq('id', bg.id).single();
+                    if (error || !data?.image_data) { card.style.opacity = ''; card._bgFetching = false; return; }
+                    src = data.image_data;
+                    bg.image_data = src;
+                    card._imgSrc = src;
+                    try { sessionStorage.setItem('cc_bg_img_' + bg.id, src); } catch(e) {}
+                    _bgApplyImg(card, src);
+                } catch(e) {
+                    card.style.opacity = '';
+                    card._bgFetching = false;
+                    return;
+                }
                 card.style.opacity = '';
-                if (!data?.image_data) return;
-                src = data.image_data;
-                bg.image_data = src;
-                card._imgSrc = src;
-                try { sessionStorage.setItem('cc_bg_img_' + bg.id, src); } catch(e) {}
-                _bgApplyImg(card, src);
+                card._bgFetching = false;
             }
             closeSheet('bg');
             currentImportType = 'bg';
@@ -3753,6 +3792,9 @@ async function bgChoiceFixed() {
         const url = await uploadBgToStorage(_bgChoiceSrc);
         toast.remove();
         if (url) finalSrc = url;
+        // Invalidate Mine tab cache so the new upload appears next time
+        mobBgLoaded = false;
+        mobBgMine = null;
     }
 
     frames[currentIdx].background = finalSrc;
