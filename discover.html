@@ -1011,6 +1011,7 @@ async function getCachedProfile(handle) {
   return profileCache[handle];
 }
 
+const DEFAULT_AVATAR = 'https://via.placeholder.com/150';
 function getPublicAvatarUrl(pic) {
   if (!pic) return '';
   const raw = String(pic).trim();
@@ -1526,9 +1527,10 @@ function hydrateCardAvatars(container) {
   const handles = [...new Set([...avatars].map(a => a.dataset.handle))];
   handles.forEach(async handle => {
     const p = await getCachedProfile(handle);
+    const avatarUrl = getPublicAvatarUrl(p?.pic) || DEFAULT_AVATAR;
     container.querySelectorAll(`[data-handle="${handle}"].comic-card-avatar, [data-handle="${handle}"].comic-card-pfp`).forEach(img => {
-      if (p?.pic) { img.src = p.pic; img.classList.remove('hidden'); }
-      else img.classList.add('hidden');
+      img.src = avatarUrl;
+      img.classList.remove('hidden');
     });
   });
 }
@@ -1541,9 +1543,10 @@ async function hydrateAvatars(container) {
   const handles = [...new Set([...avatars].map(a => a.dataset.handle))];
   await Promise.all(handles.map(async handle => {
     const p = await getCachedProfile(handle);
+    const avatarUrl = getPublicAvatarUrl(p?.pic) || DEFAULT_AVATAR;
     container.querySelectorAll(`.tile-creator-avatar[data-handle="${handle}"]`).forEach(img => {
-      if (p?.pic) { img.src = p.pic; }
-      else img.style.display = 'none';
+      img.src = avatarUrl;
+      img.style.display = '';
     });
   }));
 }
@@ -1916,7 +1919,8 @@ async function fetchComments() {
     const item = document.createElement('div');
     item.className = 'comment-item';
     const profileUrl = 'profile.html?u=' + esc(m.sender_handle);
-    item.innerHTML = '<img src="' + esc(p?.pic || '') + '" class="comment-avatar" onclick="location.href=&quot;' + profileUrl + '&quot;" onerror="this.src=&quot;&quot;"><div class="comment-content"><div class="comment-user" onclick="location.href=&quot;' + profileUrl + '&quot;">@' + esc(m.sender_handle) + '</div>' + bodyHtml + '</div>';
+    const commentAvatar = getPublicAvatarUrl(p?.pic) || DEFAULT_AVATAR;
+    item.innerHTML = '<img src="' + esc(commentAvatar) + '" class="comment-avatar" onclick="location.href=&quot;' + profileUrl + '&quot;" onerror="this.onerror=null;this.src=\"' + DEFAULT_AVATAR + '\";"><div class="comment-content"><div class="comment-user" onclick="location.href=&quot;' + profileUrl + '&quot;">@' + esc(m.sender_handle) + '</div>' + bodyHtml + '</div>';
     listEl.appendChild(item);
   }
 }
@@ -2239,9 +2243,10 @@ async function loadShareFriends() {
     const row = document.createElement('div');
     row.className = 'friend-row';
     row.id = 'friend-row-' + friendHandle;
+    const friendAvatar = getPublicAvatarUrl(p?.pic) || DEFAULT_AVATAR;
     row.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;">
-        <img src="${esc(p?.pic||'')}" class="friend-pic" onerror="this.style.display='none'">
+        <img src="${esc(friendAvatar)}" class="friend-pic" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}'">
         <div>
           <div class="friend-name">${esc(p?.name||friendHandle)}</div>
           <div class="friend-handle">@${esc(friendHandle)}</div>
