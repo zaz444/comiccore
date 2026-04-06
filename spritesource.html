@@ -954,17 +954,22 @@
                     delBtn.innerText = 'DELETE ASSET PACK';
                     return;
                 }
-                // Wipe every cache layer so the deleted sprite never reappears
+                // Verify the row is actually gone
+                const { data: checkData } = await _supabase.from('sprites_library').select('id').eq('id', item.id).single();
+                if (checkData) {
+                    alert('Delete did not stick — the row still exists in the database. Check your Supabase RLS policies: the delete policy may be blocking this even though no error was returned.');
+                    delBtn.disabled = false;
+                    delBtn.innerText = 'DELETE ASSET PACK';
+                    return;
+                }
+                // Row confirmed gone — wipe every cache layer
                 localStorage.removeItem(META_CACHE_KEY);
                 localStorage.removeItem('sb-full-' + item.id);
                 sessionStorage.removeItem('cc_simg_' + item.id);
                 fullDataCache.delete(item.id);
-                // Remove from in-memory list immediately so stale render can't happen
                 allSprites = allSprites.filter(s => s.id !== item.id);
-                // Save the cleaned list back to meta cache so next load won't re-show the deleted sprite
                 saveMetaCache(allSprites);
                 closePreview();
-                // Re-render from clean in-memory list — no reload (reload races against DB propagation)
                 renderPublicGrid(allSprites);
                 document.getElementById('sprite-count').innerText = allSprites.length + ' packs';
             };
