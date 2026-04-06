@@ -1165,6 +1165,15 @@
             <div class="fx-chip-row" id="fx-filter-row"></div>
         </div>
 
+        <!-- BLUR STRENGTH SECTION -->
+        <div class="fx-sheet-section" id="fx-strength-row" style="display:none;">
+            <div class="bg-slider-row">
+                <span>Blur&nbsp;Strength</span>
+                <input type="range" id="fx-blur-strength" min="0" max="100" value="100" oninput="applyFxToSelected()">
+                <span class="bg-val" id="fx-blur-strength-val">100%</span>
+            </div>
+        </div>
+
         <!-- OPACITY SECTION -->
         <div class="fx-sheet-section">
             <div class="fx-sheet-label" style="display:flex;align-items:center;gap:5px;">
@@ -1782,19 +1791,37 @@ function _renderNow() {
         el.dataset.layerId = layer.id;
 
         if (layer.type === 'img') {
-            const img = document.createElement('img');
-            img.src = layer.src;
-            img.draggable = false;
-            img.style.cssText = `width:${layer.w}px;display:block;user-select:none;`;
-            if (layer.flipped) img.style.transform = `rotate(${layer.rotation||0}deg) scaleX(-1)`;
-            else img.style.transform = `rotate(${layer.rotation||0}deg)`;
-            const blurCSS = getSpriteFilterCSS(layer);
-            const lfCSS = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
+            const hasFxSrc   = !!layer._fxSrc;
+            const bStrength  = (layer.blurStrength != null) ? layer.blurStrength : 100;
+            const blurCSS    = hasFxSrc ? '' : getSpriteFilterCSS(layer);
+            const lfCSS      = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
             const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ') || '';
-            if (combinedFilter) img.style.filter = combinedFilter;
-            if (layer.fxOpacity !== undefined) img.style.opacity = layer.fxOpacity / 100;
+            const rotation   = layer.flipped
+                ? `rotate(${layer.rotation||0}deg) scaleX(-1)`
+                : `rotate(${layer.rotation||0}deg)`;
+
+            if (hasFxSrc && bStrength < 100) {
+                // Blend mode: clean base + fx overlay at blurStrength opacity
+                const base = document.createElement('img');
+                base.src = layer.src; base.draggable = false;
+                base.style.cssText = `width:${layer.w}px;display:block;user-select:none;transform:${rotation};`;
+                if (layer.fxOpacity !== undefined) base.style.opacity = layer.fxOpacity / 100;
+                const overlay = document.createElement('img');
+                overlay.src = layer._fxSrc; overlay.draggable = false;
+                overlay.style.cssText = `width:${layer.w}px;display:block;user-select:none;position:absolute;top:0;left:0;transform:${rotation};opacity:${bStrength/100};`;
+                el.style.position = 'relative';
+                el.appendChild(base);
+                el.appendChild(overlay);
+            } else {
+                const img = document.createElement('img');
+                img.src = hasFxSrc ? layer._fxSrc : layer.src;
+                img.draggable = false;
+                img.style.cssText = `width:${layer.w}px;display:block;user-select:none;transform:${rotation};`;
+                if (combinedFilter) img.style.filter = combinedFilter;
+                if (layer.fxOpacity !== undefined) img.style.opacity = layer.fxOpacity / 100;
+                el.appendChild(img);
+            }
             if (layer.nameTag) { const nt = document.createElement('div'); nt.className = 'sprite-nametag'; nt.innerText = layer.nameTag; el.appendChild(nt); }
-            el.appendChild(img);
         } else if (layer.type === 'bubble' || layer.type === 'thinking') {
             const bub = document.createElement('div');
             const bStyle = layer.bubbleStyle || 'round';
@@ -3043,12 +3070,11 @@ function addEffectToCanvas(src, pack) {
     probe.crossOrigin = 'anonymous';
     probe.onload = () => {
         if (!probe.naturalWidth) { render(); return; }
-        const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-        const scale = initW / trimW;
-        nl.w = Math.round(trimW * scale);
-        nl.h = Math.round(trimH * scale);
-        nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
-        nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
+        const cropped = cropSpriteToContent(probe);
+        const scale = initW / cropped.w;
+        nl.src = cropped.src;
+        nl.w = Math.round(cropped.w * scale);
+        nl.h = Math.round(cropped.h * scale);
         render();
     };
     probe.onerror = () => { const fb=new Image(); fb.onload=()=>{ nl.h=Math.round(initW*fb.naturalHeight/fb.naturalWidth); render(); }; fb.src=src; };
@@ -3411,6 +3437,35 @@ function trimTransparentBounds(img) {
     return { offsetX: minX, offsetY: minY, trimW: maxX - minX + 1, trimH: maxY - minY + 1 };
 }
 
+function cropSpriteToContent(img) {
+    const ow = img.naturalWidth, oh = img.naturalHeight;
+    try {
+        const c = document.createElement('canvas');
+        c.width = ow; c.height = oh;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, ow, oh).data;
+        let minX = ow, minY = oh, maxX = 0, maxY = 0;
+        for (let y = 0; y < oh; y++) {
+            for (let x = 0; x < ow; x++) {
+                if (data[(y * ow + x) * 4 + 3] > 8) {
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                }
+            }
+        }
+        if (minX > maxX || minY > maxY) return { src: img.src, w: ow, h: oh };
+        const tw = maxX - minX + 1, th = maxY - minY + 1;
+        if (minX <= 4 && minY <= 4 && ow - maxX <= 5 && oh - maxY <= 5) return { src: img.src, w: ow, h: oh };
+        const out = document.createElement('canvas');
+        out.width = tw; out.height = th;
+        out.getContext('2d').drawImage(img, minX, minY, tw, th, 0, 0, tw, th);
+        return { src: out.toDataURL('image/png'), w: tw, h: th };
+    } catch(e) {
+        return { src: img.src, w: ow, h: oh };
+    }
+}
+
 function addSpriteToCanvas(src, pack) {
     saveState();
     const cw = canvas.offsetWidth || 300;
@@ -3423,13 +3478,11 @@ function addSpriteToCanvas(src, pack) {
     probe.crossOrigin = 'anonymous';
     probe.onload = () => {
         if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
-        const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-        const scale = initW / trimW;
-        nl.w = Math.round(trimW * scale);
-        nl.h = Math.round(trimH * scale);
-        nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
-        nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
-        nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+        const cropped = cropSpriteToContent(probe);
+        const scale = initW / cropped.w;
+        nl.src = cropped.src;
+        nl.w = Math.round(cropped.w * scale);
+        nl.h = Math.round(cropped.h * scale);
         render();
     };
     probe.onerror = () => {
@@ -3770,6 +3823,15 @@ function syncFxPanel() {
     const op = activeLayer.fxOpacity !== undefined ? activeLayer.fxOpacity : 100;
     if (opEl) opEl.value = op;
     if (opVal) opVal.innerText = op + '%';
+
+    // Sync blur strength
+    const bStr    = activeLayer.blurStrength != null ? activeLayer.blurStrength : 100;
+    const strEl   = document.getElementById('fx-blur-strength');
+    const strVal  = document.getElementById('fx-blur-strength-val');
+    const strRow  = document.getElementById('fx-strength-row');
+    if (strEl)  strEl.value = bStr;
+    if (strVal) strVal.innerText = bStr + '%';
+    if (strRow) strRow.style.display = (resolvedType !== 'none') ? 'block' : 'none';
 }
 
 function setFxBlur(type) {
@@ -3789,15 +3851,29 @@ function setFxBlur(type) {
 
 function applyFxToSelected() {
     if (!activeLayer) return;
-    const amt = parseInt(document.getElementById('fx-blur-amt').value) || 4;
-    const angle = parseInt(document.getElementById('fx-motion-angle')?.value || 0);
+    const amt          = parseInt(document.getElementById('fx-blur-amt').value) || 4;
+    const angle        = parseInt(document.getElementById('fx-motion-angle')?.value || 0);
+    const op           = parseInt(document.getElementById('fx-opacity').value);
+    const blurStrength = parseInt(document.getElementById('fx-blur-strength')?.value ?? 100);
     document.getElementById('fx-blur-amt-val').innerText = amt + 'px';
-    activeLayer.blurAmt   = amt;
-    activeLayer.blurAngle = angle;
-    const op = parseInt(document.getElementById('fx-opacity').value);
-    activeLayer.fxOpacity = op;
-    document.getElementById('fx-opacity-val').innerText = op + '%';
-    render();
+    document.getElementById('fx-opacity-val').innerText  = op + '%';
+    const strEl  = document.getElementById('fx-blur-strength-val');
+    const strRow = document.getElementById('fx-strength-row');
+    if (strEl)  strEl.innerText = blurStrength + '%';
+    if (strRow) strRow.style.display = (activeLayer.blurType && activeLayer.blurType !== 'none') ? 'block' : 'none';
+    activeLayer.blurAmt      = amt;
+    activeLayer.blurAmount   = amt;
+    activeLayer.blurAngle    = angle;
+    activeLayer.fxOpacity    = op;
+    activeLayer.blurStrength = blurStrength;
+    const needsRecompute = _fxCanvas_TYPES.includes(activeLayer.blurType);
+    if (needsRecompute) {
+        activeLayer._fxSrc = null;
+        computeLayerFx(activeLayer).then(() => render());
+    } else {
+        activeLayer._fxSrc = null;
+        render();
+    }
 }
 
 function clearFxFromSelected() {
@@ -3805,9 +3881,12 @@ function clearFxFromSelected() {
     saveState();
     delete activeLayer.fxFilter;
     delete activeLayer.fxOpacity;
-    activeLayer.blurType  = 'none';
-    activeLayer.blurAmt   = 4;
-    activeLayer.blurAngle = 0;
+    activeLayer.blurType     = 'none';
+    activeLayer.blurAmt      = 4;
+    activeLayer.blurAmount   = 4;
+    activeLayer.blurAngle    = 0;
+    activeLayer.blurStrength = 100;
+    activeLayer._fxSrc       = null;
     syncFxPanel();
     render();
 }
@@ -3901,13 +3980,11 @@ document.getElementById('apply-crop-btn').onclick = async () => {
             probe.crossOrigin = 'anonymous';
             probe.onload = () => {
                 if (!probe.naturalWidth) { render(); return; }
-                const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-                const scale = initW / trimW;
-                nl.w = Math.round(trimW * scale);
-                nl.h = Math.round(trimH * scale);
-                nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
-                nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
-                nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+                const cropped = cropSpriteToContent(probe);
+                const scale = initW / cropped.w;
+                nl.src = cropped.src;
+                nl.w = Math.round(cropped.w * scale);
+                nl.h = Math.round(cropped.h * scale);
                 render();
             };
             probe.onerror = () => render();
@@ -4184,7 +4261,13 @@ async function renderFrameToCanvas(frame, cw, ch) {
     // ── Layers ──
     for (const layer of frame.layers) {
         if (layer.type === 'img') {
-            await new Promise(res => {
+            const bStrength  = (layer.blurStrength != null) ? layer.blurStrength : 100;
+            const baseOpacity = (layer.fxOpacity != null ? layer.fxOpacity / 100 : 1);
+            const cssFilt    = getSpriteFilterCSS(layer);
+            const lfCSS      = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
+            const combinedCSS = [cssFilt, lfCSS].filter(Boolean).join(' ') || '';
+
+            const drawLayerSrc = (src, alpha, applyCSS) => new Promise(res => {
                 const img = new Image(); img.crossOrigin = 'anonymous';
                 img.onload = () => {
                     const iw = img.naturalWidth || 1, ih = img.naturalHeight || 1;
@@ -4192,16 +4275,27 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     const lh = layer.h != null ? layer.h : lw * (ih / iw);
                     const cx = (layer.x || 0) + lw / 2, cy = (layer.y || 0) + lh / 2;
                     ctx.save();
-                    ctx.globalAlpha = layer.fxOpacity != null ? layer.fxOpacity / 100 : 1;
+                    if (applyCSS && combinedCSS) ctx.filter = combinedCSS;
+                    ctx.globalAlpha = alpha;
                     ctx.translate(cx, cy);
                     ctx.rotate((layer.rotation || 0) * Math.PI / 180);
                     if (layer.flipped) ctx.scale(-1, 1);
                     ctx.drawImage(img, -lw / 2, -lh / 2, lw, lh);
-                    ctx.restore(); res();
+                    ctx.restore();
+                    ctx.filter = 'none'; ctx.globalAlpha = 1;
+                    res();
                 };
-                img.onerror = res;
-                img.src = layer.src;
+                img.onerror = res; img.src = src;
             });
+
+            if (layer._fxSrc && bStrength < 100) {
+                await drawLayerSrc(layer.src,    baseOpacity,                false);
+                await drawLayerSrc(layer._fxSrc, baseOpacity * bStrength/100, false);
+            } else if (layer._fxSrc) {
+                await drawLayerSrc(layer._fxSrc, baseOpacity, false);
+            } else {
+                await drawLayerSrc(layer.src, baseOpacity, true);
+            }
         } else {
             // Text / bubble / thinking / subtitle — render via SVG foreignObject for fidelity
             const bx = layer.x || 0, by = layer.y || 0;
@@ -4597,16 +4691,99 @@ function getSpriteFilterCSS(layer) {
     if (!layer.blurType || layer.blurType === 'none') return '';
     const amt = layer.blurAmt || layer.blurAmount || 4;
     switch (layer.blurType) {
-        case 'gaussian': return `blur(${amt}px)`;
-        case 'soft':     return `blur(${amt}px)`;
-        case 'motion':   return `blur(${Math.max(1, amt * 0.8)}px)`;
-        case 'lens':     return `blur(${amt * 1.4}px) brightness(${100 + amt * 2}%)`;
-        case 'frosted':  return `blur(${Math.max(1, amt * 0.5)}px) contrast(${120 + amt * 3}%) saturate(${80 + amt * 3}%)`;
-        case 'zoom':     return `blur(${amt * 0.8}px) brightness(${100 + amt}%)`;
-        case 'radial':   return `blur(${amt * 0.7}px) saturate(${120 + amt * 2}%)`;
-        case 'pixel':    return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
-        default: return '';
+        case 'gaussian':
+        case 'soft': return `blur(${amt}px)`;
+        case 'lens': return `blur(${amt * 1.2}px) brightness(112%) saturate(88%)`;
+        default: return ''; // complex types use _fxSrc canvas pre-render
     }
+}
+
+// ── Canvas FX implementations (shared with desktop) ──────────────────────
+const _fxCanvas_TYPES = ['motion','zoom','radial','frosted','pixel'];
+
+function _fxLoadImage(src) {
+    return new Promise(res => {
+        const img = new Image(); img.crossOrigin = 'anonymous';
+        img.onload = () => res(img); img.onerror = () => res(null); img.src = src;
+    });
+}
+function _fxApplyMotion(ctx, img, w, h, amt, angle) {
+    const steps = Math.min(Math.max(8, amt), 32);
+    const rad = (angle * Math.PI) / 180;
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < steps; i++) {
+        const offset = ((i / (steps - 1)) - 0.5) * amt;
+        ctx.globalAlpha = 1 / steps;
+        ctx.drawImage(img, Math.cos(rad) * offset, Math.sin(rad) * offset, w, h);
+    }
+    ctx.globalAlpha = 1;
+}
+function _fxApplyZoom(ctx, img, w, h, amt) {
+    const steps = 14;
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < steps; i++) {
+        const scale = 1 + (i / (steps - 1)) * (amt / 40);
+        ctx.globalAlpha = 1 / steps;
+        ctx.drawImage(img, (w - w * scale) / 2, (h - h * scale) / 2, w * scale, h * scale);
+    }
+    ctx.globalAlpha = 1;
+}
+function _fxApplyRadial(ctx, img, w, h, amt) {
+    const steps = 14;
+    const maxRad = (amt * 0.6) * (Math.PI / 180);
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < steps; i++) {
+        ctx.globalAlpha = 1 / steps;
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(((i / (steps - 1)) - 0.5) * maxRad);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+}
+function _fxApplyFrosted(ctx, img, w, h, amt) {
+    ctx.filter = `blur(${Math.max(1, amt * 0.6)}px)`;
+    ctx.drawImage(img, 0, 0, w, h);
+    ctx.filter = 'none';
+    try {
+        const px = ctx.getImageData(0, 0, w, h), d = px.data, noise = amt * 4;
+        for (let i = 0; i < d.length; i += 4) {
+            const n = (Math.random() - 0.5) * noise;
+            d[i]   = Math.min(255, Math.max(0, d[i]   + n));
+            d[i+1] = Math.min(255, Math.max(0, d[i+1] + n));
+            d[i+2] = Math.min(255, Math.max(0, d[i+2] + n));
+        }
+        ctx.putImageData(px, 0, 0);
+    } catch(e) {}
+}
+function _fxApplyMosaic(ctx, img, w, h, amt) {
+    const bs = Math.max(2, Math.round(amt * 2.5));
+    const sw = Math.max(1, Math.round(w / bs)), sh = Math.max(1, Math.round(h / bs));
+    const tmp = document.createElement('canvas'); tmp.width = sw; tmp.height = sh;
+    tmp.getContext('2d').drawImage(img, 0, 0, sw, sh);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tmp, 0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+}
+async function computeLayerFx(layer) {
+    if (!layer.blurType || layer.blurType === 'none' || !_fxCanvas_TYPES.includes(layer.blurType)) {
+        layer._fxSrc = null; return;
+    }
+    const img = await _fxLoadImage(layer.src);
+    if (!img) { layer._fxSrc = null; return; }
+    const w = img.naturalWidth || 200, h = img.naturalHeight || 200;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    const amt = layer.blurAmt || layer.blurAmount || 4;
+    switch (layer.blurType) {
+        case 'motion':  _fxApplyMotion(ctx, img, w, h, amt, layer.blurAngle || 0); break;
+        case 'zoom':    _fxApplyZoom(ctx, img, w, h, amt); break;
+        case 'radial':  _fxApplyRadial(ctx, img, w, h, amt); break;
+        case 'frosted': _fxApplyFrosted(ctx, img, w, h, amt); break;
+        case 'pixel':   _fxApplyMosaic(ctx, img, w, h, amt); break;
+    }
+    layer._fxSrc = c.toDataURL('image/png');
 }
 
 function toggleSelectedLayerLock() {

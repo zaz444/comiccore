@@ -1295,6 +1295,13 @@
         </div>
     </div>
 
+    <!-- ── BLUR STRENGTH SECTION ── -->
+    <div id="fx-strength-row" style="display:none;" class="bg-slider-row">
+        <span>Blur&nbsp;Strength</span>
+        <input type="range" id="fx-blur-strength" min="0" max="100" value="100" oninput="applyFxToSelected()">
+        <span class="val-label" id="fx-blur-strength-val">100%</span>
+    </div>
+
     <!-- ── FILTER SECTION ── -->
     <div class="fx-section-label" style="display:flex;align-items:center;gap:6px;">
         <span style="width:3px;height:10px;background:var(--accent);border-radius:2px;display:inline-block;flex-shrink:0;"></span>FILTER
@@ -2475,8 +2482,8 @@
         return { offsetX: minX, offsetY: minY, trimW: maxX - minX + 1, trimH: maxY - minY + 1 };
     }
 
-    // Returns a cropped data-URL with all transparent/white padding removed.
-    // Falls back to original src if cropping fails (CORS, etc).
+    // Returns a cropped data-URL with transparent padding removed (alpha-only, preserves white pixels).
+    // Falls back to original src + full dimensions if CORS blocks pixel access.
     function cropSpriteToContent(img) {
         const ow = img.naturalWidth;
         const oh = img.naturalHeight;
@@ -2489,11 +2496,7 @@
             let minX = ow, minY = oh, maxX = 0, maxY = 0;
             for (let y = 0; y < oh; y++) {
                 for (let x = 0; x < ow; x++) {
-                    const i = (y * ow + x) * 4;
-                    const a = data[i + 3];
-                    // Treat near-white opaque pixels as background too
-                    const isWhiteBg = a > 240 && data[i] > 240 && data[i+1] > 240 && data[i+2] > 240;
-                    if (a > 8 && !isWhiteBg) {
+                    if (data[(y * ow + x) * 4 + 3] > 8) {
                         if (x < minX) minX = x;
                         if (x > maxX) maxX = x;
                         if (y < minY) minY = y;
@@ -2504,12 +2507,13 @@
             if (minX > maxX || minY > maxY) return { src: img.src, w: ow, h: oh };
             const tw = maxX - minX + 1;
             const th = maxY - minY + 1;
+            // If already tight (≤4px padding), skip rewriting src to avoid bloat
+            if (minX <= 4 && minY <= 4 && ow - maxX <= 5 && oh - maxY <= 5) return { src: img.src, w: ow, h: oh };
             const out = document.createElement('canvas');
             out.width = tw; out.height = th;
             out.getContext('2d').drawImage(img, minX, minY, tw, th, 0, 0, tw, th);
             return { src: out.toDataURL('image/png'), w: tw, h: th };
         } catch(e) {
-            // CORS block — can't read pixels, return original
             return { src: img.src, w: ow, h: oh };
         }
     }
@@ -2526,13 +2530,11 @@
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
             if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
-            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-            const scale = TARGET_W / trimW;
-            nl.w = Math.round(trimW * scale);
-            nl.h = Math.round(trimH * scale);
-            nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
-            nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
-            nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+            const cropped = cropSpriteToContent(probe);
+            const scale = TARGET_W / cropped.w;
+            nl.src = cropped.src;
+            nl.w = Math.round(cropped.w * scale);
+            nl.h = Math.round(cropped.h * scale);
             render();
         };
         probe.onerror = () => {
@@ -2701,9 +2703,26 @@
 
         f.layers.forEach((l) => {
             let el;
-            if(l.type === 'img') { 
-                el = document.createElement('img'); 
-                el.src = l.src;
+            if(l.type === 'img') {
+                const hasFxSrc    = !!l._fxSrc;
+                const bStrength   = (l.blurStrength != null) ? l.blurStrength : 100;
+                const needsWrapper = hasFxSrc && bStrength < 100;
+                if (needsWrapper) {
+                    // blurStrength < 100: stack clean base + fx overlay at blurStrength opacity
+                    el = document.createElement('div');
+                    el.style.cssText = 'position:absolute;overflow:hidden;';
+                    const base = document.createElement('img');
+                    base.src = l.src;
+                    base.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0;';
+                    const overlay = document.createElement('img');
+                    overlay.src = l._fxSrc;
+                    overlay.style.cssText = `width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0;opacity:${bStrength/100};`;
+                    el.appendChild(base);
+                    el.appendChild(overlay);
+                } else {
+                    el = document.createElement('img');
+                    el.src = hasFxSrc ? l._fxSrc : l.src;
+                }
             } else {
                 el = document.createElement('div');
                 const fs = l.fontSize || 28;
@@ -2769,9 +2788,10 @@
                     });
                 }
             }
-            // Apply FX: blur, layer filter, opacity
-            const blurCSS   = getSpriteFilterCSS(l);
-            const lfCSS     = (l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '';
+            // Apply FX: blur (CSS types only), layer filter, opacity
+            const isWrapperEl  = l.type === 'img' && el.tagName === 'DIV'; // blurStrength wrapper
+            const blurCSS      = isWrapperEl ? '' : getSpriteFilterCSS(l);
+            const lfCSS        = (l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '';
             const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ') || '';
             if (combinedFilter) el.style.filter = combinedFilter;
             if (l.opacity != null && l.opacity !== 100) el.style.opacity = l.opacity / 100;
@@ -2784,13 +2804,12 @@
                 if (l.h != null) {
                     layerHeightPx = l.h + 'px';
                 } else {
-                    // Force auto so the image uses its natural aspect ratio
                     layerHeightPx = 'auto';
                 }
             }
             Object.assign(el.style, { width: l.w + 'px', height: layerHeightPx, left: l.x + 'px', top: l.y + 'px', transform: `rotate(${l.rotation || 0}deg) scaleX(${l.flipped ? -1 : 1})` });
-            // Ensure img layers never stretch — lock aspect ratio
-            if (l.type === 'img') { el.style.objectFit = 'contain'; }
+            // Ensure img layers never stretch — lock aspect ratio (skip for wrapper divs, inner imgs handle this)
+            if (l.type === 'img' && !isWrapperEl) { el.style.objectFit = 'contain'; }
             // Locked layer: show dim overlay and lock badge
             if (l.locked) {
                 el.style.opacity = (l.opacity != null ? l.opacity / 100 : 1) * 0.6 + '';
@@ -2980,18 +2999,16 @@
                 const probe = new Image();
                 probe.crossOrigin = 'anonymous';
                 probe.onload = () => {
-                    const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
+                    const cropped = cropSpriteToContent(probe);
                     const cw = canvas.offsetWidth || 600;
                     const TARGET_W = Math.round(cw * 0.33);
-                    const scale = TARGET_W / trimW;
+                    const scale = TARGET_W / cropped.w;
                     frames[currentIdx].layers.push({
-                        type: 'img', src: finalSrc,
-                        w: Math.round(trimW * scale),
-                        h: Math.round(trimH * scale),
-                        x: Math.max(0, 50 - Math.round(offsetX * scale)),
-                        y: Math.max(0, 50 - Math.round(offsetY * scale)),
+                        type: 'img', src: cropped.src,
+                        w: Math.round(cropped.w * scale),
+                        h: Math.round(cropped.h * scale),
+                        x: 50, y: 50,
                         rotation: 0, flipped: false,
-                        trimData: { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight },
                         id: Date.now()
                     });
                     render();
@@ -4070,23 +4087,42 @@
 
         for (const l of f.layers) {
             if (l.type === 'img') {
-                await new Promise(res => {
-                    const img = new Image();
-                    img.crossOrigin = 'anonymous';
+                // Determine which src to draw: _fxSrc (canvas pre-rendered) or original
+                const cssFilt     = getSpriteFilterCSS(l);
+                const lfCSS       = (l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '';
+                const combinedCSS = [cssFilt, lfCSS].filter(Boolean).join(' ') || '';
+                const bStrength   = (l.blurStrength != null) ? l.blurStrength : 100;
+
+                const drawLayer = async (src, alpha, applyCSS) => new Promise(res => {
+                    const img = new Image(); img.crossOrigin = 'anonymous';
                     img.onload = () => {
                         const h = ((l.h != null) ? l.h : l.w * (img.naturalHeight / img.naturalWidth)) * scaleY;
                         const w = l.w * scaleX;
                         ctx.save();
+                        if (applyCSS && combinedCSS) ctx.filter = combinedCSS;
+                        ctx.globalAlpha = alpha * ((l.opacity != null ? l.opacity : 100) / 100);
                         ctx.translate((l.x * scaleX) + w/2, (l.y * scaleY) + h/2);
                         ctx.rotate(((l.rotation || 0) * Math.PI) / 180);
                         if (l.flipped) ctx.scale(-1, 1);
                         ctx.drawImage(img, -w/2, -h/2, w, h);
                         ctx.restore();
+                        ctx.filter = 'none'; ctx.globalAlpha = 1;
                         res();
                     };
-                    img.onerror = res;
-                    img.src = l.src;
+                    img.onerror = res; img.src = src;
                 });
+
+                if (l._fxSrc && bStrength < 100) {
+                    // Blend: draw original clean, then fx overlay at blurStrength opacity
+                    await drawLayer(l.src, 1, false);
+                    await drawLayer(l._fxSrc, bStrength / 100, false);
+                } else if (l._fxSrc) {
+                    // Full fx replacement
+                    await drawLayer(l._fxSrc, 1, false);
+                } else {
+                    // CSS filter (gaussian/lens) or plain
+                    await drawLayer(l.src, 1, true);
+                }
             } else {
                 // ── Text / bubble / thinking / subtitle layers ──
                 // Render via SVG foreignObject → Image so the exported frame matches
@@ -4633,37 +4669,120 @@
         render();
     }
 
+    // ── FX: CSS filter (gaussian + lens only — others use canvas pre-render) ──
     function getSpriteFilterCSS(layer) {
         if (!layer.blurType || layer.blurType === 'none') return '';
         const amt = layer.blurAmount || 4;
         switch (layer.blurType) {
-            case 'gaussian': return `blur(${amt}px)`;
-            case 'soft':     return `blur(${amt}px)`;                            // legacy alias
-            case 'motion': {
-                // Motion blur: CSS approximation using multi-step blur + translate
-                const angle  = layer.blurAngle || 0;
-                const rad    = (angle * Math.PI) / 180;
-                const bx     = Math.cos(rad) * amt;
-                const by     = Math.sin(rad) * amt;
-                return `blur(${Math.max(1, Math.abs(bx)).toFixed(1)}px)`;       // CSS limitation — best single-axis approximation
-            }
-            case 'lens':
-                // Lens/bokeh: larger radius + slight brightness boost mimics light gathering
-                return `blur(${amt * 1.4}px) brightness(${100 + amt * 2}%)`;
-            case 'frosted':
-                // Frosted glass: high-contrast micro-blur + saturation scramble
-                return `blur(${Math.max(1, amt * 0.5)}px) contrast(${120 + amt * 3}%) saturate(${80 + amt * 3}%)`;
-            case 'zoom':
-                // Zoom burst: layered blur + slight brightness
-                return `blur(${amt * 0.8}px) brightness(${100 + amt}%)`;
-            case 'radial':
-                // Radial/spin: blur + slight hue offset
-                return `blur(${amt * 0.7}px) saturate(${120 + amt * 2}%)`;
-            case 'pixel':
-                // Mosaic / pixelate
-                return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
-            default: return '';
+            case 'gaussian':
+            case 'soft': return `blur(${amt}px)`;
+            case 'lens':  return `blur(${amt * 1.2}px) brightness(112%) saturate(88%)`;
+            default: return ''; // complex types handled via _fxSrc canvas pre-render
         }
+    }
+
+    // ── Canvas FX implementations ──────────────────────────────────────────
+    function _fxLoadImage(src) {
+        return new Promise(res => {
+            const img = new Image(); img.crossOrigin = 'anonymous';
+            img.onload = () => res(img); img.onerror = () => res(null);
+            img.src = src;
+        });
+    }
+
+    function _fxApplyMotion(ctx, img, w, h, amt, angle) {
+        const steps = Math.min(Math.max(8, amt), 32);
+        const rad = (angle * Math.PI) / 180;
+        ctx.clearRect(0, 0, w, h);
+        for (let i = 0; i < steps; i++) {
+            const offset = ((i / (steps - 1)) - 0.5) * amt;
+            ctx.globalAlpha = 1 / steps;
+            ctx.drawImage(img, Math.cos(rad) * offset, Math.sin(rad) * offset, w, h);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function _fxApplyZoom(ctx, img, w, h, amt) {
+        const steps = 14;
+        ctx.clearRect(0, 0, w, h);
+        for (let i = 0; i < steps; i++) {
+            const t = i / (steps - 1);
+            const scale = 1 + t * (amt / 40);
+            const ox = (w - w * scale) / 2;
+            const oy = (h - h * scale) / 2;
+            ctx.globalAlpha = 1 / steps;
+            ctx.drawImage(img, ox, oy, w * scale, h * scale);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function _fxApplyRadial(ctx, img, w, h, amt) {
+        const steps = 14;
+        const maxRad = (amt * 0.6) * (Math.PI / 180);
+        ctx.clearRect(0, 0, w, h);
+        for (let i = 0; i < steps; i++) {
+            const t = (i / (steps - 1)) - 0.5;
+            ctx.globalAlpha = 1 / steps;
+            ctx.save();
+            ctx.translate(w / 2, h / 2);
+            ctx.rotate(t * maxRad);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+            ctx.restore();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function _fxApplyFrosted(ctx, img, w, h, amt) {
+        ctx.filter = `blur(${Math.max(1, amt * 0.6)}px)`;
+        ctx.drawImage(img, 0, 0, w, h);
+        ctx.filter = 'none';
+        try {
+            const px = ctx.getImageData(0, 0, w, h);
+            const d = px.data, noise = amt * 4;
+            for (let i = 0; i < d.length; i += 4) {
+                const n = (Math.random() - 0.5) * noise;
+                d[i]   = Math.min(255, Math.max(0, d[i]   + n));
+                d[i+1] = Math.min(255, Math.max(0, d[i+1] + n));
+                d[i+2] = Math.min(255, Math.max(0, d[i+2] + n));
+            }
+            ctx.putImageData(px, 0, 0);
+        } catch(e) {}
+    }
+
+    function _fxApplyMosaic(ctx, img, w, h, amt) {
+        const bs = Math.max(2, Math.round(amt * 2.5));
+        const sw = Math.max(1, Math.round(w / bs));
+        const sh = Math.max(1, Math.round(h / bs));
+        const tmp = document.createElement('canvas'); tmp.width = sw; tmp.height = sh;
+        tmp.getContext('2d').drawImage(img, 0, 0, sw, sh);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tmp, 0, 0, w, h);
+        ctx.imageSmoothingEnabled = true;
+    }
+
+    const _fxCanvas_TYPES = ['motion', 'zoom', 'radial', 'frosted', 'pixel'];
+
+    async function computeLayerFx(layer) {
+        // Clear cached fx if none/css-only
+        if (!layer.blurType || layer.blurType === 'none' ||
+            !_fxCanvas_TYPES.includes(layer.blurType)) {
+            layer._fxSrc = null; return;
+        }
+        const img = await _fxLoadImage(layer.src);
+        if (!img) { layer._fxSrc = null; return; }
+        const w = img.naturalWidth || 200, h = img.naturalHeight || 200;
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        const amt = layer.blurAmount || 4;
+        const angle = layer.blurAngle || 0;
+        switch (layer.blurType) {
+            case 'motion':  _fxApplyMotion(ctx, img, w, h, amt, angle); break;
+            case 'zoom':    _fxApplyZoom(ctx, img, w, h, amt); break;
+            case 'radial':  _fxApplyRadial(ctx, img, w, h, amt); break;
+            case 'frosted': _fxApplyFrosted(ctx, img, w, h, amt); break;
+            case 'pixel':   _fxApplyMosaic(ctx, img, w, h, amt); break;
+        }
+        layer._fxSrc = c.toDataURL('image/png');
     }
 
     // ═══════════════════════════════════════
@@ -4891,6 +5010,13 @@
         document.getElementById('fx-motion-angle-val').innerText      = bAngle + '°';
         document.getElementById('fx-opacity').value           = opacity;
         document.getElementById('fx-opacity-val').innerText   = opacity + '%';
+        const bStrength = layer.blurStrength != null ? layer.blurStrength : 100;
+        const strengthSlider = document.getElementById('fx-blur-strength');
+        const strengthVal    = document.getElementById('fx-blur-strength-val');
+        const strengthRow    = document.getElementById('fx-strength-row');
+        if (strengthSlider) strengthSlider.value = bStrength;
+        if (strengthVal)    strengthVal.innerText = bStrength + '%';
+        if (strengthRow)    strengthRow.style.display = bType === 'none' ? 'none' : 'flex';
 
         // Highlight matching filter chip
         document.querySelectorAll('.fx-chip').forEach(ch => {
@@ -4920,24 +5046,38 @@
         const targets = selectedLayers.length ? selectedLayers : (activeLayer ? [activeLayer] : []);
         if (!targets.length) return;
 
-        // Read active blur type from cards
-        const blurType   = FX_BLUR_TYPES.find(t => document.getElementById('fx-blur-' + t)?.classList.contains('active')) || 'none';
-        const blurAmount = parseInt(document.getElementById('fx-blur-amt').value);
-        const blurAngle  = parseInt(document.getElementById('fx-motion-angle')?.value || 0);
-        const filterCss  = [...document.querySelectorAll('#fx-filter-row .fx-chip')].find(ch => ch.classList.contains('active'))?.dataset.css || 'none';
-        const opacity    = parseInt(document.getElementById('fx-opacity').value);
+        const blurType     = FX_BLUR_TYPES.find(t => document.getElementById('fx-blur-' + t)?.classList.contains('active')) || 'none';
+        const blurAmount   = parseInt(document.getElementById('fx-blur-amt').value);
+        const blurAngle    = parseInt(document.getElementById('fx-motion-angle')?.value || 0);
+        const filterCss    = [...document.querySelectorAll('#fx-filter-row .fx-chip')].find(ch => ch.classList.contains('active'))?.dataset.css || 'none';
+        const opacity      = parseInt(document.getElementById('fx-opacity').value);
+        const blurStrength = parseInt(document.getElementById('fx-blur-strength')?.value ?? 100);
 
         document.getElementById('fx-blur-amt-val').innerText = blurAmount + 'px';
         document.getElementById('fx-opacity-val').innerText  = opacity + '%';
+        const strengthEl = document.getElementById('fx-blur-strength-val');
+        if (strengthEl) strengthEl.innerText = blurStrength + '%';
+        const strengthRow = document.getElementById('fx-strength-row');
+        if (strengthRow) strengthRow.style.display = blurType === 'none' ? 'none' : 'flex';
 
-        targets.forEach(layer => {
-            layer.blurType    = blurType;
-            layer.blurAmount  = blurAmount;
-            layer.blurAngle   = blurAngle;
-            layer.layerFilter = filterCss;
-            layer.opacity     = opacity;
+        const needsRecompute = _fxCanvas_TYPES.includes(blurType);
+
+        targets.forEach(async layer => {
+            layer.blurType     = blurType;
+            layer.blurAmount   = blurAmount;
+            layer.blurAngle    = blurAngle;
+            layer.layerFilter  = filterCss;
+            layer.opacity      = opacity;
+            layer.blurStrength = blurStrength;
+            if (needsRecompute) {
+                layer._fxSrc = null; // clear stale cache
+                await computeLayerFx(layer);
+            } else {
+                layer._fxSrc = null;
+            }
+            render();
         });
-        render();
+        if (!needsRecompute) render();
     }
 
     function updateFxHint() {
@@ -4957,11 +5097,13 @@
         saveState();
         const targets = selectedLayers.length ? selectedLayers : (activeLayer ? [activeLayer] : []);
         targets.forEach(layer => {
-            layer.blurType    = 'none';
-            layer.blurAmount  = 4;
-            layer.blurAngle   = 0;
-            layer.layerFilter = 'none';
-            layer.opacity     = 100;
+            layer.blurType     = 'none';
+            layer.blurAmount   = 4;
+            layer.blurAngle    = 0;
+            layer.layerFilter  = 'none';
+            layer.opacity      = 100;
+            layer.blurStrength = 100;
+            layer._fxSrc       = null;
         });
         syncFxToLayer(targets[0]);
         render();
@@ -5839,13 +5981,11 @@
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
             if (!probe.naturalWidth) { render(); return; }
-            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-            const scale = TARGET_W / trimW;
-            nl.w = Math.round(trimW * scale);
-            nl.h = Math.round(trimH * scale);
-            nl.x = Math.max(0, nl.x - Math.round(offsetX * scale));
-            nl.y = Math.max(0, nl.y - Math.round(offsetY * scale));
-            nl.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+            const cropped = cropSpriteToContent(probe);
+            const scale = TARGET_W / cropped.w;
+            nl.src = cropped.src;
+            nl.w = Math.round(cropped.w * scale);
+            nl.h = Math.round(cropped.h * scale);
             render();
         };
         probe.onerror = () => {
