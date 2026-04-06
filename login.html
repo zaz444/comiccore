@@ -664,8 +664,15 @@
                      `?provider=${provider}&mode=${mode}`;
 
     const popup = window.open(popupUrl, 'cc_oauth_popup', features);
-    if (!popup) {
-      showStatus('Popup blocked — please allow popups for this site.', 'error');
+
+    // Popup blocked (common on mobile) — fall back to full-page redirect flow
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      const returnTo = window.location.href.split('?')[0].split('#')[0];
+      sessionStorage.setItem('oauth_redirect_return', returnTo);
+      _sb.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: returnTo }
+      });
       return;
     }
 
@@ -843,25 +850,30 @@
     const params = new URLSearchParams(hash.replace('#', '?'));
     const type   = params.get('type');
 
+    // Email verification link return
     if (type === 'signup') {
       await _sb.auth.getSession();
       document.getElementById('verified-banner').style.display = 'block';
       toggle('login');
       history.replaceState(null, '', window.location.pathname);
+      return;
     }
 
     const { data: { session } } = await _sb.auth.getSession();
     if (session) {
-      // If this is a redirect-back from OAuth (not via popup), handle gracefully
+      // Redirect-back from OAuth (full-page redirect on mobile).
+      // Don't try to close the window — just handle the session directly.
       handlePostOAuth(session);
     }
   });
 
   // ── Auth state change (catches popup-based flows too) ─────────
+  let _oauthHandled = false;
   _sb.auth.onAuthStateChange(async (event, session) => {
-    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
-      // Only act if we're on the login page
+    if (event === 'SIGNED_IN' && session && !_oauthHandled) {
+      // Only act if we're on the login page and haven't already handled this session
       if (window.location.pathname.includes('login')) {
+        _oauthHandled = true;
         handlePostOAuth(session);
       }
     }
