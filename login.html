@@ -709,6 +709,8 @@
   // ── After OAuth completes — decide new user vs returning ─────
   async function handlePostOAuth(session) {
     const user = session.user;
+    const intent = sessionStorage.getItem('oauth_intent') || 'login';
+
     const { data: existing } = await _sb
       .from('profiles')
       .select('handle, name, pic')
@@ -716,7 +718,15 @@
       .maybeSingle();
 
     if (!existing) {
-      // Brand new user — show completion overlay
+      if (intent === 'login') {
+        // No account found — sign them back out and show an error
+        await _sb.auth.signOut();
+        _oauthHandled = false;
+        showStatus('No account found for that ' + (user.app_metadata?.provider || 'account') + '. Please sign up first.', 'error');
+        toggle('login');
+        return;
+      }
+      // Brand new user signing up — show completion overlay
       showOAuthCompletionOverlay(user);
     } else {
       // Returning user — save profile and redirect
@@ -967,7 +977,13 @@
       setTimeout(() => toggle('login'), 2800);
 
     } catch (err) {
-      showStatus(err.message, 'error');
+      // Supabase free-tier email rate limit
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('rate limit') || msg.includes('quota') || msg.includes('over_email_send_rate_limit') || err.status === 429) {
+        showStatus('Too many sign-up attempts right now. Please wait a few minutes and try again.', 'error');
+      } else {
+        showStatus(err.message, 'error');
+      }
       btn.disabled = false;
       btn.innerHTML = 'Get Started →';
     }
