@@ -739,9 +739,12 @@
         if (cached) { allSprites = cached; initAfterMetaFetch(false); }
         const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
         const fresh = data || [];
-        const cachedIds = (allSprites || []).map(s => s.id).join(',');
-        const freshIds  = fresh.map(s => s.id).join(',');
-        if (freshIds !== cachedIds || !cached) {
+        const cachedIdSet = new Set((allSprites || []).map(s => s.id));
+        const freshIdSet  = new Set(fresh.map(s => s.id));
+        const changed = fresh.length !== (allSprites || []).length
+            || fresh.some(s => !cachedIdSet.has(s.id))
+            || (allSprites || []).some(s => !freshIdSet.has(s.id));
+        if (changed || !cached) {
             allSprites = fresh;
             saveMetaCache(fresh);
             initAfterMetaFetch(true);
@@ -951,12 +954,22 @@
                     delBtn.innerText = 'DELETE ASSET PACK';
                     return;
                 }
-                // Clear ALL caches for this item so it doesn't reappear on reload
+                // Wipe every cache layer so the deleted sprite never reappears
                 localStorage.removeItem(META_CACHE_KEY);
                 localStorage.removeItem('sb-full-' + item.id);
-                sessionStorage.removeItem('cc_simg_' + item.id);
                 fullDataCache.delete(item.id);
-                location.reload();
+                // Clear ALL sessionStorage sprite image entries to be safe
+                Object.keys(sessionStorage).forEach(k => {
+                    if (k.startsWith('cc_simg_')) sessionStorage.removeItem(k);
+                });
+                // Remove from in-memory list immediately so stale render can't happen
+                allSprites = allSprites.filter(s => s.id !== item.id);
+                closePreview();
+                // Re-render from clean in-memory list, then reload to sync from DB
+                renderPublicGrid(allSprites);
+                document.getElementById('sprite-count').innerText = allSprites.length + ' packs';
+                // Delay reload slightly so user sees the item is gone
+                setTimeout(() => location.reload(), 400);
             };
             adminContainer.appendChild(delBtn);
         }

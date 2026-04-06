@@ -495,7 +495,8 @@
         if (alreadyPending) { toast('Your request is already pending.', '#ff7a00'); return; }
         if (confirm(`Join "${squad.team_name}"?`)) {
             await joinSquad(sid, squad.is_private);
-            if (!squad.is_private) location.href = `squad_chat.html?id=${sid}`;
+            const requiresRequest = squad.owner_handle !== 'jeffyplays' || squad.is_private;
+            if (!requiresRequest) location.href = `squad_chat.html?id=${sid}`;
         }
     }
 
@@ -698,7 +699,9 @@
         } else if (isPending) {
             actions = `<button class="sq-action-btn sq-btn-pending">⏳ Pending…</button>`;
         } else {
-            actions = `<button class="sq-action-btn sq-btn-join" id="jbtn-${sid}" onclick="event.stopPropagation();joinSquad('${sid}',${!!s.is_private})">${s.is_private?'🔒 Request':'Join'}</button>`;
+            const requiresRequest = s.owner_handle !== 'jeffyplays' || s.is_private;
+            const btnLabel = requiresRequest ? '📨 Request to Join' : 'Join';
+            actions = `<button class="sq-action-btn sq-btn-join" id="jbtn-${sid}" onclick="event.stopPropagation();joinSquad('${sid}',${!!s.is_private})">${btnLabel}</button>`;
         }
 
         const lastMsg = (window._lastMsgMap||{})[sid];
@@ -735,24 +738,28 @@
     // ── Join / Leave ──────────────────────────────────────
     async function joinSquad(id, isPrivate) {
         const sid = String(id);
+        const squad = allSquads.find(s => String(s.id) === sid);
+        // Only jeffyplays squads allow instant join (and only if not private)
+        const requiresRequest = !squad || squad.owner_handle !== 'jeffyplays' || isPrivate;
+
         const joinedCount = myRequests.filter(r => r.status === 'accepted').length;
         if (joinedCount >= MAX_JOIN) { toast(`You've reached the ${MAX_JOIN} squad join limit.`, '#ff3b30'); return; }
 
         const btn = document.getElementById(`jbtn-${sid}`);
         if (btn) { btn.innerText = '…'; btn.disabled = true; }
 
-        const status = isPrivate ? 'pending' : 'accepted';
+        const status = requiresRequest ? 'pending' : 'accepted';
         const { error } = await _sb.from('team_requests').insert([{ ticket_id: sid, sender_handle: myHandle, status }]);
         if (error) {
-            if (btn) { btn.innerText = isPrivate?'🔒 Request':'Join'; btn.disabled = false; }
+            if (btn) { btn.innerText = requiresRequest ? '📨 Request' : 'Join'; btn.disabled = false; }
             toast('Failed to join. Try again.', '#ff3b30'); return;
         }
         myRequests.push({ ticket_id: sid, sender_handle: myHandle, status });
-        if (!isPrivate) {
+        if (!requiresRequest) {
             allAccepted.push({ ticket_id: sid, sender_handle: myHandle });
             toast('Joined! 🎉', '#32d74b');
         } else {
-            toast('Request sent! Waiting for approval.', '#ff7a00');
+            toast('Request sent! Waiting for approval. ✉️', '#ff7a00');
         }
         await updateStats();
         renderFeed();
@@ -1116,7 +1123,7 @@
                 <div class="sq-rec-body">
                     <div class="sq-rec-name">${esc(s.team_name)}</div>
                     <div class="sq-rec-meta">👥 ${cnt} member${cnt!==1?'s':''}</div>
-                    <button class="sq-rec-join" id="recjoin-${sid}" onclick="recJoinSquad(this,'${sid}',${!!s.is_private})">${s.is_private?'🔒 Request':'Join'}</button>
+                    <button class="sq-rec-join" id="recjoin-${sid}" onclick="recJoinSquad(this,'${sid}',${!!s.is_private})">${s.owner_handle !== 'jeffyplays' || s.is_private ? '📨 Request' : 'Join'}</button>
                 </div>
             </div>`;
         }).join('');
@@ -1126,21 +1133,24 @@
 
     async function recJoinSquad(btn, id, isPrivate) {
         const sid = String(id);
+        const squad = allSquads.find(s => String(s.id) === sid);
+        const requiresRequest = !squad || squad.owner_handle !== 'jeffyplays' || isPrivate;
+
         const joinedCount = myRequests.filter(r => r.status === 'accepted').length;
         if (joinedCount >= MAX_JOIN) { toast(`You've reached the ${MAX_JOIN} squad join limit.`, '#ff3b30'); return; }
         btn.disabled = true; btn.innerText = '…';
-        const status = isPrivate ? 'pending' : 'accepted';
+        const status = requiresRequest ? 'pending' : 'accepted';
         const { error } = await _sb.from('team_requests').insert([{ ticket_id: sid, sender_handle: myHandle, status }]);
-        if (error) { btn.disabled = false; btn.innerText = isPrivate ? '🔒 Request' : 'Join'; toast('Error — try again', '#ff3b30'); return; }
+        if (error) { btn.disabled = false; btn.innerText = requiresRequest ? '📨 Request' : 'Join'; toast('Error — try again', '#ff3b30'); return; }
         myRequests.push({ ticket_id: sid, sender_handle: myHandle, status });
-        if (!isPrivate) {
+        if (!requiresRequest) {
             allAccepted.push({ ticket_id: sid, sender_handle: myHandle });
             btn.className = 'sq-rec-join joined'; btn.innerText = '✓ Joined';
             toast('Joined! 🎉', '#32d74b');
             renderMySquadsStrip();
         } else {
             btn.className = 'sq-rec-join pending'; btn.innerText = '⏳ Pending';
-            toast('Request sent!', '#ff7a00');
+            toast('Request sent! Waiting for approval. ✉️', '#ff7a00');
         }
         await updateStats();
     }
