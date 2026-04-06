@@ -957,19 +957,16 @@
                 // Wipe every cache layer so the deleted sprite never reappears
                 localStorage.removeItem(META_CACHE_KEY);
                 localStorage.removeItem('sb-full-' + item.id);
+                sessionStorage.removeItem('cc_simg_' + item.id);
                 fullDataCache.delete(item.id);
-                // Clear ALL sessionStorage sprite image entries to be safe
-                Object.keys(sessionStorage).forEach(k => {
-                    if (k.startsWith('cc_simg_')) sessionStorage.removeItem(k);
-                });
                 // Remove from in-memory list immediately so stale render can't happen
                 allSprites = allSprites.filter(s => s.id !== item.id);
+                // Save the cleaned list back to meta cache so next load won't re-show the deleted sprite
+                saveMetaCache(allSprites);
                 closePreview();
-                // Re-render from clean in-memory list, then reload to sync from DB
+                // Re-render from clean in-memory list — no reload (reload races against DB propagation)
                 renderPublicGrid(allSprites);
                 document.getElementById('sprite-count').innerText = allSprites.length + ' packs';
-                // Delay reload slightly so user sees the item is gone
-                setTimeout(() => location.reload(), 400);
             };
             adminContainer.appendChild(delBtn);
         }
