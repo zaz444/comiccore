@@ -248,7 +248,7 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 .comics-carousel::-webkit-scrollbar { display: none; }
 
 .comic-card {
-  flex-shrink: 0; width: 130px; cursor: pointer;
+  flex-shrink: 0; width: 140px; cursor: pointer;
   transition: transform .2s, border-color .18s, box-shadow .18s;
   position: relative;
   background: #1e1e22;
@@ -260,8 +260,23 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 }
 /* In grid, width is auto — override fixed width */
 .comics-page-grid .comic-card { width: auto; }
-@media (min-width: 500px) { .comic-card { width: 150px; } }
-@media (min-width: 768px) { .comic-card { width: 170px; } }
+@media (min-width: 500px) { .comic-card { width: 155px; } }
+@media (min-width: 768px) { .comic-card { width: 180px; } }
+
+/* ── PC layout: wider grid and centered content ── */
+@media (min-width: 900px) {
+  body { max-width: 1280px; margin: 0 auto; }
+  .header { padding: 16px 32px 12px; }
+  .comics-page-grid { grid-template-columns: repeat(5, 1fr); gap: 14px; padding: 4px 24px 8px; }
+  .grid-header-row { padding: 10px 24px 6px; }
+  .top-creators-section { padding: 16px 24px 0; }
+  .section-label { padding: 16px 24px 8px; }
+  .comics-carousel-wrap { padding: 0 24px; }
+  .feed-divider { margin: 14px 24px; }
+}
+@media (min-width: 1200px) {
+  .comics-page-grid { grid-template-columns: repeat(6, 1fr); }
+}
 
 .comic-card:hover { transform: translateY(-3px); border-color: rgba(255,215,0,0.35); box-shadow: 0 8px 28px rgba(255,215,0,0.1); background: #26262c; }
 .comic-card:active { transform: scale(.97); }
@@ -274,8 +289,11 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 /* Grid cards: portrait but capped so they don't get too tall */
 .comics-page-grid .comic-card-cover {
   aspect-ratio: unset;
-  height: clamp(160px, 20vw, 280px);
+  height: clamp(150px, 18vw, 260px);
   overflow: hidden;
+}
+@media (min-width: 900px) {
+  .comics-page-grid .comic-card-cover { height: clamp(160px, 14vw, 240px); }
 }
 .comic-card-cover > div:first-child {
   width: 100%; height: 100%; border-radius: 0; overflow: hidden; position: relative;
@@ -290,9 +308,26 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 }.comic-card .tile-stars {
   position: absolute; top: 6px; right: 6px;
   background: rgba(0,0,0,.78); color: #ffd700;
-  font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 8px;
-  backdrop-filter: blur(4px);
+  font-size: 9px; font-weight: 900; padding: 3px 7px; border-radius: 8px;
+  backdrop-filter: blur(4px); cursor: pointer; transition: .15s;
+  user-select: none;
 }
+.comic-card .tile-stars:hover { background: rgba(0,0,0,.92); }
+
+/* Expanded star rating popover on tile */
+.tile-star-expanded {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.82); backdrop-filter: blur(6px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; z-index: 5; border-radius: 0;
+  animation: fadeInStar .15s ease;
+}
+@keyframes fadeInStar { from { opacity:0; } to { opacity:1; } }
+.tile-star-expanded .star-expanded-rating { display: flex; align-items: center; gap: 2px; }
+.tile-star-expanded .star-expanded-rating .star { width: 16px; height: 16px; }
+.tile-star-expanded .star-expanded-rating .star svg { width: 16px; height: 16px; }
+.tile-star-expanded .star-expanded-count { font-size: 11px; font-weight: 900; color: #ffd700; margin-top: 2px; }
+.tile-star-expanded .star-expanded-close { font-size: 9px; color: rgba(255,255,255,.4); font-weight: 700; margin-top: 2px; }
 .comic-card .tile-mine {
   position: absolute; top: 6px; left: 6px;
   background: rgba(255,122,0,.9); color: #000;
@@ -310,10 +345,10 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 .comic-card .tile-progress-fill { height: 100%; background: #ff7a00; }
 
 /* PFP in card meta row */
-.comic-card-pfp-wrap { display: none; }
+.comic-card-pfp-wrap { display: flex; align-items: center; }
 .comic-card-pfp {
-  width: 18px; height: 18px; border-radius: 50%; object-fit: cover;
-  background: #222; border: 1px solid #333; display: inline-block;
+  width: 20px; height: 20px; border-radius: 50%; object-fit: cover;
+  background: #333; border: 1.5px solid #2a2a2c; display: inline-block;
   cursor: pointer; flex-shrink: 0; vertical-align: middle;
 }
 .comic-card-pfp.hidden { display: none; }
@@ -346,8 +381,8 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
   display: flex; align-items: center; gap: 5px; margin-top: 3px;
 }
 .comic-card-avatar {
-  width: 16px; height: 16px; border-radius: 50%; object-fit: cover;
-  background: #222; border: 1px solid #333; flex-shrink: 0; cursor: pointer;
+  width: 20px; height: 20px; border-radius: 50%; object-fit: cover;
+  background: #333; border: 1.5px solid #2a2a2c; flex-shrink: 0; cursor: pointer;
 }
 .comic-card-handle {
   font-size: 10px; color: #555; font-weight: 700;
@@ -1364,7 +1399,7 @@ function renderComics(comics, stars) {
       ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
     const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
-    const starsHtml  = starCount > 0 ? `<div class="tile-stars">⭐ ${starCount}</div>` : '';
+    const starsHtml  = starCount > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount})">⭐ ${starCount}</div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const followBtn = (!isMine && myProfile.handle !== 'guest')
       ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
@@ -1377,7 +1412,6 @@ function renderComics(comics, stars) {
       </div>
       <div class="comic-card-info">
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
-        ${renderStarRating(starCount)}
         <div class="comic-card-meta">
           <img class="comic-card-avatar comic-card-pfp" data-handle="${ownerHandle}" src="" alt=""
             onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
@@ -2483,13 +2517,14 @@ function renderFavoritesPage() {
 
     return `<div class="comic-card" data-id="${esc(c.id)}">
       <div class="comic-card-cover">
-        ${coverHtml}
-        <div class="tile-stars">\u2b50 FAV</div>
-        ${progressHtml}
+        <div style="width:100%;height:100%;border-radius:14px;overflow:hidden;position:relative;">
+          ${coverHtml}
+          <div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount || 0})">⭐ FAV</div>
+          ${progressHtml}
+        </div>
       </div>
       <div class="comic-card-info">
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
-        ${renderStarRating(starCount)}
         <div class="comic-card-meta">
           <img class="comic-card-avatar" data-handle="${ownerHandle}" src="" alt=""
             onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
@@ -2520,6 +2555,38 @@ function goToFavPage(n) {
   favoritesPage = Math.max(0, Math.min(n, totalPages - 1));
   renderFavoritesPage();
   document.getElementById('section-favorites')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Star badge expand/collapse ─────────────────────────────
+function toggleStarExpand(badge, starCount) {
+  const coverInner = badge.closest('div[style]') || badge.parentElement;
+  // If expanded panel already open, close it
+  const existing = coverInner.querySelector('.tile-star-expanded');
+  if (existing) { existing.remove(); return; }
+
+  const rating = starCountToRating(starCount);
+  const GOLD = '#ffd700'; const EMPTY = '#2a2a2c';
+  let starsHtml = '';
+  for (let i = 1; i <= 5; i++) {
+    const fill = Math.min(1, Math.max(0, rating - (i - 1)));
+    if (fill >= 1) {
+      starsHtml += `<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${GOLD}" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
+    } else if (fill >= 0.5) {
+      const id = 'hg_' + i + '_' + Math.random().toString(36).slice(2,6);
+      starsHtml += `<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><defs><linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="50%" stop-color="${GOLD}"/><stop offset="50%" stop-color="${EMPTY}"/></linearGradient></defs><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="url(#${id})" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
+    } else {
+      starsHtml += `<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${EMPTY}" stroke="#444" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
+    }
+  }
+
+  const panel = document.createElement('div');
+  panel.className = 'tile-star-expanded';
+  panel.onclick = (e) => { e.stopPropagation(); panel.remove(); };
+  panel.innerHTML = `
+    <div class="star-expanded-rating">${starsHtml}</div>
+    <div class="star-expanded-count">${starCount} star${starCount !== 1 ? 's' : ''} · ${rating.toFixed(1)} / 5</div>
+    <div class="star-expanded-close">tap to close</div>`;
+  coverInner.appendChild(panel);
 }
 
 window.onload = init;
