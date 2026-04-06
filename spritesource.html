@@ -750,9 +750,14 @@
 
     async function fetchMySprites() {
         const { data } = await _supabase.from('user_sprites').select('id, name, actions, image_data, created_at').eq('owner_handle', myHandle).order('created_at', { ascending: false });
-        if (!data || data.length === 0) return;
-        document.getElementById('your-sprites-section').style.display = 'block';
+        const section = document.getElementById('your-sprites-section');
         const grid = document.getElementById('your-sprites-grid');
+        if (!data || data.length === 0) {
+            section.style.display = 'none';
+            grid.innerHTML = '';
+            return;
+        }
+        section.style.display = 'block';
         grid.innerHTML = '';
         data.forEach(sprite => {
             const card = document.createElement('div');
@@ -791,7 +796,10 @@
     async function deleteMySprite(e, id) {
         e.stopPropagation();
         if (!confirm('Remove from your sprites?')) return;
-        await _supabase.from('user_sprites').delete().eq('id', id);
+        const { error } = await _supabase.from('user_sprites').delete()
+            .eq('id', id)
+            .eq('owner_handle', myHandle);
+        if (error) { alert('Delete failed: ' + error.message); return; }
         fetchMySprites();
     }
 
