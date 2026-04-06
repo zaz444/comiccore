@@ -283,25 +283,72 @@
     }
 
     /* ── REPORTS PANEL (owner only) ── */
-    .report-card {
-      padding: 11px 10px; border-radius: 12px; border: 1px solid rgba(255,59,48,0.2);
-      background: rgba(255,59,48,0.05); margin-bottom: 8px;
+    .reports-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0; background: #0e0e12;
     }
-    .report-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-    .report-card-who { font-size: 12px; font-weight: 800; color: var(--text); }
-    .report-card-reason { font-size: 11px; color: #ff6b5b; font-weight: 700; }
+    .reports-count-badge {
+      background: rgba(255,59,48,0.15); color: #ff6b5b;
+      border: 1px solid rgba(255,59,48,0.25); border-radius: 20px;
+      font-size: 10px; font-weight: 900; padding: 3px 10px; flex-shrink: 0;
+    }
+    .reports-filter-tabs { display: flex; gap: 4px; flex: 1; }
+    .reports-tab {
+      padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);
+      background: none; color: var(--text-dim); font-size: 10px; font-weight: 800;
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: 0.15s; white-space: nowrap;
+    }
+    .reports-tab.active { background: rgba(255,59,48,0.12); color: #ff6b5b; border-color: rgba(255,59,48,0.3); }
+    .reports-refresh-btn {
+      width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text-muted); font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: 0.15s; font-family: 'Inter', sans-serif;
+    }
+    .reports-refresh-btn:hover { background: #303038; color: var(--text); }
+    .reports-refresh-btn.spinning { animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .report-card {
+      padding: 12px; border-radius: 12px; border: 1px solid rgba(255,59,48,0.18);
+      background: rgba(255,59,48,0.04); margin-bottom: 8px;
+      transition: opacity 0.25s, transform 0.25s, height 0.25s, padding 0.25s, margin 0.25s;
+    }
+    .report-card.dismissed {
+      opacity: 0; transform: translateX(20px); pointer-events: none;
+      overflow: hidden; height: 0 !important; padding-top: 0 !important;
+      padding-bottom: 0 !important; margin-bottom: 0 !important; border: none;
+    }
+    .report-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .report-card-who {
+      font-size: 13px; font-weight: 900; color: var(--text);
+      cursor: pointer; border-bottom: 1px solid transparent; transition: border-color 0.15s;
+    }
+    .report-card-who:hover { border-color: var(--text); }
+    .report-card-reason {
+      font-size: 10px; color: #ff6b5b; font-weight: 800;
+      background: rgba(255,59,48,0.12); border: 1px solid rgba(255,59,48,0.2);
+      border-radius: 20px; padding: 2px 8px; white-space: nowrap;
+    }
     .report-card-meta { font-size: 10px; color: var(--text-dim); margin-bottom: 8px; }
-    .report-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .report-card-note {
+      font-size: 11px; color: var(--text-muted); background: #0e0e12;
+      border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+      margin-bottom: 10px; font-style: italic; line-height: 1.4;
+    }
+    .report-card-actions { display: flex; gap: 6px; }
     .report-action-btn {
-      padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+      padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
       background: var(--card2); color: var(--text-muted);
       font-size: 10px; font-weight: 800; cursor: pointer; font-family: 'Inter', sans-serif;
-      transition: 0.15s;
+      transition: 0.15s; flex: 1; text-align: center;
     }
-    .report-action-btn.danger { color: #ff3b30; border-color: rgba(255,59,48,0.3); }
-    .report-action-btn.danger:hover { background: rgba(255,59,48,0.12); }
+    .report-action-btn.primary { background: rgba(255,59,48,0.1); color: #ff6b5b; border-color: rgba(255,59,48,0.3); }
+    .report-action-btn.primary:hover { background: rgba(255,59,48,0.2); }
     .report-action-btn:hover { background: #303038; color: var(--text); }
+    .report-action-btn:disabled { opacity: 0.4; cursor: default; }
     .empty-panel { text-align: center; padding: 40px 16px; color: var(--text-dim); font-size: 13px; font-weight: 600; }
+    .reports-panel-body-inner { padding: 12px; overflow-y: auto; flex: 1; }
   </style>
 </head>
 <body>
@@ -340,10 +387,17 @@
 <!-- Reports side panel (owner only) -->
 <div class="side-panel" id="reports-panel" style="right:-340px;">
   <div class="side-panel-header">
-    <div class="side-panel-title">🚨 Reports</div>
+    <div class="side-panel-title">🚨 Reports <span class="reports-count-badge" id="reports-live-count" style="display:none;"></span></div>
     <button class="side-panel-close" onclick="closeReportsPanel()">✕</button>
   </div>
-  <div class="side-panel-body" id="reports-panel-body">
+  <div class="reports-toolbar" id="reports-toolbar" style="display:none;">
+    <div class="reports-filter-tabs">
+      <button class="reports-tab active" onclick="setReportsFilter('pending', this)">Pending</button>
+      <button class="reports-tab" onclick="setReportsFilter('dismissed', this)">Dismissed</button>
+    </div>
+    <button class="reports-refresh-btn" id="reports-refresh-btn" onclick="refreshReportsPanel()" title="Refresh">↻</button>
+  </div>
+  <div class="reports-panel-body-inner" id="reports-panel-body">
     <div class="empty-panel">Loading…</div>
   </div>
 </div>
@@ -567,11 +621,6 @@
     document.getElementById('inbox-panel').classList.remove('open');
     document.getElementById('panel-overlay').classList.remove('open');
   }
-  function openReportsPanel() {
-    document.getElementById('reports-panel').classList.add('open');
-    document.getElementById('panel-overlay').classList.add('open');
-    loadReportsPanel();
-  }
   function closeReportsPanel() {
     document.getElementById('reports-panel').classList.remove('open');
     document.getElementById('panel-overlay').classList.remove('open');
@@ -675,6 +724,10 @@
   }
 
   // ── REPORTS PANEL (owner only) ────────────────────────────────
+  let _reportsCache = null;
+  let _reportsFilter = 'pending';
+  let _reportsLoaded = false;
+
   async function checkPendingReports() {
     const { count } = await supabaseClient.from('reports')
       .select('*', { count: 'exact', head: true }).eq('status', 'pending');
@@ -684,33 +737,84 @@
     }
   }
 
-  async function loadReportsPanel() {
+  function setReportsFilter(filter, tabEl) {
+    _reportsFilter = filter;
+    document.querySelectorAll('.reports-tab').forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    renderReportsFromCache();
+  }
+
+  async function refreshReportsPanel() {
+    const btn = document.getElementById('reports-refresh-btn');
+    btn.classList.add('spinning');
+    _reportsCache = null;
+    await loadReportsPanel(false);
+    btn.classList.remove('spinning');
+  }
+
+  async function openReportsPanel() {
+    document.getElementById('reports-panel').classList.add('open');
+    document.getElementById('panel-overlay').classList.add('open');
+    if (!_reportsLoaded) await loadReportsPanel(false);
+  }
+
+  async function loadReportsPanel(showLoading = true) {
     if (!_isOwner) return;
     const body = document.getElementById('reports-panel-body');
-    body.innerHTML = '<div class="empty-panel">Loading…</div>';
-    const { data: reports } = await supabaseClient.from('reports')
-      .select('*').eq('status', 'pending')
-      .order('created_at', { ascending: false });
+    if (showLoading || !_reportsCache) {
+      body.innerHTML = '<div class="empty-panel">Loading…</div>';
+    }
 
-    if (!reports || !reports.length) {
-      body.innerHTML = '<div class="empty-panel">✅ No pending reports</div>';
+    const { data: reports } = await supabaseClient.from('reports')
+      .select('*').order('created_at', { ascending: false });
+
+    _reportsCache = reports || [];
+    _reportsLoaded = true;
+
+    // Show toolbar
+    document.getElementById('reports-toolbar').style.display = 'flex';
+
+    // Update live count badge
+    const pending = _reportsCache.filter(r => r.status === 'pending');
+    const badge = document.getElementById('reports-live-count');
+    if (pending.length) {
+      badge.textContent = pending.length;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    renderReportsFromCache();
+  }
+
+  function renderReportsFromCache() {
+    const body = document.getElementById('reports-panel-body');
+    const filtered = (_reportsCache || []).filter(r => r.status === _reportsFilter);
+
+    if (!filtered.length) {
+      body.innerHTML = `<div class="empty-panel">${_reportsFilter === 'pending' ? '✅ No pending reports' : '📭 No dismissed reports'}</div>`;
       return;
     }
 
-    body.innerHTML = '<div class="panel-section-hdr">Pending Reports</div>';
-    reports.forEach(r => {
-      const time = new Date(r.created_at).toLocaleDateString();
+    body.innerHTML = '';
+    filtered.forEach(r => {
+      const time = new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
       const card = document.createElement('div');
       card.className = 'report-card';
+      card.dataset.id = r.id;
       card.innerHTML = `
-        <div class="report-card-header">
-          <div class="report-card-who">@${escHtml(r.reported_handle)}</div>
+        <div class="report-card-top">
+          <div class="report-card-who" onclick="viewReportProfile('${escHtml(r.reported_handle)}')">@${escHtml(r.reported_handle)}</div>
           <div class="report-card-reason">${escHtml(r.reason)}</div>
         </div>
-        <div class="report-card-meta">by @${escHtml(r.reporter_handle)} · ${time}</div>
+        <div class="report-card-meta">reported by @${escHtml(r.reporter_handle)} · ${time}</div>
+        ${r.note ? `<div class="report-card-note">"${escHtml(r.note)}"</div>` : ''}
         <div class="report-card-actions">
-          <button class="report-action-btn" onclick="viewReportProfile('${r.reported_handle}')">View Profile</button>
-          <button class="report-action-btn danger" onclick="dismissReport('${r.id}', this)">Dismiss</button>
+          <button class="report-action-btn" onclick="viewReportProfile('${escHtml(r.reported_handle)}')">View Profile</button>
+          ${_reportsFilter === 'pending'
+            ? `<button class="report-action-btn primary" onclick="dismissReport('${r.id}', this)">Dismiss</button>`
+            : `<button class="report-action-btn" onclick="restoreReport('${r.id}', this)">Restore</button>`
+          }
         </div>`;
       body.appendChild(card);
     });
@@ -723,9 +827,32 @@
 
   async function dismissReport(id, btn) {
     btn.disabled = true;
+    btn.textContent = '…';
     await supabaseClient.from('reports').update({ status: 'dismissed' }).eq('id', id);
-    btn.closest('.report-card').style.opacity = '0.35';
-    btn.closest('.report-card').style.pointerEvents = 'none';
+    // Update cache instantly — no re-fetch needed
+    const entry = _reportsCache && _reportsCache.find(r => r.id === id);
+    if (entry) entry.status = 'dismissed';
+    // Animate card out, then re-render
+    const card = btn.closest('.report-card');
+    card.classList.add('dismissed');
+    setTimeout(() => renderReportsFromCache(), 300);
+    // Update nav badge
+    checkPendingReports();
+    const badge = document.getElementById('reports-live-count');
+    const pending = (_reportsCache || []).filter(r => r.status === 'pending');
+    badge.textContent = pending.length;
+    if (!pending.length) badge.style.display = 'none';
+  }
+
+  async function restoreReport(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '…';
+    await supabaseClient.from('reports').update({ status: 'pending' }).eq('id', id);
+    const entry = _reportsCache && _reportsCache.find(r => r.id === id);
+    if (entry) entry.status = 'pending';
+    const card = btn.closest('.report-card');
+    card.classList.add('dismissed');
+    setTimeout(() => renderReportsFromCache(), 300);
     checkPendingReports();
   }
 
