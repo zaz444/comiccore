@@ -872,7 +872,8 @@
     const { data: { session } } = await _sb.auth.getSession();
     if (session) {
       // Redirect-back from OAuth (full-page redirect on mobile).
-      // Don't try to close the window — just handle the session directly.
+      // Mark as handled so onAuthStateChange doesn't fire a second time.
+      _oauthHandled = true;
       handlePostOAuth(session);
     }
   });
@@ -881,11 +882,8 @@
   let _oauthHandled = false;
   _sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session && !_oauthHandled) {
-      // Only act if we're on the login page and haven't already handled this session
-      if (window.location.pathname.includes('login')) {
-        _oauthHandled = true;
-        handlePostOAuth(session);
-      }
+      _oauthHandled = true;
+      handlePostOAuth(session);
     }
   });
 
@@ -955,25 +953,18 @@
       const { data: signUpData, error: signUpError } = await _sb.auth.signUp({
         email, password: pass,
         options: {
-          emailRedirectTo: window.location.href.split('?')[0].split('#')[0]
+          emailRedirectTo: window.location.href.split('?')[0].split('#')[0],
+          data: { handle, dob }
         }
       });
       if (signUpError) throw signUpError;
 
-      const user = signUpData.user;
-
-      await _sb.from('profiles').insert({
-        handle, permanent_id: user.id, name: handle, socials: {}, settings: {}
-      });
-
-      localStorage.setItem('user_profile', JSON.stringify({
-        handle, permanent_id: user.id, name: handle,
-        email, pic: '', banner: '', bio: '', socials: {}, settings: {}
-      }));
+      // Store the handle in localStorage so we can create the profile
+      // after they verify their email and log in for the first time.
+      localStorage.setItem('pending_handle', handle);
 
       showStatus('✅ Account created! Check your email to verify, then log in below.', 'success');
       btn.innerHTML = '✓ Check Your Email';
-      // After email signup, guide them to the login tab with a small delay
       setTimeout(() => toggle('login'), 2800);
 
     } catch (err) {
@@ -1004,10 +995,29 @@
       if (error) throw error;
 
       const user = signInData.user;
-      const { data: profile } = await _sb.from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
+      let { data: profile } = await _sb.from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
+
+      // First login after email signup — create the profile now that they're verified
+      if (!profile) {
+        const pendingHandle = localStorage.getItem('pending_handle') ||
+          email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '').substring(0, 20);
+        localStorage.removeItem('pending_handle');
+
+        const { error: insertErr } = await _sb.from('profiles').insert({
+          handle: pendingHandle,
+          permanent_id: user.id,
+          name: pendingHandle,
+          socials: {},
+          settings: {}
+        });
+
+        if (insertErr && !insertErr.message.includes('duplicate')) throw insertErr;
+
+        profile = { handle: pendingHandle, permanent_id: user.id, name: pendingHandle };
+      }
 
       localStorage.setItem('user_profile', JSON.stringify(
-        profile || { permanent_id: user.id, email: user.email }
+        { ...profile, permanent_id: user.id, email: user.email }
       ));
 
       showStatus('Welcome back! Redirecting…', 'success');
