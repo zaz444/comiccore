@@ -414,6 +414,34 @@
             </div>
         </div>
 
+        <!-- ── MIGRATE BASE64 → STORAGE ── -->
+        <div class="pack-section" id="migrate-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div class="pack-section-title" style="margin-bottom:0;">🔧 Migrate Base64 → Storage</div>
+            </div>
+            <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:12px;line-height:1.6;">
+                Finds all rows in a table where <code style="color:#a855f7;background:#1a1a1a;padding:1px 5px;border-radius:3px;">image_data</code> or <code style="color:#a855f7;background:#1a1a1a;padding:1px 5px;border-radius:3px;">actions</code> contain base64, uploads them to Storage, and updates the row with the URL.
+            </div>
+
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <button onclick="runMigration('sprites_library')" id="migrate-lib-btn"
+                    style="flex:1;padding:10px;background:#1a1a1a;border:1px solid var(--teal);color:var(--teal);border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;transition:0.15s;">
+                    📚 Migrate Library
+                </button>
+                <button onclick="runMigration('sprites_gallery')" id="migrate-gal-btn"
+                    style="flex:1;padding:10px;background:#1a1a1a;border:1px solid #a855f7;color:#a855f7;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;transition:0.15s;">
+                    🖼 Migrate Gallery
+                </button>
+            </div>
+
+            <!-- Progress log -->
+            <div id="migrate-log" style="
+                background:#070707;border:1px solid #1a1a1a;border-radius:8px;
+                padding:10px 12px;font-size:10px;font-weight:700;color:#555;
+                max-height:200px;overflow-y:auto;display:none;font-family:monospace;line-height:1.8;
+            "></div>
+        </div>
+
     </div><!-- /#admin-panel -->
 
     <div class="search-wrap">
@@ -1821,6 +1849,137 @@
             btn.innerText = 'PUBLISH SPRITE PACK';
         }
     }
+    // ── Migrate Base64 → Storage ─────────────────────────────────────────────
+
+    function migrateLog(msg, color) {
+        const log = document.getElementById('migrate-log');
+        log.style.display = 'block';
+        const line = document.createElement('div');
+        line.style.color = color || '#888';
+        line.textContent = msg;
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    async function base64ToStorageUrl(base64, storagePath) {
+        // Already a URL — skip
+        if (!base64 || !base64.startsWith('data:')) return base64;
+        try {
+            const res = await fetch(base64);
+            const blob = await res.blob();
+            const { error } = await _supabase.storage.from('sprites').upload(storagePath, blob, {
+                upsert: true, cacheControl: '3600'
+            });
+            if (error) { migrateLog(`  ✗ Upload failed: ${error.message}`, '#ff5555'); return null; }
+            return _supabase.storage.from('sprites').getPublicUrl(storagePath).data.publicUrl;
+        } catch(e) {
+            migrateLog(`  ✗ Exception: ${e.message}`, '#ff5555');
+            return null;
+        }
+    }
+
+    async function runMigration(table) {
+        const btnId = table === 'sprites_library' ? 'migrate-lib-btn' : 'migrate-gal-btn';
+        const btn = document.getElementById(btnId);
+        const log = document.getElementById('migrate-log');
+        log.innerHTML = '';
+        log.style.display = 'block';
+        btn.disabled = true;
+
+        migrateLog(`▶ Starting migration for ${table}…`, '#ccc');
+
+        // Fetch all rows (meta only first to get IDs)
+        const { data: allRows, error: fetchErr } = await _supabase
+            .from(table)
+            .select('id, name, image_data, actions')
+            .order('created_at', { ascending: true });
+
+        if (fetchErr) {
+            migrateLog(`✗ Failed to fetch rows: ${fetchErr.message}`, '#ff5555');
+            btn.disabled = false; return;
+        }
+
+        // Filter only rows that have base64 anywhere
+        const needsMigration = allRows.filter(row => {
+            if (row.image_data?.startsWith('data:')) return true;
+            if (!row.actions) return false;
+            const actions = typeof row.actions === 'string' ? JSON.parse(row.actions) : row.actions;
+            return Object.values(actions).some(v => typeof v === 'string' && v.startsWith('data:'));
+        });
+
+        migrateLog(`Found ${needsMigration.length} rows with base64 out of ${allRows.length} total.`, '#aaa');
+
+        if (!needsMigration.length) {
+            migrateLog('✅ Nothing to migrate!', '#44ff88');
+            btn.disabled = false; return;
+        }
+
+        let done = 0, failed = 0;
+
+        for (const row of needsMigration) {
+            const safeName = (row.name || 'sprite').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            const folder = `${safeName}_${row.id}`;
+            const updates = {};
+
+            migrateLog(`[${done + failed + 1}/${needsMigration.length}] ${row.name}`, '#888');
+
+            // Migrate main image
+            if (row.image_data?.startsWith('data:')) {
+                const url = await base64ToStorageUrl(row.image_data, `${folder}/main.png`);
+                if (url) {
+                    updates.image_data = url;
+                    migrateLog(`  ✓ main image → storage`, '#44ff88');
+                } else {
+                    failed++;
+                    continue;
+                }
+            }
+
+            // Migrate actions
+            if (row.actions) {
+                const actions = typeof row.actions === 'string' ? JSON.parse(row.actions) : { ...row.actions };
+                let anyBase64 = false;
+                for (const [key, val] of Object.entries(actions)) {
+                    if (typeof val === 'string' && val.startsWith('data:')) {
+                        anyBase64 = true;
+                        const safeKey = key.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                        const url = await base64ToStorageUrl(val, `${folder}/actions/${safeKey}.png`);
+                        if (url) {
+                            actions[key] = url;
+                            migrateLog(`  ✓ action "${key}" → storage`, '#44ff88');
+                        } else {
+                            migrateLog(`  ✗ action "${key}" failed`, '#ff5555');
+                        }
+                    }
+                }
+                if (anyBase64) updates.actions = actions;
+            }
+
+            // Update the row
+            if (Object.keys(updates).length) {
+                const { error: updateErr } = await _supabase.from(table).update(updates).eq('id', row.id);
+                if (updateErr) {
+                    migrateLog(`  ✗ DB update failed: ${updateErr.message}`, '#ff5555');
+                    failed++;
+                } else {
+                    done++;
+                    // Clear caches for this sprite
+                    localStorage.removeItem('sb-full-' + row.id);
+                    sessionStorage.removeItem('cc_simg_' + row.id);
+                    fullDataCache.delete(row.id);
+                }
+            } else {
+                done++;
+            }
+        }
+
+        // Bust meta cache so library reloads fresh
+        localStorage.removeItem(META_CACHE_KEY);
+        localStorage.removeItem('cc_gallery_meta_v1');
+
+        migrateLog(`─────────────────────────────`, '#333');
+        migrateLog(`✅ Done! ${done} migrated, ${failed} failed.`, done > 0 ? '#44ff88' : '#ff5555');
+        btn.disabled = false;
+    }
+
 </script>
-</body>
-</html>
