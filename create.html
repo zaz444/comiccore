@@ -2310,6 +2310,30 @@
 
         // Apply background chosen from backgroundsource.html
         applyPendingBg(pendingBg, pendingBgId);
+
+        // ── Incoming Sprite / Pack from Gallery ──
+        const incomingRaw = localStorage.getItem('incoming_sprite_pack');
+        if (incomingRaw) {
+            localStorage.removeItem('incoming_sprite_pack');
+            try {
+                const incoming = JSON.parse(incomingRaw);
+                if (incoming.items) {
+                    // It's a Pack — open the pack sprite sheet
+                    if (typeof openPackSpriteSheet === 'function') {
+                        const items = Array.isArray(incoming.items) ? incoming.items : [];
+                        openPackSpriteSheet(incoming, items);
+                    }
+                } else if (incoming.image_data) {
+                    // It's a single sprite with full data — open action modal directly
+                    if (typeof openActionModal === 'function') openActionModal(incoming);
+                } else if (incoming.id) {
+                    // Single sprite — need to fetch full data first
+                    galFetchFull(incoming.id).then(full => {
+                        if (full && typeof openActionModal === 'function') openActionModal({ ...incoming, ...full });
+                    });
+                }
+            } catch(e) { console.warn('incoming_sprite_pack parse error', e); }
+        }
     };
 
     function deselectLayer(e) {

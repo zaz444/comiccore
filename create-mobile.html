@@ -4677,6 +4677,32 @@ window.onload = async function() {
     else if (storedActive) { const r=JSON.parse(storedActive); setRatio(r.w,r.h); }
     else { setRatio(1,1); }
     applyPendingBg(pendingBg,pendingBgId);
+
+    // ── Incoming Sprite / Pack from Gallery ──
+    const incomingRaw = localStorage.getItem('incoming_sprite_pack');
+    if (incomingRaw) {
+        localStorage.removeItem('incoming_sprite_pack');
+        try {
+            const incoming = JSON.parse(incomingRaw);
+            if (incoming.items) {
+                // It's a Pack — open the pack sprite sheet
+                if (typeof openPackSpriteSheet === 'function') {
+                    const items = Array.isArray(incoming.items) ? incoming.items : [];
+                    openPackSpriteSheet(incoming, items);
+                }
+            } else if (incoming.image_data) {
+                // Single sprite with full data — open action modal directly
+                if (typeof openActionModal === 'function') openActionModal(incoming);
+            } else if (incoming.id) {
+                // Single sprite — fetch full data from gallery table then open modal
+                if (typeof galFetchFull === 'function') {
+                    galFetchFull(incoming.id).then(full => {
+                        if (full && typeof openActionModal === 'function') openActionModal({ ...incoming, ...full });
+                    });
+                }
+            }
+        } catch(e) { console.warn('incoming_sprite_pack parse error', e); }
+    }
 };
 
 // ── DRAFTS MODAL ──
@@ -5600,18 +5626,13 @@ function renderMobFavPacks() {
         // Thumbnail
         const thumb = document.createElement('div');
         thumb.style.cssText = 'width:52px;height:52px;flex-shrink:0;border-radius:8px;background:#1a1a1a;border:1px solid #333;overflow:hidden;display:flex;align-items:center;justify-content:center;';
-        const cachedSrc = existingPack?.cover_image || null;
-        if (cachedSrc) {
-            const img = document.createElement('img'); img.src = cachedSrc; img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:4px;'; thumb.appendChild(img);
+        // Use card_sprites cascade (back → mid → front) for thumbnail, fall back to cover_image
+        const cardSprites = existingPack?.card_sprites || fav.card_sprites || [];
+        const thumbSrc = cardSprites[2] || cardSprites[1] || cardSprites[0] || existingPack?.cover_image || fav.cover_image || null;
+        if (thumbSrc) {
+            const img = document.createElement('img'); img.src = thumbSrc; img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:4px;'; thumb.appendChild(img);
         } else {
             thumb.innerHTML = '<span style="font-size:20px;color:#333;">📦</span>';
-            if (fav.id) {
-                sbFetchFull(fav.id).then(full => {
-                    if (!full?.image_data) return;
-                    thumb.innerHTML = '';
-                    const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:4px;'; thumb.appendChild(img);
-                });
-            }
         }
         row.appendChild(thumb);
 
