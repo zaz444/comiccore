@@ -277,6 +277,23 @@
             <div class="actions-list" id="actions-list"></div>
         </div>
 
+        <!-- ── Destination toggle ── -->
+        <div style="margin:14px 0 6px;">
+            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📍 Upload Destination</div>
+            <div style="display:flex;gap:8px;">
+                <button id="dest-library-btn" onclick="setDestination('library')" style="flex:1;padding:11px;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;border:2px solid var(--teal);background:rgba(0,210,255,0.12);color:var(--teal);">📚 Sprite Library</button>
+                <button id="dest-gallery-btn" onclick="setDestination('gallery')" style="flex:1;padding:11px;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;border:2px solid #2a2a2a;background:#111;color:#555;">🖼 Sprite Gallery</button>
+            </div>
+            <div id="dest-hint" style="font-size:10px;font-weight:700;color:#555;margin-top:6px;">Uploading to: <span id="dest-label" style="color:var(--teal);">Sprite Library (platform-curated)</span></div>
+            <div id="gallery-uploader-row" style="display:none;margin-top:8px;">
+                <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Uploaded By (Gallery)</div>
+                <select id="gallery-uploader" style="width:100%;padding:9px 12px;background:#111;border:1px solid #333;color:white;border-radius:6px;font-size:12px;outline:none;font-family:inherit;">
+                    <option value="bigboy18">bigboy18</option>
+                    <option value="yuno">yuno</option>
+                    <option value="slosh">slosh</option>
+                </select>
+            </div>
+        </div>
         <button class="btn-publish" id="upload-btn" onclick="uploadToDatabase()">PUBLISH ASSET PACK</button>
 
         <!-- ── PACK CREATOR ── -->
@@ -377,7 +394,7 @@
     </div>
 
     <div class="section-header" style="margin-top:20px;">
-        <span class="section-title">📚 Public Library</span>
+        <span class="section-title">📚 Sprite Library</span>
         <span id="sprite-count" style="font-size:11px; color:#555; font-weight:700;"></span>
     </div>
     <div class="sprite-grid" id="main-grid"></div>
@@ -550,6 +567,30 @@
         container.appendChild(div);
     }
 
+    let uploadDestination = 'library'; // 'library' or 'gallery'
+    const GALLERY_UPLOADERS = ['bigboy18', 'yuno', 'slosh'];
+
+    function setDestination(dest) {
+        uploadDestination = dest;
+        const libBtn = document.getElementById('dest-library-btn');
+        const galBtn = document.getElementById('dest-gallery-btn');
+        const label  = document.getElementById('dest-label');
+        const galRow = document.getElementById('gallery-uploader-row');
+        if (dest === 'library') {
+            libBtn.style.cssText = 'flex:1;padding:11px;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;border:2px solid var(--teal);background:rgba(0,210,255,0.12);color:var(--teal);';
+            galBtn.style.cssText = 'flex:1;padding:11px;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;border:2px solid #2a2a2a;background:#111;color:#555;';
+            label.style.color = 'var(--teal)';
+            label.textContent = 'Sprite Library (platform-curated)';
+            galRow.style.display = 'none';
+        } else {
+            galBtn.style.cssText = 'flex:1;padding:11px;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;border:2px solid #a855f7;background:rgba(168,85,247,0.12);color:#a855f7;';
+            libBtn.style.cssText = 'flex:1;padding:11px;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;border:2px solid #2a2a2a;background:#111;color:#555;';
+            label.style.color = '#a855f7';
+            label.textContent = 'Sprite Gallery (community uploads)';
+            galRow.style.display = 'block';
+        }
+    }
+
     async function uploadToDatabase() {
         const name = document.getElementById('sprite-name').value.trim();
         const tagsRaw = document.getElementById('sprite-tags').value;
@@ -593,18 +634,30 @@
 
         // 3. Save only URLs to database — no base64 stored
         btn.innerText = "SAVING...";
-        const { error } = await _supabase.from('sprites_library').insert([{
-            name, image_data: mainUrl, actions: actionsObj,
-            creator: myHandle || "Guest", tags
-        }]);
 
-        if (error) {
-            alert("Upload Failed: " + error.message);
+        let uploadError;
+        if (uploadDestination === 'gallery') {
+            const chosenUploader = document.getElementById('gallery-uploader').value;
+            const { error } = await _supabase.from('sprites_gallery').insert([{
+                name, image_data: mainUrl, actions: actionsObj,
+                uploader: chosenUploader, tags
+            }]);
+            uploadError = error;
+        } else {
+            const { error } = await _supabase.from('sprites_library').insert([{
+                name, image_data: mainUrl, actions: actionsObj,
+                creator: myHandle || "Guest", tags
+            }]);
+            uploadError = error;
+        }
+
+        if (uploadError) {
+            alert("Upload Failed: " + uploadError.message);
             btn.disabled = false;
             btn.innerText = "PUBLISH ASSET PACK";
         } else {
             localStorage.removeItem(META_CACHE_KEY);
-            alert("Success! Pack Published.");
+            alert("Success! Pack Published to " + (uploadDestination === 'gallery' ? 'Sprite Gallery' : 'Sprite Library') + ".");
             location.reload();
         }
     }

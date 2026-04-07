@@ -878,7 +878,8 @@
         </div>
         <div class="add-section-label">Media</div>
         <div class="add-grid">
-            <button class="add-btn" onclick="closeSheet('add');openSheet('sprites')"><span class="add-ico">🎭</span>Sprites</button>
+            <button class="add-btn" onclick="closeSheet('add');openSheet('sprites')"><span class="add-ico">📚</span>Sprite Library</button>
+            <button class="add-btn" onclick="closeSheet('add');openSheet('gallery')"><span class="add-ico">🖼</span>Sprite Gallery</button>
             <button class="add-btn" onclick="triggerImport('object');closeSheet('add')"><span class="add-ico">📦</span>Upload Image</button>
             <button class="add-btn" onclick="openMultiImport();closeSheet('add')"><span class="add-ico">🗂</span>Multi-Frame</button>
         </div>
@@ -888,7 +889,7 @@
 <!-- SPRITES SHEET -->
 <div id="sheet-sprites" class="bottom-sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Sprites <button class="sheet-close" onclick="closeSheet('sprites')">✕</button></div>
+    <div class="sheet-title">📚 Sprite Library <button class="sheet-close" onclick="closeSheet('sprites')">✕</button></div>
     <div class="sheet-body">
         <!-- Sub-tabs -->
         <div style="display:flex;border-radius:8px;overflow:hidden;border:1px solid #2a2a2a;margin-bottom:8px;flex-shrink:0;">
@@ -938,21 +939,41 @@
 <div id="sheet-mysprites" class="bottom-sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title" style="color:var(--teal);">
-        ✦ My Sprites
-        <div style="display:flex;gap:6px;align-items:center;">
-            <button onclick="openSpriteEditorNew()" style="background:rgba(0,210,255,0.12);border:1px solid rgba(0,210,255,0.3);color:var(--teal);padding:5px 10px;border-radius:8px;font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;">+ New</button>
-            <button class="sheet-close" onclick="closeSheet('mysprites')">✕</button>
-        </div>
+        ✦ My Custom Sprites
+        <button class="sheet-close" onclick="closeSheet('mysprites')">✕</button>
     </div>
     <div class="sheet-body">
         <input class="pub-input" id="mob-mys-search" placeholder="Search my sprites..." oninput="mobFilterMySprites()" style="margin-bottom:6px;">
         <div id="mob-mys-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-height:55vh;overflow-y:auto;">
             <div style="grid-column:span 3;text-align:center;color:#555;font-size:13px;padding:20px;">Tap to load your sprites...</div>
         </div>
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-            <button onclick="openSpriteEditorNew()" style="width:100%;padding:12px;background:rgba(0,210,255,0.08);border:1.5px dashed rgba(0,210,255,0.3);border-radius:10px;color:var(--teal);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;">
-                🎨 Open Sprite Editor
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;">
+            <button onclick="openSheet('gallery')" style="width:100%;padding:12px;background:rgba(168,85,247,0.08);border:1.5px solid rgba(168,85,247,0.3);border-radius:10px;color:#a855f7;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;">
+                🖼 Open Sprite Gallery
             </button>
+            <div style="text-align:center;font-size:10px;color:#444;font-weight:700;">Create &amp; upload sprites in the Sprite Gallery</div>
+        </div>
+    </div>
+</div>
+
+<!-- GALLERY SHEET (sprites_gallery table) -->
+<div id="sheet-gallery" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" style="color:#a855f7;">🖼 Sprite Gallery <button class="sheet-close" onclick="closeSheet('gallery')">✕</button></div>
+    <div class="sheet-body">
+        <input class="pub-input" id="mob-gal-search" placeholder="Search gallery..." oninput="filterMobGallery()" style="margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <select id="mob-gal-sort" onchange="filterMobGallery()" style="flex:1;background:#111;border:1px solid #333;color:#aaa;padding:7px 10px;border-radius:10px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="az">A → Z</option>
+                <option value="za">Z → A</option>
+                <option value="lastused">Last Used</option>
+            </select>
+        </div>
+        <div id="mob-gal-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
+        <div id="mob-gal-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;overflow-y:auto;max-height:58vh;align-content:start;">
+            <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load gallery...</div>
         </div>
     </div>
 </div>
@@ -1318,19 +1339,50 @@
     </div>
 </div>
 
+<!-- FAVORITES SHEET -->
+<div id="sheet-favorites" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" style="color:#f4c542;">⭐ Favorites <button class="sheet-close" onclick="closeSheet('favorites')">✕</button></div>
+    <div class="sheet-body" style="padding-top:6px;">
+        <!-- Gallery link -->
+        <div style="text-align:center;padding:4px 0 8px;font-size:11px;color:#555;font-weight:700;">
+            Browse sprites at the <a onclick="closeSheet('favorites');openSheet('gallery')" style="color:#3b9eff;font-weight:800;text-decoration:none;cursor:pointer;">Gallery</a>
+        </div>
+        <!-- Sub-tabs -->
+        <div style="display:flex;border-radius:8px;overflow:hidden;border:1px solid #2a2a2a;margin-bottom:8px;flex-shrink:0;">
+            <button id="mob-fav-tab-sprites" onclick="switchMobFavTab('sprites')" style="flex:1;padding:7px;background:var(--accent);color:#000;border:none;font-size:10px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:0.5px;text-transform:uppercase;transition:0.15s;border-right:1px solid #2a2a2a;">🎭 Sprites</button>
+            <button id="mob-fav-tab-packs"   onclick="switchMobFavTab('packs')"   style="flex:1;padding:7px;background:#111;color:#555;border:none;font-size:10px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:0.5px;text-transform:uppercase;transition:0.15s;">📦 Packs</button>
+        </div>
+        <!-- Sprites grid -->
+        <div id="mob-fav-sprites-panel">
+            <input id="mob-fav-sprite-search" placeholder="Search favorites..." oninput="renderMobFavSprites()" style="width:100%;padding:8px 12px;background:#1a1a1a;border:1px solid #252525;color:white;border-radius:8px;font-size:12px;font-family:inherit;outline:none;margin-bottom:8px;box-sizing:border-box;">
+            <div id="mob-fav-sprite-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-height:55vh;overflow-y:auto;align-content:start;"></div>
+        </div>
+        <!-- Packs list -->
+        <div id="mob-fav-packs-panel" style="display:none;">
+            <input id="mob-fav-pack-search" placeholder="Search packs..." oninput="renderMobFavPacks()" style="width:100%;padding:8px 12px;background:#1a1a1a;border:1px solid #252525;color:white;border-radius:8px;font-size:12px;font-family:inherit;outline:none;margin-bottom:8px;box-sizing:border-box;">
+            <div id="mob-fav-pack-grid" style="max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+        <div style="font-size:10px;color:#444;font-weight:700;text-align:center;padding:10px 0 4px;">⭐ Tap the star on any sprite in the Library to save it here</div>
+    </div>
+</div>
+
 <!-- BOTTOM BAR -->
 <div id="bottom-bar">
     <button class="bot-btn" onclick="openSheet('add')">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/add.webp" class="bot-custom-icon" alt="add">Add
     </button>
     <button class="bot-btn" onclick="openSheet('sprites')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprites">Sprites
+        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite library">Library
     </button>
-    <button class="bot-btn" onclick="openSheet('mysprites'); loadMySprites()" style="position:relative;">
+    <button class="bot-btn" onclick="openSheet('gallery')" style="position:relative;">
         <span style="position:relative;display:inline-block;">
-            <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="my sprites" style="filter:hue-rotate(160deg) saturate(2);">
-            <span style="position:absolute;top:-3px;right:-3px;background:#00d2ff;color:#000;font-size:7px;font-weight:900;border-radius:50%;width:10px;height:10px;display:flex;align-items:center;justify-content:center;line-height:1;">✦</span>
-        </span>MY
+            <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite gallery" style="filter:hue-rotate(90deg) saturate(2);">
+            <span style="position:absolute;top:-3px;right:-3px;background:#a855f7;color:#fff;font-size:7px;font-weight:900;border-radius:50%;width:10px;height:10px;display:flex;align-items:center;justify-content:center;line-height:1;">🖼</span>
+        </span>Gallery
+    </button>
+    <button class="bot-btn" onclick="openSheet('favorites')">
+        <span class="bico">⭐</span>Favs
     </button>
     <button class="bot-btn" onclick="openSheet('effects'); if(!mobSidebarEffects) loadMobEffects()">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/effects.webp" class="bot-custom-icon" alt="effects">Effects
@@ -1471,12 +1523,14 @@ function openSheet(name) {
     if (name === 'sprites' && sidebarSprites === null) loadMobSprites();
     if (name === 'sprites') _initMobSprModPanel();
     if (name === 'mysprites') loadMySprites();
+    if (name === 'gallery') loadMobGallery();
     if (name === 'effects' && mobSidebarEffects === null) loadMobEffects();
     if (name === 'bg') loadMobBgs();
     if (name === 'layers') renderMobLayers();
     if (name === 'frames') renderMobFrames();
     if (name === 'bg') syncBgSliders();
     if (name === 'fx') syncFxPanel();
+    if (name === 'favorites') renderMobFavPanel();
 }
 function closeSheet(name) {
     document.getElementById('sheet-overlay').classList.remove('open');
@@ -2538,8 +2592,23 @@ function renderMobSpriteGrid(sprites) {
     sprites.forEach(pack => {
         const card = document.createElement('div');
         card.className = 'mob-sprite-card';
+        card.style.position = 'relative';
         card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
-        card.onclick = async () => {
+
+        // Favorite star button
+        const favBtn = document.createElement('button');
+        favBtn.title = 'Favorite';
+        favBtn.innerText = isMobFaved('sprite', pack.id) ? '⭐' : '☆';
+        favBtn.style.cssText = 'position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.6);border:none;border-radius:4px;cursor:pointer;font-size:12px;padding:1px 3px;line-height:1;z-index:20;';
+        favBtn.onclick = (e) => {
+            e.stopPropagation();
+            mobToggleFav('sprite', pack.id, pack);
+            favBtn.innerText = isMobFaved('sprite', pack.id) ? '⭐' : '☆';
+        };
+        card.appendChild(favBtn);
+
+        card.onclick = async (e) => {
+            if (e.target === favBtn) return;
             lsSet('sprite-used-' + pack.id, Date.now());
             _mobSprModSelectPack(pack);
             const full = await sbFetchFull(pack.id);
@@ -2737,6 +2806,19 @@ function renderMobPacks(packs) {
         wrapper.addEventListener('touchend',   reset, { passive:true });
 
         wrapper.addEventListener('click', () => openMobPackSheet(pack, items));
+
+        // Favorite star for pack
+        const packFavBtn = document.createElement('button');
+        packFavBtn.title = 'Favorite pack';
+        packFavBtn.innerText = isMobFaved('pack', pack.id) ? '⭐' : '☆';
+        packFavBtn.style.cssText = 'position:absolute;top:34px;right:4px;background:rgba(0,0,0,0.65);border:none;border-radius:5px;cursor:pointer;font-size:13px;padding:2px 5px;line-height:1;z-index:10;';
+        packFavBtn.onclick = (e) => {
+            e.stopPropagation();
+            mobToggleFav('pack', pack.id, pack);
+            packFavBtn.innerText = isMobFaved('pack', pack.id) ? '⭐' : '☆';
+        };
+        wrapper.appendChild(packFavBtn);
+
         grid.appendChild(wrapper);
     });
 }
@@ -5266,9 +5348,294 @@ document.addEventListener('gesturechange', function(e) {
 })();
 
 // ══════════════════════════════════════════════════════════════
+// GALLERY SHEET — sprites_gallery table
+// ══════════════════════════════════════════════════════════════
+let mobGallerySprites = null;
+let mobGalLoaded = false;
+let mobGalActiveTag = null;
+
+async function loadMobGallery() {
+    if (mobGalLoaded) return;
+    mobGalLoaded = true;
+    const grid = document.getElementById('mob-gal-grid');
+    grid.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Loading gallery...</div>';
+    try {
+        const { data } = await _supabase
+            .from('sprites_gallery')
+            .select('id, name, tags, creator, created_at')
+            .order('created_at', { ascending: false });
+        mobGallerySprites = data || [];
+        renderMobGallery(mobGallerySprites);
+        buildMobGalTagChips(mobGallerySprites);
+    } catch(e) {
+        grid.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Error loading gallery</div>';
+        mobGalLoaded = false;
+    }
+}
+
+function buildMobGalTagChips(sprites) {
+    const wrap = document.getElementById('mob-gal-tag-chips');
+    if (!wrap) return;
+    const counts = {};
+    sprites.forEach(s => (s.tags||[]).forEach(t => { counts[t] = (counts[t]||0)+1; }));
+    const top10 = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+    wrap.innerHTML = '';
+    ['All', ...top10].forEach((t, i) => {
+        const isActive = (i === 0 && !mobGalActiveTag) || mobGalActiveTag === t;
+        const btn = document.createElement('button');
+        btn.textContent = t;
+        btn.dataset.tag = i === 0 ? '' : t;
+        btn.style.cssText = `padding:4px 10px;border-radius:12px;border:1px solid ${isActive?'#a855f7':'#222'};background:${isActive?'rgba(168,85,247,0.12)':'#111'};color:${isActive?'#a855f7':'#555'};font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;`;
+        btn.onclick = () => {
+            mobGalActiveTag = btn.dataset.tag || null;
+            wrap.querySelectorAll('button').forEach(b => {
+                const active = b.dataset.tag === (mobGalActiveTag || '');
+                b.style.borderColor = active ? '#a855f7' : '#222';
+                b.style.background  = active ? 'rgba(168,85,247,0.12)' : '#111';
+                b.style.color       = active ? '#a855f7' : '#555';
+            });
+            filterMobGallery();
+        };
+        wrap.appendChild(btn);
+    });
+}
+
+function filterMobGallery() {
+    if (!mobGallerySprites) return;
+    const q    = (document.getElementById('mob-gal-search')?.value || '').toLowerCase().trim();
+    const sort = document.getElementById('mob-gal-sort')?.value || 'newest';
+    let filtered = mobGallerySprites.filter(s =>
+        (!q || s.name.toLowerCase().includes(q) || (s.tags||[]).some(t => t.includes(q))) &&
+        (!mobGalActiveTag || (s.tags||[]).includes(mobGalActiveTag))
+    );
+    filtered = sortSpriteList(filtered, sort);
+    renderMobGallery(filtered);
+}
+
+async function mobGalFetchFull(id) {
+    const cached = sbGetFullCache(id);
+    if (cached) return { id, image_data: cached.img, actions: cached.actions, default_scale: cached.default_scale || null };
+    const { data } = await _supabase
+        .from('sprites_gallery')
+        .select('id, image_data, actions, default_scale')
+        .eq('id', id).single();
+    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
+    return data;
+}
+
+function renderMobGallery(sprites) {
+    const grid = document.getElementById('mob-gal-grid');
+    if (!sprites.length) {
+        grid.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">No sprites found</div>';
+        return;
+    }
+    grid.innerHTML = '';
+    sprites.forEach(pack => {
+        const card = document.createElement('div');
+        card.className = 'mob-sprite-card';
+        card.style.position = 'relative';
+
+        const cachedSrc = sbGetImg ? sbGetImg(pack.id) : null;
+        if (cachedSrc) {
+            card.innerHTML = `<img src="${cachedSrc}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
+        } else {
+            card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
+            // Lazy-load image on scroll-into-view
+            const obs = new IntersectionObserver(entries => {
+                if (!entries[0].isIntersecting) return;
+                obs.disconnect();
+                mobGalFetchFull(pack.id).then(full => {
+                    if (!full) return;
+                    const skel = card.querySelector('div:first-child');
+                    if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
+                });
+            }, { root: grid });
+            obs.observe(card);
+        }
+
+        // Favourite star
+        const favBtn = document.createElement('button');
+        favBtn.title = 'Favourite';
+        favBtn.innerText = isMobFaved('sprite', pack.id) ? '⭐' : '☆';
+        favBtn.style.cssText = 'position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.6);border:none;border-radius:4px;cursor:pointer;font-size:12px;padding:1px 3px;line-height:1;z-index:20;';
+        favBtn.onclick = (e) => {
+            e.stopPropagation();
+            mobToggleFav('sprite', pack.id, pack);
+            favBtn.innerText = isMobFaved('sprite', pack.id) ? '⭐' : '☆';
+        };
+        card.appendChild(favBtn);
+
+        card.onclick = async (e) => {
+            if (e.target === favBtn) return;
+            lsSet('sprite-used-' + pack.id, Date.now());
+            const full = await mobGalFetchFull(pack.id);
+            if (full) { closeSheet('gallery'); openActionModal({ ...pack, ...full }); }
+        };
+
+        grid.appendChild(card);
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
 // MY SPRITES — user_sprites table (custom sprites)
 // ══════════════════════════════════════════════════════════════
 // Lightweight toast for My Sprites notifications
+// ═══════════════════════════════════════════════════════
+// MOBILE FAVORITES SYSTEM
+// ═══════════════════════════════════════════════════════
+const MOB_FAV_SPRITE_KEY = 'cc_fav_sprites_v1';
+const MOB_FAV_PACK_KEY   = 'cc_fav_packs_v1';
+
+function getMobFavs(type) {
+    const key = type === 'pack' ? MOB_FAV_PACK_KEY : MOB_FAV_SPRITE_KEY;
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; }
+}
+function saveMobFavs(type, arr) {
+    const key = type === 'pack' ? MOB_FAV_PACK_KEY : MOB_FAV_SPRITE_KEY;
+    try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e) {}
+}
+function isMobFaved(type, id) {
+    return getMobFavs(type).some(f => f.id === id);
+}
+function mobToggleFav(type, id, packData) {
+    const arr = getMobFavs(type);
+    const idx = arr.findIndex(f => f.id === id);
+    if (idx === -1) {
+        arr.unshift({ id, name: packData.name || 'Sprite', tags: packData.tags || [], creator: packData.creator || '', created_at: packData.created_at || new Date().toISOString(), default_scale: packData.default_scale || null });
+        showToast('⭐ Added to Favorites!');
+    } else {
+        arr.splice(idx, 1);
+        showToast('Removed from Favorites');
+    }
+    saveMobFavs(type, arr);
+}
+
+let mobFavActiveTab = 'sprites';
+
+function switchMobFavTab(tab) {
+    mobFavActiveTab = tab;
+    const tS = document.getElementById('mob-fav-tab-sprites');
+    const tP = document.getElementById('mob-fav-tab-packs');
+    if (tS) { tS.style.background = tab==='sprites'?'var(--accent)':'#111'; tS.style.color = tab==='sprites'?'#000':'#555'; }
+    if (tP) { tP.style.background = tab==='packs'  ?'var(--accent)':'#111'; tP.style.color = tab==='packs'  ?'#000':'#555'; }
+    const pS = document.getElementById('mob-fav-sprites-panel');
+    const pP = document.getElementById('mob-fav-packs-panel');
+    if (pS) pS.style.display = tab==='sprites' ? 'block' : 'none';
+    if (pP) pP.style.display = tab==='packs'   ? 'block' : 'none';
+    renderMobFavPanel();
+}
+
+function renderMobFavPanel() {
+    if (mobFavActiveTab === 'sprites') renderMobFavSprites();
+    else renderMobFavPacks();
+}
+
+function renderMobFavSprites() {
+    const grid = document.getElementById('mob-fav-sprite-grid');
+    if (!grid) return;
+    const q = (document.getElementById('mob-fav-sprite-search')?.value || '').toLowerCase().trim();
+    let favs = getMobFavs('sprite');
+    if (q) favs = favs.filter(f => f.name.toLowerCase().includes(q) || (f.tags||[]).some(t => t.includes(q)));
+    if (!favs.length) {
+        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:11px;">No favorite sprites yet<br><span style="font-size:10px;color:#333;">☆ Tap the star on Library sprites</span></div>';
+        return;
+    }
+    grid.innerHTML = '';
+    favs.forEach(fav => {
+        const card = document.createElement('div');
+        card.className = 'mob-sprite-card';
+        card.style.position = 'relative';
+        const cachedSrc = sbGetImg ? sbGetImg(fav.id) : null;
+        if (cachedSrc) {
+            const img = document.createElement('img'); img.src = cachedSrc; card.appendChild(img);
+        } else {
+            const sk = document.createElement('div');
+            sk.style.cssText = 'width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;';
+            card.appendChild(sk);
+            // Lazy fetch
+            sbFetchFull(fav.id).then(full => {
+                if (!full?.image_data) return;
+                const old = card.querySelector('div');
+                if (old) { const img = document.createElement('img'); img.src = full.image_data; old.replaceWith(img); }
+            });
+        }
+        const nameEl = document.createElement('div'); nameEl.className = 'mob-sprite-name'; nameEl.innerText = fav.name;
+        card.appendChild(nameEl);
+        // Unfav button
+        const unfavBtn = document.createElement('button');
+        unfavBtn.innerText = '⭐';
+        unfavBtn.style.cssText = 'position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.6);border:none;border-radius:4px;cursor:pointer;font-size:12px;padding:1px 3px;line-height:1;z-index:20;';
+        unfavBtn.onclick = (e) => { e.stopPropagation(); mobToggleFav('sprite', fav.id, fav); renderMobFavSprites(); };
+        card.appendChild(unfavBtn);
+        card.onclick = async (e) => {
+            if (e.target === unfavBtn) return;
+            const full = await sbFetchFull(fav.id);
+            if (full) { closeSheet('favorites'); openActionModal({ ...fav, ...full }); }
+        };
+        grid.appendChild(card);
+    });
+}
+
+function renderMobFavPacks() {
+    const grid = document.getElementById('mob-fav-pack-grid');
+    if (!grid) return;
+    const q = (document.getElementById('mob-fav-pack-search')?.value || '').toLowerCase().trim();
+    let favs = getMobFavs('pack');
+    if (q) favs = favs.filter(f => f.name.toLowerCase().includes(q) || (f.tags||[]).some(t => t.includes(q)));
+    if (!favs.length) {
+        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;font-size:11px;">No favorite packs yet<br><span style="font-size:10px;color:#333;">☆ Star packs in the Library</span></div>';
+        return;
+    }
+    grid.innerHTML = '';
+    favs.forEach(fav => {
+        const existingPack = (mobSidebarPacks||[]).find(p => p.id === fav.id);
+        let items = existingPack?.items || [];
+        if (typeof items === 'string') try { items = JSON.parse(items); } catch(e) { items = []; }
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px;background:#111;border:1.5px solid #2a2a2a;border-radius:12px;cursor:pointer;position:relative;transition:0.15s;';
+        row.onmouseover = () => row.style.borderColor = '#f4c542';
+        row.onmouseout  = () => row.style.borderColor = '#2a2a2a';
+
+        // Thumbnail
+        const thumb = document.createElement('div');
+        thumb.style.cssText = 'width:52px;height:52px;flex-shrink:0;border-radius:8px;background:#1a1a1a;border:1px solid #333;overflow:hidden;display:flex;align-items:center;justify-content:center;';
+        const cachedSrc = existingPack?.cover_image || null;
+        if (cachedSrc) {
+            const img = document.createElement('img'); img.src = cachedSrc; img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:4px;'; thumb.appendChild(img);
+        } else {
+            thumb.innerHTML = '<span style="font-size:20px;color:#333;">📦</span>';
+            if (fav.id) {
+                sbFetchFull(fav.id).then(full => {
+                    if (!full?.image_data) return;
+                    thumb.innerHTML = '';
+                    const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:4px;'; thumb.appendChild(img);
+                });
+            }
+        }
+        row.appendChild(thumb);
+
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:0;';
+        info.innerHTML = `<div style="font-size:12px;font-weight:800;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fav.name}</div><div style="font-size:10px;color:#555;font-weight:700;margin-top:2px;">${items.length || '?'} sprites</div>`;
+        row.appendChild(info);
+
+        // Unfav
+        const unfavBtn = document.createElement('button');
+        unfavBtn.innerText = '⭐';
+        unfavBtn.style.cssText = 'background:rgba(0,0,0,0.5);border:none;border-radius:6px;cursor:pointer;font-size:14px;padding:4px 6px;color:#f4c542;flex-shrink:0;';
+        unfavBtn.onclick = (e) => { e.stopPropagation(); mobToggleFav('pack', fav.id, fav); renderMobFavPacks(); };
+        row.appendChild(unfavBtn);
+
+        row.onclick = (e) => {
+            if (e.target === unfavBtn) return;
+            const pack = existingPack || fav;
+            openPackSpriteSheet(pack, Array.isArray(items) ? items : []);
+        };
+        grid.appendChild(row);
+    });
+}
+
 function showToast(msg) {
     let el = document.getElementById('mys-toast');
     if (!el) {
