@@ -1703,15 +1703,36 @@
         const toInsert = [];
         for (let i = 0; i < ids.length; i++) {
             btn.textContent = `Fetching (${i+1}/${ids.length})…`;
-            const full = await fetchFullSprite(ids[i]);
+
+            // Fetch directly from DB — skip cache to guarantee we get Storage URLs not stale base64
+            const { data: row, error: rowErr } = await _supabase
+                .from('sprites_library')
+                .select('id, name, image_data, actions, tags')
+                .eq('id', ids[i])
+                .single();
+
+            if (rowErr || !row) {
+                alert(`Failed to fetch sprite ${i+1}: ${rowErr?.message}`);
+                btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
+                return;
+            }
+
+            // Warn if somehow still base64 — skip it so we don't pollute gallery
+            if (row.image_data?.startsWith('data:')) {
+                if (!confirm(`"${row.name}" still has base64 image data. Run Migrate Library first!\n\nSkip this sprite and continue?`)) {
+                    btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
+                    return;
+                }
+                continue;
+            }
+
             const meta = allSprites.find(s => s.id === ids[i]);
-            if (!full || !meta) continue;
             toInsert.push({
-                name: meta.name,
-                image_data: full.image_data || '',
-                actions: full.actions || {},
+                name: row.name,
+                image_data: row.image_data,
+                actions: row.actions || {},
                 uploader: uploader,
-                tags: meta.tags || []
+                tags: meta?.tags || row.tags || []
             });
         }
 
