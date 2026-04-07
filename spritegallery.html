@@ -266,6 +266,64 @@
         }
         #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+        /* ── Pack Cards ── */
+        .packs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .pack-card {
+            background: #161618; border: 2px solid #222; border-radius: 16px;
+            cursor: pointer; overflow: hidden; transition: 0.2s; position: relative;
+            padding: 16px 16px 14px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .pack-card:hover { border-color: #a855f7; transform: translateY(-3px); box-shadow: 0 8px 24px rgba(168,85,247,0.2); }
+
+        /* Stacked cascade thumbnail */
+        .pack-thumb {
+            position: relative; height: 90px; margin-bottom: 4px;
+        }
+        .pack-thumb-card {
+            position: absolute; width: 68px; height: 68px;
+            border-radius: 10px; border: 2px solid #2a2a2a; overflow: hidden;
+            background: #0f0f11;
+        }
+        .pack-thumb-card img {
+            width: 100%; height: 100%; object-fit: contain; padding: 6px;
+        }
+        .pack-thumb-card.back  { left: 0;   top: 14px; z-index: 1; opacity: 0.5; transform: rotate(-8deg); background: #1a1a1a; border-color: #222; }
+        .pack-thumb-card.mid   { left: 18px; top: 7px;  z-index: 2; opacity: 0.75; transform: rotate(-3deg); background: #1c1c1e; }
+        .pack-thumb-card.front { left: 36px; top: 0;    z-index: 3; opacity: 1; background: #222; border-color: #3a3a3c; }
+        .pack-thumb-placeholder {
+            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            font-size: 32px; color: #333;
+        }
+
+        .pack-card-info { flex: 1; }
+        .pack-card-name { font-size: 13px; font-weight: 800; color: white; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pack-card-meta { font-size: 10px; font-weight: 700; color: #555; margin-bottom: 6px; }
+        .pack-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+        .pack-card-tag {
+            background: #1c1c1e; border: 1px solid #2a2a2a; color: #666;
+            font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+        }
+        .pack-card-footer {
+            display: flex; align-items: center; justify-content: space-between;
+            border-top: 1px solid #1e1e1e; padding-top: 10px; margin-top: 4px;
+        }
+        .pack-card-count { font-size: 10px; font-weight: 800; color: #a855f7; }
+        .pack-card-use {
+            background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.3); color: #a855f7;
+            font-size: 10px; font-weight: 800; padding: 5px 12px; border-radius: 20px;
+            cursor: pointer; font-family: inherit; transition: 0.15s; border-width: 1px;
+        }
+        .pack-card-use:hover { background: rgba(168,85,247,0.25); }
+
+        @media (max-width: 768px) {
+            .packs-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar { display: none; }
@@ -298,6 +356,9 @@
             </button>
             <button class="sb-nav-item" id="nav-favorites" onclick="setNav('favorites')">
                 <span class="sb-nav-icon">❤️</span>Favorites
+            </button>
+            <button class="sb-nav-item" id="nav-packs" onclick="setNav('packs')">
+                <span class="sb-nav-icon">📦</span>Sprite Packs
             </button>
             <div class="sb-divider"></div>
             <div class="sb-section-label">Tools</div>
@@ -438,6 +499,30 @@
             </div>
         </div>
 
+        <!-- Packs view -->
+        <div id="view-packs" style="display:none;">
+            <div class="page-header">
+                <div class="page-title">📦 Sprite Packs</div>
+                <div class="page-sub">Curated packs of themed sprites — grab a whole collection at once</div>
+            </div>
+            <div class="search-row">
+                <div class="search-wrap">
+                    <input class="search-input" id="packs-search" placeholder="🔍 Search packs..." oninput="filterPacks()" autocomplete="off">
+                </div>
+            </div>
+            <div class="tag-row" id="packs-tags"></div>
+            <div class="section-head">
+                <span class="section-head-title">All Packs</span>
+                <span class="section-head-count" id="packs-count"></span>
+            </div>
+            <div class="packs-grid" id="packs-grid">
+                <div class="empty-state" style="grid-column:1/-1;">
+                    <div class="empty-icon">⏳</div>
+                    <h3>Loading packs…</h3>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -486,6 +571,16 @@
     let galleryUploadActions = [];
     let currentNav = 'all';
 
+    // ── Packs state ──
+    const PACKS_TABLE = 'sprite_packs';
+    const PACKS_CACHE_KEY = 'cc_packs_meta_v1';
+    const PACKS_CACHE_TTL = 8 * 60 * 1000;
+    let allPacks = [];
+    let allPackTags = new Set();
+    let packTagCounts = {};
+    let activePackTagFilter = null;
+    let packsFetched = false;
+
     // ── Init ──
     window.addEventListener('load', async () => {
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
@@ -510,10 +605,12 @@
         const btn = document.getElementById('nav-' + name);
         if (btn) btn.classList.add('active');
 
-        document.getElementById('view-all').style.display = name === 'all' ? '' : 'none';
+        document.getElementById('view-all').style.display       = name === 'all'       ? '' : 'none';
         document.getElementById('view-favorites').style.display = name === 'favorites' ? '' : 'none';
+        document.getElementById('view-packs').style.display     = name === 'packs'     ? '' : 'none';
 
         if (name === 'favorites') renderFavoritesGrid();
+        if (name === 'packs' && !packsFetched) fetchPacks();
     }
 
     function setSidebarView(view) {
@@ -555,12 +652,19 @@
         const cached = loadGalleryCache();
         if (cached) { allGallerySprites = cached; initGalleryAfterFetch(); }
 
-        const { data } = await _supabase
+        // Destructure error alongside data
+        const { data, error } = await _supabase
             .from(GALLERY_TABLE)
             .select('id, name, tags, uploader, created_at')
             .order('created_at', { ascending: false });
 
-        const fresh = data || [];
+        // Guard against failure so we don't wipe existing data
+        if (error || !data) {
+            if (!cached) renderGalleryGrid([]);
+            return;
+        }
+
+        const fresh = data;
         const changed = !cached || fresh.length !== allGallerySprites.length ||
             fresh.some(s => !allGallerySprites.find(g => g.id === s.id));
 
@@ -922,7 +1026,139 @@
         }
     }
 
-    // ── Sprite Editor ──
+    // ── Packs Caching ──
+    function savePacksCache(data) {
+        const lean = (data||[]).map(({id,name,tags,created_by,created_at,sprite_ids,preview_urls}) =>
+            ({id,name,tags,created_by,created_at,sprite_ids,preview_urls}));
+        try { localStorage.setItem(PACKS_CACHE_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
+    }
+    function loadPacksCache() {
+        try {
+            const raw = localStorage.getItem(PACKS_CACHE_KEY);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - p.ts > PACKS_CACHE_TTL) { localStorage.removeItem(PACKS_CACHE_KEY); return null; }
+            return p.data;
+        } catch(e) { return null; }
+    }
+
+    // ── Fetch Packs ──
+    async function fetchPacks() {
+        packsFetched = true;
+        const cached = loadPacksCache();
+        if (cached) { allPacks = cached; initPacksAfterFetch(); }
+
+        const { data, error } = await _supabase
+            .from(PACKS_TABLE)
+            .select('id, name, tags, created_by, created_at, sprite_ids, preview_urls')
+            .order('created_at', { ascending: false });
+
+        if (error || !data) {
+            if (!cached) renderPacksGrid([]);
+            return;
+        }
+
+        const fresh = data;
+        const changed = !cached || fresh.length !== allPacks.length ||
+            fresh.some(p => !allPacks.find(c => c.id === p.id));
+
+        if (changed) {
+            allPacks = fresh;
+            savePacksCache(fresh);
+            initPacksAfterFetch();
+        }
+    }
+
+    function initPacksAfterFetch() {
+        allPackTags = new Set();
+        packTagCounts = {};
+        allPacks.forEach(p => {
+            (p.tags || []).forEach(t => {
+                allPackTags.add(t);
+                packTagCounts[t] = (packTagCounts[t] || 0) + 1;
+            });
+        });
+        renderPackTagChips();
+        filterPacks();
+    }
+
+    function renderPackTagChips() {
+        const row = document.getElementById('packs-tags');
+        const sorted = [...allPackTags].sort((a,b) => (packTagCounts[b]||0)-(packTagCounts[a]||0)).slice(0,12);
+        let html = `<button class="tag-chip ${!activePackTagFilter?'active':''}" onclick="pickPackTag(null)">All</button>`;
+        html += sorted.map(t => `<button class="tag-chip ${activePackTagFilter===t?'active':''}" onclick="pickPackTag('${t}')">${t}</button>`).join('');
+        row.innerHTML = html;
+    }
+
+    function pickPackTag(tag) {
+        activePackTagFilter = tag;
+        renderPackTagChips();
+        filterPacks();
+    }
+
+    function filterPacks() {
+        const q = (document.getElementById('packs-search')?.value || '').toLowerCase().trim();
+        let list = [...allPacks];
+        if (activePackTagFilter) list = list.filter(p => (p.tags||[]).includes(activePackTagFilter));
+        if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || (p.tags||[]).some(t => t.includes(q)));
+        renderPacksGrid(list);
+        document.getElementById('packs-count').textContent = list.length + ' pack' + (list.length!==1?'s':'');
+    }
+
+    function renderPacksGrid(packs) {
+        const grid = document.getElementById('packs-grid');
+        if (!packs.length) {
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">📦</div><h3>No packs found</h3><p>Try a different search or tag</p></div>`;
+            return;
+        }
+        grid.innerHTML = '';
+        packs.forEach(pack => {
+            const previews = pack.preview_urls || [];
+            const spriteCount = (pack.sprite_ids || []).length || previews.length || 0;
+            const tagsHtml = (pack.tags||[]).slice(0,4).map(t => `<span class="pack-card-tag">${t}</span>`).join('');
+
+            // Build stacked cascade thumbnail
+            const slots = ['back','mid','front'];
+            const thumbHtml = previews.length
+                ? slots.map((cls, i) => {
+                    const url = previews[i] || previews[previews.length - 1];
+                    return `<div class="pack-thumb-card ${cls}"><img src="${url}" loading="lazy"></div>`;
+                  }).join('')
+                : `<div class="pack-thumb-placeholder">📦</div>`;
+
+            const card = document.createElement('div');
+            card.className = 'pack-card';
+            card.innerHTML = `
+                <div class="pack-thumb">${thumbHtml}</div>
+                <div class="pack-card-info">
+                    <div class="pack-card-name">${pack.name}</div>
+                    <div class="pack-card-meta">by @${pack.created_by || 'unknown'}</div>
+                    <div class="pack-card-tags">${tagsHtml}</div>
+                </div>
+                <div class="pack-card-footer">
+                    <span class="pack-card-count">${spriteCount} sprite${spriteCount!==1?'s':''}</span>
+                    <button class="pack-card-use" onclick="usePack(event,'${pack.id}')">▶ Use Pack</button>
+                </div>
+            `;
+            card.addEventListener('click', () => openPackPreview(pack));
+            grid.appendChild(card);
+        });
+    }
+
+    function openPackPreview(pack) {
+        // Store pack and redirect to create, mirroring the single-sprite useSprite() flow
+        localStorage.setItem('incoming_sprite_pack', JSON.stringify(pack));
+        showToast('📦 Pack "' + pack.name + '" loaded — opening Create…');
+        setTimeout(() => window.location.href = 'create.html', 800);
+    }
+
+    function usePack(e, packId) {
+        e.stopPropagation();
+        const pack = allPacks.find(p => p.id === packId);
+        if (!pack) return;
+        openPackPreview(pack);
+    }
+
     let edCanvas, edCtx, edTool = 'pen', edBrushSize = 2, edColor = '#ffffff';
     let edDrawing = false, edHistory = [], edGridOn = false;
 
