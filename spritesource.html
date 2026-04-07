@@ -1888,40 +1888,51 @@
 
         migrateLog(`▶ Starting migration for ${table}…`, '#ccc');
 
-        // Fetch all rows (meta only first to get IDs)
-        const { data: allRows, error: fetchErr } = await _supabase
+        // Fetch IDs only first — avoids timeout from loading all base64 at once
+        const { data: metaRows, error: fetchErr } = await _supabase
             .from(table)
-            .select('id, name, image_data, actions')
+            .select('id, name')
             .order('created_at', { ascending: true });
 
         if (fetchErr) {
-            migrateLog(`✗ Failed to fetch rows: ${fetchErr.message}`, '#ff5555');
+            migrateLog(`✗ Failed to fetch row list: ${fetchErr.message}`, '#ff5555');
             btn.disabled = false; return;
         }
 
-        // Filter only rows that have base64 anywhere
-        const needsMigration = allRows.filter(row => {
-            if (row.image_data?.startsWith('data:')) return true;
-            if (!row.actions) return false;
-            const actions = typeof row.actions === 'string' ? JSON.parse(row.actions) : row.actions;
-            return Object.values(actions).some(v => typeof v === 'string' && v.startsWith('data:'));
-        });
+        migrateLog(`Found ${metaRows.length} total rows. Processing one by one…`, '#aaa');
 
-        migrateLog(`Found ${needsMigration.length} rows with base64 out of ${allRows.length} total.`, '#aaa');
+        let done = 0, failed = 0, skipped = 0;
 
-        if (!needsMigration.length) {
-            migrateLog('✅ Nothing to migrate!', '#44ff88');
-            btn.disabled = false; return;
-        }
+        for (let i = 0; i < metaRows.length; i++) {
+            const meta = metaRows[i];
 
-        let done = 0, failed = 0;
+            // Fetch this single row's full data
+            const { data: row, error: rowErr } = await _supabase
+                .from(table)
+                .select('id, name, image_data, actions')
+                .eq('id', meta.id)
+                .single();
 
-        for (const row of needsMigration) {
+            if (rowErr || !row) {
+                migrateLog(`✗ [${i+1}/${metaRows.length}] "${meta.name}" — fetch failed: ${rowErr?.message}`, '#ff5555');
+                failed++; continue;
+            }
+
+            // Check if this row needs migration
+            const actions = row.actions ? (typeof row.actions === 'string' ? JSON.parse(row.actions) : { ...row.actions }) : {};
+            const hasBase64Main = row.image_data?.startsWith('data:');
+            const hasBase64Actions = Object.values(actions).some(v => typeof v === 'string' && v.startsWith('data:'));
+
+            if (!hasBase64Main && !hasBase64Actions) {
+                skipped++;
+                continue; // already a URL, skip silently
+            }
+
             const safeName = (row.name || 'sprite').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
             const folder = `${safeName}_${row.id}`;
             const updates = {};
 
-            migrateLog(`[${done + failed + 1}/${needsMigration.length}] ${row.name}`, '#888');
+            migrateLog(`[${i+1}/${metaRows.length}] ${row.name}`, '#888');
 
             // Migrate main image
             if (row.image_data?.startsWith('data:')) {
@@ -1936,8 +1947,7 @@
             }
 
             // Migrate actions
-            if (row.actions) {
-                const actions = typeof row.actions === 'string' ? JSON.parse(row.actions) : { ...row.actions };
+            if (hasBase64Actions) {
                 let anyBase64 = false;
                 for (const [key, val] of Object.entries(actions)) {
                     if (typeof val === 'string' && val.startsWith('data:')) {
@@ -1978,7 +1988,7 @@
         localStorage.removeItem('cc_gallery_meta_v1');
 
         migrateLog(`─────────────────────────────`, '#333');
-        migrateLog(`✅ Done! ${done} migrated, ${failed} failed.`, done > 0 ? '#44ff88' : '#ff5555');
+        migrateLog(`✅ Done! ${done} migrated, ${skipped} already URLs (skipped), ${failed} failed.`, failed > 0 ? '#ffaa44' : '#44ff88');
         btn.disabled = false;
     }
 
