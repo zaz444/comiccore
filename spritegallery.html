@@ -634,7 +634,7 @@
 
     // ── Caching ──
     function saveGalleryCache(data) {
-        const lean = (data||[]).map(({id,name,tags,uploader,created_at}) => ({id,name,tags,uploader,created_at}));
+        const lean = (data||[]).map(({id,name,tags,creator,created_at}) => ({id,name,tags,creator,created_at}));
         try { localStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
     }
     function loadGalleryCache() {
@@ -655,7 +655,7 @@
         // Destructure error alongside data
         const { data, error } = await _supabase
             .from(GALLERY_TABLE)
-            .select('id, name, tags, uploader, created_at')
+            .select('id, name, tags, creator, created_at')
             .order('created_at', { ascending: false });
 
         // Guard against failure so we don't wipe existing data
@@ -767,7 +767,7 @@
                 <button class="sprite-card-fav ${isFav?'favorited':''}" onclick="toggleFav(event,'${item.id}')">${isFav?'❤️':'🤍'}</button>
                 <div class="sprite-card-footer">
                     <div class="sprite-card-name">${item.name}</div>
-                    <div class="sprite-card-uploader">@${item.uploader || 'unknown'}</div>
+                    <div class="sprite-card-uploader">@${item.creator || 'unknown'}</div>
                 </div>
             `;
             card.addEventListener('click', () => openPreview(item));
@@ -798,7 +798,7 @@
                 <button class="sprite-card-fav favorited" onclick="toggleFav(event,'${item.id}')">❤️</button>
                 <div class="sprite-card-footer">
                     <div class="sprite-card-name">${item.name}</div>
-                    <div class="sprite-card-uploader">@${item.uploader || 'unknown'}</div>
+                    <div class="sprite-card-uploader">@${item.creator || 'unknown'}</div>
                 </div>
             `;
             card.addEventListener('click', () => openPreview(item));
@@ -855,7 +855,7 @@
         document.getElementById('preview-overlay').classList.add('open');
         document.getElementById('prev-img').src = '';
         document.getElementById('prev-name').textContent = item.name;
-        document.getElementById('prev-uploader').textContent = '@' + (item.uploader || 'unknown');
+        document.getElementById('prev-uploader').textContent = '@' + (item.creator || 'unknown');
         document.getElementById('prev-tags').innerHTML = (item.tags||[]).map(t => `<span class="prev-tag">${t}</span>`).join('');
         document.getElementById('prev-actions').innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">Loading…</div>';
 
@@ -1002,7 +1002,7 @@
             name,
             image_data: mainUrl,
             actions: actionsObj,
-            uploader: myHandle.replace('@',''),
+            creator: myHandle.replace('@',''),
             tags
         }]);
 
@@ -1028,8 +1028,8 @@
 
     // ── Packs Caching ──
     function savePacksCache(data) {
-        const lean = (data||[]).map(({id,name,tags,created_by,created_at,sprite_ids,preview_urls}) =>
-            ({id,name,tags,created_by,created_at,sprite_ids,preview_urls}));
+        const lean = (data||[]).map(({id,name,tags,creator,created_at,cover_image,card_sprites,items}) =>
+            ({id,name,tags,creator,created_at,cover_image,card_sprites,items}));
         try { localStorage.setItem(PACKS_CACHE_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
     }
     function loadPacksCache() {
@@ -1050,7 +1050,7 @@
 
         const { data, error } = await _supabase
             .from(PACKS_TABLE)
-            .select('id, name, tags, created_by, created_at, sprite_ids, preview_urls')
+            .select('id, name, tags, creator, created_at, cover_image, card_sprites, items')
             .order('created_at', { ascending: false });
 
         if (error || !data) {
@@ -1113,15 +1113,22 @@
         }
         grid.innerHTML = '';
         packs.forEach(pack => {
-            const previews = pack.preview_urls || [];
-            const spriteCount = (pack.sprite_ids || []).length || previews.length || 0;
+            // card_sprites holds the slot images; items is the full sprite array
+            const cardSprites = pack.card_sprites || [];
+            const items = pack.items || [];
+            const spriteCount = items.length || cardSprites.length || 0;
             const tagsHtml = (pack.tags||[]).slice(0,4).map(t => `<span class="pack-card-tag">${t}</span>`).join('');
 
-            // Build stacked cascade thumbnail
-            const slots = ['back','mid','front'];
-            const thumbHtml = previews.length
+            // Build stacked cascade thumbnail from cover_image + card_sprites
+            // Prefer card_sprites[0..2]; fall back to cover_image; fall back to placeholder
+            const previewUrls = cardSprites.length
+                ? cardSprites.slice(0, 3)
+                : (pack.cover_image ? [pack.cover_image] : []);
+
+            const slots = ['back', 'mid', 'front'];
+            const thumbHtml = previewUrls.length
                 ? slots.map((cls, i) => {
-                    const url = previews[i] || previews[previews.length - 1];
+                    const url = previewUrls[i] || previewUrls[previewUrls.length - 1];
                     return `<div class="pack-thumb-card ${cls}"><img src="${url}" loading="lazy"></div>`;
                   }).join('')
                 : `<div class="pack-thumb-placeholder">📦</div>`;
@@ -1132,7 +1139,7 @@
                 <div class="pack-thumb">${thumbHtml}</div>
                 <div class="pack-card-info">
                     <div class="pack-card-name">${pack.name}</div>
-                    <div class="pack-card-meta">by @${pack.created_by || 'unknown'}</div>
+                    <div class="pack-card-meta">by @${pack.creator || 'unknown'}</div>
                     <div class="pack-card-tags">${tagsHtml}</div>
                 </div>
                 <div class="pack-card-footer">
@@ -1141,6 +1148,22 @@
                 </div>
             `;
             card.addEventListener('click', () => openPackPreview(pack));
+
+            // If no preview images yet, lazy-fetch the first sprite by ID from the library
+            if (!previewUrls.length && items.length) {
+                const firstId = typeof items[0] === 'object' ? items[0].id : items[0];
+                if (firstId) {
+                    fetchSpriteImage(firstId).then(spriteData => {
+                        if (!spriteData?.image_data) return;
+                        const thumbEl = card.querySelector('.pack-thumb');
+                        if (!thumbEl) return;
+                        thumbEl.innerHTML = slots.map((cls) =>
+                            `<div class="pack-thumb-card ${cls}"><img src="${spriteData.image_data}" loading="lazy"></div>`
+                        ).join('');
+                    });
+                }
+            }
+
             grid.appendChild(card);
         });
     }
@@ -1320,7 +1343,7 @@
 
         const { error } = await _supabase.from(GALLERY_TABLE).insert([{
             name, image_data: mainUrl, actions: {},
-            uploader: myHandle.replace('@',''), tags
+            creator: myHandle.replace('@',''), tags
         }]);
 
         if (error) { showToast('❌ ' + error.message); }
