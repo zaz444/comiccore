@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Gallery | ComicCore</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg, #0f0f11);
+            color: var(--text, #f5f5f7);
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Top Bar ── */
+        .top-bar {
+            position: sticky; top: 0; z-index: 200;
+            background: rgba(15,15,17,0.94); backdrop-filter: blur(18px);
+            border-bottom: 1px solid var(--border, #2c2c2e);
+            padding: 12px 20px;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .top-bar-logo { font-size: 15px; font-weight: 900; letter-spacing: -0.5px; }
+        .top-bar-logo span { color: #a855f7; }
+        .top-bar-badge {
+            font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+            background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.3);
+            color: #a855f7; padding: 3px 10px; border-radius: 20px;
+        }
+        .top-bar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+        .top-bar-btn {
+            background: #2c2c2e; border: 1px solid #3a3a3c; color: #ccc;
+            padding: 7px 14px; border-radius: 8px; font-size: 11px; font-weight: 700;
+            cursor: pointer; font-family: inherit; transition: 0.15s; text-decoration: none;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .top-bar-btn:hover { background: #3a3a3c; color: white; }
+        .top-bar-btn.purple { background: rgba(168,85,247,0.15); border-color: rgba(168,85,247,0.4); color: #a855f7; }
+        .top-bar-btn.purple:hover { background: rgba(168,85,247,0.25); }
+
+        /* ── Layout ── */
+        .app-body { display: flex; flex: 1; min-height: 0; }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: 260px; flex-shrink: 0;
+            border-right: 1px solid var(--border, #2c2c2e);
+            background: #111;
+            display: flex; flex-direction: column;
+            height: calc(100dvh - 55px);
+            position: sticky; top: 55px;
+            overflow-y: auto;
+        }
+        .sidebar::-webkit-scrollbar { width: 3px; }
+        .sidebar::-webkit-scrollbar-thumb { background: #333; }
+        .sidebar-nav { display: flex; flex-direction: column; padding: 12px 10px; gap: 4px; }
+        .sb-nav-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+            border-radius: 10px; font-size: 12px; font-weight: 700; color: #888;
+            cursor: pointer; transition: 0.15s; border: none; background: none;
+            font-family: inherit; text-align: left; width: 100%;
+        }
+        .sb-nav-item:hover { background: rgba(255,255,255,0.05); color: #ccc; }
+        .sb-nav-item.active { background: rgba(168,85,247,0.12); color: #a855f7; }
+        .sb-nav-icon { font-size: 16px; width: 22px; text-align: center; }
+        .sb-divider { height: 1px; background: #1e1e1e; margin: 6px 10px; }
+        .sb-section-label {
+            font-size: 9px; font-weight: 900; color: #333; text-transform: uppercase;
+            letter-spacing: 1.5px; padding: 8px 14px 4px;
+        }
+
+        /* Upload panel in sidebar */
+        .upload-panel {
+            border-top: 1px solid #1e1e1e; padding: 14px 12px; flex-shrink: 0;
+        }
+        .upload-panel-title {
+            font-size: 10px; font-weight: 900; color: #a855f7; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+        }
+        .up-field { margin-bottom: 8px; }
+        .up-label { font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+        .up-input {
+            width: 100%; padding: 8px 10px; background: #0a0a0a; border: 1px solid #2a2a2a;
+            color: white; border-radius: 7px; font-size: 11px; outline: none; font-family: inherit;
+            transition: border-color 0.15s;
+        }
+        .up-input:focus { border-color: #a855f7; }
+        .up-preview-box {
+            width: 100%; height: 100px; background: #0a0a0a; border: 2px dashed #2a2a2a;
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.15s; overflow: hidden; margin-bottom: 8px;
+        }
+        .up-preview-box:hover { border-color: #a855f7; }
+        .up-preview-box img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
+        .up-preview-box .up-hint { font-size: 10px; font-weight: 700; color: #333; text-align: center; line-height: 1.5; }
+        .up-btn {
+            width: 100%; padding: 10px; border-radius: 8px; font-weight: 900; font-size: 11px;
+            cursor: pointer; font-family: inherit; border: none; transition: 0.15s;
+        }
+        .up-btn.primary { background: #a855f7; color: white; }
+        .up-btn.primary:hover { background: #9333ea; }
+        .up-btn.primary:disabled { background: #3a2a4a; color: #666; cursor: not-allowed; }
+        .up-btn.secondary { background: #1a1a1a; color: #888; border: 1px solid #2a2a2a; margin-top: 6px; }
+        .up-btn.secondary:hover { background: #222; color: #ccc; }
+        .actions-preview { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; max-height: 100px; overflow-y: auto; }
+        .action-chip {
+            display: flex; align-items: center; gap: 5px; background: #111; border: 1px solid #222;
+            border-radius: 6px; padding: 3px 7px; font-size: 9px; font-weight: 700; color: #888;
+        }
+        .action-chip img { width: 22px; height: 22px; object-fit: contain; border-radius: 3px; background: #0a0a0a; }
+        .action-chip input { background: none; border: none; color: #aaa; font-size: 9px; font-weight: 700; width: 70px; outline: none; font-family: inherit; }
+        .action-chip span { cursor: pointer; color: #ff4444; font-size: 12px; line-height: 1; }
+
+        /* ── Main content ── */
+        .main-content { flex: 1; overflow-y: auto; padding: 20px 24px 60px; min-width: 0; }
+        .main-content::-webkit-scrollbar { width: 4px; }
+        .main-content::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+        /* Page header */
+        .page-header { margin-bottom: 20px; }
+        .page-title { font-size: 22px; font-weight: 900; margin-bottom: 4px; }
+        .page-sub { font-size: 12px; color: #666; font-weight: 600; }
+
+        /* Search & filters */
+        .search-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; }
+        .search-wrap { position: relative; flex: 1; }
+        .search-input {
+            width: 100%; padding: 11px 16px; background: #1a1a1a; border: 1px solid #2a2a2a;
+            color: white; border-radius: 10px; font-size: 13px; font-weight: 600; outline: none;
+            font-family: inherit; transition: border-color 0.15s;
+        }
+        .search-input:focus { border-color: #a855f7; }
+        .sort-select {
+            padding: 10px 12px; background: #1a1a1a; border: 1px solid #2a2a2a; color: #aaa;
+            border-radius: 10px; font-size: 11px; font-weight: 700; outline: none; font-family: inherit; cursor: pointer;
+        }
+        .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+        .tag-chip {
+            padding: 5px 12px; border-radius: 20px; background: #1c1c1e; border: 1px solid #2a2a2a;
+            color: #888; font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.15s;
+        }
+        .tag-chip:hover { color: #ccc; border-color: #444; }
+        .tag-chip.active { background: #a855f7; color: white; border-color: #a855f7; }
+
+        /* Section label */
+        .section-head {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #1e1e1e;
+        }
+        .section-head-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: #a855f7; }
+        .section-head-count { font-size: 11px; font-weight: 700; color: #444; }
+
+        /* Sprite grid */
+        .sprite-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 14px;
+        }
+        .sprite-card {
+            background: #161618; border: 2px solid #222; border-radius: 14px;
+            cursor: pointer; overflow: hidden; transition: 0.2s; position: relative;
+            aspect-ratio: 1;
+        }
+        .sprite-card:hover { border-color: #a855f7; transform: translateY(-3px); box-shadow: 0 8px 24px rgba(168,85,247,0.2); }
+        .sprite-card img { width: 100%; height: calc(100% - 44px); object-fit: contain; padding: 10px; opacity: 0; transition: opacity 0.25s; }
+        .sprite-card img.loaded { opacity: 1; }
+        .sprite-card-footer {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.85); padding: 6px 10px; height: 44px;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .sprite-card-name { font-size: 10px; font-weight: 800; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sprite-card-uploader { font-size: 9px; font-weight: 700; color: #a855f7; margin-top: 1px; }
+        .sprite-card-fav {
+            position: absolute; top: 7px; right: 7px; background: rgba(0,0,0,0.7);
+            border: 1px solid #333; border-radius: 50%; width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            font-size: 14px; transition: 0.15s; z-index: 5;
+            opacity: 0;
+        }
+        .sprite-card:hover .sprite-card-fav { opacity: 1; }
+        .sprite-card-fav.favorited { opacity: 1; color: #ff453a; border-color: rgba(255,69,58,0.4); background: rgba(255,69,58,0.1); }
+        .sprite-skeleton {
+            width: 100%; height: calc(100% - 44px);
+            background: linear-gradient(90deg, #1a1a1a 25%, #242424 50%, #1a1a1a 75%);
+            background-size: 200% 100%; animation: shimmer 1.4s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 60px 20px; color: #444; }
+        .empty-state .empty-icon { font-size: 48px; margin-bottom: 14px; }
+        .empty-state h3 { font-size: 16px; font-weight: 800; color: #555; margin-bottom: 6px; }
+        .empty-state p { font-size: 12px; font-weight: 600; }
+
+        /* ── Preview Overlay (right drawer) ── */
+        #preview-overlay {
+            position: fixed; top: 0; right: -100%; width: 380px; height: 100%;
+            background: #0a0a0c; border-left: 1px solid #1e1e1e;
+            z-index: 1000; transition: right 0.38s cubic-bezier(0.4,0,0.2,1);
+            padding: 0; overflow-y: auto; box-shadow: -20px 0 50px rgba(0,0,0,0.7);
+            display: flex; flex-direction: column;
+        }
+        #preview-overlay.open { right: 0; }
+        .prev-header {
+            padding: 16px 18px; border-bottom: 1px solid #1e1e1e;
+            display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+        }
+        .prev-close {
+            background: #1e1e1e; border: 1px solid #2a2a2a; color: #888; width: 30px; height: 30px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 14px; font-weight: 900;
+        }
+        .prev-close:hover { color: white; background: #2a2a2a; }
+        .prev-body { padding: 16px 18px; flex: 1; }
+        .prev-img {
+            width: 100%; aspect-ratio: 1; background: #111; border-radius: 14px;
+            object-fit: contain; border: 1px solid #1e1e1e; margin-bottom: 14px;
+        }
+        .prev-name { font-size: 18px; font-weight: 900; margin-bottom: 4px; }
+        .prev-uploader { font-size: 12px; color: #a855f7; font-weight: 700; margin-bottom: 12px; }
+        .prev-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+        .prev-tag {
+            background: #1a1a1a; border: 1px solid #2a2a2a; color: #888;
+            font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+        }
+        .prev-actions-title { font-size: 9px; font-weight: 900; color: #444; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .prev-actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+        .prev-action-chip { background: #111; border: 1px solid #1e1e1e; border-radius: 8px; padding: 7px 8px; text-align: center; }
+        .prev-action-chip img { width: 100%; height: 50px; object-fit: contain; margin-bottom: 4px; }
+        .prev-action-chip span { font-size: 9px; color: #666; font-weight: 700; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prev-btn {
+            width: 100%; padding: 14px; border-radius: 10px; font-weight: 900; font-size: 13px;
+            cursor: pointer; font-family: inherit; border: none; margin-bottom: 8px; transition: 0.15s;
+        }
+        .prev-btn.use { background: #a855f7; color: white; }
+        .prev-btn.use:hover { background: #9333ea; }
+        .prev-btn.fav { background: #1a1a1a; border: 1px solid #2a2a2a; color: #888; }
+        .prev-btn.fav:hover { background: #222; color: white; }
+        .prev-btn.fav.active { background: rgba(255,69,58,0.1); border-color: rgba(255,69,58,0.35); color: #ff453a; }
+        .admin-del-btn {
+            width: 100%; padding: 11px; background: #1a0a0a; border: 1px solid #3a1515;
+            color: #ff5555; border-radius: 8px; font-weight: 800; font-size: 10px;
+            cursor: pointer; font-family: inherit; letter-spacing: 1px; text-transform: uppercase; transition: 0.15s;
+        }
+        .admin-del-btn:hover { background: #2a1010; color: white; }
+
+        /* ── Sprite Editor panel (sidebar content) ── */
+        #editor-panel { display: none; }
+        #editor-panel.active { display: flex; flex-direction: column; gap: 8px; }
+
+        /* Toast */
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #1e1e1e; border: 1px solid #3a3a3c; color: white;
+            padding: 10px 20px; border-radius: 10px; font-size: 12px; font-weight: 700;
+            opacity: 0; transition: all 0.25s; z-index: 9000; pointer-events: none; white-space: nowrap;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main-content { padding: 14px 14px 80px; }
+            .sprite-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+            #preview-overlay { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+    <div class="top-bar-logo">Comic<span>Core</span></div>
+    <div class="top-bar-badge">🖼 Sprite Gallery</div>
+    <div class="top-bar-actions">
+        <a class="top-bar-btn" href="create.html">← Back to Create</a>
+        <button class="top-bar-btn purple" onclick="setSidebarView('upload')">⬆ Upload</button>
+    </div>
+</div>
+
+<div class="app-body">
+
+    <!-- ── SIDEBAR ── -->
+    <div class="sidebar">
+        <div class="sidebar-nav">
+            <div class="sb-section-label">Browse</div>
+            <button class="sb-nav-item active" id="nav-all" onclick="setNav('all')">
+                <span class="sb-nav-icon">🖼</span>All Sprites
+            </button>
+            <button class="sb-nav-item" id="nav-favorites" onclick="setNav('favorites')">
+                <span class="sb-nav-icon">❤️</span>Favorites
+            </button>
+            <div class="sb-divider"></div>
+            <div class="sb-section-label">Tools</div>
+            <button class="sb-nav-item" id="nav-upload" onclick="setSidebarView('upload')">
+                <span class="sb-nav-icon">⬆</span>Upload Sprite
+            </button>
+            <button class="sb-nav-item" id="nav-editor" onclick="setSidebarView('editor')">
+                <span class="sb-nav-icon">🎨</span>Sprite Editor
+            </button>
+        </div>
+
+        <!-- UPLOAD PANEL -->
+        <div class="upload-panel" id="upload-panel" style="display:none;">
+            <div class="upload-panel-title">⬆ Upload to Gallery</div>
+
+            <!-- Main image -->
+            <div class="up-field">
+                <div class="up-label">Main Sprite Image</div>
+                <div class="up-preview-box" id="up-preview-box" onclick="document.getElementById('up-file-input').click()">
+                    <div class="up-hint">Click to upload<br>PNG / GIF / WEBP</div>
+                </div>
+                <input type="file" id="up-file-input" accept="image/*" style="display:none;" onchange="handleUploadMain(this)">
+            </div>
+
+            <!-- Name -->
+            <div class="up-field">
+                <div class="up-label">Character Name</div>
+                <input class="up-input" type="text" id="up-name" placeholder="e.g. Shadow Knight">
+            </div>
+
+            <!-- Tags -->
+            <div class="up-field">
+                <div class="up-label">Tags (comma-separated)</div>
+                <input class="up-input" type="text" id="up-tags" placeholder="warrior, dark, fantasy">
+            </div>
+
+            <!-- Actions -->
+            <div class="up-field">
+                <div class="up-label">Action Frames (optional)</div>
+                <div class="actions-preview" id="up-actions-preview"></div>
+                <div style="display:flex;gap:6px;">
+                    <button class="up-btn secondary" style="margin:0;flex:1;font-size:10px;" onclick="document.getElementById('up-bulk-input').click()">+ Bulk Upload Actions</button>
+                    <button class="up-btn secondary" style="margin:0;flex:1;font-size:10px;" onclick="addActionSlotGallery()">+ Manual</button>
+                </div>
+                <input type="file" id="up-bulk-input" multiple accept="image/*" style="display:none;" onchange="handleBulkGallery(this)">
+            </div>
+
+            <button class="up-btn primary" id="up-submit-btn" onclick="submitGalleryUpload()">Publish to Gallery</button>
+        </div>
+
+        <!-- SPRITE EDITOR PANEL -->
+        <div class="upload-panel" id="editor-panel-wrap" style="display:none;">
+            <div class="upload-panel-title">🎨 Sprite Editor</div>
+            <p style="font-size:11px;color:#555;font-weight:700;line-height:1.6;margin-bottom:10px;">
+                Draw or pixel-edit your character, then upload it directly to the gallery.
+            </p>
+            <div style="width:100%;background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;overflow:hidden;margin-bottom:10px;">
+                <canvas id="sprite-editor-canvas" width="200" height="200" style="width:100%;image-rendering:pixelated;cursor:crosshair;touch-action:none;"></canvas>
+            </div>
+
+            <!-- Editor controls -->
+            <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">
+                <button class="up-btn secondary" id="ed-tool-pen" onclick="setEditorTool('pen')" style="flex:1;margin:0;padding:7px;font-size:10px;background:rgba(168,85,247,0.15);border-color:rgba(168,85,247,0.4);color:#a855f7;">✏️ Pen</button>
+                <button class="up-btn secondary" id="ed-tool-erase" onclick="setEditorTool('erase')" style="flex:1;margin:0;padding:7px;font-size:10px;">⬜ Erase</button>
+                <button class="up-btn secondary" id="ed-tool-fill" onclick="setEditorTool('fill')" style="flex:1;margin:0;padding:7px;font-size:10px;">🪣 Fill</button>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                <div class="up-label" style="margin:0;white-space:nowrap;">Color:</div>
+                <input type="color" id="ed-color" value="#ffffff" style="width:36px;height:28px;border:none;background:none;cursor:pointer;padding:0;">
+                <div class="up-label" style="margin:0;white-space:nowrap;">Size:</div>
+                <input type="range" id="ed-brush-size" min="1" max="16" value="2" style="flex:1;accent-color:#a855f7;">
+                <span id="ed-brush-label" style="font-size:10px;font-weight:800;color:#888;min-width:20px;">2</span>
+            </div>
+            <div style="display:flex;gap:5px;margin-bottom:10px;">
+                <button class="up-btn secondary" onclick="editorUndo()" style="flex:1;margin:0;padding:7px;font-size:10px;">↩ Undo</button>
+                <button class="up-btn secondary" onclick="editorClear()" style="flex:1;margin:0;padding:7px;font-size:10px;">🗑 Clear</button>
+                <button class="up-btn secondary" onclick="editorGridToggle()" style="flex:1;margin:0;padding:7px;font-size:10px;" id="ed-grid-btn">🔲 Grid</button>
+            </div>
+
+            <!-- Export as upload -->
+            <div class="up-label" style="margin-bottom:4px;">Name this sprite</div>
+            <input class="up-input" type="text" id="ed-sprite-name" placeholder="My custom sprite" style="margin-bottom:6px;">
+            <div class="up-label" style="margin-bottom:4px;">Tags</div>
+            <input class="up-input" type="text" id="ed-sprite-tags" placeholder="original, custom" style="margin-bottom:10px;">
+            <button class="up-btn primary" onclick="submitEditorSprite()">Upload Drawing to Gallery</button>
+        </div>
+    </div>
+
+    <!-- ── MAIN CONTENT ── -->
+    <div class="main-content" id="main-content">
+
+        <!-- All Sprites view -->
+        <div id="view-all">
+            <div class="page-header">
+                <div class="page-title">🖼 Sprite Gallery</div>
+                <div class="page-sub">Community-uploaded characters — browse, favorite, and use in your comics</div>
+            </div>
+            <div class="search-row">
+                <div class="search-wrap">
+                    <input class="search-input" id="gallery-search" placeholder="🔍 Search by name or tag..." oninput="filterGallery()" autocomplete="off">
+                </div>
+                <select class="sort-select" id="gallery-sort" onchange="filterGallery()">
+                    <option value="newest">Newest</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="az">A → Z</option>
+                    <option value="za">Z → A</option>
+                </select>
+            </div>
+            <div class="tag-row" id="gallery-tags"></div>
+            <div class="section-head">
+                <span class="section-head-title">All Sprites</span>
+                <span class="section-head-count" id="gallery-count"></span>
+            </div>
+            <div class="sprite-grid" id="gallery-grid">
+                <div class="empty-state" style="grid-column:1/-1;">
+                    <div class="empty-icon">⏳</div>
+                    <h3>Loading gallery…</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Favorites view -->
+        <div id="view-favorites" style="display:none;">
+            <div class="page-header">
+                <div class="page-title">❤️ Favorites</div>
+                <div class="page-sub">Sprites you've favorited — quick access in your creates</div>
+            </div>
+            <div class="section-head">
+                <span class="section-head-title">Favorited Sprites</span>
+                <span class="section-head-count" id="fav-count"></span>
+            </div>
+            <div class="sprite-grid" id="fav-grid">
+                <div class="empty-state" style="grid-column:1/-1;">
+                    <div class="empty-icon">💔</div>
+                    <h3>No favorites yet</h3>
+                    <p>Tap ❤️ on any sprite to favorite it</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ── PREVIEW OVERLAY ── -->
+<div id="preview-overlay">
+    <div class="prev-header">
+        <div style="font-size:13px;font-weight:900;color:#a855f7;">Sprite Preview</div>
+        <div class="prev-close" onclick="closePreview()">✕</div>
+    </div>
+    <div class="prev-body">
+        <img class="prev-img" id="prev-img" src="">
+        <div class="prev-name" id="prev-name"></div>
+        <div class="prev-uploader" id="prev-uploader"></div>
+        <div class="prev-tags" id="prev-tags"></div>
+        <div class="prev-actions-title">Actions / Poses</div>
+        <div class="prev-actions-grid" id="prev-actions"></div>
+        <button class="prev-btn use" onclick="useSprite()">▶ Use in Create</button>
+        <button class="prev-btn fav" id="prev-fav-btn" onclick="toggleFavFromPreview()">❤️ Add to Favorites</button>
+        <div id="prev-admin"></div>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+    const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
+    const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    const ADMIN_ID = "de0b7378-e779-4e0d-9e3d-b33bf643df3e";
+    const GALLERY_TABLE = 'sprites_gallery';
+    const FAV_KEY = 'cc_gallery_favorites_v1';
+    const GALLERY_CACHE_KEY = 'cc_gallery_meta_v1';
+    const GALLERY_CACHE_TTL = 8 * 60 * 1000;
+
+    let allGallerySprites = [];
+    let allGalleryTags = new Set();
+    let galleryTagCounts = {};
+    let activeTagFilter = null;
+    let favorites = new Set();
+    let currentPreviewItem = null;
+    let myHandle = null;
+    let isAdmin = false;
+    let galleryUploadBase64 = '';
+    let galleryUploadActions = [];
+    let currentNav = 'all';
+
+    // ── Init ──
+    window.addEventListener('load', async () => {
+        const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        myHandle = user.handle || null;
+
+        try {
+            const { data: { user: authUser } } = await _supabase.auth.getUser();
+            if (authUser) isAdmin = authUser.id === ADMIN_ID;
+        } catch(e) {}
+        if (!isAdmin && (user.handle || '').toLowerCase().replace('@','') === 'jeffyplays') isAdmin = true;
+
+        // Load favorites from local storage
+        try { favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch(e) {}
+
+        fetchGallery();
+    });
+
+    // ── Navigation ──
+    function setNav(name) {
+        currentNav = name;
+        document.querySelectorAll('.sb-nav-item[id^="nav-"]').forEach(b => b.classList.remove('active'));
+        const btn = document.getElementById('nav-' + name);
+        if (btn) btn.classList.add('active');
+
+        document.getElementById('view-all').style.display = name === 'all' ? '' : 'none';
+        document.getElementById('view-favorites').style.display = name === 'favorites' ? '' : 'none';
+
+        if (name === 'favorites') renderFavoritesGrid();
+    }
+
+    function setSidebarView(view) {
+        // Deactivate nav items for tools
+        document.querySelectorAll('.sb-nav-item').forEach(b => b.classList.remove('active'));
+        document.getElementById('nav-' + view)?.classList.add('active');
+
+        document.getElementById('upload-panel').style.display = view === 'upload' ? '' : 'none';
+        document.getElementById('editor-panel-wrap').style.display = view === 'editor' ? '' : 'none';
+
+        if (view === 'editor') initSpriteEditor();
+    }
+
+    // ── Toast ──
+    function showToast(msg, dur = 2200) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), dur);
+    }
+
+    // ── Caching ──
+    function saveGalleryCache(data) {
+        const lean = (data||[]).map(({id,name,tags,uploader,created_at}) => ({id,name,tags,uploader,created_at}));
+        try { localStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
+    }
+    function loadGalleryCache() {
+        try {
+            const raw = localStorage.getItem(GALLERY_CACHE_KEY);
+            if (!raw) return null;
+            const p = JSON.parse(raw);
+            if (Date.now() - p.ts > GALLERY_CACHE_TTL) { localStorage.removeItem(GALLERY_CACHE_KEY); return null; }
+            return p.data;
+        } catch(e) { return null; }
+    }
+
+    // ── Fetch Gallery ──
+    async function fetchGallery() {
+        const cached = loadGalleryCache();
+        if (cached) { allGallerySprites = cached; initGalleryAfterFetch(); }
+
+        const { data } = await _supabase
+            .from(GALLERY_TABLE)
+            .select('id, name, tags, uploader, created_at')
+            .order('created_at', { ascending: false });
+
+        const fresh = data || [];
+        const changed = !cached || fresh.length !== allGallerySprites.length ||
+            fresh.some(s => !allGallerySprites.find(g => g.id === s.id));
+
+        if (changed) {
+            allGallerySprites = fresh;
+            saveGalleryCache(fresh);
+            initGalleryAfterFetch();
+        }
+    }
+
+    function initGalleryAfterFetch() {
+        allGalleryTags = new Set();
+        galleryTagCounts = {};
+        allGallerySprites.forEach(s => {
+            (s.tags || []).forEach(t => {
+                allGalleryTags.add(t);
+                galleryTagCounts[t] = (galleryTagCounts[t] || 0) + 1;
+            });
+        });
+        renderTagChips();
+        filterGallery();
+    }
+
+    function renderTagChips() {
+        const row = document.getElementById('gallery-tags');
+        const sorted = [...allGalleryTags].sort((a,b) => (galleryTagCounts[b]||0)-(galleryTagCounts[a]||0)).slice(0,12);
+        let html = `<button class="tag-chip ${!activeTagFilter?'active':''}" onclick="pickTag(null)">All</button>`;
+        html += sorted.map(t => `<button class="tag-chip ${activeTagFilter===t?'active':''}" onclick="pickTag('${t}')">${t}</button>`).join('');
+        row.innerHTML = html;
+    }
+
+    function pickTag(tag) {
+        activeTagFilter = tag;
+        renderTagChips();
+        filterGallery();
+    }
+
+    function filterGallery() {
+        const q = document.getElementById('gallery-search').value.toLowerCase().trim();
+        const sort = document.getElementById('gallery-sort').value;
+        let list = [...allGallerySprites];
+        if (activeTagFilter) list = list.filter(s => (s.tags||[]).includes(activeTagFilter));
+        if (q) list = list.filter(s => s.name.toLowerCase().includes(q) || (s.tags||[]).some(t => t.includes(q)));
+        if (sort === 'az') list.sort((a,b) => a.name.localeCompare(b.name));
+        else if (sort === 'za') list.sort((a,b) => b.name.localeCompare(a.name));
+        else if (sort === 'oldest') list.sort((a,b) => new Date(a.created_at)-new Date(b.created_at));
+        renderGalleryGrid(list);
+        document.getElementById('gallery-count').textContent = list.length + ' sprite' + (list.length!==1?'s':'');
+    }
+
+    // Lazy image cache
+    const imgCache = new Map();
+    async function fetchSpriteImage(id) {
+        if (imgCache.has(id)) return imgCache.get(id);
+        const {data} = await _supabase.from(GALLERY_TABLE).select('id,image_data,actions').eq('id',id).single();
+        if (data) {
+            imgCache.set(id, data);
+            return data;
+        }
+        return null;
+    }
+
+    const lazyObs = new IntersectionObserver(entries => {
+        entries.forEach(async entry => {
+            if (!entry.isIntersecting) return;
+            lazyObs.unobserve(entry.target);
+            const id = entry.target.dataset.id;
+            const data = await fetchSpriteImage(id);
+            if (!data) return;
+            const skel = entry.target.querySelector('.sprite-skeleton');
+            if (skel) {
+                const img = document.createElement('img');
+                img.onload = () => { skel.replaceWith(img); img.classList.add('loaded'); };
+                img.src = data.image_data;
+                img.style.cssText = 'width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;';
+            }
+        });
+    }, { rootMargin: '400px 0px' });
+
+    function renderGalleryGrid(sprites) {
+        const grid = document.getElementById('gallery-grid');
+        if (!sprites.length) {
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🔍</div><h3>No sprites found</h3><p>Try a different search or tag</p></div>`;
+            return;
+        }
+        grid.innerHTML = '';
+        sprites.forEach(item => {
+            const isFav = favorites.has(item.id);
+            const card = document.createElement('div');
+            card.className = 'sprite-card';
+            card.dataset.id = item.id;
+
+            const cached = imgCache.get(item.id);
+            const imgHtml = cached
+                ? `<img src="${cached.image_data}" class="loaded" style="width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;">`
+                : `<div class="sprite-skeleton"></div>`;
+
+            card.innerHTML = `
+                ${imgHtml}
+                <button class="sprite-card-fav ${isFav?'favorited':''}" onclick="toggleFav(event,'${item.id}')">${isFav?'❤️':'🤍'}</button>
+                <div class="sprite-card-footer">
+                    <div class="sprite-card-name">${item.name}</div>
+                    <div class="sprite-card-uploader">@${item.uploader || 'unknown'}</div>
+                </div>
+            `;
+            card.addEventListener('click', () => openPreview(item));
+            if (!cached) lazyObs.observe(card);
+            grid.appendChild(card);
+        });
+    }
+
+    function renderFavoritesGrid() {
+        const grid = document.getElementById('fav-grid');
+        const favList = allGallerySprites.filter(s => favorites.has(s.id));
+        document.getElementById('fav-count').textContent = favList.length + ' sprite' + (favList.length!==1?'s':'');
+        if (!favList.length) {
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">💔</div><h3>No favorites yet</h3><p>Tap ❤️ on any sprite to favorite it</p></div>`;
+            return;
+        }
+        grid.innerHTML = '';
+        favList.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'sprite-card';
+            card.dataset.id = item.id;
+            const cached = imgCache.get(item.id);
+            const imgHtml = cached
+                ? `<img src="${cached.image_data}" class="loaded" style="width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;">`
+                : `<div class="sprite-skeleton"></div>`;
+            card.innerHTML = `
+                ${imgHtml}
+                <button class="sprite-card-fav favorited" onclick="toggleFav(event,'${item.id}')">❤️</button>
+                <div class="sprite-card-footer">
+                    <div class="sprite-card-name">${item.name}</div>
+                    <div class="sprite-card-uploader">@${item.uploader || 'unknown'}</div>
+                </div>
+            `;
+            card.addEventListener('click', () => openPreview(item));
+            if (!cached) lazyObs.observe(card);
+            grid.appendChild(card);
+        });
+    }
+
+    // ── Favorites ──
+    function saveFavorites() {
+        try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch(e) {}
+    }
+
+    function toggleFav(e, id) {
+        e.stopPropagation();
+        if (favorites.has(id)) {
+            favorites.delete(id);
+            showToast('💔 Removed from favorites');
+        } else {
+            favorites.add(id);
+            showToast('❤️ Added to favorites!');
+        }
+        saveFavorites();
+        // Update card button
+        const card = document.querySelector(`.sprite-card[data-id="${id}"]`);
+        if (card) {
+            const btn = card.querySelector('.sprite-card-fav');
+            if (btn) {
+                btn.textContent = favorites.has(id) ? '❤️' : '🤍';
+                btn.classList.toggle('favorited', favorites.has(id));
+            }
+        }
+        // Update preview button if open
+        if (currentPreviewItem?.id === id) updateFavBtn();
+        if (currentNav === 'favorites') renderFavoritesGrid();
+    }
+
+    function toggleFavFromPreview() {
+        if (!currentPreviewItem) return;
+        toggleFav({ stopPropagation: ()=>{} }, currentPreviewItem.id);
+    }
+
+    function updateFavBtn() {
+        const btn = document.getElementById('prev-fav-btn');
+        if (!btn || !currentPreviewItem) return;
+        const isFav = favorites.has(currentPreviewItem.id);
+        btn.textContent = isFav ? '❤️ Favorited' : '❤️ Add to Favorites';
+        btn.classList.toggle('active', isFav);
+    }
+
+    // ── Preview ──
+    async function openPreview(item) {
+        currentPreviewItem = item;
+        document.getElementById('preview-overlay').classList.add('open');
+        document.getElementById('prev-img').src = '';
+        document.getElementById('prev-name').textContent = item.name;
+        document.getElementById('prev-uploader').textContent = '@' + (item.uploader || 'unknown');
+        document.getElementById('prev-tags').innerHTML = (item.tags||[]).map(t => `<span class="prev-tag">${t}</span>`).join('');
+        document.getElementById('prev-actions').innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">Loading…</div>';
+
+        // Admin delete
+        const adminDiv = document.getElementById('prev-admin');
+        adminDiv.innerHTML = '';
+        if (isAdmin) {
+            const del = document.createElement('button');
+            del.className = 'admin-del-btn';
+            del.textContent = 'DELETE FROM GALLERY';
+            del.style.marginTop = '8px';
+            del.onclick = () => deleteGallerySprite(item.id);
+            adminDiv.appendChild(del);
+        }
+
+        updateFavBtn();
+
+        const full = imgCache.get(item.id) || await fetchSpriteImage(item.id);
+        if (full?.image_data) document.getElementById('prev-img').src = full.image_data;
+
+        const actGrid = document.getElementById('prev-actions');
+        actGrid.innerHTML = '';
+        let actions = full?.actions;
+        if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) {}
+        if (actions && Object.keys(actions).length) {
+            Object.entries(actions).forEach(([k,v]) => {
+                const chip = document.createElement('div');
+                chip.className = 'prev-action-chip';
+                chip.innerHTML = `<img src="${v}" loading="lazy"><span>${k}</span>`;
+                actGrid.appendChild(chip);
+            });
+        } else {
+            actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">No actions</div>';
+        }
+    }
+
+    function closePreview() {
+        document.getElementById('preview-overlay').classList.remove('open');
+        currentPreviewItem = null;
+    }
+
+    function useSprite() {
+        if (!currentPreviewItem) return;
+        const full = imgCache.get(currentPreviewItem.id);
+        localStorage.setItem('incoming_sprite_pack', JSON.stringify({ ...currentPreviewItem, ...(full||{}) }));
+        window.location.href = 'create.html';
+    }
+
+    // ── Admin Delete ──
+    async function deleteGallerySprite(id) {
+        if (!confirm('Delete this sprite from the gallery?')) return;
+        const { error } = await _supabase.from(GALLERY_TABLE).delete().eq('id', id);
+        if (error) { showToast('❌ Delete failed: ' + error.message); return; }
+        allGallerySprites = allGallerySprites.filter(s => s.id !== id);
+        saveGalleryCache(allGallerySprites);
+        imgCache.delete(id);
+        favorites.delete(id);
+        saveFavorites();
+        closePreview();
+        filterGallery();
+        showToast('🗑 Sprite deleted');
+    }
+
+    // ── Upload ──
+    function handleUploadMain(input) {
+        if (!input.files || !input.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            galleryUploadBase64 = e.target.result;
+            const box = document.getElementById('up-preview-box');
+            box.innerHTML = `<img src="${galleryUploadBase64}">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+
+    function handleBulkGallery(input) {
+        Array.from(input.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = e => addGalleryActionItem(file.name.split('.')[0], e.target.result);
+            reader.readAsDataURL(file);
+        });
+        input.value = '';
+    }
+
+    function addActionSlotGallery() { addGalleryActionItem('', ''); }
+
+    function addGalleryActionItem(name, base64) {
+        galleryUploadActions.push({ name, base64 });
+        renderGalleryActionsPreview();
+    }
+
+    function renderGalleryActionsPreview() {
+        const preview = document.getElementById('up-actions-preview');
+        preview.innerHTML = '';
+        galleryUploadActions.forEach((act, i) => {
+            const chip = document.createElement('div');
+            chip.className = 'action-chip';
+            chip.innerHTML = `
+                ${act.base64 ? `<img src="${act.base64}">` : ''}
+                <input type="text" value="${act.name}" placeholder="Action name" oninput="galleryUploadActions[${i}].name=this.value">
+                <span onclick="galleryUploadActions.splice(${i},1);renderGalleryActionsPreview()">✕</span>
+            `;
+            preview.appendChild(chip);
+        });
+    }
+
+    async function uploadToGalleryStorage(path, base64) {
+        const res = await fetch(base64);
+        const blob = await res.blob();
+        const { error } = await _supabase.storage.from('sprites').upload(path, blob, { upsert: true, cacheControl: '3600' });
+        if (error) return null;
+        return _supabase.storage.from('sprites').getPublicUrl(path).data.publicUrl;
+    }
+
+    async function submitGalleryUpload() {
+        const name = document.getElementById('up-name').value.trim();
+        const tagsRaw = document.getElementById('up-tags').value;
+        const tags = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+        const btn = document.getElementById('up-submit-btn');
+
+        if (!name || !galleryUploadBase64) { showToast('⚠️ Name and image required!'); return; }
+        if (!myHandle) { showToast('⚠️ Log in to upload sprites'); return; }
+
+        btn.disabled = true;
+        btn.textContent = 'Uploading…';
+
+        const safeName = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+        const mainUrl = await uploadToGalleryStorage('gallery/' + safeName + '_' + Date.now() + '/main.png', galleryUploadBase64);
+        if (!mainUrl) { showToast('❌ Upload failed'); btn.disabled=false; btn.textContent='Publish to Gallery'; return; }
+
+        // Upload actions
+        const actionsObj = {};
+        for (let i = 0; i < galleryUploadActions.length; i++) {
+            const act = galleryUploadActions[i];
+            if (!act.base64) continue;
+            btn.textContent = 'Uploading actions (' + (i+1) + '/' + galleryUploadActions.length + ')…';
+            const safeAct = (act.name||'action').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+            const url = await uploadToGalleryStorage('gallery/' + safeName + '/actions/' + safeAct + '.png', act.base64);
+            if (url) actionsObj[act.name || 'Action ' + (i+1)] = url;
+        }
+
+        btn.textContent = 'Saving…';
+        const { error } = await _supabase.from(GALLERY_TABLE).insert([{
+            name,
+            image_data: mainUrl,
+            actions: actionsObj,
+            uploader: myHandle.replace('@',''),
+            tags
+        }]);
+
+        if (error) {
+            showToast('❌ ' + error.message);
+            btn.disabled = false;
+            btn.textContent = 'Publish to Gallery';
+        } else {
+            showToast('✅ Sprite published to Gallery!');
+            // Reset form
+            galleryUploadBase64 = '';
+            galleryUploadActions = [];
+            document.getElementById('up-name').value = '';
+            document.getElementById('up-tags').value = '';
+            document.getElementById('up-preview-box').innerHTML = '<div class="up-hint">Click to upload<br>PNG / GIF / WEBP</div>';
+            document.getElementById('up-actions-preview').innerHTML = '';
+            btn.disabled = false;
+            btn.textContent = 'Publish to Gallery';
+            localStorage.removeItem(GALLERY_CACHE_KEY);
+            await fetchGallery();
+        }
+    }
+
+    // ── Sprite Editor ──
+    let edCanvas, edCtx, edTool = 'pen', edBrushSize = 2, edColor = '#ffffff';
+    let edDrawing = false, edHistory = [], edGridOn = false;
+
+    function initSpriteEditor() {
+        if (edCanvas) return; // already init
+        edCanvas = document.getElementById('sprite-editor-canvas');
+        edCtx = edCanvas.getContext('2d');
+        edCtx.fillStyle = '#000000';
+        edCtx.fillRect(0, 0, 200, 200);
+        edHistory.push(edCtx.getImageData(0, 0, 200, 200));
+
+        const brushSlider = document.getElementById('ed-brush-size');
+        brushSlider.addEventListener('input', e => {
+            edBrushSize = parseInt(e.target.value);
+            document.getElementById('ed-brush-label').textContent = edBrushSize;
+        });
+        document.getElementById('ed-color').addEventListener('input', e => edColor = e.target.value);
+
+        // Mouse
+        edCanvas.addEventListener('mousedown', e => { edDrawing = true; edDraw(e); });
+        edCanvas.addEventListener('mousemove', e => { if (edDrawing) edDraw(e); });
+        edCanvas.addEventListener('mouseup', () => { if (edDrawing) { edDrawing = false; edSaveHistory(); } });
+        edCanvas.addEventListener('mouseleave', () => { if (edDrawing) { edDrawing = false; edSaveHistory(); } });
+
+        // Touch
+        edCanvas.addEventListener('touchstart', e => { edDrawing = true; edDrawTouch(e); }, { passive: false });
+        edCanvas.addEventListener('touchmove', e => { if (edDrawing) edDrawTouch(e); e.preventDefault(); }, { passive: false });
+        edCanvas.addEventListener('touchend', () => { if (edDrawing) { edDrawing = false; edSaveHistory(); } });
+    }
+
+    function setEditorTool(tool) {
+        edTool = tool;
+        ['pen','erase','fill'].forEach(t => {
+            const btn = document.getElementById('ed-tool-' + t);
+            if (!btn) return;
+            btn.style.background = t === tool ? 'rgba(168,85,247,0.15)' : '';
+            btn.style.borderColor = t === tool ? 'rgba(168,85,247,0.4)' : '';
+            btn.style.color = t === tool ? '#a855f7' : '';
+        });
+    }
+
+    function edGetPos(e) {
+        const rect = edCanvas.getBoundingClientRect();
+        const scaleX = 200 / rect.width;
+        const scaleY = 200 / rect.height;
+        return {
+            x: Math.floor((e.clientX - rect.left) * scaleX),
+            y: Math.floor((e.clientY - rect.top) * scaleY)
+        };
+    }
+    function edGetPosTouch(e) {
+        const touch = e.touches[0];
+        const rect = edCanvas.getBoundingClientRect();
+        const scaleX = 200 / rect.width;
+        const scaleY = 200 / rect.height;
+        return {
+            x: Math.floor((touch.clientX - rect.left) * scaleX),
+            y: Math.floor((touch.clientY - rect.top) * scaleY)
+        };
+    }
+
+    function edDraw(e) {
+        const {x,y} = edGetPos(e);
+        edApply(x, y);
+    }
+    function edDrawTouch(e) {
+        const {x,y} = edGetPosTouch(e);
+        edApply(x, y);
+    }
+
+    function edApply(x, y) {
+        if (edTool === 'fill') { edFloodFill(x, y, edColor); return; }
+        edCtx.globalCompositeOperation = edTool === 'erase' ? 'destination-out' : 'source-over';
+        edCtx.fillStyle = edColor;
+        const half = Math.floor(edBrushSize / 2);
+        edCtx.fillRect(x - half, y - half, edBrushSize, edBrushSize);
+        edCtx.globalCompositeOperation = 'source-over';
+    }
+
+    function edFloodFill(startX, startY, fillColor) {
+        const imgData = edCtx.getImageData(0, 0, 200, 200);
+        const data = imgData.data;
+        const idx = (startY * 200 + startX) * 4;
+        const sr = data[idx], sg = data[idx+1], sb = data[idx+2], sa = data[idx+3];
+        const fc = hexToRgb(fillColor);
+        if (sr===fc.r && sg===fc.g && sb===fc.b && sa===255) return;
+        const stack = [[startX, startY]];
+        while (stack.length) {
+            const [cx, cy] = stack.pop();
+            if (cx<0||cy<0||cx>=200||cy>=200) continue;
+            const ci = (cy*200+cx)*4;
+            if (data[ci]!==sr||data[ci+1]!==sg||data[ci+2]!==sb||data[ci+3]!==sa) continue;
+            data[ci]=fc.r; data[ci+1]=fc.g; data[ci+2]=fc.b; data[ci+3]=255;
+            stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+        }
+        edCtx.putImageData(imgData, 0, 0);
+        edSaveHistory();
+    }
+
+    function hexToRgb(hex) {
+        const r = parseInt(hex.slice(1,3),16);
+        const g = parseInt(hex.slice(3,5),16);
+        const b = parseInt(hex.slice(5,7),16);
+        return {r,g,b};
+    }
+
+    function edSaveHistory() {
+        edHistory.push(edCtx.getImageData(0, 0, 200, 200));
+        if (edHistory.length > 50) edHistory.shift();
+    }
+
+    function editorUndo() {
+        if (edHistory.length <= 1) return;
+        edHistory.pop();
+        edCtx.putImageData(edHistory[edHistory.length-1], 0, 0);
+    }
+
+    function editorClear() {
+        edCtx.fillStyle = '#000000';
+        edCtx.fillRect(0, 0, 200, 200);
+        edSaveHistory();
+    }
+
+    function editorGridToggle() {
+        edGridOn = !edGridOn;
+        const btn = document.getElementById('ed-grid-btn');
+        btn.style.color = edGridOn ? '#a855f7' : '';
+        // Draw grid overlay via a second canvas or just re-render
+        renderEditorGrid();
+    }
+
+    function renderEditorGrid() {
+        if (!edGridOn) return;
+        edCtx.save();
+        edCtx.globalAlpha = 0.15;
+        edCtx.strokeStyle = '#aaa';
+        edCtx.lineWidth = 0.5;
+        for (let x = 0; x <= 200; x += 8) {
+            edCtx.beginPath(); edCtx.moveTo(x,0); edCtx.lineTo(x,200); edCtx.stroke();
+        }
+        for (let y = 0; y <= 200; y += 8) {
+            edCtx.beginPath(); edCtx.moveTo(0,y); edCtx.lineTo(200,y); edCtx.stroke();
+        }
+        edCtx.restore();
+    }
+
+    async function submitEditorSprite() {
+        const name = document.getElementById('ed-sprite-name').value.trim();
+        const tagsRaw = document.getElementById('ed-sprite-tags').value;
+        const tags = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+
+        if (!name) { showToast('⚠️ Please name your sprite first'); return; }
+        if (!myHandle) { showToast('⚠️ Log in to upload sprites'); return; }
+
+        const base64 = edCanvas.toDataURL('image/png');
+        const safeName = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+        const mainUrl = await uploadToGalleryStorage('gallery/' + safeName + '_' + Date.now() + '/main.png', base64);
+        if (!mainUrl) { showToast('❌ Upload failed'); return; }
+
+        const { error } = await _supabase.from(GALLERY_TABLE).insert([{
+            name, image_data: mainUrl, actions: {},
+            uploader: myHandle.replace('@',''), tags
+        }]);
+
+        if (error) { showToast('❌ ' + error.message); }
+        else {
+            showToast('✅ Sprite uploaded to Gallery!');
+            document.getElementById('ed-sprite-name').value = '';
+            document.getElementById('ed-sprite-tags').value = '';
+            localStorage.removeItem(GALLERY_CACHE_KEY);
+            await fetchGallery();
+        }
+    }
+</script>
+
+</body>
+</html>

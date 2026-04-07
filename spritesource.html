@@ -1145,7 +1145,7 @@
                 </div>
                 <div class="my-pack-actions">
                     <button class="my-pack-btn" onclick="openEditPackModal('${pack.id}')">✏️ Edit</button>
-                    <button class="my-pack-btn danger" onclick="deleteMyPack('${pack.id}', '${pack.name.replace(/'/g,"\\'")}')">🗑</button>
+                    <button class="my-pack-btn danger" onclick="deleteMyPack('${pack.id}', '${pack.name.replace(/'/g,"\'")}')">🗑</button>
                 </div>
             `;
             grid.appendChild(row);
@@ -1693,12 +1693,17 @@
             return;
         }
 
-        btn.textContent = 'Inserting into gallery…';
-        const { error: insertErr } = await _supabase.from('sprites_gallery').insert(toInsert);
-        if (insertErr) {
-            alert('Gallery insert failed: ' + insertErr.message);
-            btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
-            return;
+        // Insert in chunks of 10 to avoid statement timeout
+        const CHUNK = 10;
+        for (let i = 0; i < toInsert.length; i += CHUNK) {
+            const chunk = toInsert.slice(i, i + CHUNK);
+            btn.textContent = `Inserting… (${Math.min(i + CHUNK, toInsert.length)}/${toInsert.length})`;
+            const { error: insertErr } = await _supabase.from('sprites_gallery').insert(chunk);
+            if (insertErr) {
+                alert(`Gallery insert failed at batch ${Math.floor(i/CHUNK)+1}: ${insertErr.message}\n\n${i} sprites were already inserted.`);
+                btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
+                return;
+            }
         }
 
         btn.textContent = 'Removing from library…';
