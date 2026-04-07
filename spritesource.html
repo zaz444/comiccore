@@ -372,6 +372,48 @@
             </div>
         </div>
 
+        <!-- ── MOVE TO GALLERY ── -->
+        <div class="pack-section" id="move-to-gallery-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div class="pack-section-title" style="margin-bottom:0;">🚚 Move to Sprite Gallery</div>
+                <div style="display:flex;gap:6px;">
+                    <button onclick="mtgSelectAll()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:5px 10px;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Select All</button>
+                    <button onclick="mtgDeselectAll()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:5px 10px;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;">Deselect All</button>
+                </div>
+            </div>
+            <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:10px;">
+                Pick sprites from the library and <strong style="color:#a855f7;">move</strong> them to the Sprite Gallery — they'll be removed from the library after.
+            </div>
+
+            <input type="text" id="mtg-search" placeholder="🔍 Filter sprites..." oninput="filterMtgGrid()"
+                style="width:100%;padding:8px 12px;background:#111;border:1px solid #222;color:white;border-radius:6px;font-size:11px;outline:none;margin-bottom:8px;box-sizing:border-box;font-family:inherit;">
+
+            <div id="mtg-grid" style="
+                display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));
+                gap:8px;max-height:320px;overflow-y:auto;
+                border:1px solid #1a1a1a;border-radius:10px;padding:8px;background:#070707;
+                margin-bottom:10px;
+            "></div>
+
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="font-size:10px;font-weight:800;color:#888;">
+                    Selected: <span id="mtg-sel-count" style="color:#a855f7;">0</span>
+                </div>
+                <div style="flex:1;min-width:130px;">
+                    <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Gallery Uploader</div>
+                    <select id="mtg-uploader" style="width:100%;padding:7px 10px;background:#111;border:1px solid #333;color:white;border-radius:6px;font-size:11px;outline:none;font-family:inherit;">
+                        <option value="bigboy18">bigboy18</option>
+                        <option value="yuno">yuno</option>
+                        <option value="slosh">slosh</option>
+                    </select>
+                </div>
+                <button onclick="moveSelectedToGallery()" id="mtg-move-btn"
+                    style="padding:10px 16px;background:#a855f7;color:white;border:none;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:0.15s;">
+                    🚚 Move to Gallery
+                </button>
+            </div>
+        </div>
+
     </div><!-- /#admin-panel -->
 
     <div class="search-wrap">
@@ -959,6 +1001,8 @@
         else { renderPublicGrid(allSprites); document.getElementById('sprite-count').innerText = allSprites.length + ' packs'; }
         // Populate sprite picker for pack creator (admin only, no-op if grid doesn't exist)
         if (isAdmin && document.getElementById('pack-picker-grid')) initPackPicker();
+        // Populate Move-to-Gallery grid (admin only)
+        if (isAdmin && document.getElementById('mtg-grid')) initMtgGrid();
     }
 
     function renderPublicGrid(sprites) {
@@ -1525,6 +1569,166 @@
             `;
             list.appendChild(chip);
         });
+    }
+
+    // ── Move to Gallery ──────────────────────────────────────────────────────
+
+    let mtgSelected = new Set();
+    let mtgAll = [];
+
+    function initMtgGrid() {
+        mtgAll = [...allSprites];
+        renderMtgGrid(mtgAll);
+    }
+
+    function filterMtgGrid() {
+        const q = document.getElementById('mtg-search').value.toLowerCase().trim();
+        const filtered = q
+            ? mtgAll.filter(s => s.name.toLowerCase().includes(q) || (s.tags||[]).some(t => t.includes(q)))
+            : mtgAll;
+        renderMtgGrid(filtered);
+    }
+
+    function renderMtgGrid(sprites) {
+        const grid = document.getElementById('mtg-grid');
+        if (!sprites.length) {
+            grid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:20px;text-align:center;">No sprites</div>';
+            return;
+        }
+        grid.innerHTML = '';
+        sprites.forEach(item => {
+            const isSelected = mtgSelected.has(item.id);
+            const card = document.createElement('div');
+            card.className = 'pack-picker-card';
+            card.dataset.id = item.id;
+            card.style.outline = isSelected ? '2px solid #a855f7' : '';
+            card.style.background = isSelected ? 'rgba(168,85,247,0.1)' : '';
+
+            // Checkbox
+            const check = document.createElement('div');
+            check.style.cssText = `position:absolute;top:4px;left:4px;width:16px;height:16px;border-radius:4px;border:2px solid ${isSelected?'#a855f7':'#333'};background:${isSelected?'#a855f7':'rgba(0,0,0,0.7)'};display:flex;align-items:center;justify-content:center;font-size:10px;z-index:5;pointer-events:none;color:white;font-weight:900;`;
+            check.textContent = isSelected ? '✓' : '';
+
+            const cachedSrc = item.image_data || getCachedImage(item.id);
+            const img = document.createElement('img');
+            img.style.cssText = 'width:100%;height:100%;object-fit:contain;padding:6px;box-sizing:border-box;';
+            if (cachedSrc) { img.src = cachedSrc; img.classList.add('loaded'); }
+            else { lazyObserver.observe(card); }
+
+            const label = document.createElement('div');
+            label.className = 'pc-label';
+            label.textContent = item.name;
+
+            card.appendChild(check);
+            card.appendChild(img);
+            card.appendChild(label);
+
+            card.onclick = () => {
+                if (mtgSelected.has(item.id)) mtgSelected.delete(item.id);
+                else mtgSelected.add(item.id);
+                const sel = mtgSelected.has(item.id);
+                card.style.outline = sel ? '2px solid #a855f7' : '';
+                card.style.background = sel ? 'rgba(168,85,247,0.1)' : '';
+                check.style.borderColor = sel ? '#a855f7' : '#333';
+                check.style.background = sel ? '#a855f7' : 'rgba(0,0,0,0.7)';
+                check.textContent = sel ? '✓' : '';
+                updateMtgCount();
+            };
+
+            grid.appendChild(card);
+        });
+    }
+
+    function mtgSelectAll() {
+        // Select everything currently in mtgAll (respects search filter)
+        const q = document.getElementById('mtg-search').value.toLowerCase().trim();
+        const visible = q
+            ? mtgAll.filter(s => s.name.toLowerCase().includes(q) || (s.tags||[]).some(t => t.includes(q)))
+            : mtgAll;
+        visible.forEach(s => mtgSelected.add(s.id));
+        updateMtgCount();
+        filterMtgGrid();
+    }
+
+    function mtgDeselectAll() {
+        mtgSelected.clear();
+        updateMtgCount();
+        filterMtgGrid();
+    }
+
+    function updateMtgCount() {
+        const el = document.getElementById('mtg-sel-count');
+        if (el) el.textContent = mtgSelected.size;
+    }
+
+    async function moveSelectedToGallery() {
+        if (!mtgSelected.size) { alert('No sprites selected!'); return; }
+        const uploader = document.getElementById('mtg-uploader').value;
+        const btn = document.getElementById('mtg-move-btn');
+        const ids = [...mtgSelected];
+
+        if (!confirm(`Move ${ids.length} sprite${ids.length!==1?'s':''} to the Sprite Gallery as "@${uploader}"?\n\nThey will be removed from the Sprite Library.`)) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Fetching sprites…';
+
+        const toInsert = [];
+        for (let i = 0; i < ids.length; i++) {
+            btn.textContent = `Fetching (${i+1}/${ids.length})…`;
+            const full = await fetchFullSprite(ids[i]);
+            const meta = allSprites.find(s => s.id === ids[i]);
+            if (!full || !meta) continue;
+            toInsert.push({
+                name: meta.name,
+                image_data: full.image_data || '',
+                actions: full.actions || {},
+                uploader: uploader,
+                tags: meta.tags || []
+            });
+        }
+
+        if (!toInsert.length) {
+            alert('Could not fetch sprite data. Try again.');
+            btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
+            return;
+        }
+
+        btn.textContent = 'Inserting into gallery…';
+        const { error: insertErr } = await _supabase.from('sprites_gallery').insert(toInsert);
+        if (insertErr) {
+            alert('Gallery insert failed: ' + insertErr.message);
+            btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
+            return;
+        }
+
+        btn.textContent = 'Removing from library…';
+        const { error: deleteErr } = await _supabase.from('sprites_library').delete().in('id', ids);
+        if (deleteErr) {
+            alert('Inserted to gallery but library delete failed: ' + deleteErr.message + '\nYou may need to remove duplicates manually.');
+            btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
+            return;
+        }
+
+        // Clear all caches
+        localStorage.removeItem(META_CACHE_KEY);
+        localStorage.removeItem('cc_gallery_meta_v1');
+        ids.forEach(id => {
+            localStorage.removeItem('sb-full-' + id);
+            sessionStorage.removeItem('cc_simg_' + id);
+            fullDataCache.delete(id);
+        });
+
+        allSprites = allSprites.filter(s => !ids.includes(s.id));
+        saveMetaCache(allSprites);
+        mtgAll = [...allSprites];
+        mtgSelected.clear();
+        updateMtgCount();
+        renderPublicGrid(allSprites);
+        document.getElementById('sprite-count').innerText = allSprites.length + ' packs';
+        filterMtgGrid();
+
+        btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
+        alert(`✅ ${toInsert.length} sprite${toInsert.length!==1?'s':''} moved to Sprite Gallery!`);
     }
 
     // ── Publish ──
