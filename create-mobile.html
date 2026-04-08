@@ -2642,7 +2642,7 @@ function renderMobSpriteGrid(sprites) {
 
         // Use image_data directly if available, otherwise try cache
         const cachedSrc = pack.image_data || sbGetImg(pack.id);
-        if (cachedSrc && !cachedSrc.startsWith('data:')) {
+        if (cachedSrc) {
             card.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
             // Cache the image for future use
             if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
@@ -2654,7 +2654,7 @@ function renderMobSpriteGrid(sprites) {
                     if (!entries[0].isIntersecting) return;
                     obs.disconnect();
                     sbFetchFull(pack.id).then(full => {
-                        if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
+                        if (!full || !full.image_data) return;
                         const skel = card.querySelector('div:first-child');
                         if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
                     });
@@ -3536,7 +3536,7 @@ function renderLibraryGrid(grid, sprites) {
         const div = document.createElement('div');
         div.className = 'action-option';
         const cachedSrc = pack.image_data || (sbGetImg ? sbGetImg(pack.id) : null);
-        if (cachedSrc && !cachedSrc.startsWith('data:')) {
+        if (cachedSrc) {
             div.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;aspect-ratio:1;border-radius:6px;"><strong>${pack.name}</strong>`;
             // Cache the image for future use
             if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
@@ -3548,7 +3548,7 @@ function renderLibraryGrid(grid, sprites) {
                     if (!entries[0].isIntersecting) return;
                     observer.disconnect();
                     sbFetchFull(pack.id).then(full => {
-                        if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
+                        if (!full || !full.image_data) return;
                         const img = div.querySelector('div');
                         if (img) { const el = document.createElement('img'); el.src = full.image_data; el.loading = 'lazy'; el.style.cssText = 'width:100%;aspect-ratio:1;border-radius:6px;'; img.replaceWith(el); }
                     });
@@ -5549,7 +5549,7 @@ async function mobGalFetchFull(id) {
         .from('sprites_gallery')
         .select('id, image_data, actions, default_scale')
         .eq('id', id).single();
-    if (data?.image_data && !data.image_data.startsWith('data:')) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
+    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
     return data;
 }
 
@@ -5567,7 +5567,7 @@ function renderMobGallery(sprites) {
 
         // Use image_data directly if available, otherwise try cache
         const cachedSrc = pack.image_data || (sbGetImg ? sbGetImg(pack.id) : null);
-        if (cachedSrc && !cachedSrc.startsWith('data:')) {
+        if (cachedSrc) {
             card.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
             // Cache the image for future use
             if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
@@ -5579,7 +5579,7 @@ function renderMobGallery(sprites) {
                     if (!entries[0].isIntersecting) return;
                     obs.disconnect();
                     mobGalFetchFull(pack.id).then(full => {
-                        if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
+                        if (!full || !full.image_data) return;
                         const skel = card.querySelector('div:first-child');
                         if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
                     });
@@ -5681,7 +5681,7 @@ function renderMobFavSprites() {
         card.className = 'mob-sprite-card';
         card.style.position = 'relative';
         const cachedSrc = fav.image_data || (sbGetImg ? sbGetImg(fav.id) : null);
-        if (cachedSrc && !cachedSrc.startsWith('data:')) {
+        if (cachedSrc) {
             const img = document.createElement('img'); img.src = cachedSrc; img.loading = 'lazy'; card.appendChild(img);
             // Cache the image for future use
             if (fav.image_data && sbSetImg) sbSetImg(fav.id, fav.image_data);
@@ -5692,7 +5692,7 @@ function renderMobFavSprites() {
             // Fallback lazy load if no image_data
             if (!fav.image_data) {
                 sbFetchFull(fav.id).then(full => {
-                    if (!full?.image_data || full.image_data.startsWith('data:')) return;
+                    if (!full?.image_data) return;
                     const old = card.querySelector('div');
                     if (old) { const img = document.createElement('img'); img.src = full.image_data; img.loading = 'lazy'; old.replaceWith(img); }
                 });
