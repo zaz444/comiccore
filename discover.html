@@ -1295,7 +1295,7 @@ function init() {
       // Old cache had cover as base64 — if first item's cover starts with data: nuke it
       if (arr?.[0]?.cover?.startsWith('data:')) {
         localStorage.removeItem('cc-comics-cache');
-        localStorage.removeItem('cc-stars-cache');
+        localStorage.removeItem('cc-ratings-cache');
         localStorage.removeItem('cc-feeds-ts');
       }
     }
@@ -1328,14 +1328,15 @@ async function loadFeeds() {
   // ── 1. Paint from cache INSTANTLY ──────────────────────
   const CACHE_TTL = 120000; // 2 min
   const cachedComics  = localStorage.getItem('cc-comics-cache');
-  const cachedStars   = localStorage.getItem('cc-stars-cache');
+  const cachedStars   = localStorage.getItem('cc-ratings-cache');
   const cachedTs      = parseInt(localStorage.getItem('cc-feeds-ts') || '0');
   const cacheIsValid  = Date.now() - cachedTs < CACHE_TTL;
 
   if (cachedComics && cachedStars && cacheIsValid) {
-    allComics   = JSON.parse(cachedComics);
-    globalStars = JSON.parse(cachedStars);
-    renderComics(allComics, globalStars);
+    allComics     = JSON.parse(cachedComics);
+    globalRatings = JSON.parse(cachedStars);
+    globalStars   = globalRatings;
+    renderComics(allComics, globalRatings);
     updateContinueBadge();
     loadTopCreators(currentRankTab);
     loadDiscoverSquads();
@@ -1344,9 +1345,10 @@ async function loadFeeds() {
 
   // ── 2. Stale cache? Paint immediately, refresh silently ─
   if (cachedComics && cachedStars) {
-    allComics   = JSON.parse(cachedComics);
-    globalStars = JSON.parse(cachedStars);
-    renderComics(allComics, globalStars);
+    allComics     = JSON.parse(cachedComics);
+    globalRatings = JSON.parse(cachedStars);
+    globalStars   = globalRatings;
+    renderComics(allComics, globalRatings);
     updateContinueBadge();
     loadTopCreators(currentRankTab);
   }
@@ -1360,25 +1362,25 @@ async function loadFeeds() {
     _sb.from('messages').select('receiver_hand,content').eq('reaction','rating').limit(2000),
   ]);
 
-  allComics = (comics || []).filter(c => c.title && c.owner_handle);
-  globalStars = []; // ratings replaced stars; kept for compatibility
+  allComics     = (comics || []).filter(c => c.title && c.owner_handle);
   globalRatings = ratings || [];
+  globalStars   = globalRatings; // keep in sync for legacy references
 
   // Reset top creators cache so it re-renders with fresh data
   topCreatorsData = { stars: [], follows: [] };
 
   // Save to cache
   try {
-    localStorage.setItem('cc-comics-cache', JSON.stringify(allComics));
-    localStorage.setItem('cc-stars-cache',  JSON.stringify(globalStars));
-    localStorage.setItem('cc-feeds-ts',     String(Date.now()));
+    localStorage.setItem('cc-comics-cache',  JSON.stringify(allComics));
+    localStorage.setItem('cc-ratings-cache', JSON.stringify(globalRatings));
+    localStorage.setItem('cc-feeds-ts',      String(Date.now()));
   } catch(e) {
     localStorage.removeItem('cc-comics-cache');
-    localStorage.removeItem('cc-stars-cache');
+    localStorage.removeItem('cc-ratings-cache');
     localStorage.removeItem('cc-stories-cache');
   }
 
-  renderComics(allComics, globalStars);
+  renderComics(allComics, globalRatings);
   loadTopCreators(currentRankTab);
   loadDiscoverSquads();
   updateContinueBadge();
