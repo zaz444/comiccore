@@ -1670,12 +1670,15 @@ async function openPopup(id) {
     btns.appendChild(starBtn);
   }
 
-  const commentBtn = document.createElement('button');
-  commentBtn.className = 'popup-icon-btn';
-  commentBtn.innerHTML = '💬';
-  commentBtn.title     = 'Comments';
-  commentBtn.onclick   = () => openCommentSheet(c.id);
-  btns.appendChild(commentBtn);
+  const hideCommentsInDiscover = myProfile.settings?.hide_discover_comments === true;
+  if (!hideCommentsInDiscover) {
+    const commentBtn = document.createElement('button');
+    commentBtn.className = 'popup-icon-btn';
+    commentBtn.innerHTML = '💬';
+    commentBtn.title     = 'Comments';
+    commentBtn.onclick   = () => openCommentSheet(c.id);
+    btns.appendChild(commentBtn);
+  }
 
   const shareBtn = document.createElement('button');
   shareBtn.className = 'popup-icon-btn';
@@ -1747,6 +1750,11 @@ async function deleteComic(id, title) {
 let pendingReactionImg = null; // {name, src} to insert
 
 function openCommentSheet(id) {
+  if (myProfile.settings?.hide_discover_comments) {
+    showToast('Comments are hidden in settings.');
+    return;
+  }
+
   activeComicId = id;
   pendingReactionImg = null;
   document.getElementById('comment-overlay').classList.add('open');
