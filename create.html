@@ -875,7 +875,7 @@
     }
     #sb-sprite-grid {
         flex: 1; overflow-y: auto; padding: 6px 8px 10px;
-        display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;
         align-content: start; align-items: start;
         min-height: 0;
     }
@@ -2481,29 +2481,25 @@
             const div = document.createElement('div');
             div.className = 'action-option';
             const cachedSrc = pack.image_data || sbGetImg(pack.id);
-            div.innerHTML = cachedSrc
-                ? `<img src="${cachedSrc}"><strong>${pack.name}</strong>`
-                : `<div style="width:100%;aspect-ratio:1;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:sb-shimmer 1.4s infinite;border-radius:6px;"></div><strong>${pack.name}</strong>`;
-            div.onclick = async () => {
-                const hasFull = pack.image_data && pack.actions !== undefined;
-                if (hasFull) { closeLibrary(); openActionModal(pack); return; }
-                div.style.opacity = '0.5';
-                const full = await sbFetchFull(pack.id);
-                div.style.opacity = '';
-                if (full) { closeLibrary(); openActionModal({ ...pack, ...full }); }
-            };
-            // Lazy-load image if not cached
-            if (!cachedSrc) {
-                const observer = new IntersectionObserver(entries => {
-                    if (!entries[0].isIntersecting) return;
-                    observer.disconnect();
-                    sbFetchFull(pack.id).then(full => {
-                        if (!full) return;
-                        const img = div.querySelector('div');
-                        if (img) { const el = document.createElement('img'); el.src = full.image_data; img.replaceWith(el); }
-                    });
-                }, { root: grid });
-                observer.observe(div);
+            if (cachedSrc && !cachedSrc.startsWith('data:')) {
+                div.innerHTML = `<img src="${cachedSrc}" loading="lazy"><strong>${pack.name}</strong>`;
+                // Cache the image for future use
+                if (pack.image_data) sbSetImg(pack.id, pack.image_data);
+            } else {
+                div.innerHTML = `<div style="width:100%;aspect-ratio:1;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:sb-shimmer 1.4s infinite;border-radius:6px;"></div><strong>${pack.name}</strong>`;
+                // Fallback lazy load if no image_data
+                if (!pack.image_data) {
+                    const observer = new IntersectionObserver(entries => {
+                        if (!entries[0].isIntersecting) return;
+                        observer.disconnect();
+                        sbFetchFull(pack.id).then(full => {
+                            if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
+                            const img = div.querySelector('div');
+                            if (img) { const el = document.createElement('img'); el.src = full.image_data; el.loading = 'lazy'; img.replaceWith(el); }
+                        });
+                    }, { root: grid });
+                    observer.observe(div);
+                }
             }
             grid.appendChild(div);
         });
@@ -5562,7 +5558,7 @@
         // 2. Refresh metadata from DB in background
         try {
             const { data } = await _supabase.from('sprites_library')
-                .select('id, name, tags, creator, created_at')
+                .select('id, name, image_data, tags, creator, created_at')
                 .order('created_at', { ascending: false });
             const fresh = data || [];
 
@@ -5599,12 +5595,18 @@
             div.dataset.sid = pack.id;
             div.style.position = 'relative';
 
+            // Use image_data directly if available, otherwise try cache
             const cachedSrc = pack.image_data || sbGetImg(pack.id);
-            if (cachedSrc) {
-                div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${pack.name}</span>`;
+            if (cachedSrc && !cachedSrc.startsWith('data:')) {
+                div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}" loading="lazy"><span>${pack.name}</span>`;
+                // Cache the image for future use
+                if (pack.image_data) sbSetImg(pack.id, pack.image_data);
             } else {
                 div.innerHTML = `<div class="sb-skeleton"></div><span>${pack.name}</span>`;
-                sbObserver.observe(div);
+                // Fallback lazy load if no image_data
+                if (!pack.image_data) {
+                    sbObserver.observe(div);
+                }
             }
 
             // Favorite star button
@@ -6907,22 +6909,26 @@
             div.dataset.sid = fav.id;
             div.style.position = 'relative';
 
-            const cachedSrc = sbGetImg(fav.id) || ((sidebarSprites||[]).find(s=>s.id===fav.id)||{}).image_data;
-            if (cachedSrc) {
-                div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}"><span>${fav.name}</span>`;
+            const cachedSrc = fav.image_data || sbGetImg(fav.id) || ((sidebarSprites||[]).find(s=>s.id===fav.id)||{}).image_data;
+            if (cachedSrc && !cachedSrc.startsWith('data:')) {
+                div.innerHTML = `<img class="sb-loaded" src="${cachedSrc}" loading="lazy"><span>${fav.name}</span>`;
+                // Cache the image for future use
+                if (fav.image_data) sbSetImg(fav.id, fav.image_data);
             } else {
                 div.innerHTML = `<div class="sb-skeleton"></div><span>${fav.name}</span>`;
-                // Lazy fetch
-                const obs = new IntersectionObserver(entries => {
-                    if (!entries[0].isIntersecting) return;
-                    obs.disconnect();
-                    sbFetchFull(fav.id).then(full => {
-                        if (!full?.image_data) return;
-                        const sk = div.querySelector('.sb-skeleton');
-                        if (sk) { const img = document.createElement('img'); img.src = full.image_data; img.className = 'sb-loaded'; sk.replaceWith(img); }
-                    });
-                }, { root: grid });
-                obs.observe(div);
+                // Fallback lazy load if no image_data
+                if (!fav.image_data) {
+                    const obs = new IntersectionObserver(entries => {
+                        if (!entries[0].isIntersecting) return;
+                        obs.disconnect();
+                        sbFetchFull(fav.id).then(full => {
+                            if (!full?.image_data || full.image_data.startsWith('data:')) return;
+                            const sk = div.querySelector('.sb-skeleton');
+                            if (sk) { const img = document.createElement('img'); img.src = full.image_data; img.className = 'sb-loaded'; img.loading = 'lazy'; sk.replaceWith(img); }
+                        });
+                    }, { root: grid });
+                    obs.observe(div);
+                }
             }
 
             // Unfav button

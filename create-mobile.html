@@ -264,7 +264,7 @@
     }
     #mob-sprite-search:focus { border-color: var(--accent); }
     #mob-sprite-grid {
-        display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;
     }
     .mob-sprite-card {
         background: var(--card); border: 2px solid var(--border); border-radius: 12px;
@@ -2624,7 +2624,7 @@ let allSidebarMeta = [];
 async function loadMobSprites() {
     const grid = document.getElementById('mob-sprite-grid');
     grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
-    const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
+    const { data } = await _supabase.from('sprites_library').select('id, name, image_data, tags, creator, created_at').order('created_at', { ascending: false });
     sidebarSprites = data || [];
     allSidebarMeta = sidebarSprites;
     renderMobSpriteGrid(sidebarSprites);
@@ -2638,7 +2638,29 @@ function renderMobSpriteGrid(sprites) {
         const card = document.createElement('div');
         card.className = 'mob-sprite-card';
         card.style.position = 'relative';
-        card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
+
+        // Use image_data directly if available, otherwise try cache
+        const cachedSrc = pack.image_data || sbGetImg(pack.id);
+        if (cachedSrc && !cachedSrc.startsWith('data:')) {
+            card.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
+            // Cache the image for future use
+            if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
+        } else {
+            card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
+            // Fallback lazy load if no image_data
+            if (!pack.image_data) {
+                const obs = new IntersectionObserver(entries => {
+                    if (!entries[0].isIntersecting) return;
+                    obs.disconnect();
+                    sbFetchFull(pack.id).then(full => {
+                        if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
+                        const skel = card.querySelector('div:first-child');
+                        if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
+                    });
+                }, { root: grid });
+                obs.observe(card);
+            }
+        }
 
         // Favorite star button
         const favBtn = document.createElement('button');
@@ -3505,17 +3527,34 @@ async function openLibrary() {
     const meta = sidebarSprites || sbLoadMetaCache();
     if (meta?.length) { renderLibraryGrid(grid, meta); return; }
     grid.innerHTML = "<p style='color:white;font-size:12px;'>Loading...</p>";
-    const { data } = await _supabase.from('sprites_library').select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
-    sidebarSprites = data || [];
-    renderLibraryGrid(grid, sidebarSprites);
+    const { data } = await _supabase.from('sprites_library').select('id, name, image_data, tags, creator, created_at').order('created_at', { ascending: false });
 }
 function renderLibraryGrid(grid, sprites) {
     grid.innerHTML = '';
     sprites.forEach(pack => {
         const div = document.createElement('div');
         div.className = 'action-option';
-        div.innerHTML = `<div style="width:100%;aspect-ratio:1;background:#1a1a1a;border-radius:6px;"></div><strong>${pack.name}</strong>`;
-        div.onclick = async () => { const full = await sbFetchFull(pack.id); if (full) { closeLibrary(); openActionModal({ ...pack, ...full }); } };
+        const cachedSrc = pack.image_data || (sbGetImg ? sbGetImg(pack.id) : null);
+        if (cachedSrc && !cachedSrc.startsWith('data:')) {
+            div.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;aspect-ratio:1;border-radius:6px;"><strong>${pack.name}</strong>`;
+            // Cache the image for future use
+            if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
+        } else {
+            div.innerHTML = `<div style="width:100%;aspect-ratio:1;background:#1a1a1a;border-radius:6px;"></div><strong>${pack.name}</strong>`;
+            // Fallback lazy load if no image_data
+            if (!pack.image_data) {
+                const observer = new IntersectionObserver(entries => {
+                    if (!entries[0].isIntersecting) return;
+                    observer.disconnect();
+                    sbFetchFull(pack.id).then(full => {
+                        if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
+                        const img = div.querySelector('div');
+                        if (img) { const el = document.createElement('img'); el.src = full.image_data; el.loading = 'lazy'; el.style.cssText = 'width:100%;aspect-ratio:1;border-radius:6px;'; img.replaceWith(el); }
+                    });
+                }, { root: grid });
+                observer.observe(div);
+            }
+        }
         grid.appendChild(div);
     });
 }
@@ -5640,19 +5679,23 @@ function renderMobFavSprites() {
         const card = document.createElement('div');
         card.className = 'mob-sprite-card';
         card.style.position = 'relative';
-        const cachedSrc = sbGetImg ? sbGetImg(fav.id) : null;
-        if (cachedSrc) {
-            const img = document.createElement('img'); img.src = cachedSrc; card.appendChild(img);
+        const cachedSrc = fav.image_data || (sbGetImg ? sbGetImg(fav.id) : null);
+        if (cachedSrc && !cachedSrc.startsWith('data:')) {
+            const img = document.createElement('img'); img.src = cachedSrc; img.loading = 'lazy'; card.appendChild(img);
+            // Cache the image for future use
+            if (fav.image_data && sbSetImg) sbSetImg(fav.id, fav.image_data);
         } else {
             const sk = document.createElement('div');
             sk.style.cssText = 'width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;';
             card.appendChild(sk);
-            // Lazy fetch
-            sbFetchFull(fav.id).then(full => {
-                if (!full?.image_data) return;
-                const old = card.querySelector('div');
-                if (old) { const img = document.createElement('img'); img.src = full.image_data; old.replaceWith(img); }
-            });
+            // Fallback lazy load if no image_data
+            if (!fav.image_data) {
+                sbFetchFull(fav.id).then(full => {
+                    if (!full?.image_data || full.image_data.startsWith('data:')) return;
+                    const old = card.querySelector('div');
+                    if (old) { const img = document.createElement('img'); img.src = full.image_data; img.loading = 'lazy'; old.replaceWith(img); }
+                });
+            }
         }
         const nameEl = document.createElement('div'); nameEl.className = 'mob-sprite-name'; nameEl.innerText = fav.name;
         card.appendChild(nameEl);
