@@ -965,8 +965,10 @@ const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":
 let allComics       = [];
 let activeComicId   = null;
 let globalStars     = [];
+let globalRatings   = [];
 let activePopupComic   = null;
 let activePopupStarred = false;
+let activePopupRated   = false;
 let currentSort     = 'recent';
 let currentPage     = 0;
 const ITEMS_PER_PAGE = 12;
@@ -1350,16 +1352,17 @@ async function loadFeeds() {
   }
 
   // ── 3. Fetch only what's needed — no full data blobs ────
-  const [{ data: comics }, { data: stars }] = await Promise.all([
+  const [{ data: comics }, { data: ratings }] = await Promise.all([
     _sb.from('comics')
       .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir')
       .order('created_at', { ascending: false })
       .limit(80),
-    _sb.from('messages').select('receiver_hand,sender_handle').eq('reaction','⭐').limit(2000),
+    _sb.from('messages').select('receiver_hand,content').eq('reaction','rating').limit(2000),
   ]);
 
   allComics = (comics || []).filter(c => c.title && c.owner_handle);
-  globalStars = stars || [];
+  globalStars = stars || []; // Keep for compatibility
+  globalRatings = ratings || [];
 
   // Reset top creators cache so it re-renders with fresh data
   topCreatorsData = { stars: [], follows: [] };
@@ -1412,7 +1415,10 @@ function renderComics(comics, stars) {
   const slice = sorted.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
 
   container.innerHTML = slice.map(c => {
-    const starCount  = stars.filter(s => s.receiver_hand === c.id).length;
+    const starCount  = ratings.filter(r => r.receiver_hand === c.id).length;
+    const avgRating = starCount > 0 ?
+      ratings.filter(r => r.receiver_hand === c.id)
+        .reduce((sum, r) => sum + (parseInt(r.content) || 0), 0) / starCount : 0;
     const isMine     = c.owner_handle === myProfile.handle;
     const isNew      = isNewComic(c.created_at) && !isMine;
     const prog       = getProgress(c.id, getCachedFrameCount(c.id));
@@ -1423,7 +1429,7 @@ function renderComics(comics, stars) {
       ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
     const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
-    const starsHtml  = starCount > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount})">⭐ ${starCount}</div>` : '';
+    const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">⭐ ${avgRating.toFixed(1)} (${starCount})</div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const followBtn = (!isMine && myProfile.handle !== 'guest')
       ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
@@ -1584,7 +1590,10 @@ async function openPopup(id) {
 
   // Meta — show sync cache first, then update from Supabase fetch
   let frameCount = getCachedFrameCount(c.id);
-  const starCount  = globalStars.filter(s => s.receiver_hand === c.id).length;
+  const starCount  = globalRatings.filter(r => r.receiver_hand === c.id).length;
+  const avgRating = starCount > 0 ?
+    globalRatings.filter(r => r.receiver_hand === c.id)
+      .reduce((sum, r) => sum + (parseInt(r.content) || 0), 0) / starCount : 0;
   document.getElementById('popup-meta').innerHTML = `
     <span class="popup-meta-chip" id="popup-frame-chip">🎞 ${frameCount > 0 ? frameCount + ' frame' + (frameCount !== 1 ? 's' : '') : '…'}</span>
     <span class="popup-meta-chip">⭐ ${starCount}</span>
@@ -1631,17 +1640,17 @@ async function openPopup(id) {
     });
   }
 
-  // Star state
+  // Rating state
   const isMine = c.owner_handle === myProfile.handle;
-  activePopupStarred = false;
+  activePopupRated = false;
   if (myProfile.handle !== 'guest' && !isMine) {
     const { data: msg } = await _sb
-      .from('messages').select('id')
+      .from('messages').select('content')
       .eq('sender_handle', myProfile.handle)
       .eq('receiver_hand', c.id)
-      .eq('reaction','⭐')
+      .eq('reaction','rating')
       .maybeSingle();
-    activePopupStarred = !!msg;
+    activePopupRated = !!(msg && parseInt(msg.content) > 0);
   }
 
   // Build buttons
@@ -1661,13 +1670,13 @@ async function openPopup(id) {
   btns.appendChild(readBtn);
 
   if (!isMine && myProfile.handle !== 'guest') {
-    const starBtn = document.createElement('button');
-    starBtn.className = 'popup-icon-btn' + (activePopupStarred ? ' starred' : '');
-    starBtn.id        = 'popup-star-btn';
-    starBtn.innerHTML = activePopupStarred ? '⭐' : '☆';
-    starBtn.title     = activePopupStarred ? 'Remove star' : 'Star this comic';
-    starBtn.onclick   = () => popupToggleStar(c.id);
-    btns.appendChild(starBtn);
+    const rateBtn = document.createElement('button');
+    rateBtn.className = 'popup-icon-btn' + (activePopupRated ? ' rated' : '');
+    rateBtn.id        = 'popup-rate-btn';
+    rateBtn.innerHTML = activePopupRated ? '⭐' : '☆';
+    rateBtn.title     = activePopupRated ? 'Change rating' : 'Rate this comic';
+    rateBtn.onclick   = () => openRatingModal(c.id);
+    btns.appendChild(rateBtn);
   }
 
   const hideCommentsInDiscover = myProfile.settings?.hide_discover_comments === true;
@@ -1736,6 +1745,11 @@ async function popupToggleStar(comicId) {
     showToast('⭐ Starred!');
   }
   loadFeeds();
+}
+
+function openRatingModal(comicId) {
+  // For now, redirect to reader to rate
+  location.href = 'reader.html?id=' + encodeURIComponent(comicId);
 }
 
 async function deleteComic(id, title) {
@@ -2315,7 +2329,7 @@ function renderContinueReading() {
       </div>
       <div class="comic-card-info">
         <div class="comic-card-title">${esc(c.title || 'Untitled')}</div>
-        ${renderStarRating(starCount)}
+        ${renderStarRating(avgRating, starCount)}
         <div style="font-size:10px;color:#ff7a00;font-weight:800;margin-top:2px;">
           ${frameCount > 0 && prog ? `Frame ${prog.frame} of ${frameCount} · ${prog.pct}%` : ''}
         </div>
@@ -2462,14 +2476,13 @@ function starCountToRating(count) {
   return 0;
 }
 
-function renderStarRating(starCount) {
-  const rating = starCountToRating(starCount);
-  if (rating === 0) return '';
+function renderStarRating(avgRating, count) {
+  if (avgRating <= 0) return '';
   const GOLD = '#ffd700';
   const EMPTY = '#2a2a2c';
   let starsHtml = '';
   for (let i = 1; i <= 5; i++) {
-    const fill = Math.min(1, Math.max(0, rating - (i - 1)));
+    const fill = Math.min(1, Math.max(0, avgRating - (i - 1)));
     if (fill >= 1) {
       // Full star
       starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${GOLD}" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
@@ -2482,7 +2495,7 @@ function renderStarRating(starCount) {
       starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${EMPTY}" stroke="#444" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
     }
   }
-  return `<div class="star-rating">${starsHtml}<span class="star-count">${starCount}</span></div>`;
+  return `<div class="star-rating">${starsHtml}<span class="star-count">${avgRating.toFixed(1)} (${count})</span></div>`;
 }
 
 // ── Favorites Section ─────────────────────────────────────
@@ -2541,7 +2554,10 @@ function renderFavoritesPage() {
 
   const slice = favoriteComics.slice(favoritesPage * FAV_PER_PAGE, (favoritesPage + 1) * FAV_PER_PAGE);
   container.innerHTML = slice.map(c => {
-    const starCount = globalStars.filter(s => s.receiver_hand === c.id).length;
+    const starCount = globalRatings.filter(r => r.receiver_hand === c.id).length;
+    const avgRating = starCount > 0 ?
+      globalRatings.filter(r => r.receiver_hand === c.id)
+        .reduce((sum, r) => sum + (parseInt(r.content) || 0), 0) / starCount : 0;
     const isMine = c.owner_handle === myProfile.handle;
     const prog = getProgress(c.id, getCachedFrameCount(c.id));
     const coverHtml = c.cover
@@ -2595,13 +2611,13 @@ function goToFavPage(n) {
 }
 
 // ── Star badge expand/collapse ─────────────────────────────
-function toggleStarExpand(badge, starCount) {
+function toggleStarExpand(badge, starCount, avgRating) {
   const coverInner = badge.closest('div[style]') || badge.parentElement;
   // If expanded panel already open, close it
   const existing = coverInner.querySelector('.tile-star-expanded');
   if (existing) { existing.remove(); return; }
 
-  const rating = starCountToRating(starCount);
+  const rating = parseFloat(avgRating);
   const GOLD = '#ffd700'; const EMPTY = '#2a2a2c';
   let starsHtml = '';
   for (let i = 1; i <= 5; i++) {
@@ -2621,7 +2637,7 @@ function toggleStarExpand(badge, starCount) {
   panel.onclick = (e) => { e.stopPropagation(); panel.remove(); };
   panel.innerHTML = `
     <div class="star-expanded-rating">${starsHtml}</div>
-    <div class="star-expanded-count">${starCount} star${starCount !== 1 ? 's' : ''} · ${rating.toFixed(1)} / 5</div>
+    <div class="star-expanded-count">${starCount} rating${starCount !== 1 ? 's' : ''} · ${rating.toFixed(1)} / 5 avg</div>
     <div class="star-expanded-close">tap to close</div>`;
   coverInner.appendChild(panel);
 }

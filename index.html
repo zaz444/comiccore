@@ -219,6 +219,8 @@
       flex-shrink: 0;
     }
     .inbox-btn:hover { background: #303038; transform: scale(1.06); }
+    .inbox-btn.loading { animation: pulse 1.5s infinite; }
+    .inbox-btn.loading .inbox-badge { animation: bounceIn 0.4s ease-out; }
     .inbox-badge {
       position: absolute; top: -3px; right: -3px;
       width: 16px; height: 16px; border-radius: 50%;
@@ -883,6 +885,52 @@
       teamsBtn.classList.add('has-notification');
       teamsBtn.querySelector('.card-title').innerText = 'Squads — Request Accepted!';
     }
+  }
+
+  // ── Mobile Gestures ──────────────────────────────────────
+  function addSwipeGestures() {
+    const navCards = document.querySelectorAll('.nav-card');
+    navCards.forEach(card => {
+      let startX, startY, isSwiping = false;
+
+      card.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        isSwiping = false;
+      }, { passive: true });
+
+      card.addEventListener('touchmove', (e) => {
+        if (!startX || !startY) return;
+        const deltaX = e.touches[0].clientX - startX;
+        const deltaY = e.touches[0].clientY - startY;
+
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+          isSwiping = true;
+          e.preventDefault(); // Prevent scrolling
+        }
+      }, { passive: false });
+
+      card.addEventListener('touchend', (e) => {
+        if (!isSwiping || !startX) return;
+        const deltaX = e.changedTouches[0].clientX - startX;
+        const deltaY = e.changedTouches[0].clientY - startY;
+
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          // Swipe detected
+          card.style.transform = deltaX > 0 ? 'translateX(8px)' : 'translateX(-8px)';
+          setTimeout(() => {
+            card.style.transform = '';
+            // Trigger haptic feedback if available
+            if (navigator.vibrate) navigator.vibrate(50);
+          }, 150);
+        }
+      });
+    });
+  }
+
+  // Add gestures after DOM loads
+  if ('ontouchstart' in window) {
+    addSwipeGestures();
   }
 
   window.addEventListener('keydown', (e) => {

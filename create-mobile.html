@@ -5446,14 +5446,18 @@ async function loadMobGallery() {
     const grid = document.getElementById('mob-gal-grid');
     grid.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Loading gallery...</div>';
     try {
-        const { data } = await _supabase
+        console.log('Fetching mobile gallery sprites...');
+        const { data, error } = await _supabase
             .from('sprites_gallery')
-            .select('id, name, default_scale, tags, creator, created_at')
-            .order('created_at', { ascending: false });
+            .select('id, name, image_data, default_scale, tags, creator')
+            .order('id', { ascending: false });
+        console.log('Mobile gallery fetch result:', { data, error });
         mobGallerySprites = data || [];
+        console.log('Mobile gallery sprites loaded:', mobGallerySprites.length);
         renderMobGallery(mobGallerySprites);
         buildMobGalTagChips(mobGallerySprites);
     } catch(e) {
+        console.error('Error loading mobile gallery sprites:', e);
         grid.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Error loading gallery</div>';
         mobGalLoaded = false;
     }
@@ -5521,22 +5525,27 @@ function renderMobGallery(sprites) {
         card.className = 'mob-sprite-card';
         card.style.position = 'relative';
 
-        const cachedSrc = sbGetImg ? sbGetImg(pack.id) : null;
+        // Use image_data directly if available, otherwise try cache
+        const cachedSrc = pack.image_data || (sbGetImg ? sbGetImg(pack.id) : null);
         if (cachedSrc && !cachedSrc.startsWith('data:')) {
-            card.innerHTML = `<img src="${cachedSrc}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
+            card.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
+            // Cache the image for future use
+            if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
         } else {
             card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
-            // Lazy-load image on scroll-into-view
-            const obs = new IntersectionObserver(entries => {
-                if (!entries[0].isIntersecting) return;
-                obs.disconnect();
-                mobGalFetchFull(pack.id).then(full => {
-                    if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
-                    const skel = card.querySelector('div:first-child');
-                    if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
-                });
-            }, { root: grid });
-            obs.observe(card);
+            // Fallback lazy load if no image_data
+            if (!pack.image_data) {
+                const obs = new IntersectionObserver(entries => {
+                    if (!entries[0].isIntersecting) return;
+                    obs.disconnect();
+                    mobGalFetchFull(pack.id).then(full => {
+                        if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
+                        const skel = card.querySelector('div:first-child');
+                        if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
+                    });
+                }, { root: grid });
+                obs.observe(card);
+            }
         }
 
         // Favourite star

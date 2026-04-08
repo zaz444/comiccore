@@ -210,6 +210,45 @@ color:rgba(255,255,255,.8);padding:11px 22px;border-radius:12px;font-size:13px;f
 }
 .finish-reread:hover{background:rgba(255,255,255,.16);color:#fff;}
 
+/* ── Rating Modal ── */
+.rating-modal{
+position:fixed;inset:0;background:rgba(0,0,0,.8);
+display:none;flex-direction:column;align-items:center;justify-content:flex-end;
+z-index:300;backdrop-filter:blur(12px);padding:20px;
+}
+.rating-sheet{
+background:#1a1a1a;border-radius:20px 20px 0 0;
+width:100%;max-width:400px;padding:24px;
+display:flex;flex-direction:column;gap:20px;
+}
+.rating-header{
+display:flex;align-items:center;justify-content:space-between;
+font-size:18px;font-weight:900;color:#fff;
+}
+.rating-header button{
+background:none;border:none;color:#666;font-size:20px;cursor:pointer;
+}
+.rating-stars{
+display:flex;gap:8px;justify-content:center;
+}
+.rating-star{
+background:none;border:none;color:#444;font-size:32px;cursor:pointer;
+transition:.15s;filter:grayscale(1);
+}
+.rating-star:hover,.rating-star.active{
+color:#ffd700;filter:none;transform:scale(1.1);
+}
+.rating-text{
+text-align:center;font-size:14px;color:#888;font-weight:600;
+}
+.rating-submit{
+background:#ff7a00;color:#000;border:none;
+padding:14px;border-radius:12px;font-size:16px;font-weight:900;
+cursor:pointer;transition:.15s;
+}
+.rating-submit:hover{background:#ff9a3c;}
+.rating-submit:disabled{background:#333;color:#666;cursor:default;}
+
 /* ── Share sheet ── */
 .share-sheet{
 position:fixed;inset:0;z-index:900;
@@ -335,7 +374,7 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
     <div class="top-author" id="top-author"></div>
   </div>
   <div style="display:flex;gap:6px;flex-shrink:0;">
-    <button class="round-btn" id="star-btn" onclick="toggleStar()" title="Star">☆</button>
+    <button class="round-btn" id="star-btn" onclick="openRatingModal()" title="Rate">☆</button>
     <button class="round-btn" id="comment-btn" onclick="openComments()" title="Comments" style="font-size:15px;">💬</button>
     <button class="round-btn" id="share-btn" onclick="openShare()" title="Share" style="font-size:15px;">↗</button>
     <button class="round-btn edit-c" id="edit-btn" style="display:none;" onclick="editComic()" title="Edit">✏</button>
@@ -357,13 +396,11 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
     <div id="comic-frame-b" class="cf-buf"></div>
   </div>
 
-  <!-- Finish overlay -->
-
   <div class="finish-card" id="finish">
     <div class="finish-emoji">🎉</div>
     <div class="finish-title" id="fin-title">You finished it!</div>
-    <div class="finish-sub">Loved the story? Show the creator some love.</div>
-    <button class="finish-star-btn" id="fin-star" onclick="finishStar()">⭐ Give a Star</button>
+    <div class="finish-sub">Loved the story? Rate it to help others discover great comics.</div>
+    <button class="finish-star-btn" id="fin-star" onclick="finishStar()">⭐ Rate this comic</button>
     <button class="finish-back" onclick="openShare()" style="border-color:rgba(255,122,0,.4);color:#ff7a00;">↗ Share this comic</button>
     <button class="finish-reread" onclick="rereadComic()">↺ Re-read from beginning</button>
     <button class="finish-back" onclick="goBack()">← Back to Discover</button>
@@ -432,6 +469,25 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
       <input class="comment-input" id="comment-input" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment()">
       <button class="comment-post-btn" onclick="postComment()">Post</button>
     </div>
+  </div>
+</div>
+
+<!-- Rating Modal -->
+<div class="rating-modal" id="rating-modal" onclick="if(event.target===this)closeRatingModal()">
+  <div class="rating-sheet">
+    <div class="rating-header">
+      <span>Rate this comic</span>
+      <button onclick="closeRatingModal()">✕</button>
+    </div>
+    <div class="rating-stars" id="rating-stars">
+      <button class="rating-star" data-rating="1" onclick="setRating(1)">★</button>
+      <button class="rating-star" data-rating="2" onclick="setRating(2)">★</button>
+      <button class="rating-star" data-rating="3" onclick="setRating(3)">★</button>
+      <button class="rating-star" data-rating="4" onclick="setRating(4)">★</button>
+      <button class="rating-star" data-rating="5" onclick="setRating(5)">★</button>
+    </div>
+    <div class="rating-text" id="rating-text">Tap stars to rate</div>
+    <button class="rating-submit" id="rating-submit" onclick="submitRating()" disabled>Submit Rating</button>
   </div>
 </div>
 
@@ -1184,44 +1240,127 @@ async function checkStar() {
   if (myP.handle === comic?.owner_handle) return;
   const { data } = await _sb
     .from('messages')
-    .select('id')
+    .select('content')
     .eq('sender_handle', myP.handle)
     .eq('receiver_hand', comicId)
-    .eq('reaction', '⭐')
+    .eq('reaction', 'rating')
     .maybeSingle();
-  isStarred = !!data;
+  userRating = data ? parseInt(data.content) || 0 : 0;
+  isStarred = userRating > 0; // For backward compatibility
   updStar();
 }
 
 function updStar() {
   const b = document.getElementById('star-btn');
-  b.innerHTML = isStarred ? '⭐' : '☆';
-  b.classList.toggle('starred', isStarred);
+  if (userRating > 0) {
+    b.innerHTML = '⭐'.repeat(userRating);
+    b.classList.add('starred');
+    b.title = `Rated ${userRating} star${userRating > 1 ? 's' : ''}`;
+  } else {
+    b.innerHTML = '☆';
+    b.classList.remove('starred');
+    b.title = 'Rate this comic';
+  }
 }
 
 async function toggleStar() {
-  if (!myP.handle || myP.handle === 'guest') return showToast('Log in to star!');
-  if (myP.handle === comic?.owner_handle) return;
-  if (isStarred) {
-    await _sb.from('messages').delete()
+  // Legacy function - now opens rating modal
+  openRatingModal();
+}
+
+// ── Rating System ─────────────────────────────────────────
+let currentRating = 0;
+let userRating = 0;
+
+function openRatingModal() {
+  if (!myP.handle || myP.handle === 'guest') return showToast('Log in to rate!');
+  if (myP.handle === comic?.owner_handle) return showToast('You can\'t rate your own comic');
+  document.getElementById('rating-modal').style.display = 'flex';
+  // Load existing rating
+  loadUserRating();
+}
+
+function closeRatingModal() {
+  document.getElementById('rating-modal').style.display = 'none';
+  currentRating = 0;
+  updateRatingDisplay();
+}
+
+function setRating(rating) {
+  currentRating = rating;
+  updateRatingDisplay();
+  document.getElementById('rating-submit').disabled = false;
+}
+
+function updateRatingDisplay() {
+  const stars = document.querySelectorAll('.rating-star');
+  const text = document.getElementById('rating-text');
+  stars.forEach((star, i) => {
+    star.classList.toggle('active', i < currentRating);
+  });
+  const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+  text.textContent = currentRating > 0 ? `${currentRating} star${currentRating > 1 ? 's' : ''} - ${labels[currentRating]}` : 'Tap stars to rate';
+}
+
+async function loadUserRating() {
+  try {
+    const { data: rating, error } = await _sb
+      .from('messages')
+      .select('content')
       .eq('sender_handle', myP.handle)
       .eq('receiver_hand', comicId)
-      .eq('reaction', '⭐');
-    isStarred = false;
-  } else {
-    await _sb.from('messages').insert([{
-      sender_handle: myP.handle,
-      receiver_hand: comicId,
-      content: '⭐',
-      reaction: '⭐'
-    }]);
-    isStarred = true;
+      .eq('reaction', 'rating')
+      .single();
+
+    if (rating) {
+      userRating = parseInt(rating.content) || 0;
+      currentRating = userRating;
+      updateRatingDisplay();
+      document.getElementById('rating-submit').textContent = 'Update Rating';
+    } else {
+      userRating = 0;
+      currentRating = 0;
+      updateRatingDisplay();
+      document.getElementById('rating-submit').textContent = 'Submit Rating';
+    }
+  } catch (e) {
+    // No existing rating
+    userRating = 0;
+    currentRating = 0;
+    updateRatingDisplay();
   }
-  updStar();
-  const b = document.getElementById('star-btn');
-  b.style.transform = 'scale(1.4)';
-  setTimeout(() => b.style.transform = '', 220);
-  showToast(isStarred ? '⭐ Starred!' : 'Star removed');
+}
+
+async function submitRating() {
+  if (currentRating < 1 || currentRating > 5) return;
+
+  try {
+    if (userRating > 0) {
+      // Update existing rating
+      await _sb.from('messages').update({
+        content: currentRating.toString(),
+        created_at: new Date().toISOString()
+      })
+      .eq('sender_handle', myP.handle)
+      .eq('receiver_hand', comicId)
+      .eq('reaction', 'rating');
+    } else {
+      // Insert new rating
+      await _sb.from('messages').insert([{
+        sender_handle: myP.handle,
+        receiver_hand: comicId,
+        content: currentRating.toString(),
+        reaction: 'rating'
+      }]);
+    }
+
+    userRating = currentRating;
+    closeRatingModal();
+    showToast(`⭐ Rated ${currentRating} star${currentRating > 1 ? 's' : ''}!`);
+    updStar(); // Update UI
+  } catch (error) {
+    showToast('Error saving rating');
+  }
 }
 
 // ── Finish ────────────────────────────────────────────────
@@ -1231,8 +1370,13 @@ function showFinish() {
   fc.style.display = 'flex';
   document.getElementById('fin-title').innerText = comic?.title ? `Finished "${comic.title}"!` : 'You finished it!';
   const sb = document.getElementById('fin-star');
-  if (isStarred) { sb.textContent = '⭐ Already Starred'; sb.classList.add('done'); }
-  else if (myP.handle === comic?.owner_handle) sb.style.display = 'none';
+  if (userRating > 0) {
+    sb.textContent = `⭐ Rated ${userRating} star${userRating > 1 ? 's' : ''}`;
+    sb.classList.add('done');
+  } else {
+    sb.textContent = '⭐ Rate this comic';
+    sb.classList.remove('done');
+  }
 }
 
 function rereadComic() {
@@ -1246,11 +1390,11 @@ function rereadComic() {
 }
 
 async function finishStar() {
-  if (isStarred) return;
-  await toggleStar();
-  const sb = document.getElementById('fin-star');
-  sb.textContent = '⭐ Starred!';
-  sb.classList.add('done');
+  if (userRating > 0) {
+    showToast(`⭐ Already rated ${userRating} star${userRating > 1 ? 's' : ''}!`);
+    return;
+  }
+  openRatingModal();
 }
 
 // ── Comments ──────────────────────────────────────────────
