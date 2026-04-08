@@ -898,9 +898,9 @@
         currentPreviewItem = null;
     }
 
-    function useSprite() {
+    async function useSprite() {
         if (!currentPreviewItem) return;
-        const full = imgCache.get(currentPreviewItem.id);
+        const full = imgCache.get(currentPreviewItem.id) || await fetchSpriteImage(currentPreviewItem.id);
         localStorage.setItem('incoming_sprite_pack', JSON.stringify({ ...currentPreviewItem, ...(full||{}) }));
         window.location.href = 'create.html';
     }
@@ -984,7 +984,8 @@
         btn.textContent = 'Uploading…';
 
         const safeName = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-        const mainUrl = await uploadToGalleryStorage('gallery/' + safeName + '_' + Date.now() + '/main.png', galleryUploadBase64);
+        const folder = 'gallery/' + safeName + '_' + Date.now();
+        const mainUrl = await uploadToGalleryStorage(folder + '/main.png', galleryUploadBase64);
         if (!mainUrl) { showToast('❌ Upload failed'); btn.disabled=false; btn.textContent='Publish to Gallery'; return; }
 
         // Upload actions
@@ -994,7 +995,7 @@
             if (!act.base64) continue;
             btn.textContent = 'Uploading actions (' + (i+1) + '/' + galleryUploadActions.length + ')…';
             const safeAct = (act.name||'action').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-            const url = await uploadToGalleryStorage('gallery/' + safeName + '/actions/' + safeAct + '.png', act.base64);
+            const url = await uploadToGalleryStorage(folder + '/actions/' + safeAct + '.png', act.base64);
             if (url) actionsObj[act.name || 'Action ' + (i+1)] = url;
         }
 
