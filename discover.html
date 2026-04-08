@@ -1361,7 +1361,7 @@ async function loadFeeds() {
   ]);
 
   allComics = (comics || []).filter(c => c.title && c.owner_handle);
-  globalStars = stars || []; // Keep for compatibility
+  globalStars = []; // ratings replaced stars; kept for compatibility
   globalRatings = ratings || [];
 
   // Reset top creators cache so it re-renders with fresh data
@@ -1415,9 +1415,9 @@ function renderComics(comics, stars) {
   const slice = sorted.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
 
   container.innerHTML = slice.map(c => {
-    const starCount  = ratings.filter(r => r.receiver_hand === c.id).length;
+    const starCount  = globalRatings.filter(r => r.receiver_hand === c.id).length;
     const avgRating = starCount > 0 ?
-      ratings.filter(r => r.receiver_hand === c.id)
+      globalRatings.filter(r => r.receiver_hand === c.id)
         .reduce((sum, r) => sum + (parseInt(r.content) || 0), 0) / starCount : 0;
     const isMine     = c.owner_handle === myProfile.handle;
     const isNew      = isNewComic(c.created_at) && !isMine;
