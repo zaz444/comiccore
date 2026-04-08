@@ -596,6 +596,7 @@
         try { favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch(e) {}
 
         fetchGallery();
+        fetchPacks(); // pre-fetch so packs tab is ready instantly
     });
 
     // ── Navigation ──
@@ -719,7 +720,7 @@
     const imgCache = new Map();
     async function fetchSpriteImage(id) {
         if (imgCache.has(id)) return imgCache.get(id);
-        const {data} = await _supabase.from(GALLERY_TABLE).select('id,image_data,actions').eq('id',id).single();
+        const {data} = await _supabase.from(GALLERY_TABLE).select('id, image_data, actions').eq('id',id).single();
         if (data) {
             imgCache.set(id, data);
             return data;
@@ -1028,8 +1029,16 @@
 
     // ── Packs Caching ──
     function savePacksCache(data) {
-        const lean = (data||[]).map(({id,name,tags,creator,created_at,cover_image,card_sprites,items}) =>
-            ({id,name,tags,creator,created_at,cover_image,card_sprites,items}));
+        const lean = (data||[]).map(p => ({
+            id: p.id,
+            name: p.name,
+            tags: p.tags,
+            creator: p.creator,
+            created_at: p.created_at,
+            cover_image: p.cover_image || null,
+            card_sprites: p.card_sprites || [],
+            items: p.items || []
+        }));
         try { localStorage.setItem(PACKS_CACHE_KEY, JSON.stringify({ts:Date.now(),data:lean})); } catch(e) {}
     }
     function loadPacksCache() {
@@ -1050,7 +1059,7 @@
 
         const { data, error } = await _supabase
             .from(PACKS_TABLE)
-            .select('id, name, tags, creator, created_at, cover_image, card_sprites, items')
+            .select('*')
             .order('created_at', { ascending: false });
 
         if (error || !data) {
