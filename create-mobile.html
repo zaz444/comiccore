@@ -4236,73 +4236,60 @@ function confirmMultiImport() {
     updateFrameCounter();
 }
 
-// ── SAVE / DRAFTS ──
+// ── SAVE / DRAFTS (Supabase-only, no localStorage caching) ──
 async function saveOffline(silent = false) {
     const ratio = canvasRatio || { w:1, h:1 };
     const now   = new Date().toISOString();
     const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
 
-    // ── Supabase-first ──
-    if (handle) {
-        try {
-            const { data: { session: _cm1 } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
-            const user = _cm1?.user ?? null;
-            if (user) {
-                if (activeDraftId && activeDraftId.toString().includes('-')) {
-                    await _supabase.from('drafts').update({
-                        data: frames, canvas_ratio: ratio, updated_at: now
-                    }).eq('id', activeDraftId);
-                } else {
-                    const title = 'Untitled Draft';
-                    const { data: inserted } = await _supabase.from('drafts').insert([{
-                        owner_handle: handle, title, data: frames, canvas_ratio: ratio, updated_at: now
-                    }]).select('id').single();
-                    if (inserted) {
-                        activeDraftId = inserted.id;
-                        lsSet('active_draft_id', activeDraftId);
-                        const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-                        lsSet('comic_drafts', JSON.stringify(lsDrafts.filter(d => d.id != activeDraftId)));
-                    }
-                }
-                hasUnsavedChanges = false;
-    const dot2 = document.getElementById('unsaved-dot');
-    if (dot2) dot2.style.display = 'none';
-                if (!silent) {
-                    const t = document.createElement('div');
-                    t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;';
-                    t.innerText = '✓ Saved';
-                    document.body.appendChild(t); setTimeout(() => t.remove(), 1800);
-                }
-                return;
-            }
-        } catch(e) { console.warn('Supabase save failed, using localStorage', e); }
+    if (!handle) {
+        if (!silent) {
+            const t = document.createElement('div');
+            t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#3a1a1a;color:#ff453a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #5a2a2a;';
+            t.innerText = 'Please log in to save drafts';
+            document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
+        }
+        return;
     }
 
-    // ── localStorage fallback ──
     try {
-        const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-        if (activeDraftId) {
-            const idx = drafts.findIndex(d => d.id == activeDraftId);
-            if (idx !== -1) { drafts[idx].data = frames; drafts[idx].ratio = ratio; drafts[idx].updated = Date.now(); }
-            else { drafts.push({ id: activeDraftId, data: frames, ratio, updated: Date.now() }); }
-        } else {
-            const id = Date.now();
-            activeDraftId = id;
-            lsSet('active_draft_id', id);
-            drafts.push({ id, data: frames, ratio, updated: Date.now() });
-        }
-        lsSet('comic_drafts', JSON.stringify(drafts));
-        hasUnsavedChanges = false;
-        if (!silent) {
-            const t = document.createElement('div');
-            t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;';
-            t.innerText = '✓ Saved'; document.body.appendChild(t); setTimeout(() => t.remove(), 1800);
+        const { data: { session: _cm1 } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+        const user = _cm1?.user ?? null;
+
+        if (user) {
+            if (activeDraftId && activeDraftId.toString().includes('-')) {
+                // Update existing draft
+                await _supabase.from('drafts').update({
+                    data: frames, canvas_ratio: ratio, updated_at: now
+                }).eq('id', activeDraftId);
+            } else {
+                // Create new draft
+                const title = 'Untitled Draft';
+                const { data: inserted } = await _supabase.from('drafts').insert([{
+                    owner_handle: handle, title, data: frames, canvas_ratio: ratio, updated_at: now
+                }]).select('id').single();
+                if (inserted) {
+                    activeDraftId = inserted.id;
+                    lsSet('active_draft_id', activeDraftId);
+                }
+            }
+            hasUnsavedChanges = false;
+            const dot2 = document.getElementById('unsaved-dot');
+            if (dot2) dot2.style.display = 'none';
+            if (!silent) {
+                const t = document.createElement('div');
+                t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;';
+                t.innerText = '✓ Saved';
+                document.body.appendChild(t); setTimeout(() => t.remove(), 1800);
+            }
+            return;
         }
     } catch(e) {
+        console.warn('Draft save failed:', e);
         if (!silent) {
             const t = document.createElement('div');
-            t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#3a1a1a;color:#ff453a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #5a2a2a;white-space:nowrap;';
-            t.innerHTML = '<img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/toast/storagefull.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:5px;image-rendering:pixelated;"> Save failed: storage full — clear old drafts';
+            t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#3a1a1a;color:#ff453a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #5a2a2a;';
+            t.innerText = '✗ Save failed: ' + (e.message || 'server error');
             document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
         }
     }
@@ -4754,92 +4741,109 @@ window.onload = async function() {
 };
 
 // ── DRAFTS MODAL ──
-function openDraftsModal() {
+async function openDraftsModal() {
     saveOffline(true);
-    var drafts = [];
-    try { drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]'); } catch(e) {}
-    drafts.sort(function(a,b){ return (b.updated||0)-(a.updated||0); });
-    var list = document.getElementById('drafts-list');
-    list.innerHTML = '';
-    if (!drafts.length) {
-        list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
-    }
-    drafts.forEach(function(draft) {
-        var item = document.createElement('div');
-        item.className = 'draft-item';
-        var f = (draft.data && draft.data[0]) || {};
-        var bg = f.background || '#222';
-        var frameCount = (draft.data || []).length;
-        var date = draft.updated ? new Date(draft.updated).toLocaleDateString() : '';
-        var isCurrent = String(draft.id) === String(activeDraftId);
+    const list = document.getElementById('drafts-list');
+    list.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:30px 0;">Loading drafts...</div>';
+    document.getElementById('drafts-modal').classList.add('open');
 
-        // Build thumb
-        var thumb = document.createElement('div');
-        thumb.className = 'draft-thumb';
-        if (bg.startsWith('http') || bg.startsWith('data:image')) {
-            thumb.style.backgroundImage = 'url(' + bg + ')';
-            thumb.style.backgroundSize = 'cover';
-            thumb.style.backgroundPosition = 'center';
-        } else {
-            thumb.style.background = bg;
+    const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+    if (!handle) {
+        list.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:30px 0;">Please log in</div>';
+        return;
+    }
+
+    try {
+        const { data: drafts, error } = await _supabase.from('drafts')
+            .select('id, title, data, canvas_ratio, updated_at')
+            .eq('owner_handle', handle)
+            .order('updated_at', { ascending: false });
+
+        if (error) throw error;
+        if (!drafts || !drafts.length) {
+            list.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:30px 0;">No drafts yet. Start creating!</div>';
+            return;
         }
 
-        var info = document.createElement('div');
-        info.className = 'draft-info';
-        var title = document.createElement('div');
-        title.className = 'draft-title';
-        title.textContent = (isCurrent ? '▶ ' : '') + (draft.title || 'Untitled Draft');
-        var meta = document.createElement('div');
-        meta.className = 'draft-meta';
-        meta.textContent = frameCount + ' frame' + (frameCount !== 1 ? 's' : '') + (date ? ' · ' + date : '');
-        info.appendChild(title);
-        info.appendChild(meta);
+        list.innerHTML = '';
+        drafts.forEach(function(draft) {
+            var item = document.createElement('div');
+            item.className = 'draft-item';
+            var f = (draft.data && draft.data[0]) || {};
+            var bg = f.background || '#222';
+            var frameCount = (draft.data || []).length;
+            var date = draft.updated_at ? new Date(draft.updated_at).toLocaleDateString() : '';
+            var isCurrent = String(draft.id) === String(activeDraftId);
 
-        var del = document.createElement('button');
-        del.className = 'draft-del';
-        del.textContent = '🗑';
-        del.title = 'Delete draft';
-        del.onclick = function(e) {
-            e.stopPropagation();
-            if (!confirm('Delete this draft?')) return;
-            var all = [];
-            try { all = JSON.parse(localStorage.getItem('comic_drafts') || '[]'); } catch(ex) {}
-            all = all.filter(function(d){ return String(d.id) !== String(draft.id); });
-            lsSet('comic_drafts', JSON.stringify(all));
-            if (String(draft.id) === String(activeDraftId)) {
-                localStorage.removeItem('active_draft_id');
-                activeDraftId = null;
+            // Build thumb
+            var thumb = document.createElement('div');
+            thumb.className = 'draft-thumb';
+            if (bg.startsWith('http') || bg.startsWith('data:image')) {
+                thumb.style.backgroundImage = 'url(' + bg + ')';
+                thumb.style.backgroundSize = 'cover';
+                thumb.style.backgroundPosition = 'center';
+            } else {
+                thumb.style.background = bg;
             }
-            item.remove();
-            if (!document.querySelectorAll('.draft-item').length) {
-                list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
-            }
-        };
 
-        item.appendChild(thumb);
-        item.appendChild(info);
-        item.appendChild(del);
+            var info = document.createElement('div');
+            info.className = 'draft-info';
+            var title = document.createElement('div');
+            title.className = 'draft-title';
+            title.textContent = (isCurrent ? '▶ ' : '') + (draft.title || 'Untitled Draft');
+            var meta = document.createElement('div');
+            meta.className = 'draft-meta';
+            meta.textContent = frameCount + ' frame' + (frameCount !== 1 ? 's' : '') + (date ? ' · ' + date : '');
+            info.appendChild(title);
+            info.appendChild(meta);
 
-        // Click to load
-        item.onclick = function() {
-            if (isCurrent) { closeDraftsModal(); return; }
-            if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
-            frames = JSON.parse(JSON.stringify(draft.data || [{ layers:[], background:'#ffffff' }]));
-            activeDraftId = draft.id;
-            lsSet('active_draft_id', String(draft.id));
-            var r = draft.ratio || {w:1,h:1};
-            setRatio(r.w, r.h);
-            currentIdx = 0;
-            activeLayer = null;
-            render();
-            renderMobFrames();
-            updateFrameCounter();
-            closeDraftsModal();
-        };
+            var del = document.createElement('button');
+            del.className = 'draft-del';
+            del.textContent = '🗑';
+            del.title = 'Delete draft';
+            del.onclick = async function(e) {
+                e.stopPropagation();
+                if (!confirm('Delete this draft?')) return;
+                try {
+                    await _supabase.from('drafts').delete().eq('id', draft.id);
+                    if (String(draft.id) === String(activeDraftId)) {
+                        localStorage.removeItem('active_draft_id');
+                        activeDraftId = null;
+                    }
+                    item.remove();
+                    if (!document.querySelectorAll('.draft-item').length) {
+                        list.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:30px 0;">No drafts yet. Start creating!</div>';
+                    }
+                } catch(e) { alert('Delete failed: ' + e.message); }
+            };
 
-        list.appendChild(item);
-    });
-    document.getElementById('drafts-modal').classList.add('open');
+            item.appendChild(thumb);
+            item.appendChild(info);
+            item.appendChild(del);
+
+            // Click to load
+            item.onclick = function() {
+                if (isCurrent) { closeDraftsModal(); return; }
+                if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
+                frames = JSON.parse(JSON.stringify(draft.data || [{ layers:[], background:'#ffffff' }]));
+                activeDraftId = draft.id;
+                lsSet('active_draft_id', String(draft.id));
+                var r = draft.canvas_ratio || {w:1,h:1};
+                setRatio(r.w, r.h);
+                currentIdx = 0;
+                activeLayer = null;
+                render();
+                renderMobFrames();
+                updateFrameCounter();
+                closeDraftsModal();
+            };
+
+            list.appendChild(item);
+        });
+    } catch(e) {
+        console.error('Failed to load drafts:', e);
+        list.innerHTML = '<div style="color:#f55;font-size:13px;text-align:center;padding:30px 0;">Error loading drafts</div>';
+    }
 }
 
 function closeDraftsModal() {
@@ -5444,7 +5448,7 @@ async function loadMobGallery() {
     try {
         const { data } = await _supabase
             .from('sprites_gallery')
-            .select('id, name, image_data, actions, default_scale, tags, creator, created_at')
+            .select('id, name, default_scale, tags, creator, created_at')
             .order('created_at', { ascending: false });
         mobGallerySprites = data || [];
         renderMobGallery(mobGallerySprites);
@@ -5501,7 +5505,7 @@ async function mobGalFetchFull(id) {
         .from('sprites_gallery')
         .select('id, image_data, actions, default_scale')
         .eq('id', id).single();
-    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
+    if (data?.image_data && !data.image_data.startsWith('data:')) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
     return data;
 }
 
@@ -5518,7 +5522,7 @@ function renderMobGallery(sprites) {
         card.style.position = 'relative';
 
         const cachedSrc = sbGetImg ? sbGetImg(pack.id) : null;
-        if (cachedSrc) {
+        if (cachedSrc && !cachedSrc.startsWith('data:')) {
             card.innerHTML = `<img src="${cachedSrc}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
         } else {
             card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
@@ -5527,7 +5531,7 @@ function renderMobGallery(sprites) {
                 if (!entries[0].isIntersecting) return;
                 obs.disconnect();
                 mobGalFetchFull(pack.id).then(full => {
-                    if (!full) return;
+                    if (!full || !full.image_data || full.image_data.startsWith('data:')) return;
                     const skel = card.querySelector('div:first-child');
                     if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
                 });
