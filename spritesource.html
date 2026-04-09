@@ -1717,20 +1717,45 @@
                 return;
             }
 
-            // Warn if somehow still base64 — skip it so we don't pollute gallery
-            if (row.image_data?.startsWith('data:')) {
-                if (!confirm(`"${row.name}" still has base64 image data. Run Migrate Library first!\n\nSkip this sprite and continue?`)) {
+            // Auto-migrate base64 → storage before moving to gallery
+            const safeName = (row.name || 'sprite').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            const folder = `${safeName}_${row.id}`;
+            let imageData = row.image_data;
+            let actions = row.actions ? (typeof row.actions === 'string' ? JSON.parse(row.actions) : { ...row.actions }) : {};
+            let needsDbUpdate = false;
+
+            if (imageData?.startsWith('data:')) {
+                btn.textContent = `Uploading image (${i+1}/${ids.length})…`;
+                const url = await uploadToStorage('sprites', `${folder}/main.png`, imageData);
+                if (!url) {
+                    alert(`Failed to upload image for "${row.name}" to storage. Check your connection and try again.`);
                     btn.disabled = false; btn.textContent = '🚚 Move to Gallery';
                     return;
                 }
-                continue;
+                imageData = url;
+                needsDbUpdate = true;
+            }
+
+            // Migrate any base64 actions too
+            for (const [key, val] of Object.entries(actions)) {
+                if (typeof val === 'string' && val.startsWith('data:')) {
+                    btn.textContent = `Uploading action "${key}" (${i+1}/${ids.length})…`;
+                    const safeKey = key.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    const url = await uploadToStorage('sprites', `${folder}/actions/${safeKey}.png`, val);
+                    if (url) { actions[key] = url; needsDbUpdate = true; }
+                }
+            }
+
+            // Update library row with URLs so it's migrated for future use too
+            if (needsDbUpdate) {
+                await _supabase.from('sprites_library').update({ image_data: imageData, actions }).eq('id', row.id);
             }
 
             const meta = allSprites.find(s => s.id === ids[i]);
             toInsert.push({
                 name: row.name,
-                image_data: row.image_data,
-                actions: row.actions || {},
+                image_data: imageData,
+                actions,
                 uploader: uploader,
                 tags: meta?.tags || row.tags || []
             });
