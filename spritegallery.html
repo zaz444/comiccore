@@ -728,6 +728,13 @@
         return null;
     }
 
+    function toImgSrc(raw) {
+        if (!raw) return '';
+        return raw.startsWith('data:') || raw.startsWith('http')
+            ? raw
+            : `data:image/png;base64,${raw}`;
+    }
+
     const lazyObs = new IntersectionObserver(entries => {
         entries.forEach(async entry => {
             if (!entry.isIntersecting) return;
@@ -739,7 +746,7 @@
             if (skel) {
                 const img = document.createElement('img');
                 img.onload = () => { skel.replaceWith(img); img.classList.add('loaded'); };
-                img.src = data.image_data;
+                img.src = toImgSrc(data.image_data);
                 img.style.cssText = 'width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;';
             }
         });
@@ -760,7 +767,7 @@
 
             const cached = imgCache.get(item.id);
             const imgHtml = cached
-                ? `<img src="${cached.image_data}" class="loaded" style="width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;">`
+                ? `<img src="${toImgSrc(cached.image_data)}" class="loaded" style="width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;">`
                 : `<div class="sprite-skeleton"></div>`;
 
             card.innerHTML = `
@@ -792,7 +799,7 @@
             card.dataset.id = item.id;
             const cached = imgCache.get(item.id);
             const imgHtml = cached
-                ? `<img src="${cached.image_data}" class="loaded" style="width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;">`
+                ? `<img src="${toImgSrc(cached.image_data)}" class="loaded" style="width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;">`
                 : `<div class="sprite-skeleton"></div>`;
             card.innerHTML = `
                 ${imgHtml}
@@ -875,7 +882,7 @@
         updateFavBtn();
 
         const full = imgCache.get(item.id) || await fetchSpriteImage(item.id);
-        if (full?.image_data) document.getElementById('prev-img').src = full.image_data;
+        if (full?.image_data) document.getElementById('prev-img').src = toImgSrc(full.image_data);
 
         const actGrid = document.getElementById('prev-actions');
         actGrid.innerHTML = '';
