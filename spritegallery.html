@@ -1660,14 +1660,7 @@
 
     async function openActionMapper(item) {
         mapperSprite = item;
-        mapperStaged = {};
-
-        // Pre-populate staged with any existing URL actions
-        const cached = imgCache.get(item.id);
-        const existing = cached?.actions || {};
-        Object.entries(existing).forEach(([k, v]) => {
-            if (v && !v.startsWith('data:')) mapperStaged[k] = v;
-        });
+        mapperStaged = {}; // Always start empty — saving will fully replace existing actions
 
         document.getElementById('mapper-sprite-name').textContent = item.name + ' · ' + item.id;
         document.getElementById('action-mapper-overlay').style.display = 'flex';
@@ -1703,12 +1696,15 @@
         pathBar.innerHTML = html;
 
         const listPath = path === '' ? undefined : path;
-        const { data: items, error } = await _supabase.storage.from('sprites').list(listPath, { limit: 200 });
+        const { data: rawItems, error } = await _supabase.storage.from('sprites').list(listPath, { limit: 200 });
 
-        if (error || !items) {
+        if (error || !rawItems) {
             fileList.innerHTML = '<div style="color:#ff4444;font-size:11px;padding:12px;font-weight:700;">Error: ' + (error?.message || 'No data') + '</div>';
             return;
         }
+
+        // Filter out Supabase internal placeholder files
+        const items = rawItems.filter(item => item.name !== '.emptyFolderPlaceholder' && item.name !== '.gitkeep');
 
         fileList.innerHTML = '';
 
@@ -1730,7 +1726,8 @@
         }
 
         items.forEach(item => {
-            const isFolder = !item.metadata; // folders have no metadata
+            // Supabase: folders have id === null and no metadata
+            const isFolder = item.id === null && !item.metadata;
             const row = document.createElement('div');
             row.style.cssText = 'padding:8px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;color:#aaa;background:#0f0f0f;border:1px solid #1e1e1e;margin-bottom:5px;display:flex;align-items:center;gap:8px;transition:0.15s;';
 
@@ -1745,7 +1742,7 @@
                 const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
                 row.innerHTML = (isImg ? '<img src="' + publicUrl + '" style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:#111;">' : '<span style="font-size:14px;">📄</span>') +
                     '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.name + '</span>' +
-                    '<span style="color:#a855f7;font-size:10px;font-weight:800;">+ add</span>';
+                    '<span style="color:#a855f7;font-size:10px;font-weight:800;">+ stage</span>';
                 row.onmouseenter = () => { row.style.borderColor = '#a855f7'; row.style.background = 'rgba(168,85,247,0.06)'; };
                 row.onmouseleave = () => { row.style.borderColor = '#1e1e1e'; row.style.background = '#0f0f0f'; };
                 row.onclick = () => stageAction(item.name, publicUrl);
@@ -1814,6 +1811,7 @@
         if (!mapperSprite) return;
         if (!Object.keys(mapperStaged).length) { showToast('⚠️ No actions staged'); return; }
 
+        // Fully replace the actions object in DB
         const { error } = await _supabase
             .from(GALLERY_TABLE)
             .update({ actions: mapperStaged })
