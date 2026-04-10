@@ -1071,34 +1071,22 @@
         prevImg.src = imgSrc;
         if (!imgSrc) { prevImg.classList.add('loaded'); if (prevSkel) prevSkel.style.display = 'none'; }
 
-        // Resolve folder (use cached resolvedFolder to skip storage list call)
+        // Render actions from DB cache — avoids 2 serial Storage list calls on every open
         const actGrid = document.getElementById('prev-actions');
-        let folder;
-        if (item.resolvedFolder) {
-            folder = { name: item.resolvedFolder };
-        } else {
-            const safeName = (item.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-            const { data: folders } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
-            folder = folders?.find(f => f.name.startsWith(safeName));
-            if (folder) item.resolvedFolder = folder.name; // cache for next open
-        }
 
-        actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">Loading…</div>';
+        // Use already-cached full data (populated by lazy loader), or fetch it now
+        const full = imgCache.get(item.id) || await fetchSpriteImage(item.id);
+        const actions = full?.actions || {};
 
-        if (folder) {
-            const { data: actionFiles } = await _supabase.storage.from('sprites').list(`gallery/${folder.name}/actions`);
+        if (Object.keys(actions).length > 0) {
             actGrid.innerHTML = '';
-            if (actionFiles?.length) {
-                actionFiles.forEach(file => {
-                    const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${folder.name}/actions/${file.name}`;
-                    const chip = document.createElement('div');
-                    chip.className = 'prev-action-chip';
-                    chip.innerHTML = `<img src="${url}" loading="lazy"><span>${file.name.replace('.png','')}</span>`;
-                    actGrid.appendChild(chip);
-                });
-            } else {
-                actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">No actions</div>';
-            }
+            Object.entries(actions).forEach(([key, url]) => {
+                if (!url) return;
+                const chip = document.createElement('div');
+                chip.className = 'prev-action-chip';
+                chip.innerHTML = `<img src="${url}" loading="lazy"><span>${key}</span>`;
+                actGrid.appendChild(chip);
+            });
         } else {
             actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">No actions</div>';
         }
