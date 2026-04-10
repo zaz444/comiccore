@@ -720,7 +720,7 @@
     const imgCache = new Map();
     async function fetchSpriteImage(id) {
         if (imgCache.has(id)) return imgCache.get(id);
-        const {data} = await _supabase.from(GALLERY_TABLE).select('id, image_data, actions').eq('id',id).single();
+        const {data} = await _supabase.from(GALLERY_TABLE).select('id, name, image_data, actions').eq('id',id).single();
         if (data) {
             imgCache.set(id, data);
             return data;
@@ -746,10 +746,17 @@
             if (skel) {
                 const img = document.createElement('img');
                 img.onload = () => { skel.replaceWith(img); img.classList.add('loaded'); };
-                img.onerror = () => {
+                img.onerror = async () => {
                     const safeName = (data.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-                    const fallback = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/${safeName}/main.png`;
-                    if (img.src !== fallback) img.src = fallback;
+                    const { data: files } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
+                    const match = files?.find(f => f.name.startsWith(safeName));
+                    if (match) {
+                        const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${match.name}/main.png`;
+                        if (img.src !== url) { img.src = url; return; }
+                    }
+                    // fallback to first action
+                    const firstAction = Object.values(data.actions || {})[0];
+                    if (firstAction) img.src = firstAction;
                 };
                 img.src = toImgSrc(data.image_data);
                 img.style.cssText = 'width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;';
@@ -889,10 +896,17 @@
         const full = imgCache.get(item.id) || await fetchSpriteImage(item.id);
         if (full?.image_data) {
             const prevImg = document.getElementById('prev-img');
-            prevImg.onerror = () => {
+            prevImg.onerror = async () => {
                 const safeName = (item.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-                const fallback = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/${safeName}/main.png`;
-                if (prevImg.src !== fallback) prevImg.src = fallback;
+                const { data: files } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
+                const match = files?.find(f => f.name.startsWith(safeName));
+                if (match) {
+                    const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${match.name}/main.png`;
+                    if (prevImg.src !== url) { prevImg.src = url; return; }
+                }
+                // fallback to first action
+                const firstAction = Object.values(full.actions || {})[0];
+                if (firstAction) prevImg.src = firstAction;
             };
             prevImg.src = toImgSrc(full.image_data);
         }
