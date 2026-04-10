@@ -746,6 +746,11 @@
             if (skel) {
                 const img = document.createElement('img');
                 img.onload = () => { skel.replaceWith(img); img.classList.add('loaded'); };
+                img.onerror = () => {
+                    const safeName = (data.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+                    const fallback = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/${safeName}/main.png`;
+                    if (img.src !== fallback) img.src = fallback;
+                };
                 img.src = toImgSrc(data.image_data);
                 img.style.cssText = 'width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;';
             }
@@ -882,7 +887,15 @@
         updateFavBtn();
 
         const full = imgCache.get(item.id) || await fetchSpriteImage(item.id);
-        if (full?.image_data) document.getElementById('prev-img').src = toImgSrc(full.image_data);
+        if (full?.image_data) {
+            const prevImg = document.getElementById('prev-img');
+            prevImg.onerror = () => {
+                const safeName = (item.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+                const fallback = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/${safeName}/main.png`;
+                if (prevImg.src !== fallback) prevImg.src = fallback;
+            };
+            prevImg.src = toImgSrc(full.image_data);
+        }
 
         const actGrid = document.getElementById('prev-actions');
         actGrid.innerHTML = '';
