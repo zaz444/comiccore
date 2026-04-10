@@ -626,6 +626,35 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
+<!-- ACTION MAPPER MODAL -->
+<div id="action-mapper-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;align-items:center;justify-content:center;">
+    <div style="background:#111;border:1px solid #2a2a2a;border-radius:16px;width:min(740px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid #1e1e1e;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+            <div>
+                <div style="font-size:14px;font-weight:900;color:#a855f7;">🗂 Map Storage Actions</div>
+                <div id="mapper-sprite-name" style="font-size:11px;color:#555;font-weight:700;margin-top:2px;"></div>
+            </div>
+            <button onclick="closeActionMapper()" style="background:#1e1e1e;border:1px solid #2a2a2a;color:#888;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:14px;font-weight:900;">✕</button>
+        </div>
+        <div style="display:flex;flex:1;min-height:0;">
+            <div style="width:50%;border-right:1px solid #1e1e1e;display:flex;flex-direction:column;">
+                <div style="padding:12px 14px;border-bottom:1px solid #1e1e1e;font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;">Storage: /sprites</div>
+                <div id="mapper-path-bar" style="padding:8px 14px;background:#0a0a0a;font-size:10px;font-weight:700;color:#666;border-bottom:1px solid #1e1e1e;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+                <div id="mapper-file-list" style="flex:1;overflow-y:auto;padding:8px;"></div>
+            </div>
+            <div style="width:50%;display:flex;flex-direction:column;">
+                <div style="padding:12px 14px;border-bottom:1px solid #1e1e1e;font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;">Staged Actions — click files to add</div>
+                <div id="mapper-staged" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
+                <div style="padding:12px;border-top:1px solid #1e1e1e;display:flex;gap:8px;">
+                    <button onclick="clearStagedActions()" style="flex:1;padding:10px;background:#1a1a1a;border:1px solid #2a2a2a;color:#888;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit;">Clear</button>
+                    <button onclick="saveActionMap()" style="flex:2;padding:10px;background:#a855f7;border:none;color:white;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">💾 Save to DB</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <!-- BACKDROP -->
 <div id="preview-backdrop" onclick="closePreview()"></div>
 
@@ -1022,23 +1051,35 @@
         document.getElementById('prev-tags').innerHTML = (item.tags||[]).map(t => `<span class="prev-tag">${t}</span>`).join('');
         document.getElementById('prev-actions').innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">Loading…</div>';
 
-        // Admin delete
+        // Admin / owner controls
         const adminDiv = document.getElementById('prev-admin');
         adminDiv.innerHTML = '';
-        if (isAdmin) {
+
+        const myHandleClean = (myHandle || '').toLowerCase().replace('@', '');
+        const creatorClean  = (item.creator || '').toLowerCase().replace('@', '');
+        const isOwner       = myHandleClean && myHandleClean === creatorClean;
+
+        // Delete — admin can delete any sprite; owner can delete their own
+        if (isAdmin || isOwner) {
             const del = document.createElement('button');
             del.className = 'admin-del-btn';
-            del.textContent = 'DELETE FROM GALLERY';
+            del.textContent = isAdmin && !isOwner ? '🗑 DELETE (ADMIN)' : '🗑 DELETE MY SPRITE';
             del.style.marginTop = '8px';
             del.onclick = () => deleteGallerySprite(item.id);
             adminDiv.appendChild(del);
+        }
 
-            const migrateBtn = document.createElement('button');
-            migrateBtn.className = 'admin-del-btn';
-            migrateBtn.textContent = 'MIGRATE BASE64 ACTIONS';
-            migrateBtn.style.marginTop = '8px';
-            migrateBtn.onclick = migrateGalleryActions;
-            adminDiv.appendChild(migrateBtn);
+        // Admin-only tools
+        if (isAdmin) {
+            const mapBtn = document.createElement('button');
+            mapBtn.className = 'admin-del-btn';
+            mapBtn.textContent = '🗂 MAP STORAGE ACTIONS';
+            mapBtn.style.marginTop = '8px';
+            mapBtn.style.color = '#a855f7';
+            mapBtn.style.borderColor = 'rgba(168,85,247,0.3)';
+            mapBtn.style.background = 'rgba(168,85,247,0.08)';
+            mapBtn.onclick = () => openActionMapper(item);
+            adminDiv.appendChild(mapBtn);
         }
 
         updateFavBtn();
@@ -1611,6 +1652,188 @@
         imgCache.clear();
         localStorage.removeItem(GALLERY_CACHE_KEY);
     }
+
+    // ── Action Mapper ──
+    let mapperSprite = null;
+    let mapperPath = 'gallery';
+    let mapperStaged = {}; // { actionName: publicUrl }
+
+    async function openActionMapper(item) {
+        mapperSprite = item;
+        mapperStaged = {};
+
+        // Pre-populate staged with any existing URL actions
+        const cached = imgCache.get(item.id);
+        const existing = cached?.actions || {};
+        Object.entries(existing).forEach(([k, v]) => {
+            if (v && !v.startsWith('data:')) mapperStaged[k] = v;
+        });
+
+        document.getElementById('mapper-sprite-name').textContent = item.name + ' · ' + item.id;
+        document.getElementById('action-mapper-overlay').style.display = 'flex';
+        mapperPath = '';
+        await mapperBrowse('');
+        renderMapperStaged();
+    }
+
+    function closeActionMapper() {
+        document.getElementById('action-mapper-overlay').style.display = 'none';
+        mapperSprite = null;
+    }
+
+    async function mapperBrowse(path) {
+        mapperPath = path;
+        const fileList = document.getElementById('mapper-file-list');
+        const pathBar  = document.getElementById('mapper-path-bar');
+
+        fileList.innerHTML = '<div style="color:#444;font-size:11px;padding:12px;font-weight:700;">Loading…</div>';
+
+        // Path breadcrumbs
+        let html = `<span onclick="mapperBrowse('')" style="cursor:pointer;color:${path===''?'#a855f7':'#555'};font-weight:800;">sprites</span>`;
+        if (path) {
+            const parts = path.split('/');
+            let built = '';
+            parts.forEach((p, i) => {
+                built += (i ? '/' : '') + p;
+                const cap = built;
+                html += '<span style="color:#333;">/</span>';
+                html += `<span onclick="mapperBrowse('${cap}')" style="cursor:pointer;color:${i===parts.length-1?'#a855f7':'#555'};font-weight:800;">${p}</span>`;
+            });
+        }
+        pathBar.innerHTML = html;
+
+        const listPath = path === '' ? undefined : path;
+        const { data: items, error } = await _supabase.storage.from('sprites').list(listPath, { limit: 200 });
+
+        if (error || !items) {
+            fileList.innerHTML = '<div style="color:#ff4444;font-size:11px;padding:12px;font-weight:700;">Error: ' + (error?.message || 'No data') + '</div>';
+            return;
+        }
+
+        fileList.innerHTML = '';
+
+        // Back button — not shown at root
+        if (path !== '') {
+            const back = document.createElement('div');
+            back.style.cssText = 'padding:8px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:800;color:#666;background:#0f0f0f;border:1px solid #1e1e1e;margin-bottom:6px;';
+            back.textContent = '← Back';
+            back.onclick = () => {
+                const up = path.split('/').slice(0, -1).join('/');
+                mapperBrowse(up);
+            };
+            fileList.appendChild(back);
+        }
+
+        if (!items.length) {
+            fileList.innerHTML += '<div style="color:#333;font-size:11px;padding:12px;font-weight:700;">Empty folder</div>';
+            return;
+        }
+
+        items.forEach(item => {
+            const isFolder = !item.metadata; // folders have no metadata
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:8px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;color:#aaa;background:#0f0f0f;border:1px solid #1e1e1e;margin-bottom:5px;display:flex;align-items:center;gap:8px;transition:0.15s;';
+
+            if (isFolder) {
+                row.innerHTML = '<span style="font-size:14px;">📁</span><span style="flex:1;">' + item.name + '</span><span style="color:#444;font-size:10px;">open →</span>';
+                row.onmouseenter = () => row.style.borderColor = '#333';
+                row.onmouseleave = () => row.style.borderColor = '#1e1e1e';
+                row.onclick = () => mapperBrowse(path + '/' + item.name);
+            } else {
+                const publicUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/' + (path ? path + '/' : '') + item.name;
+                const ext = item.name.split('.').pop().toLowerCase();
+                const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
+                row.innerHTML = (isImg ? '<img src="' + publicUrl + '" style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:#111;">' : '<span style="font-size:14px;">📄</span>') +
+                    '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.name + '</span>' +
+                    '<span style="color:#a855f7;font-size:10px;font-weight:800;">+ add</span>';
+                row.onmouseenter = () => { row.style.borderColor = '#a855f7'; row.style.background = 'rgba(168,85,247,0.06)'; };
+                row.onmouseleave = () => { row.style.borderColor = '#1e1e1e'; row.style.background = '#0f0f0f'; };
+                row.onclick = () => stageAction(item.name, publicUrl);
+            }
+            fileList.appendChild(row);
+        });
+    }
+
+    function stageAction(filename, url) {
+        // Default action name = filename without extension
+        const defaultName = filename.replace(/\.[^.]+$/, '');
+        const name = prompt('Action name for "' + filename + '":', defaultName);
+        if (!name) return;
+        mapperStaged[name.trim()] = url;
+        renderMapperStaged();
+        showToast('✅ Staged: ' + name);
+    }
+
+    function renderMapperStaged() {
+        const el = document.getElementById('mapper-staged');
+        el.innerHTML = '';
+        const entries = Object.entries(mapperStaged);
+        if (!entries.length) {
+            el.innerHTML = '<div style="color:#333;font-size:11px;padding:12px;font-weight:700;text-align:center;">No actions staged yet.<br>Browse left and click files to add.</div>';
+            return;
+        }
+        entries.forEach(([name, url]) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#0f0f0f;border:1px solid #1e1e1e;border-radius:8px;padding:7px 10px;';
+            const ext = url.split('.').pop().toLowerCase();
+            const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
+
+            if (isImg) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.style.cssText = 'width:32px;height:32px;object-fit:contain;border-radius:4px;background:#111;';
+                row.appendChild(img);
+            }
+
+            const label = document.createElement('span');
+            label.style.cssText = 'flex:1;font-size:11px;font-weight:800;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+            label.textContent = name;
+            row.appendChild(label);
+
+            const delBtn = document.createElement('span');
+            delBtn.textContent = '\u2715';
+            delBtn.style.cssText = 'color:#ff4444;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;';
+            delBtn.onclick = () => deleteStaged(name);
+            row.appendChild(delBtn);
+
+            el.appendChild(row);
+        });
+    }
+
+    function deleteStaged(name) {
+        delete mapperStaged[name];
+        renderMapperStaged();
+    }
+
+    function clearStagedActions() {
+        mapperStaged = {};
+        renderMapperStaged();
+    }
+
+    async function saveActionMap() {
+        if (!mapperSprite) return;
+        if (!Object.keys(mapperStaged).length) { showToast('⚠️ No actions staged'); return; }
+
+        const { error } = await _supabase
+            .from(GALLERY_TABLE)
+            .update({ actions: mapperStaged })
+            .eq('id', mapperSprite.id);
+
+        if (error) { showToast('❌ Save failed: ' + error.message); return; }
+
+        // Update imgCache
+        const cached = imgCache.get(mapperSprite.id);
+        if (cached) cached.actions = { ...mapperStaged };
+        imgCache.set(mapperSprite.id, { ...(cached || {}), id: mapperSprite.id, actions: { ...mapperStaged } });
+
+        localStorage.removeItem(GALLERY_CACHE_KEY);
+        showToast('✅ Actions saved to DB!');
+        closeActionMapper();
+
+        // Re-open preview so actions panel refreshes
+        openPreview(mapperSprite);
+    }
+
 </script>
 
 </body>
