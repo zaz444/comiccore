@@ -331,11 +331,86 @@
             .sprite-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
             #preview-overlay { width: 100%; }
         }
+
+        /* Tag row horizontal scroll on mobile */
+        .tag-row {
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding-bottom: 4px;
+        }
+        .tag-row::-webkit-scrollbar { display: none; }
+        .tag-row .tag-chip { flex-shrink: 0; }
+
+        /* Preview backdrop */
+        #preview-backdrop {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        #preview-backdrop.open { display: block; }
+
+        /* Mobile bottom toolbar for Upload/Editor */
+        .mobile-toolbar {
+            display: none;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(15,15,17,0.96); backdrop-filter: blur(18px);
+            border-top: 1px solid #2c2c2e;
+            padding: 10px 16px 14px;
+            z-index: 300;
+            gap: 8px;
+        }
+        @media (max-width: 768px) {
+            .mobile-toolbar { display: flex; }
+            .mobile-toolbar .top-bar-btn { flex: 1; justify-content: center; font-size: 12px; padding: 10px; }
+        }
+
+        /* Preview image loading shimmer */
+        .prev-img-wrap {
+            width: 100%; aspect-ratio: 1; background: #111; border-radius: 14px;
+            border: 1px solid #1e1e1e; margin-bottom: 14px; overflow: hidden;
+            position: relative;
+        }
+        .prev-img-wrap .prev-img {
+            width: 100%; height: 100%; object-fit: contain; border-radius: 14px;
+            margin-bottom: 0; border: none;
+            opacity: 0; transition: opacity 0.25s;
+        }
+        .prev-img-wrap .prev-img.loaded { opacity: 1; }
+        .prev-img-skel {
+            position: absolute; inset: 0;
+            background: linear-gradient(90deg, #1a1a1a 25%, #242424 50%, #1a1a1a 75%);
+            background-size: 200% 100%; animation: shimmer 1.4s infinite;
+            border-radius: 14px;
+        }
+        /* Mobile sidebar modal */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: flex !important;
+                position: fixed; left: -280px; top: 0; bottom: 0;
+                width: 280px; height: 100dvh;
+                z-index: 1001;
+                transition: left 0.3s cubic-bezier(0.4,0,0.2,1);
+            }
+            .sidebar.mobile-open { left: 0; }
+        }
+
+        /* Sidebar backdrop */
+        #sidebar-backdrop {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        #sidebar-backdrop.open { display: block; }
     </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
+<!-- SIDEBAR BACKDROP (mobile) -->
+<div id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 <div class="top-bar">
     <div class="top-bar-logo">Comic<span>Core</span></div>
     <div class="top-bar-badge">🖼 Sprite Gallery</div>
@@ -458,7 +533,7 @@
             </div>
             <div class="search-row">
                 <div class="search-wrap">
-                    <input class="search-input" id="gallery-search" placeholder="🔍 Search by name or tag..." oninput="filterGallery()" autocomplete="off">
+                    <input class="search-input" id="gallery-search" placeholder="🔍 Search by name or tag..." oninput="filterGalleryDebounced()" autocomplete="off">
                 </div>
                 <select class="sort-select" id="gallery-sort" onchange="filterGallery()">
                     <option value="newest">Newest</option>
@@ -533,7 +608,10 @@
         <div class="prev-close" onclick="closePreview()">✕</div>
     </div>
     <div class="prev-body">
-        <img class="prev-img" id="prev-img" src="">
+        <div class="prev-img-wrap">
+            <div class="prev-img-skel" id="prev-img-skel"></div>
+            <img class="prev-img" id="prev-img" src="">
+        </div>
         <div class="prev-name" id="prev-name"></div>
         <div class="prev-uploader" id="prev-uploader"></div>
         <div class="prev-tags" id="prev-tags"></div>
@@ -547,6 +625,15 @@
 
 <!-- TOAST -->
 <div id="toast"></div>
+
+<!-- BACKDROP -->
+<div id="preview-backdrop" onclick="closePreview()"></div>
+
+<!-- MOBILE TOOLBAR -->
+<div class="mobile-toolbar">
+    <button class="top-bar-btn purple" onclick="setSidebarView('upload')">⬆ Upload</button>
+    <button class="top-bar-btn" onclick="setSidebarView('editor')">🎨 Editor</button>
+</div>
 
 <script>
     const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
@@ -623,6 +710,17 @@
         document.getElementById('editor-panel-wrap').style.display = view === 'editor' ? '' : 'none';
 
         if (view === 'editor') initSpriteEditor();
+
+        // On mobile, open the sidebar as a modal
+        if (window.innerWidth <= 768) {
+            document.querySelector('.sidebar').classList.add('mobile-open');
+            document.getElementById('sidebar-backdrop').classList.add('open');
+        }
+    }
+
+    function closeMobileSidebar() {
+        document.querySelector('.sidebar').classList.remove('mobile-open');
+        document.getElementById('sidebar-backdrop').classList.remove('open');
     }
 
     // ── Toast ──
@@ -716,15 +814,40 @@
         document.getElementById('gallery-count').textContent = list.length + ' sprite' + (list.length!==1?'s':'');
     }
 
+    // ── Debounce utility ──
+    function debounce(fn, ms) {
+        let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+    }
+    const filterGalleryDebounced = debounce(() => filterGallery(), 220);
+
+    // ── Keyboard shortcuts ──
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closePreview();
+    });
+
     // Lazy image cache
     const imgCache = new Map();
+
+    // Batch-fetch images for a list of ids not yet in cache
+    async function prefetchSpriteImages(ids) {
+        const missing = ids.filter(id => !imgCache.has(id));
+        if (!missing.length) return;
+        // Supabase `in` filter – fetch up to 50 at once
+        const chunks = [];
+        for (let i = 0; i < missing.length; i += 50) chunks.push(missing.slice(i, i + 50));
+        for (const chunk of chunks) {
+            const { data } = await _supabase
+                .from(GALLERY_TABLE)
+                .select('id, name, image_data, actions')
+                .in('id', chunk);
+            (data || []).forEach(d => imgCache.set(d.id, d));
+        }
+    }
+
     async function fetchSpriteImage(id) {
         if (imgCache.has(id)) return imgCache.get(id);
         const {data} = await _supabase.from(GALLERY_TABLE).select('id, name, image_data, actions').eq('id',id).single();
-        if (data) {
-            imgCache.set(id, data);
-            return data;
-        }
+        if (data) { imgCache.set(id, data); return data; }
         return null;
     }
 
@@ -736,45 +859,45 @@
     }
 
     const lazyObs = new IntersectionObserver(entries => {
-        entries.forEach(async entry => {
-            if (!entry.isIntersecting) return;
-            lazyObs.unobserve(entry.target);
-            const id = entry.target.dataset.id;
-            const data = await fetchSpriteImage(id);
-            if (!data) return;
-            const skel = entry.target.querySelector('.sprite-skeleton');
-            if (skel) {
+        // Collect all newly-visible ids, then batch-fetch in one query
+        const toLoad = entries
+            .filter(e => e.isIntersecting)
+            .map(e => { lazyObs.unobserve(e.target); return e.target; });
+        if (!toLoad.length) return;
+
+        const ids = toLoad.map(el => el.dataset.id);
+        prefetchSpriteImages(ids).then(() => {
+            toLoad.forEach(card => {
+                const id = card.dataset.id;
+                const data = imgCache.get(id);
+                if (!data) return;
+                const skel = card.querySelector('.sprite-skeleton');
+                if (!skel) return;
                 const img = document.createElement('img');
                 img.onload = () => { skel.replaceWith(img); img.classList.add('loaded'); };
                 img.onerror = async () => {
+                    // Fallback: try first non-base64 action
+                    const firstAction = Object.values(data.actions || {})[0];
+                    if (firstAction && !firstAction.startsWith('data:')) {
+                        img.src = firstAction;
+                        _supabase.from(GALLERY_TABLE).update({ image_data: firstAction }).eq('id', data.id);
+                        return;
+                    }
+                    // Last resort: list storage folder
                     const safeName = (data.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
                     const { data: files } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
                     const match = files?.find(f => f.name.startsWith(safeName));
                     if (match) {
                         const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${match.name}/main.png`;
-                        if (img.src !== url) { img.src = url; await _supabase.from(GALLERY_TABLE).update({ image_data: url }).eq('id', data.id); const spriteItem = allGallerySprites.find(s => s.id === data.id); if (spriteItem) spriteItem.resolvedFolder = match.name; return; }
-                    }
-                    // after folder search finds nothing
-                    const firstAction = Object.values(data.actions || {})[0];
-                    if (firstAction && !firstAction.startsWith('data:')) {
-                        img.src = firstAction;
-                        // Save as the permanent main image
-                        _supabase.from(GALLERY_TABLE).update({ image_data: firstAction }).eq('id', data.id);
-                    } else if (match) {
-                        // Get first file from Storage actions folder directly
-                        const { data: actionFiles } = await _supabase.storage.from('sprites').list(`gallery/${match.name}/actions`);
-                        if (actionFiles?.length) {
-                            const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${match.name}/actions/${actionFiles[0].name}`;
-                            img.src = url;
-                            _supabase.from(GALLERY_TABLE).update({ image_data: url }).eq('id', data.id);
-                        }
+                        img.src = url;
+                        _supabase.from(GALLERY_TABLE).update({ image_data: url }).eq('id', data.id);
                     }
                 };
                 img.src = toImgSrc(data.image_data);
                 img.style.cssText = 'width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;';
-            }
+            });
         });
-    }, { rootMargin: '400px 0px' });
+    }, { rootMargin: '200px 0px' });
 
     function renderGalleryGrid(sprites) {
         const grid = document.getElementById('gallery-grid');
@@ -885,7 +1008,15 @@
     async function openPreview(item) {
         currentPreviewItem = item;
         document.getElementById('preview-overlay').classList.add('open');
-        document.getElementById('prev-img').src = '';
+        document.getElementById('preview-backdrop').classList.add('open');
+
+        // Reset image to shimmer state
+        const prevImg = document.getElementById('prev-img');
+        const prevSkel = document.getElementById('prev-img-skel');
+        prevImg.src = '';
+        prevImg.classList.remove('loaded');
+        if (prevSkel) prevSkel.style.display = '';
+
         document.getElementById('prev-name').textContent = item.name;
         document.getElementById('prev-uploader').textContent = '@' + (item.creator || 'unknown');
         document.getElementById('prev-tags').innerHTML = (item.tags||[]).map(t => `<span class="prev-tag">${t}</span>`).join('');
@@ -912,17 +1043,22 @@
 
         updateFavBtn();
 
-        const prevImg = document.getElementById('prev-img');
-        prevImg.src = item.image_data;
+        // Use cached full data if available, else fetch
+        const cached = imgCache.get(item.id);
+        const imgSrc = cached?.image_data ? toImgSrc(cached.image_data) : (item.image_data || '');
+
+        prevImg.onload = () => {
+            prevImg.classList.add('loaded');
+            if (prevSkel) prevSkel.style.display = 'none';
+        };
         prevImg.onerror = async () => {
-            // Try first action from DB
-            const firstAction = Object.values(item.actions || {})[0];
+            const full = cached || await fetchSpriteImage(item.id);
+            const firstAction = Object.values(full?.actions || {})[0];
             if (firstAction && !firstAction.startsWith('data:')) {
                 prevImg.src = firstAction;
                 _supabase.from(GALLERY_TABLE).update({ image_data: firstAction }).eq('id', item.id);
                 return;
             }
-            // Last resort - use first file from actions folder
             if (item.resolvedFolder) {
                 const { data: actionFiles } = await _supabase.storage.from('sprites').list(`gallery/${item.resolvedFolder}/actions`);
                 if (actionFiles?.length) {
@@ -932,19 +1068,21 @@
                 }
             }
         };
+        prevImg.src = imgSrc;
+        if (!imgSrc) { prevImg.classList.add('loaded'); if (prevSkel) prevSkel.style.display = 'none'; }
 
-        const folderName = item.resolvedFolder;
+        // Resolve folder (use cached resolvedFolder to skip storage list call)
+        const actGrid = document.getElementById('prev-actions');
         let folder;
-        if (folderName) {
-            folder = { name: folderName };
+        if (item.resolvedFolder) {
+            folder = { name: item.resolvedFolder };
         } else {
             const safeName = (item.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
             const { data: folders } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
             folder = folders?.find(f => f.name.startsWith(safeName));
-            if (folder) item.resolvedFolder = folder.name;
+            if (folder) item.resolvedFolder = folder.name; // cache for next open
         }
 
-        const actGrid = document.getElementById('prev-actions');
         actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">Loading…</div>';
 
         if (folder) {
@@ -968,6 +1106,7 @@
 
     function closePreview() {
         document.getElementById('preview-overlay').classList.remove('open');
+        document.getElementById('preview-backdrop').classList.remove('open');
         currentPreviewItem = null;
     }
 
@@ -1134,7 +1273,7 @@
 
         const { data, error } = await _supabase
             .from(PACKS_TABLE)
-            .select('*')
+            .select('id, name, tags, creator, created_at, cover_image, card_sprites, items')
             .order('created_at', { ascending: false });
 
         if (error || !data) {
