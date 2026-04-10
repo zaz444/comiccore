@@ -752,7 +752,7 @@
                     const match = files?.find(f => f.name.startsWith(safeName));
                     if (match) {
                         const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${match.name}/main.png`;
-                        if (img.src !== url) { img.src = url; return; }
+                        if (img.src !== url) { img.src = url; await _supabase.from(GALLERY_TABLE).update({ image_data: url }).eq('id', data.id); return; }
                     }
                     // fallback to first action
                     const firstAction = Object.values(data.actions || {})[0];
@@ -889,6 +889,13 @@
             del.style.marginTop = '8px';
             del.onclick = () => deleteGallerySprite(item.id);
             adminDiv.appendChild(del);
+
+            const migrateBtn = document.createElement('button');
+            migrateBtn.className = 'admin-del-btn';
+            migrateBtn.textContent = 'MIGRATE BASE64 ACTIONS';
+            migrateBtn.style.marginTop = '8px';
+            migrateBtn.onclick = migrateGalleryActions;
+            adminDiv.appendChild(migrateBtn);
         }
 
         updateFavBtn();
@@ -902,7 +909,7 @@
                 const match = files?.find(f => f.name.startsWith(safeName));
                 if (match) {
                     const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${match.name}/main.png`;
-                    if (prevImg.src !== url) { prevImg.src = url; return; }
+                    if (prevImg.src !== url) { prevImg.src = url; await _supabase.from(GALLERY_TABLE).update({ image_data: url }).eq('id', item.id); return; }
                 }
                 // fallback to first action
                 const firstAction = Object.values(full.actions || {})[0];
@@ -1400,6 +1407,50 @@
             localStorage.removeItem(GALLERY_CACHE_KEY);
             await fetchGallery();
         }
+    }
+
+    // ── Migrate Base64 Actions ──
+    async function migrateGalleryActions() {
+        if (!confirm('Migrate all base64 action images to Storage? This may take a while.')) return;
+        showToast('🔄 Starting migration...');
+
+        const { data: sprites, error } = await _supabase.from(GALLERY_TABLE).select('id, name, actions');
+        if (error) { showToast('❌ Fetch error: ' + error.message); return; }
+
+        let migrated = 0;
+        for (const sprite of sprites) {
+            if (!sprite.actions) continue;
+            const actions = typeof sprite.actions === 'string' ? JSON.parse(sprite.actions) : { ...sprite.actions };
+            let needsUpdate = false;
+
+            for (const [key, val] of Object.entries(actions)) {
+                if (typeof val === 'string' && val.startsWith('data:')) {
+                    const safeName = (sprite.name || 'sprite').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    const safeKey = key.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    const folder = `${safeName}_${sprite.id}`;
+                    const actionsPath = `gallery/${folder}/actions/`;
+                    const { data: files, error } = await _supabase.storage.from('sprites').list(actionsPath);
+                    if (error) continue;
+                    const match = files.find(f => f.name === `${safeKey}.png`);
+                    if (match) {
+                        const { data: publicUrl } = _supabase.storage.from('sprites').getPublicUrl(`${actionsPath}${match.name}`);
+                        actions[key] = publicUrl.publicUrl;
+                        needsUpdate = true;
+                    }
+                }
+            }
+
+            if (needsUpdate) {
+                const { error: updateError } = await _supabase.from(GALLERY_TABLE).update({ actions }).eq('id', sprite.id);
+                if (!updateError) migrated++;
+                else console.error('Update error for', sprite.id, updateError);
+            }
+        }
+
+        showToast(`✅ Migrated ${migrated} sprites`);
+        // Clear cache to force refresh
+        imgCache.clear();
+        localStorage.removeItem(GALLERY_CACHE_KEY);
     }
 </script>
 
