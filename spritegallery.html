@@ -752,7 +752,7 @@
                     const match = files?.find(f => f.name.startsWith(safeName));
                     if (match) {
                         const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${match.name}/main.png`;
-                        if (img.src !== url) { img.src = url; await _supabase.from(GALLERY_TABLE).update({ image_data: url }).eq('id', data.id); return; }
+                        if (img.src !== url) { img.src = url; await _supabase.from(GALLERY_TABLE).update({ image_data: url }).eq('id', data.id); const spriteItem = allGallerySprites.find(s => s.id === data.id); if (spriteItem) spriteItem.resolvedFolder = match.name; return; }
                     }
                     // fallback to first action
                     const firstAction = Object.values(data.actions || {})[0];
@@ -900,23 +900,18 @@
 
         updateFavBtn();
 
-        const full = imgCache.get(item.id) || await fetchSpriteImage(item.id);
-
-        const safeName = (item.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-        const { data: folders } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
-        const folder = folders?.find(f => f.name.startsWith(safeName));
-
         const prevImg = document.getElementById('prev-img');
-        if (folder) {
-            const mainUrl = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/gallery/${folder.name}/main.png`;
-            prevImg.src = mainUrl;
-            _supabase.from(GALLERY_TABLE).update({ image_data: mainUrl }).eq('id', item.id);
-        } else if (full?.image_data) {
-            prevImg.src = toImgSrc(full.image_data);
-            prevImg.onerror = async () => {
-                const firstAction = Object.values(full?.actions || {})[0];
-                if (firstAction) prevImg.src = firstAction;
-            };
+        prevImg.src = item.image_data;
+
+        const folderName = item.resolvedFolder;
+        let folder;
+        if (folderName) {
+            folder = { name: folderName };
+        } else {
+            const safeName = (item.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+            const { data: folders } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
+            folder = folders?.find(f => f.name.startsWith(safeName));
+            if (folder) item.resolvedFolder = folder.name;
         }
 
         const actGrid = document.getElementById('prev-actions');
