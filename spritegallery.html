@@ -927,12 +927,33 @@
         let actions = full?.actions;
         if (typeof actions === 'string') try { actions = JSON.parse(actions); } catch(e) {}
         if (actions && Object.keys(actions).length) {
-            Object.entries(actions).forEach(([k,v]) => {
+            for (const [k, v] of Object.entries(actions)) {
                 const chip = document.createElement('div');
                 chip.className = 'prev-action-chip';
-                chip.innerHTML = `<img src="${v}" loading="lazy"><span>${k}</span>`;
+                const img = document.createElement('img');
+                img.loading = 'lazy';
+                img.src = v;
+                img.onerror = async () => {
+                    const safeName = (item.name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+                    const { data: folders } = await _supabase.storage.from('sprites').list('gallery', { search: safeName });
+                    const folderMatch = folders?.find(f => f.name.startsWith(safeName));
+                    if (folderMatch) {
+                        const actionsPath = `gallery/${folderMatch.name}/actions/`;
+                        const { data: files } = await _supabase.storage.from('sprites').list(actionsPath);
+                        const fname = k.toLowerCase().replace(/-/g,'') + '.png';
+                        const match = files?.find(f => f.name === fname) || files?.find(f => f.name.startsWith(k.toLowerCase().replace(/-/g,'')));
+                        if (match) {
+                            const url = `https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/${actionsPath}${match.name}`;
+                            img.src = url;
+                        }
+                    }
+                };
+                const label = document.createElement('span');
+                label.textContent = k;
+                chip.appendChild(img);
+                chip.appendChild(label);
                 actGrid.appendChild(chip);
-            });
+            }
         } else {
             actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">No actions</div>';
         }
