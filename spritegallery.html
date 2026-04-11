@@ -643,7 +643,7 @@
                 <div id="mapper-file-list" style="flex:1;overflow-y:auto;padding:8px;"></div>
             </div>
             <div style="width:50%;display:flex;flex-direction:column;">
-                <div style="padding:12px 14px;border-bottom:1px solid #1e1e1e;font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;">Staged Actions — click files to add</div>
+                <div style="padding:12px 14px;border-bottom:1px solid #1e1e1e;font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;">Staged — ✓ a folder or click files</div>
                 <div id="mapper-staged" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
                 <div style="padding:12px;border-top:1px solid #1e1e1e;display:flex;gap:8px;">
                     <button onclick="clearStagedActions()" style="flex:1;padding:10px;background:#1a1a1a;border:1px solid #2a2a2a;color:#888;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit;">Clear</button>
@@ -1729,17 +1729,36 @@
             // Supabase: folders have id === null and no metadata
             const isFolder = item.id === null && !item.metadata;
             const row = document.createElement('div');
-            row.style.cssText = 'padding:8px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;color:#aaa;background:#0f0f0f;border:1px solid #1e1e1e;margin-bottom:5px;display:flex;align-items:center;gap:8px;transition:0.15s;';
+            row.style.cssText = 'padding:8px 10px;border-radius:7px;font-size:11px;font-weight:700;color:#aaa;background:#0f0f0f;border:1px solid #1e1e1e;margin-bottom:5px;display:flex;align-items:center;gap:8px;transition:0.15s;';
 
             if (isFolder) {
-                row.innerHTML = '<span style="font-size:14px;">📁</span><span style="flex:1;">' + item.name + '</span><span style="color:#444;font-size:10px;">open →</span>';
+                const folderPath = path ? path + '/' + item.name : item.name;
+
+                // Green auto-stage button
+                const autoBtn = document.createElement('button');
+                autoBtn.title = 'Auto-stage cover + all actions from this folder';
+                autoBtn.textContent = '✓';
+                autoBtn.style.cssText = 'background:#14532d;border:1px solid #16a34a;color:#4ade80;border-radius:6px;font-size:13px;font-weight:900;width:26px;height:26px;cursor:pointer;flex-shrink:0;font-family:inherit;display:flex;align-items:center;justify-content:center;padding:0;transition:0.15s;';
+                autoBtn.onmouseenter = () => { autoBtn.style.background = '#166534'; autoBtn.style.borderColor = '#22c55e'; };
+                autoBtn.onmouseleave = () => { autoBtn.style.background = '#14532d'; autoBtn.style.borderColor = '#16a34a'; };
+                autoBtn.onclick = (e) => { e.stopPropagation(); stageAllFromFolder(folderPath); };
+
+                row.innerHTML = '<span style="font-size:14px;">📁</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.name + '</span>';
+                row.style.cursor = 'pointer';
+                row.appendChild(autoBtn);
+                const arrow = document.createElement('span');
+                arrow.style.cssText = 'color:#444;font-size:10px;flex-shrink:0;';
+                arrow.textContent = 'open →';
+                row.appendChild(arrow);
+
                 row.onmouseenter = () => row.style.borderColor = '#333';
                 row.onmouseleave = () => row.style.borderColor = '#1e1e1e';
-                row.onclick = () => mapperBrowse(path ? path + '/' + item.name : item.name);
+                row.onclick = () => mapperBrowse(folderPath);
             } else {
                 const publicUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/' + (path ? path + '/' : '') + item.name;
                 const ext = item.name.split('.').pop().toLowerCase();
                 const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
+                row.style.cursor = 'pointer';
                 row.innerHTML = (isImg ? '<img src="' + publicUrl + '" style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:#111;">' : '<span style="font-size:14px;">📄</span>') +
                     '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.name + '</span>' +
                     '<span style="color:#a855f7;font-size:10px;font-weight:800;">+ stage</span>';
@@ -1751,14 +1770,46 @@
         });
     }
 
-    function stageAction(filename, url) {
-        // Default action name = filename without extension
-        const defaultName = filename.replace(/\.[^.]+$/, '');
-        const name = prompt('Action name for "' + filename + '":', defaultName);
-        if (!name) return;
-        mapperStaged[name.trim()] = url;
+    // Auto-stage everything inside a folder:
+    // main.png → staged as '__cover__' (will be saved as image_url on the sprite)
+    // everything else → staged as action keyed by filename-without-extension
+    async function stageAllFromFolder(folderPath) {
+        showToast('⏳ Loading folder…');
+        const { data: rawItems, error } = await _supabase.storage.from('sprites').list(folderPath, { limit: 500 });
+        if (error || !rawItems) { showToast('❌ Could not read folder'); return; }
+
+        const items = rawItems.filter(f => f.name !== '.emptyFolderPlaceholder' && f.name !== '.gitkeep' && f.id !== null);
+        if (!items.length) { showToast('⚠️ Folder is empty'); return; }
+
+        const BASE = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/';
+        let coverUrl = null;
+        let staged = 0;
+
+        items.forEach(file => {
+            const url = BASE + folderPath + '/' + file.name;
+            if (file.name.toLowerCase() === 'main.png') {
+                coverUrl = url;
+            } else {
+                const actionName = file.name.replace(/\.[^.]+$/, '');
+                mapperStaged[actionName] = url;
+                staged++;
+            }
+        });
+
+        if (coverUrl) mapperStaged['__cover__'] = coverUrl;
+
         renderMapperStaged();
-        showToast('✅ Staged: ' + name);
+        const msg = coverUrl
+            ? `✅ Staged cover + ${staged} action${staged !== 1 ? 's' : ''}`
+            : `✅ Staged ${staged} action${staged !== 1 ? 's' : ''} (no main.png found)`;
+        showToast(msg);
+    }
+
+    function stageAction(filename, url) {
+        const actionName = filename.replace(/\.[^.]+$/, '');
+        mapperStaged[actionName] = url;
+        renderMapperStaged();
+        showToast('✅ Staged: ' + actionName);
     }
 
     function renderMapperStaged() {
@@ -1769,9 +1820,18 @@
             el.innerHTML = '<div style="color:#333;font-size:11px;padding:12px;font-weight:700;text-align:center;">No actions staged yet.<br>Browse left and click files to add.</div>';
             return;
         }
-        entries.forEach(([name, url]) => {
+
+        // Show cover first if present
+        const sorted = [...entries].sort(([a], [b]) => {
+            if (a === '__cover__') return -1;
+            if (b === '__cover__') return 1;
+            return a.localeCompare(b);
+        });
+
+        sorted.forEach(([name, url]) => {
+            const isCover = name === '__cover__';
             const row = document.createElement('div');
-            row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#0f0f0f;border:1px solid #1e1e1e;border-radius:8px;padding:7px 10px;';
+            row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#0f0f0f;border:1px solid ' + (isCover ? '#16a34a' : '#1e1e1e') + ';border-radius:8px;padding:7px 10px;';
             const ext = url.split('.').pop().toLowerCase();
             const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
 
@@ -1783,8 +1843,13 @@
             }
 
             const label = document.createElement('span');
-            label.style.cssText = 'flex:1;font-size:11px;font-weight:800;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-            label.textContent = name;
+            label.style.cssText = 'flex:1;font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+            if (isCover) {
+                label.innerHTML = '<span style="background:#14532d;color:#4ade80;font-size:9px;padding:2px 6px;border-radius:4px;margin-right:6px;font-weight:900;">COVER</span><span style="color:#4ade80;">main.png</span>';
+            } else {
+                label.style.color = '#ccc';
+                label.textContent = name;
+            }
             row.appendChild(label);
 
             const delBtn = document.createElement('span');
@@ -1809,27 +1874,35 @@
 
     async function saveActionMap() {
         if (!mapperSprite) return;
-        if (!Object.keys(mapperStaged).length) { showToast('⚠️ No actions staged'); return; }
+        const allStaged = { ...mapperStaged };
+        const coverUrl = allStaged['__cover__'] || null;
+        delete allStaged['__cover__'];
 
-        // Fully replace the actions object in DB
+        if (!Object.keys(allStaged).length && !coverUrl) { showToast('⚠️ Nothing staged'); return; }
+
+        // Build update payload — always replace actions; also update image_url if cover was staged
+        const payload = { actions: allStaged };
+        if (coverUrl) payload.image_url = coverUrl;
+
         const { error } = await _supabase
             .from(GALLERY_TABLE)
-            .update({ actions: mapperStaged })
+            .update(payload)
             .eq('id', mapperSprite.id);
 
         if (error) { showToast('❌ Save failed: ' + error.message); return; }
 
         // Update imgCache
-        const cached = imgCache.get(mapperSprite.id);
-        if (cached) cached.actions = { ...mapperStaged };
-        imgCache.set(mapperSprite.id, { ...(cached || {}), id: mapperSprite.id, actions: { ...mapperStaged } });
+        const cached = imgCache.get(mapperSprite.id) || {};
+        const updated = { ...cached, id: mapperSprite.id, actions: { ...allStaged } };
+        if (coverUrl) updated.image_url = coverUrl;
+        imgCache.set(mapperSprite.id, updated);
 
         localStorage.removeItem(GALLERY_CACHE_KEY);
-        showToast('✅ Actions saved to DB!');
+        showToast(coverUrl ? '✅ Cover + actions saved!' : '✅ Actions saved to DB!');
         closeActionMapper();
 
         // Re-open preview so actions panel refreshes
-        openPreview(mapperSprite);
+        openPreview({ ...mapperSprite, ...(coverUrl ? { image_url: coverUrl } : {}), actions: allStaged });
     }
 
 </script>
