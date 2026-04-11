@@ -1738,19 +1738,32 @@
         localStorage.removeItem(GALLERY_CACHE_KEY);
     }
 
-    // ── Raw REST PATCH — works without auth session ──
+    // ── Raw REST PATCH — pulls session token from Supabase localStorage key ──
+    function getSupabaseToken() {
+        // Supabase stores the session under a key like sb-<ref>-auth-token
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+                    const val = JSON.parse(localStorage.getItem(k));
+                    return val?.access_token || null;
+                }
+            }
+        } catch(e) {}
+        return null;
+    }
+
     async function restPatch(table, id, payload) {
+        const token = getSupabaseToken();
+        const headers = {
+            'apikey': supabaseKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
         const res = await fetch(
             supabaseUrl + '/rest/v1/' + table + '?id=eq.' + id,
-            {
-                method: 'PATCH',
-                headers: {
-                    'apikey': supabaseKey,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=minimal'
-                },
-                body: JSON.stringify(payload)
-            }
+            { method: 'PATCH', headers, body: JSON.stringify(payload) }
         );
         if (!res.ok) throw new Error(await res.text());
     }
@@ -2208,20 +2221,4 @@
                 const img = document.createElement('img');
                 img.src = coverUrl;
                 img.className = 'loaded';
-                img.style.cssText = 'width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;';
-                old.replaceWith(img);
-            }
-        }
-
-        // Build updated item from what we just saved — don't re-fetch (DB may still be mid-write)
-        const updatedItem = { ...spriteSnap, actions: allStaged, ...(coverUrl ? { image_data: coverUrl } : {}) };
-        // Populate cache with what we know is correct
-        imgCache.set(spriteId, { id: spriteId, name: spriteSnap.name, actions: allStaged, ...(coverUrl ? { image_data: coverUrl } : {}) });
-
-        openPreview(updatedItem);
-    }
-
-</script>
-
-</body>
-</html>
+                img.style.cssText = 'width:100%;height:calc(100% - 44px);obj
