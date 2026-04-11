@@ -1898,39 +1898,48 @@
             await new Promise(r => setTimeout(r, 100));
         }
 
-        // ── Cleanup pass: wipe any remaining base64 actions ──
-        showToast('⏳ Scanning for leftover base64 actions…', 60000);
+        // ── Cleanup pass: fetch only id+name, then check actions one at a time ──
+        // Avoids pulling all base64 blobs in one giant query (causes statement timeout)
+        showToast('⏳ Cleaning up leftover base64 actions…', 60000);
         try {
-            let allFull = [];
-            let offset2 = 0;
-            while (true) {
-                const chunk = await restGetWithRetry(GALLERY_TABLE,
-                    'select=id,name,actions&order=created_at.desc&limit=200&offset=' + offset2);
-                if (!chunk || !chunk.length) break;
-                allFull = allFull.concat(chunk);
-                if (chunk.length < 200) break;
-                offset2 += 200;
-            }
-
+            // Re-use sprites list we already have — just fetch actions for each individually
+            // but only PATCH if it actually has base64
             let cleaned = 0;
-            for (const row of allFull) {
+            for (let i = 0; i < sprites.length; i++) {
+                const sprite = sprites[i];
+                // Fetch just this sprite's actions — small row, won't timeout
+                let row;
+                try {
+                    const r = await fetch(
+                        supabaseUrl + '/rest/v1/' + GALLERY_TABLE +
+                        '?select=id,actions&id=eq.' + sprite.id + '&limit=1',
+                        { headers: { 'apikey': supabaseKey, 'x-statement-timeout': '5000' } }
+                    );
+                    const d = await r.json();
+                    row = Array.isArray(d) ? d[0] : d;
+                } catch(e) { continue; }
+
+                if (!row) continue;
                 const actions = row.actions || {};
                 const hasBase64 = Object.values(actions).some(v => typeof v === 'string' && v.startsWith('data:'));
                 if (!hasBase64) continue;
 
-                // Keep only Storage URL values, strip base64
+                // Strip base64, keep Storage URLs only
                 const cleanedActions = {};
                 for (const [k, v] of Object.entries(actions)) {
                     if (typeof v === 'string' && !v.startsWith('data:')) cleanedActions[k] = v;
                 }
 
                 try {
-                    await restPatch(GALLERY_TABLE, row.id, { actions: cleanedActions });
+                    await restPatch(GALLERY_TABLE, sprite.id, { actions: cleanedActions });
                     cleaned++;
-                    imgCache.delete(row.id);
-                } catch(e) { console.error('Cleanup PATCH failed for', row.name, e.message); }
+                    imgCache.delete(sprite.id);
+                } catch(e) { console.error('Cleanup PATCH failed for', sprite.name, e.message); }
+
+                // Tiny yield so we don't block the UI
+                if (i % 10 === 0) await new Promise(r => setTimeout(r, 50));
             }
-            if (cleaned > 0) showToast('\u{1F9F9} Wiped base64 from ' + cleaned + ' sprite(s)');
+            if (cleaned > 0) showToast('🧹 Wiped base64 from ' + cleaned + ' sprite(s)');
         } catch(e) {
             console.error('Cleanup pass error:', e);
         }
