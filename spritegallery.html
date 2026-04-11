@@ -1740,6 +1740,23 @@
 
     const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1teWNxZWVqaGd1emh0emt5amFqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDk0NzMxMSwiZXhwIjoyMDg2NTIzMzExfQ.TpIvTRv_VSMefmeeOQtexElPT1xwuoyN_GLqmjmp90E';
 
+    async function storageList(prefix, limit = 1000) {
+        const res = await fetch(
+            supabaseUrl + '/storage/v1/object/list/sprites',
+            {
+                method: 'POST',
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': 'Bearer ' + SERVICE_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prefix: prefix ? prefix + '/' : '', limit, delimiter: '/' })
+            }
+        );
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    }
+
     async function restPatch(table, id, payload) {
         const res = await fetch(
             supabaseUrl + '/rest/v1/' + table + '?id=eq.' + id,
@@ -1789,19 +1806,20 @@
             return;
         }
 
-        // List the gallery/ subfolder — that's where sprite folders actually live
+        // List the gallery/ subfolder via raw POST
         showToast('⏳ Listing gallery/ folders…', 60000);
-        const { data: galleryItems, error: galleryErr } = await _supabase.storage
-            .from('sprites').list('gallery', { limit: 1000 });
-        if (galleryErr) {
-            showToast('❌ Storage list failed: ' + galleryErr.message);
+        let galleryItems;
+        try {
+            galleryItems = await storageList('gallery', 1000);
+        } catch(e) {
+            showToast('❌ Storage list failed: ' + e.message);
             if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
             return;
         }
 
-        // Only keep actual folders (id === null, no metadata)
+        // Only keep actual folders (id === null)
         const folders = (galleryItems || []).filter(i =>
-            i.id === null && !i.metadata &&
+            i.id === null &&
             i.name !== '.emptyFolderPlaceholder' && i.name !== '.gitkeep'
         );
 
@@ -1840,13 +1858,9 @@
                 if (!folderPath) { skipped++; return; }
 
                 try {
-                    // Fetch root folder; actions subfolder may not exist so handle error separately
-                    const rootRes = await _supabase.storage.from('sprites').list(folderPath, { limit: 200 });
-                    const rootFiles = rootRes.data || [];
-
-                    const actionRes = await _supabase.storage.from('sprites').list(folderPath + '/actions', { limit: 1000 });
-                    // actionRes.error is normal if /actions doesn't exist — just treat as empty
-                    const actionFiles = (!actionRes.error && actionRes.data) ? actionRes.data : [];
+                    // Fetch root folder and actions subfolder via raw POST (avoids CORS issues)
+                    const rootFiles = await storageList(folderPath, 200).catch(() => []);
+                    const actionFiles = await storageList(folderPath + '/actions', 1000).catch(() => []);
 
                     const actions = {};
                     let coverUrl = null;
