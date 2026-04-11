@@ -6,7 +6,7 @@
     <script src="theme.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sprite Gallery | ComicCore</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -668,7 +668,29 @@
 <script>
     const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
     const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
-    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    // Wrap fetch to avoid DataCloneError: sb_publishable_ keys trigger an internal
+    // broadcast channel that tries to postMessage a Headers object (uncloneable).
+    // We convert Headers → plain object before the request so no cloning happens.
+    function safeFetch(url, options = {}) {
+        if (options.headers && typeof options.headers !== 'object') {
+            options = { ...options };
+        }
+        if (options.headers instanceof Headers) {
+            const plain = {};
+            options.headers.forEach((v, k) => { plain[k] = v; });
+            options = { ...options, headers: plain };
+        }
+        return fetch(url, options);
+    }
+
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey, {
+        global: { fetch: safeFetch },
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+        }
+    });
 
     const ADMIN_ID = "de0b7378-e779-4e0d-9e3d-b33bf643df3e";
     const GALLERY_TABLE = 'sprites_gallery';
@@ -717,7 +739,10 @@
         // Load favorites from local storage
         try { favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch(e) {}
 
-        fetchGallery();
+        fetchGallery().catch(e => {
+            console.error('[Gallery] uncaught fetch error:', e);
+            showGridError(e?.message || String(e));
+        });
         fetchPacks(); // pre-fetch so packs tab is ready instantly
     });
 
@@ -782,30 +807,33 @@
     }
 
     // ── Fetch Gallery ──
+    function showGridError(msg) {
+        const grid = document.getElementById('gallery-grid');
+        if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>Could not load gallery</h3><p>${msg}</p></div>`;
+    }
+
     async function fetchGallery() {
         const cached = loadGalleryCache();
         if (cached) { allGallerySprites = cached; initGalleryAfterFetch(); }
 
         let data, error;
         try {
-            // 10s timeout so we never hang on a dead connection
-            const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000));
-            const query = _supabase.from(GALLERY_TABLE).select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
-            ({ data, error } = await Promise.race([query, timeout.then(() => { throw new Error('timeout'); })]));
+            ({ data, error } = await _supabase
+                .from(GALLERY_TABLE)
+                .select('id, name, tags, creator, created_at')
+                .order('created_at', { ascending: false }));
         } catch(e) {
-            if (!cached) {
-                const grid = document.getElementById('gallery-grid');
-                if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>Could not load gallery</h3><p>${e.message === 'timeout' ? 'Request timed out — check your connection' : e.message}</p></div>`;
-            }
+            console.error('[Gallery] fetch threw:', e);
+            if (!cached) showGridError(e?.message || String(e));
             return;
         }
 
-        // Guard against failure so we don't wipe existing data
         if (error || !data) {
-            if (!cached) renderGalleryGrid([]);
+            const msg = error?.message || error?.details || JSON.stringify(error) || 'No data returned';
+            console.error('[Gallery] fetch error:', msg);
+            if (!cached) showGridError(msg);
             return;
         }
-
         const fresh = data;
         const changed = !cached || fresh.length !== allGallerySprites.length ||
             fresh.some(s => !allGallerySprites.find(g => g.id === s.id));
