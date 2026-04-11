@@ -1821,28 +1821,29 @@
                 if (!folderPath) { skipped++; return; }
 
                 try {
-                    // Fetch root and actions subfolder in parallel
-                    const [rootRes, actionRes] = await Promise.all([
-                        _supabase.storage.from('sprites').list(folderPath, { limit: 200 }),
-                        _supabase.storage.from('sprites').list(folderPath + '/actions', { limit: 1000 })
-                    ]);
+                    // Fetch root folder; actions subfolder may not exist so handle error separately
+                    const rootRes = await _supabase.storage.from('sprites').list(folderPath, { limit: 200 });
+                    const rootFiles = rootRes.data || [];
 
-                    const rootFiles   = rootRes.data   || [];
-                    const actionFiles = actionRes.data  || [];
+                    const actionRes = await _supabase.storage.from('sprites').list(folderPath + '/actions', { limit: 1000 });
+                    // actionRes.error is normal if /actions doesn't exist — just treat as empty
+                    const actionFiles = (!actionRes.error && actionRes.data) ? actionRes.data : [];
 
                     const actions = {};
                     let coverUrl = null;
+
+                    const SKIP = ['emptyfolderplaceholder', '.gitkeep', '.emptyfolderplaceholder'];
 
                     const mainFile = rootFiles.find(f => f.name.toLowerCase() === 'main.png' && f.id !== null);
                     if (mainFile) coverUrl = BASE + folderPath + '/main.png';
 
                     // Prefer /actions subfolder; fall back to non-main root files
-                    const SKIP = ['emptyfolderplaceholder', '.gitkeep', '.emptyfolderplaceholder'];
-                    const actionSrc = actionFiles.length
+                    const hasActionSubfolder = actionFiles.filter(f => f.id !== null && !SKIP.includes(f.name.toLowerCase())).length > 0;
+                    const actionSrc = hasActionSubfolder
                         ? actionFiles.filter(f => f.id !== null && !SKIP.includes(f.name.toLowerCase()))
                         : rootFiles.filter(f => f.id !== null && f.name.toLowerCase() !== 'main.png' && !SKIP.includes(f.name.toLowerCase()));
 
-                    const actionBase = actionFiles.length
+                    const actionBase = hasActionSubfolder
                         ? BASE + folderPath + '/actions/'
                         : BASE + folderPath + '/';
 
@@ -1851,8 +1852,11 @@
                         actions[key] = actionBase + f.name;
                     });
 
-                    if (!Object.keys(actions).length && !coverUrl) { skipped++; return; }
+                    // If no cover AND no actions found at all, skip this sprite entirely
+                    if (!coverUrl && !Object.keys(actions).length) { skipped++; return; }
 
+                    // Always write the full payload — this overwrites any stale base64 in `actions`
+                    // even if actions is now {} (empty), which clears out old base64 garbage
                     const payload = { actions };
                     if (coverUrl) payload.image_data = coverUrl;
 
