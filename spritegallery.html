@@ -1746,98 +1746,144 @@
         if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
         showToast('⏳ Fetching sprites from DB…', 60000);
 
-        // Use restGet to avoid _supabase client issues
-        let sprites;
+        // Fetch ALL sprites in chunks (not just 500)
+        let sprites = [];
         try {
-            sprites = await restGetWithRetry(GALLERY_TABLE, 'select=id,name&limit=500');
+            let offset = 0;
+            while (true) {
+                const chunk = await restGetWithRetry(GALLERY_TABLE,
+                    'select=id,name&order=created_at.desc&limit=200&offset=' + offset);
+                if (!chunk || !chunk.length) break;
+                sprites = sprites.concat(chunk);
+                if (chunk.length < 200) break;
+                offset += 200;
+            }
         } catch(e) {
             showToast('❌ DB fetch failed: ' + e.message);
             if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
             return;
         }
 
-        showToast('⏳ Listing Storage folders…', 60000);
-        const { data: rootItems, error: rootErr } = await _supabase.storage.from('sprites').list(undefined, { limit: 1000 });
-        if (rootErr) { showToast('❌ Storage list failed: ' + rootErr.message); if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; } return; }
+        if (!sprites.length) {
+            showToast('⚠️ No sprites found in DB');
+            if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
+            return;
+        }
 
-        const folders = (rootItems || []).filter(i => i.id === null && !i.metadata && i.name !== '.emptyFolderPlaceholder' && i.name !== '.gitkeep');
+        // List the gallery/ subfolder — that's where sprite folders actually live
+        showToast('⏳ Listing gallery/ folders…', 60000);
+        const { data: galleryItems, error: galleryErr } = await _supabase.storage
+            .from('sprites').list('gallery', { limit: 1000 });
+        if (galleryErr) {
+            showToast('❌ Storage list failed: ' + galleryErr.message);
+            if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
+            return;
+        }
 
-        // Build lookup: normalize folder name for matching
-        // Try matching by: 1) folder contains sprite ID, 2) folder starts with sanitized sprite name
+        // Only keep actual folders (id === null, no metadata)
+        const folders = (galleryItems || []).filter(i =>
+            i.id === null && !i.metadata &&
+            i.name !== '.emptyFolderPlaceholder' && i.name !== '.gitkeep'
+        );
+
+        if (!folders.length) {
+            showToast('⚠️ No folders found inside gallery/ in Storage');
+            if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
+            return;
+        }
+
         function sanitize(str) { return (str || '').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,''); }
 
         function findFolder(sprite) {
             // Best match: folder name contains the sprite's UUID
             let match = folders.find(f => f.name.includes(sprite.id));
-            if (match) return match.name;
+            if (match) return 'gallery/' + match.name;
             // Fallback: folder starts with sanitized sprite name
             const safeName = sanitize(sprite.name);
             match = folders.find(f => sanitize(f.name).startsWith(safeName));
-            if (match) return match.name;
+            if (match) return 'gallery/' + match.name;
             // Fallback: sanitized name is contained in folder name
             match = folders.find(f => sanitize(f.name).includes(safeName));
-            return match ? match.name : null;
+            return match ? 'gallery/' + match.name : null;
         }
 
         let synced = 0, skipped = 0, failed = 0;
         const total = sprites.length;
 
-        for (let i = 0; i < sprites.length; i++) {
-            const sprite = sprites[i];
-            showToast('⏳ ' + (i+1) + '/' + total + ': ' + sprite.name + '…', 60000);
+        // Process in batches of 5 to avoid hammering Storage while still being fast
+        const BATCH = 5;
+        for (let i = 0; i < sprites.length; i += BATCH) {
+            const batch = sprites.slice(i, i + BATCH);
+            showToast('⏳ ' + Math.min(i + BATCH, total) + '/' + total + ' processed…', 60000);
 
-            const folderName = findFolder(sprite);
-            if (!folderName) { skipped++; await new Promise(r => setTimeout(r, 100)); continue; }
+            await Promise.all(batch.map(async sprite => {
+                const folderPath = findFolder(sprite);
+                if (!folderPath) { skipped++; return; }
 
-            try {
-                // Sequential — no Promise.all — to avoid hammering Storage
-                const { data: rootFiles } = await _supabase.storage.from('sprites').list(folderName, { limit: 200 });
-                await new Promise(r => setTimeout(r, 150));
-                const { data: actionFiles } = await _supabase.storage.from('sprites').list(folderName + '/actions', { limit: 1000 });
-                await new Promise(r => setTimeout(r, 150));
+                try {
+                    // Fetch root and actions subfolder in parallel
+                    const [rootRes, actionRes] = await Promise.all([
+                        _supabase.storage.from('sprites').list(folderPath, { limit: 200 }),
+                        _supabase.storage.from('sprites').list(folderPath + '/actions', { limit: 1000 })
+                    ]);
 
-                const actions = {};
-                let coverUrl = null;
+                    const rootFiles   = rootRes.data   || [];
+                    const actionFiles = actionRes.data  || [];
 
-                const mainFile = (rootFiles || []).find(f => f.name.toLowerCase() === 'main.png' && f.id !== null);
-                if (mainFile) coverUrl = BASE + folderName + '/main.png';
+                    const actions = {};
+                    let coverUrl = null;
 
-                // If no /actions subfolder, treat all non-main files in root as actions
-                const actionSrc = (actionFiles && actionFiles.length)
-                    ? actionFiles.filter(f => f.id !== null && !['emptyfolderplaceholder','.gitkeep'].includes(f.name.toLowerCase()))
-                    : (rootFiles || []).filter(f => f.id !== null && f.name.toLowerCase() !== 'main.png' && !['emptyfolderplaceholder','.gitkeep'].includes(f.name.toLowerCase()));
+                    const mainFile = rootFiles.find(f => f.name.toLowerCase() === 'main.png' && f.id !== null);
+                    if (mainFile) coverUrl = BASE + folderPath + '/main.png';
 
-                const actionBase = (actionFiles && actionFiles.length)
-                    ? BASE + folderName + '/actions/'
-                    : BASE + folderName + '/';
+                    // Prefer /actions subfolder; fall back to non-main root files
+                    const SKIP = ['emptyfolderplaceholder', '.gitkeep', '.emptyfolderplaceholder'];
+                    const actionSrc = actionFiles.length
+                        ? actionFiles.filter(f => f.id !== null && !SKIP.includes(f.name.toLowerCase()))
+                        : rootFiles.filter(f => f.id !== null && f.name.toLowerCase() !== 'main.png' && !SKIP.includes(f.name.toLowerCase()));
 
-                actionSrc.forEach(f => {
-                    const key = f.name.replace(/\.[^.]+$/, '');
-                    actions[key] = actionBase + f.name;
-                });
+                    const actionBase = actionFiles.length
+                        ? BASE + folderPath + '/actions/'
+                        : BASE + folderPath + '/';
 
-                if (!Object.keys(actions).length && !coverUrl) { skipped++; continue; }
+                    actionSrc.forEach(f => {
+                        const key = f.name.replace(/\.[^.]+$/, '');
+                        actions[key] = actionBase + f.name;
+                    });
 
-                const payload = { actions };
-                if (coverUrl) payload.image_data = coverUrl;
+                    if (!Object.keys(actions).length && !coverUrl) { skipped++; return; }
 
-                const { error: updateErr } = await _supabase.from(GALLERY_TABLE).update(payload).eq('id', sprite.id);
-                if (updateErr) { failed++; console.error('Sync failed for', sprite.name, updateErr); }
-                else {
-                    synced++;
-                    imgCache.set(sprite.id, { id: sprite.id, name: sprite.name, actions, ...(coverUrl ? { image_data: coverUrl } : {}) });
+                    const payload = { actions };
+                    if (coverUrl) payload.image_data = coverUrl;
+
+                    const { error: updateErr } = await _supabase.from(GALLERY_TABLE)
+                        .update(payload).eq('id', sprite.id);
+
+                    if (updateErr) {
+                        failed++;
+                        console.error('Sync failed for', sprite.name, updateErr);
+                    } else {
+                        synced++;
+                        imgCache.set(sprite.id, {
+                            id: sprite.id, name: sprite.name, actions,
+                            ...(coverUrl ? { image_data: coverUrl } : {})
+                        });
+                    }
+                } catch(e) {
+                    failed++;
+                    console.error('Error syncing', sprite.name, e);
                 }
-            } catch(e) { failed++; console.error('Error syncing', sprite.name, e); }
+            }));
 
-            // Small pause between each sprite to avoid rate limiting
-            await new Promise(r => setTimeout(r, 200));
+            // One small pause per batch — not per sprite
+            await new Promise(r => setTimeout(r, 100));
         }
 
         imgCache.clear(); // full refresh
         localStorage.removeItem(GALLERY_CACHE_KEY);
         if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
         showToast('✅ Synced ' + synced + ' · Skipped ' + skipped + ' · Failed ' + failed);
-        if (synced > 0) fetchGallery(); // reload grid with fresh data
+        if (synced > 0) fetchGallery();
     }
 
     // ── Action Mapper ──
