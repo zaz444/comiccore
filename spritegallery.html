@@ -1880,13 +1880,10 @@
 
         if (!Object.keys(allStaged).length && !coverUrl) { showToast('⚠️ Nothing staged'); return; }
 
-        // Build update payload — always replace actions; also update image_url if cover was staged
-        const payload = { actions: allStaged };
-        if (coverUrl) payload.image_url = coverUrl;
-
+        // Save actions only — image_url column not present in this schema
         const { error } = await _supabase
             .from(GALLERY_TABLE)
-            .update(payload)
+            .update({ actions: allStaged })
             .eq('id', mapperSprite.id);
 
         if (error) { showToast('❌ Save failed: ' + error.message); return; }
@@ -1894,15 +1891,14 @@
         // Update imgCache
         const cached = imgCache.get(mapperSprite.id) || {};
         const updated = { ...cached, id: mapperSprite.id, actions: { ...allStaged } };
-        if (coverUrl) updated.image_url = coverUrl;
         imgCache.set(mapperSprite.id, updated);
 
         localStorage.removeItem(GALLERY_CACHE_KEY);
-        showToast(coverUrl ? '✅ Cover + actions saved!' : '✅ Actions saved to DB!');
+        showToast('✅ Actions saved to DB!');
         closeActionMapper();
 
         // Re-open preview so actions panel refreshes
-        openPreview({ ...mapperSprite, ...(coverUrl ? { image_url: coverUrl } : {}), actions: allStaged });
+        openPreview({ ...mapperSprite, actions: allStaged });
     }
 
 </script>
