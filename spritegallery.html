@@ -673,11 +673,14 @@
     });
 
     // Raw REST fetch — bypasses the Supabase JS client entirely for gallery queries
-    // to avoid the DataCloneError caused by sb_publishable_ keys + postMessage/Headers
     async function restGet(table, params = '') {
         const res = await fetch(
             supabaseUrl + '/rest/v1/' + table + '?' + params,
-            { headers: { 'apikey': supabaseKey } }
+            { headers: {
+                'apikey': supabaseKey,
+                'Prefer': 'return=representation',
+                'x-statement-timeout': '8000'
+            }}
         );
         if (!res.ok) throw new Error(await res.text());
         return res.json();
@@ -808,7 +811,7 @@
         if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>Could not load gallery</h3><p>${msg}</p></div>`;
     }
 
-    async function restGetWithRetry(table, params, retries = 3, delay = 2500) {
+    async function restGetWithRetry(table, params, retries = 4, delay = 3000) {
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
                 return await restGet(table, params);
@@ -836,7 +839,7 @@
         // Images are still lazy-loaded individually on scroll
         let allData = [];
         let offset = 0;
-        const chunkSize = 200;
+        const chunkSize = 50;
 
         while (true) {
             let chunk;
@@ -1784,13 +1787,14 @@
             showToast('⏳ ' + (i+1) + '/' + total + ': ' + sprite.name + '…', 60000);
 
             const folderName = findFolder(sprite);
-            if (!folderName) { skipped++; continue; }
+            if (!folderName) { skipped++; await new Promise(r => setTimeout(r, 100)); continue; }
 
             try {
-                const [{ data: rootFiles }, { data: actionFiles }] = await Promise.all([
-                    _supabase.storage.from('sprites').list(folderName, { limit: 200 }),
-                    _supabase.storage.from('sprites').list(folderName + '/actions', { limit: 1000 })
-                ]);
+                // Sequential — no Promise.all — to avoid hammering Storage
+                const { data: rootFiles } = await _supabase.storage.from('sprites').list(folderName, { limit: 200 });
+                await new Promise(r => setTimeout(r, 150));
+                const { data: actionFiles } = await _supabase.storage.from('sprites').list(folderName + '/actions', { limit: 1000 });
+                await new Promise(r => setTimeout(r, 150));
 
                 const actions = {};
                 let coverUrl = null;
@@ -1824,6 +1828,9 @@
                     imgCache.set(sprite.id, { id: sprite.id, name: sprite.name, actions, ...(coverUrl ? { image_data: coverUrl } : {}) });
                 }
             } catch(e) { failed++; console.error('Error syncing', sprite.name, e); }
+
+            // Small pause between each sprite to avoid rate limiting
+            await new Promise(r => setTimeout(r, 200));
         }
 
         imgCache.clear(); // full refresh
