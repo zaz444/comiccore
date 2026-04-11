@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComicCore – Team & Moderation</title>
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; padding-bottom: 60px; }
+    .top-bar { position: sticky; top: 0; z-index: 100; background: rgba(18,18,18,0.92); backdrop-filter: blur(18px); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 14px; }
+    .back-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; text-decoration: none; transition: border-color 0.2s; }
+    .back-btn:hover { border-color: var(--accent); }
+    .top-bar-title { font-size: 17px; font-weight: 800; }
+
+    .hero { padding: 40px 20px 28px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,122,0,0.07) 0%, transparent 100%); }
+    .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,122,0,0.12); border: 1px solid rgba(255,122,0,0.3); color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; margin-bottom: 14px; }
+    .hero h1 { font-size: 28px; font-weight: 900; margin-bottom: 10px; }
+    .hero p { color: var(--secondary); font-size: 14px; line-height: 1.6; max-width: 560px; }
+
+    .content { max-width: 720px; margin: 0 auto; padding: 32px 20px; }
+
+    .section { margin-bottom: 40px; }
+    .section-num { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 6px; }
+    .section h2 { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .section p { font-size: 14px; color: var(--secondary); line-height: 1.75; margin-bottom: 12px; }
+    .section p strong { color: var(--text); }
+    .section ul { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .section ul li { font-size: 14px; color: var(--secondary); line-height: 1.65; }
+    .section ul li strong { color: var(--text); }
+
+    /* Owner card */
+    .owner-card {
+      background: linear-gradient(135deg, rgba(255,122,0,0.12) 0%, rgba(255,122,0,0.04) 100%);
+      border: 1px solid rgba(255,122,0,0.35);
+      border-radius: 16px; padding: 24px; margin-bottom: 28px;
+      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    }
+    .owner-avatar {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #ff4500);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; font-weight: 900; color: #fff;
+      border: 3px solid var(--accent); flex-shrink: 0;
+      box-shadow: 0 0 24px rgba(255,122,0,0.35);
+    }
+    .owner-info { flex: 1; min-width: 180px; }
+    .owner-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,122,0,0.2); border: 1px solid rgba(255,122,0,0.4); color: var(--accent); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; padding: 3px 10px; border-radius: 20px; margin-bottom: 8px; }
+    .owner-name { font-size: 22px; font-weight: 900; color: var(--text); margin-bottom: 4px; }
+    .owner-desc { font-size: 13px; color: var(--secondary); line-height: 1.5; }
+
+    /* Mod grid */
+    .mod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .mod-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px 16px; text-align: center;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .mod-card:hover { border-color: var(--teal); transform: translateY(-2px); }
+    .mod-avatar {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--teal), #0077aa);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900; color: #fff;
+      margin: 0 auto 12px; border: 2px solid rgba(0,210,255,0.3);
+    }
+    .mod-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,210,255,0.1); border: 1px solid rgba(0,210,255,0.3); color: var(--teal); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.7px; padding: 2px 8px; border-radius: 20px; margin-bottom: 8px; }
+    .mod-name { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+    .mod-desc { font-size: 12px; color: var(--secondary); line-height: 1.5; }
+
+    /* Coming soon card */
+    .coming-card {
+      background: var(--card); border: 1px dashed var(--border);
+      border-radius: 14px; padding: 20px 16px; text-align: center; opacity: 0.6;
+    }
+    .coming-icon { font-size: 28px; margin-bottom: 8px; }
+    .coming-card p { font-size: 13px; color: var(--secondary); margin: 0; }
+
+    .callout { background: rgba(255,122,0,0.07); border: 1px solid rgba(255,122,0,0.25); border-radius: 10px; padding: 14px 18px; margin: 16px 0; }
+    .callout p { margin: 0; color: var(--text) !important; }
+    .callout-info { background: rgba(0,210,255,0.07); border: 1px solid rgba(0,210,255,0.25); border-radius: 10px; padding: 14px 18px; margin: 16px 0; }
+    .callout-info p { margin: 0; color: var(--text) !important; }
+
+    .footer-legal { text-align: center; padding: 24px 20px; border-top: 1px solid var(--border); margin-top: 20px; }
+    .footer-legal p { font-size: 13px; color: var(--secondary); margin-bottom: 12px; }
+    .footer-links { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+    .footer-links a { font-size: 13px; color: var(--accent); text-decoration: none; }
+    .footer-links a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a class="back-btn" href="index.html">&#8592;</a>
+  <span class="top-bar-title">Team & Moderation</span>
+</div>
+
+<div class="hero">
+  <div class="hero-badge">👥 Team</div>
+  <h1>Meet the Team</h1>
+  <p>The people behind ComicCore — keeping the platform fun, safe, and creative for everyone.</p>
+</div>
+
+<div class="content">
+
+  <div class="section">
+    <div class="section-num">Leadership</div>
+    <h2>Platform Owner</h2>
+    <div class="owner-card">
+      <div class="owner-avatar">D</div>
+      <div class="owner-info">
+        <div class="owner-badge">👑 Owner & Founder</div>
+        <div class="owner-name">DDG <span style="font-size:14px;font-weight:600;color:var(--secondary)">@jeffyplays</span></div>
+        <div class="owner-desc">Creator and owner of ComicCore™. Responsible for the platform's vision, development, rules, and all final decisions. Contact for partnership, legal, or escalated matters at <a href="mailto:lilpayd6@gmail.com" style="color:var(--accent)">lilpayd6@gmail.com</a>.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-num">Moderation Team</div>
+    <h2>Moderators</h2>
+    <p>Our moderators are trusted community members who help keep ComicCore safe, fair, and enjoyable. They review reports, enforce the <a href="terms.html" style="color:var(--accent)">Terms of Service</a>, handle content removal requests, and support users with platform issues.</p>
+
+    <div class="mod-grid">
+      <div class="mod-card">
+        <div class="mod-avatar">A</div>
+        <div class="mod-badge">🛡️ Moderator</div>
+        <div class="mod-name">animus</div>
+        <div class="mod-desc">Community moderation & content review.</div>
+      </div>
+      <div class="mod-card">
+        <div class="mod-avatar">W</div>
+        <div class="mod-badge">🛡️ Moderator</div>
+        <div class="mod-name">wambling</div>
+        <div class="mod-desc">Community moderation & content review.</div>
+      </div>
+      <div class="mod-card">
+        <div class="mod-avatar">B</div>
+        <div class="mod-badge">🛡️ Moderator</div>
+        <div class="mod-name">bigchamungus</div>
+        <div class="mod-desc">Community moderation & content review.</div>
+      </div>
+      <div class="coming-card">
+        <div class="coming-icon">➕</div>
+        <p>More moderators coming soon as the community grows!</p>
+      </div>
+    </div>
+
+    <div class="callout-info" style="margin-top: 20px;"><p>📌 The moderation team is actively growing. Additional moderators will be appointed as ComicCore expands.</p></div>
+  </div>
+
+  <div class="section">
+    <div class="section-num">Roles & Responsibilities</div>
+    <h2>What Moderators Can Do</h2>
+    <ul>
+      <li><strong>Review reports</strong> submitted by users for content that violates the Terms of Service.</li>
+      <li><strong>Remove content</strong> that is harmful, inappropriate, or infringing.</li>
+      <li><strong>Issue warnings</strong> or temporary restrictions to accounts in violation.</li>
+      <li><strong>Escalate serious matters</strong> to the platform owner (DDG / @jeffyplays).</li>
+      <li><strong>Assist with DMCA</strong> takedown requests and copyright claims.</li>
+      <li><strong>Support users</strong> with platform-related questions and issues.</li>
+    </ul>
+    <div class="callout"><p>⚠️ Moderators will never ask for your password. If someone claiming to be a moderator requests your password, report it immediately.</p></div>
+  </div>
+
+  <div class="section">
+    <div class="section-num">Appeals</div>
+    <h2>Appealing a Moderation Decision</h2>
+    <p>If you believe a moderation action taken against your account or content was made in error, you may appeal. To do so:</p>
+    <ul>
+      <li>Contact a moderator or the platform owner through the platform's messaging system or by email at <a href="mailto:lilpayd6@gmail.com" style="color:var(--accent)">lilpayd6@gmail.com</a>.</li>
+      <li>Clearly explain why you believe the decision was incorrect.</li>
+      <li>Appeals are reviewed by the owner (DDG / @jeffyplays) and a final decision will be issued.</li>
+    </ul>
+    <p>Abusive or repeat appeals may result in further enforcement action. All final decisions rest with the platform owner.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-num">Reporting</div>
+    <h2>How to Report Content or a User</h2>
+    <p>If you encounter content or behavior that violates our community standards, you can report it directly within the platform. Reports are reviewed by the moderation team as soon as possible. All reports are treated confidentially.</p>
+  </div>
+
+</div>
+
+<div class="footer-legal">
+  <p>© 2026 ComicCore™. All rights reserved.</p>
+  <div class="footer-links">
+    <a href="terms.html">Terms of Service</a>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="copyright.html">Copyright</a>
+    <a href="data-usage.html">Data Usage</a>
+    <a href="team.html">Our Team</a>
+    <a href="about.html">About</a>
+  </div>
+</div>
+
+</body>
+</html>
