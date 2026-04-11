@@ -2641,15 +2641,14 @@ function renderMobSpriteGrid(sprites) {
         card.style.position = 'relative';
 
         // Use image_data directly if available, otherwise try cache
-        const cachedSrc = pack.image_data || sbGetImg(pack.id);
+        const cachedSrc = sbGetImg(pack.id);
         if (cachedSrc) {
             card.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
             // Cache the image for future use
-            if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
+            
         } else {
             card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
-            // Fallback lazy load if no image_data
-            if (!pack.image_data) {
+            {
                 const obs = new IntersectionObserver(entries => {
                     if (!entries[0].isIntersecting) return;
                     obs.disconnect();
@@ -3535,11 +3534,11 @@ function renderLibraryGrid(grid, sprites) {
     sprites.forEach(pack => {
         const div = document.createElement('div');
         div.className = 'action-option';
-        const cachedSrc = pack.image_data || (sbGetImg ? sbGetImg(pack.id) : null);
+        const cachedSrc = sbGetImg ? sbGetImg(pack.id) : null;
         if (cachedSrc) {
             div.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;aspect-ratio:1;border-radius:6px;"><strong>${pack.name}</strong>`;
             // Cache the image for future use
-            if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
+            
         } else {
             div.innerHTML = `<div style="width:100%;aspect-ratio:1;background:#1a1a1a;border-radius:6px;"></div><strong>${pack.name}</strong>`;
             // Fallback lazy load if no image_data
@@ -5489,9 +5488,10 @@ async function loadMobGallery() {
         console.log('Fetching mobile gallery sprites...');
         const { data, error } = await _supabase
             .from('sprites_gallery')
-            .select('id, name, image_data, default_scale, tags, creator')
+            .select('id, name, default_scale, tags, creator')
             .order('id', { ascending: false });
         console.log('Mobile gallery fetch result:', { data, error });
+        if (error) throw new Error(error.message);
         mobGallerySprites = data || [];
         console.log('Mobile gallery sprites loaded:', mobGallerySprites.length);
         renderMobGallery(mobGallerySprites);
@@ -5566,15 +5566,14 @@ function renderMobGallery(sprites) {
         card.style.position = 'relative';
 
         // Use image_data directly if available, otherwise try cache
-        const cachedSrc = pack.image_data || (sbGetImg ? sbGetImg(pack.id) : null);
+        const cachedSrc = sbGetImg ? sbGetImg(pack.id) : null;
         if (cachedSrc) {
             card.innerHTML = `<img src="${cachedSrc}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:8px;"><div class="mob-sprite-name">${pack.name}</div>`;
             // Cache the image for future use
-            if (pack.image_data && sbSetImg) sbSetImg(pack.id, pack.image_data);
+            
         } else {
             card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(90deg,#1e1e1e 25%,#2a2a2a 50%,#1e1e1e 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;"></div><div class="mob-sprite-name">${pack.name}</div>`;
-            // Fallback lazy load if no image_data
-            if (!pack.image_data) {
+            {
                 const obs = new IntersectionObserver(entries => {
                     if (!entries[0].isIntersecting) return;
                     obs.disconnect();
