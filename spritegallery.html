@@ -808,32 +808,93 @@
         if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>Could not load gallery</h3><p>${msg}</p></div>`;
     }
 
-    async function fetchGallery() {
-        const cached = loadGalleryCache();
-        if (cached) { allGallerySprites = cached; initGalleryAfterFetch(); }
+    const PAGE_SIZE = 50;
+    let galleryPage = 0;
+    let galleryAllLoaded = false;
+    let galleryLoading = false;
 
+    async function restGetWithRetry(table, params, retries = 2, delay = 2000) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                return await restGet(table, params);
+            } catch(e) {
+                const isTimeout = e?.message?.includes('timeout') || e?.message?.includes('canceling');
+                if (attempt < retries && isTimeout) {
+                    showGridError('⏳ DB is busy, retrying in ' + (delay/1000) + 's… (' + (attempt+1) + '/' + retries + ')');
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 1.5;
+                } else {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    async function fetchGallery() {
+        // Load from cache first for instant display
+        const cached = loadGalleryCache();
+        if (cached) { allGallerySprites = cached; galleryPage = 0; galleryAllLoaded = false; initGalleryAfterFetch(); }
+
+        // Then fetch fresh page 0 from DB
+        galleryPage = 0;
+        galleryAllLoaded = false;
+        allGallerySprites = [];
+        await fetchGalleryPage(true);
+    }
+
+    async function fetchGalleryPage(isFirst = false) {
+        if (galleryLoading || galleryAllLoaded) return;
+        galleryLoading = true;
+
+        const offset = galleryPage * PAGE_SIZE;
         let data;
         try {
-            data = await restGet(GALLERY_TABLE,
-                'select=id,name,tags,creator,created_at&order=created_at.desc&limit=1000');
+            data = await restGetWithRetry(GALLERY_TABLE,
+                'select=id,name,tags,creator,created_at&order=created_at.desc&limit=' + PAGE_SIZE + '&offset=' + offset);
         } catch(e) {
             console.error('[Gallery] fetch error:', e);
-            if (!cached) showGridError(e?.message || String(e));
+            if (!allGallerySprites.length) showGridError('❌ ' + (e?.message || String(e)));
+            galleryLoading = false;
             return;
         }
 
         if (!data || !Array.isArray(data)) {
-            if (!cached) showGridError('Unexpected response from server');
+            if (!allGallerySprites.length) showGridError('Unexpected response from server');
+            galleryLoading = false;
             return;
         }
-        const fresh = data;
-        const changed = !cached || fresh.length !== allGallerySprites.length ||
-            fresh.some(s => !allGallerySprites.find(g => g.id === s.id));
 
-        if (changed) {
-            allGallerySprites = fresh;
-            saveGalleryCache(fresh);
-            initGalleryAfterFetch();
+        if (data.length < PAGE_SIZE) galleryAllLoaded = true;
+
+        allGallerySprites = isFirst ? data : [...allGallerySprites, ...data];
+        galleryPage++;
+        galleryLoading = false;
+
+        saveGalleryCache(allGallerySprites);
+        initGalleryAfterFetch();
+        updateLoadMoreSentinel();
+    }
+
+    function updateLoadMoreSentinel() {
+        let sentinel = document.getElementById('gallery-load-sentinel');
+        if (galleryAllLoaded) {
+            if (sentinel) sentinel.remove();
+            return;
+        }
+        if (!sentinel) {
+            sentinel = document.createElement('div');
+            sentinel.id = 'gallery-load-sentinel';
+            sentinel.style.cssText = 'grid-column:1/-1;text-align:center;padding:20px;color:#444;font-size:11px;font-weight:700;';
+            sentinel.textContent = '⏳ Loading more…';
+            document.getElementById('gallery-grid').appendChild(sentinel);
+        }
+        // Observe sentinel to auto-load next page
+        if (!sentinel._observed) {
+            sentinel._observed = true;
+            const obs = new IntersectionObserver(entries => {
+                if (entries[0].isIntersecting) fetchGalleryPage();
+            }, { rootMargin: '300px' });
+            obs.observe(sentinel);
         }
     }
 
@@ -1349,12 +1410,17 @@
         const cached = loadPacksCache();
         if (cached) { allPacks = cached; initPacksAfterFetch(); }
 
-        const { data, error } = await _supabase
-            .from(PACKS_TABLE)
-            .select('id, name, tags, creator, created_at, cover_image, card_sprites, items')
-            .order('created_at', { ascending: false });
+        let data;
+        try {
+            data = await restGetWithRetry(PACKS_TABLE,
+                'select=id,name,tags,creator,created_at,cover_image,card_sprites,items&order=created_at.desc&limit=200');
+        } catch(e) {
+            console.error('[Packs] fetch error:', e);
+            if (!cached) renderPacksGrid([]);
+            return;
+        }
 
-        if (error || !data) {
+        if (!data || !Array.isArray(data)) {
             if (!cached) renderPacksGrid([]);
             return;
         }
