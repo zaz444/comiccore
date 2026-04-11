@@ -1883,11 +1883,47 @@
             await new Promise(r => setTimeout(r, 100));
         }
 
-        imgCache.clear(); // full refresh
+        // ── Cleanup pass: wipe any remaining base64 actions ──
+        showToast('⏳ Scanning for leftover base64 actions…', 60000);
+        try {
+            let allFull = [];
+            let offset2 = 0;
+            while (true) {
+                const chunk = await restGetWithRetry(GALLERY_TABLE,
+                    'select=id,name,actions&order=created_at.desc&limit=200&offset=' + offset2);
+                if (!chunk || !chunk.length) break;
+                allFull = allFull.concat(chunk);
+                if (chunk.length < 200) break;
+                offset2 += 200;
+            }
+
+            let cleaned = 0;
+            for (const row of allFull) {
+                const actions = row.actions || {};
+                const hasBase64 = Object.values(actions).some(v => typeof v === 'string' && v.startsWith('data:'));
+                if (!hasBase64) continue;
+
+                // Keep only Storage URL values, strip base64
+                const cleanedActions = {};
+                for (const [k, v] of Object.entries(actions)) {
+                    if (typeof v === 'string' && !v.startsWith('data:')) cleanedActions[k] = v;
+                }
+
+                const { error: cleanErr } = await _supabase.from(GALLERY_TABLE)
+                    .update({ actions: cleanedActions }).eq('id', row.id);
+                if (!cleanErr) { cleaned++; imgCache.delete(row.id); }
+                else console.error('Cleanup failed for', row.name, cleanErr);
+            }
+            if (cleaned > 0) showToast('\u{1F9F9} Wiped base64 from ' + cleaned + ' sprite(s)');
+        } catch(e) {
+            console.error('Cleanup pass error:', e);
+        }
+
+        imgCache.clear();
         localStorage.removeItem(GALLERY_CACHE_KEY);
         if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
         showToast('✅ Synced ' + synced + ' · Skipped ' + skipped + ' · Failed ' + failed);
-        if (synced > 0) fetchGallery();
+        fetchGallery();
     }
 
     // ── Action Mapper ──
