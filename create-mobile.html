@@ -2624,12 +2624,40 @@ async function mobSaveSprDefaultScale() {
 let allSidebarMeta = [];
 async function loadMobSprites() {
     const grid = document.getElementById('mob-sprite-grid');
-    grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
-    const { data } = await _supabase.from('sprites_library').select('id, name, image_data, tags, creator, created_at').order('created_at', { ascending: false });
-    sidebarSprites = data || [];
-    allSidebarMeta = sidebarSprites;
-    renderMobSpriteGrid(sidebarSprites);
-    buildMobTagChips(allSidebarMeta);
+
+    // 1. Serve from cache instantly
+    const cached = sbLoadMetaCache();
+    if (cached) {
+        sidebarSprites = cached;
+        allSidebarMeta = cached;
+        renderMobSpriteGrid(sidebarSprites);
+        buildMobTagChips(allSidebarMeta);
+    } else {
+        grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
+    }
+
+    // 2. Refresh metadata from DB in background (no heavy image_data column)
+    try {
+        const { data } = await _supabase.from('sprites_library')
+            .select('id, name, tags, creator, created_at')
+            .order('created_at', { ascending: false });
+        const fresh = data || [];
+
+        // Pre-populate session image cache from any image_data already in meta
+        fresh.forEach(s => { if (s.image_data) sbSetImg(s.id, s.image_data); });
+
+        const cachedIds = (sidebarSprites || []).map(s => s.id).join(',');
+        const freshIds  = fresh.map(s => s.id).join(',');
+        if (freshIds !== cachedIds || !cached) {
+            sidebarSprites = fresh;
+            allSidebarMeta = fresh;
+            sbSaveMetaCache(fresh);
+            renderMobSpriteGrid(sidebarSprites);
+            buildMobTagChips(allSidebarMeta);
+        }
+    } catch(e) {
+        if (!cached) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Error loading sprites</div>';
+    }
 }
 
 function renderMobSpriteGrid(sprites) {
@@ -2654,6 +2682,7 @@ function renderMobSpriteGrid(sprites) {
                     obs.disconnect();
                     sbFetchFull(pack.id).then(full => {
                         if (!full || !full.image_data) return;
+                        sbSetImg(pack.id, full.image_data);
                         const skel = card.querySelector('div:first-child');
                         if (skel) { const img = document.createElement('img'); img.src = full.image_data; img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:8px;'; skel.replaceWith(img); }
                     });
@@ -2681,17 +2710,7 @@ function renderMobSpriteGrid(sprites) {
             const full = await sbFetchFull(pack.id);
             if (full) { closeSheet('sprites'); openActionModal({ ...pack, ...full }); }
         };
-        // Lazy load image
-        const observer = new IntersectionObserver(entries => {
-            if (!entries[0].isIntersecting) return;
-            observer.disconnect();
-            sbFetchFull(pack.id).then(full => {
-                if (!full) return;
-                const old = card.querySelector('div');
-                if (old) { const img = document.createElement('img'); img.src = full.image_data; old.replaceWith(img); }
-            });
-        }, { root: document.getElementById('mob-sprite-grid') });
-        observer.observe(card);
+        // (image lazy-loading handled above)
         grid.appendChild(card);
     });
     if (!sprites.length) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">No sprites found</div>';
@@ -3493,6 +3512,8 @@ function filterMobSprites() {
 }
 
 // Sprite meta cache
+function sbGetImg(id) { try { return sessionStorage.getItem('cc_simg_' + id); } catch(e) { return null; } }
+function sbSetImg(id, b64) { try { sessionStorage.setItem('cc_simg_' + id, b64); } catch(e) {} }
 function sbSaveMetaCache(data) { try { localStorage.setItem('sb-meta-cache', JSON.stringify({ ts: Date.now(), data })); } catch(e) {} }
 function sbLoadMetaCache() { try { const c = JSON.parse(localStorage.getItem('sb-meta-cache')); if (c && Date.now() - c.ts < 600000) return c.data; } catch(e) {} return null; }
 
