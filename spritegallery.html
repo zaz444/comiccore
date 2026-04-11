@@ -668,29 +668,20 @@
 <script>
     const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
     const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
-    // Wrap fetch to avoid DataCloneError: sb_publishable_ keys trigger an internal
-    // broadcast channel that tries to postMessage a Headers object (uncloneable).
-    // We convert Headers → plain object before the request so no cloning happens.
-    function safeFetch(url, options = {}) {
-        if (options.headers && typeof options.headers !== 'object') {
-            options = { ...options };
-        }
-        if (options.headers instanceof Headers) {
-            const plain = {};
-            options.headers.forEach((v, k) => { plain[k] = v; });
-            options = { ...options, headers: plain };
-        }
-        return fetch(url, options);
-    }
-
     const _supabase = supabase.createClient(supabaseUrl, supabaseKey, {
-        global: { fetch: safeFetch },
-        auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false,
-        }
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
     });
+
+    // Raw REST fetch — bypasses the Supabase JS client entirely for gallery queries
+    // to avoid the DataCloneError caused by sb_publishable_ keys + postMessage/Headers
+    async function restGet(table, params = '') {
+        const res = await fetch(
+            supabaseUrl + '/rest/v1/' + table + '?' + params,
+            { headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey } }
+        );
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    }
 
     const ADMIN_ID = "de0b7378-e779-4e0d-9e3d-b33bf643df3e";
     const GALLERY_TABLE = 'sprites_gallery';
@@ -816,22 +807,18 @@
         const cached = loadGalleryCache();
         if (cached) { allGallerySprites = cached; initGalleryAfterFetch(); }
 
-        let data, error;
+        let data;
         try {
-            ({ data, error } = await _supabase
-                .from(GALLERY_TABLE)
-                .select('id, name, tags, creator, created_at')
-                .order('created_at', { ascending: false }));
+            data = await restGet(GALLERY_TABLE,
+                'select=id,name,tags,creator,created_at&order=created_at.desc&limit=1000');
         } catch(e) {
-            console.error('[Gallery] fetch threw:', e);
+            console.error('[Gallery] fetch error:', e);
             if (!cached) showGridError(e?.message || String(e));
             return;
         }
 
-        if (error || !data) {
-            const msg = error?.message || error?.details || JSON.stringify(error) || 'No data returned';
-            console.error('[Gallery] fetch error:', msg);
-            if (!cached) showGridError(msg);
+        if (!data || !Array.isArray(data)) {
+            if (!cached) showGridError('Unexpected response from server');
             return;
         }
         const fresh = data;
@@ -844,6 +831,7 @@
             initGalleryAfterFetch();
         }
     }
+
 
     function initGalleryAfterFetch() {
         allGalleryTags = new Set();
@@ -903,22 +891,26 @@
     async function prefetchSpriteImages(ids) {
         const missing = ids.filter(id => !imgCache.has(id));
         if (!missing.length) return;
-        // Supabase `in` filter – fetch up to 50 at once
         const chunks = [];
         for (let i = 0; i < missing.length; i += 50) chunks.push(missing.slice(i, i + 50));
         for (const chunk of chunks) {
-            const { data } = await _supabase
-                .from(GALLERY_TABLE)
-                .select('id, name, image_data, actions')
-                .in('id', chunk);
-            (data || []).forEach(d => imgCache.set(d.id, d));
+            try {
+                const idList = chunk.map(id => '"' + id + '"').join(',');
+                const data = await restGet(GALLERY_TABLE,
+                    'select=id,name,image_data,actions&id=in.(' + idList + ')');
+                (data || []).forEach(d => imgCache.set(d.id, d));
+            } catch(e) { console.error('prefetch error:', e); }
         }
     }
 
     async function fetchSpriteImage(id) {
         if (imgCache.has(id)) return imgCache.get(id);
-        const {data} = await _supabase.from(GALLERY_TABLE).select('id, name, image_data, actions').eq('id',id).single();
-        if (data) { imgCache.set(id, data); return data; }
+        try {
+            const data = await restGet(GALLERY_TABLE,
+                'select=id,name,image_data,actions&id=eq.' + id + '&limit=1');
+            const row = Array.isArray(data) ? data[0] : data;
+            if (row) { imgCache.set(id, row); return row; }
+        } catch(e) { console.error('fetchSpriteImage error:', e); }
         return null;
     }
 
@@ -1666,7 +1658,9 @@
         if (!confirm('Migrate all base64 action images to Storage? This may take a while.')) return;
         showToast('🔄 Starting migration...');
 
-        const { data: sprites, error } = await _supabase.from(GALLERY_TABLE).select('id, name, actions');
+        let sprites, error;
+        try { sprites = await restGet(GALLERY_TABLE, 'select=id,name,actions&limit=1000'); }
+        catch(e) { error = e; }
         if (error) { showToast('❌ Fetch error: ' + error.message); return; }
 
         let migrated = 0;
@@ -1714,7 +1708,7 @@
         showToast('⏳ Fetching all sprites…', 60000);
 
         const { data: sprites, error: dbErr } = await _supabase.from(GALLERY_TABLE).select('id, name, actions');
-        if (dbErr) { showToast('❌ DB fetch failed: ' + dbErr.message); if (btn) { btn.disabled = false; btn.textContent = '⚡ SYNC ALL FROM STORAGE'; } return; }
+        if (dbErr || !sprites) { showToast('❌ DB fetch failed: ' + (dbErr?.message || 'no data')); if (btn) { btn.disabled = false; btn.textContent = '⚡ SYNC ALL FROM STORAGE'; } return; }
 
         const { data: rootItems, error: rootErr } = await _supabase.storage.from('sprites').list(undefined, { limit: 500 });
         if (rootErr) { showToast('❌ Storage list failed: ' + rootErr.message); if (btn) { btn.disabled = false; btn.textContent = '⚡ SYNC ALL FROM STORAGE'; } return; }
