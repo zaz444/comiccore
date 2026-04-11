@@ -416,6 +416,7 @@
     <div class="top-bar-badge">🖼 Sprite Gallery</div>
     <div class="top-bar-actions">
         <a class="top-bar-btn" href="create.html">← Back to Create</a>
+        <button class="top-bar-btn" id="admin-sync-btn" onclick="syncAllSpritesFromStorage(this)" style="display:none;color:#4ade80;border-color:rgba(74,222,128,0.35);background:rgba(74,222,128,0.08);">⚡ Sync Storage</button>
         <button class="top-bar-btn purple" onclick="setSidebarView('upload')">⬆ Upload</button>
     </div>
 </div>
@@ -708,6 +709,11 @@
         } catch(e) {}
         if (!isAdmin && (user.handle || '').toLowerCase().replace('@','') === 'jeffyplays') isAdmin = true;
 
+        if (isAdmin) {
+            const syncBtn = document.getElementById('admin-sync-btn');
+            if (syncBtn) syncBtn.style.display = '';
+        }
+
         // Load favorites from local storage
         try { favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch(e) {}
 
@@ -780,11 +786,19 @@
         const cached = loadGalleryCache();
         if (cached) { allGallerySprites = cached; initGalleryAfterFetch(); }
 
-        // Destructure error alongside data
-        const { data, error } = await _supabase
-            .from(GALLERY_TABLE)
-            .select('id, name, tags, creator, created_at')
-            .order('created_at', { ascending: false });
+        let data, error;
+        try {
+            // 10s timeout so we never hang on a dead connection
+            const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000));
+            const query = _supabase.from(GALLERY_TABLE).select('id, name, tags, creator, created_at').order('created_at', { ascending: false });
+            ({ data, error } = await Promise.race([query, timeout.then(() => { throw new Error('timeout'); })]));
+        } catch(e) {
+            if (!cached) {
+                const grid = document.getElementById('gallery-grid');
+                if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>Could not load gallery</h3><p>${e.message === 'timeout' ? 'Request timed out — check your connection' : e.message}</p></div>`;
+            }
+            return;
+        }
 
         // Guard against failure so we don't wipe existing data
         if (error || !data) {
