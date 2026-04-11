@@ -1080,6 +1080,16 @@
             mapBtn.style.background = 'rgba(168,85,247,0.08)';
             mapBtn.onclick = () => openActionMapper(item);
             adminDiv.appendChild(mapBtn);
+
+            const syncBtn = document.createElement('button');
+            syncBtn.className = 'admin-del-btn';
+            syncBtn.textContent = '⚡ SYNC ALL FROM STORAGE';
+            syncBtn.style.marginTop = '6px';
+            syncBtn.style.color = '#4ade80';
+            syncBtn.style.borderColor = 'rgba(74,222,128,0.3)';
+            syncBtn.style.background = 'rgba(74,222,128,0.06)';
+            syncBtn.onclick = () => syncAllSpritesFromStorage(syncBtn);
+            adminDiv.appendChild(syncBtn);
         }
 
         updateFavBtn();
@@ -1651,6 +1661,71 @@
         // Clear cache to force refresh
         imgCache.clear();
         localStorage.removeItem(GALLERY_CACHE_KEY);
+    }
+
+    // ── Sync All Sprites From Storage ──
+    async function syncAllSpritesFromStorage(btn) {
+        if (!confirm('Scan every character folder in Storage and auto-save actions + cover to DB?\n\nThis will overwrite existing actions for any sprite that has a matching folder.')) return;
+
+        const BASE = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/';
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+        showToast('⏳ Fetching all sprites…', 60000);
+
+        const { data: sprites, error: dbErr } = await _supabase.from(GALLERY_TABLE).select('id, name, actions');
+        if (dbErr) { showToast('❌ DB fetch failed: ' + dbErr.message); if (btn) { btn.disabled = false; btn.textContent = '⚡ SYNC ALL FROM STORAGE'; } return; }
+
+        const { data: rootItems, error: rootErr } = await _supabase.storage.from('sprites').list(undefined, { limit: 500 });
+        if (rootErr) { showToast('❌ Storage list failed: ' + rootErr.message); if (btn) { btn.disabled = false; btn.textContent = '⚡ SYNC ALL FROM STORAGE'; } return; }
+
+        const folders = (rootItems || []).filter(i => i.id === null && !i.metadata && i.name !== '.emptyFolderPlaceholder');
+
+        // Match each folder to a sprite by checking if the folder name contains the sprite id
+        const folderMap = new Map();
+        for (const sprite of sprites) {
+            const match = folders.find(f => f.name.includes(sprite.id));
+            if (match) folderMap.set(match.name, sprite);
+        }
+
+        let synced = 0, skipped = 0, failed = 0;
+        const total = folderMap.size;
+        let done = 0;
+
+        for (const [folderName, sprite] of folderMap) {
+            done++;
+            showToast('⏳ Syncing ' + done + '/' + total + ': ' + sprite.name + '…', 60000);
+            try {
+                const { data: rootFiles } = await _supabase.storage.from('sprites').list(folderName, { limit: 200 });
+                const { data: actionFiles } = await _supabase.storage.from('sprites').list(folderName + '/actions', { limit: 500 });
+
+                const actions = {};
+                let coverUrl = null;
+
+                const mainFile = (rootFiles || []).find(f => f.name.toLowerCase() === 'main.png' && f.id !== null);
+                if (mainFile) coverUrl = BASE + folderName + '/' + mainFile.name;
+
+                (actionFiles || []).filter(f => f.id !== null && f.name !== '.emptyFolderPlaceholder').forEach(f => {
+                    const key = f.name.replace(/\.[^.]+$/, '');
+                    actions[key] = BASE + folderName + '/actions/' + f.name;
+                });
+
+                if (!Object.keys(actions).length && !coverUrl) { skipped++; continue; }
+
+                const payload = { actions };
+                if (coverUrl) payload.image_data = coverUrl;
+
+                const { error: updateErr } = await _supabase.from(GALLERY_TABLE).update(payload).eq('id', sprite.id);
+                if (updateErr) { failed++; console.error('Sync failed for', sprite.name, updateErr); }
+                else {
+                    synced++;
+                    const cached = imgCache.get(sprite.id) || {};
+                    imgCache.set(sprite.id, { ...cached, id: sprite.id, actions, ...(coverUrl ? { image_data: coverUrl } : {}) });
+                }
+            } catch(e) { failed++; console.error('Error syncing', sprite.name, e); }
+        }
+
+        localStorage.removeItem(GALLERY_CACHE_KEY);
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ SYNC ALL FROM STORAGE'; }
+        showToast('✅ Synced ' + synced + ' sprites · ' + skipped + ' skipped · ' + failed + ' failed');
     }
 
     // ── Action Mapper ──
