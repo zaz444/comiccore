@@ -717,8 +717,14 @@
         myHandle = user.handle || null;
 
         try {
-            const { data: { user: authUser } } = await _supabase.auth.getUser();
-            if (authUser) isAdmin = authUser.id === ADMIN_ID;
+            // Use REST directly — _supabase.auth.getUser() triggers postMessage/DataCloneError
+            const authRes = await fetch(supabaseUrl + '/auth/v1/user', {
+                headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey }
+            });
+            if (authRes.ok) {
+                const authUser = await authRes.json();
+                if (authUser?.id) isAdmin = authUser.id === ADMIN_ID;
+            }
         } catch(e) {}
         if (!isAdmin && (user.handle || '').toLowerCase().replace('@','') === 'jeffyplays') isAdmin = true;
 
