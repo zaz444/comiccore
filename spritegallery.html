@@ -808,21 +808,18 @@
         if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>Could not load gallery</h3><p>${msg}</p></div>`;
     }
 
-    const PAGE_SIZE = 50;
-    let galleryPage = 0;
-    let galleryAllLoaded = false;
-    let galleryLoading = false;
-
-    async function restGetWithRetry(table, params, retries = 2, delay = 2000) {
+    async function restGetWithRetry(table, params, retries = 3, delay = 2500) {
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
                 return await restGet(table, params);
             } catch(e) {
-                const isTimeout = e?.message?.includes('timeout') || e?.message?.includes('canceling');
+                const msg = e?.message || String(e);
+                const isTimeout = msg.includes('timeout') || msg.includes('canceling') || msg.includes('fetch');
                 if (attempt < retries && isTimeout) {
-                    showGridError('⏳ DB is busy, retrying in ' + (delay/1000) + 's… (' + (attempt+1) + '/' + retries + ')');
+                    const waitSec = Math.round(delay / 1000);
+                    showGridError('⏳ DB busy, retrying in ' + waitSec + 's… (attempt ' + (attempt+1) + ' of ' + retries + ')');
                     await new Promise(r => setTimeout(r, delay));
-                    delay *= 1.5;
+                    delay = Math.min(delay * 1.5, 8000);
                 } else {
                     throw e;
                 }
@@ -831,71 +828,39 @@
     }
 
     async function fetchGallery() {
-        // Load from cache first for instant display
+        // Show cache instantly while fresh data loads in background
         const cached = loadGalleryCache();
-        if (cached) { allGallerySprites = cached; galleryPage = 0; galleryAllLoaded = false; initGalleryAfterFetch(); }
+        if (cached) { allGallerySprites = cached; initGalleryAfterFetch(); }
 
-        // Then fetch fresh page 0 from DB
-        galleryPage = 0;
-        galleryAllLoaded = false;
-        allGallerySprites = [];
-        await fetchGalleryPage(true);
-    }
+        // Fetch ALL metadata in chunks of 200 — metadata rows are tiny (no images)
+        // Images are still lazy-loaded individually on scroll
+        let allData = [];
+        let offset = 0;
+        const chunkSize = 200;
 
-    async function fetchGalleryPage(isFirst = false) {
-        if (galleryLoading || galleryAllLoaded) return;
-        galleryLoading = true;
+        while (true) {
+            let chunk;
+            try {
+                chunk = await restGetWithRetry(GALLERY_TABLE,
+                    'select=id,name,tags,creator,created_at&order=created_at.desc&limit=' + chunkSize + '&offset=' + offset);
+            } catch(e) {
+                console.error('[Gallery] fetch error:', e);
+                if (!cached) showGridError('❌ ' + (e?.message || String(e)));
+                return;
+            }
 
-        const offset = galleryPage * PAGE_SIZE;
-        let data;
-        try {
-            data = await restGetWithRetry(GALLERY_TABLE,
-                'select=id,name,tags,creator,created_at&order=created_at.desc&limit=' + PAGE_SIZE + '&offset=' + offset);
-        } catch(e) {
-            console.error('[Gallery] fetch error:', e);
-            if (!allGallerySprites.length) showGridError('❌ ' + (e?.message || String(e)));
-            galleryLoading = false;
-            return;
+            if (!chunk || !Array.isArray(chunk) || chunk.length === 0) break;
+            allData = allData.concat(chunk);
+            if (chunk.length < chunkSize) break; // last page
+            offset += chunkSize;
         }
 
-        if (!data || !Array.isArray(data)) {
-            if (!allGallerySprites.length) showGridError('Unexpected response from server');
-            galleryLoading = false;
-            return;
-        }
+        if (!allData.length && !cached) { showGridError('No sprites found in database'); return; }
+        if (!allData.length) return; // keep cache displayed
 
-        if (data.length < PAGE_SIZE) galleryAllLoaded = true;
-
-        allGallerySprites = isFirst ? data : [...allGallerySprites, ...data];
-        galleryPage++;
-        galleryLoading = false;
-
-        saveGalleryCache(allGallerySprites);
+        allGallerySprites = allData;
+        saveGalleryCache(allData);
         initGalleryAfterFetch();
-        updateLoadMoreSentinel();
-    }
-
-    function updateLoadMoreSentinel() {
-        let sentinel = document.getElementById('gallery-load-sentinel');
-        if (galleryAllLoaded) {
-            if (sentinel) sentinel.remove();
-            return;
-        }
-        if (!sentinel) {
-            sentinel = document.createElement('div');
-            sentinel.id = 'gallery-load-sentinel';
-            sentinel.style.cssText = 'grid-column:1/-1;text-align:center;padding:20px;color:#444;font-size:11px;font-weight:700;';
-            sentinel.textContent = '⏳ Loading more…';
-            document.getElementById('gallery-grid').appendChild(sentinel);
-        }
-        // Observe sentinel to auto-load next page
-        if (!sentinel._observed) {
-            sentinel._observed = true;
-            const obs = new IntersectionObserver(entries => {
-                if (entries[0].isIntersecting) fetchGalleryPage();
-            }, { rootMargin: '300px' });
-            obs.observe(sentinel);
-        }
     }
 
 
