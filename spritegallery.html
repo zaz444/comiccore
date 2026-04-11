@@ -1738,6 +1738,23 @@
         localStorage.removeItem(GALLERY_CACHE_KEY);
     }
 
+    // ── Raw REST PATCH — works without auth session ──
+    async function restPatch(table, id, payload) {
+        const res = await fetch(
+            supabaseUrl + '/rest/v1/' + table + '?id=eq.' + id,
+            {
+                method: 'PATCH',
+                headers: {
+                    'apikey': supabaseKey,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+        if (!res.ok) throw new Error(await res.text());
+    }
+
     // ── Sync All Sprites From Storage ──
     async function syncAllSpritesFromStorage(btn) {
         if (!confirm('Scan every character folder in Storage and replace base64 with Storage URLs?\n\nThis will overwrite actions + cover for any sprite with a matching folder.')) return;
@@ -1860,18 +1877,16 @@
                     const payload = { actions };
                     if (coverUrl) payload.image_data = coverUrl;
 
-                    const { error: updateErr } = await _supabase.from(GALLERY_TABLE)
-                        .update(payload).eq('id', sprite.id);
-
-                    if (updateErr) {
-                        failed++;
-                        console.error('Sync failed for', sprite.name, updateErr);
-                    } else {
+                    try {
+                        await restPatch(GALLERY_TABLE, sprite.id, payload);
                         synced++;
                         imgCache.set(sprite.id, {
                             id: sprite.id, name: sprite.name, actions,
                             ...(coverUrl ? { image_data: coverUrl } : {})
                         });
+                    } catch(patchErr) {
+                        failed++;
+                        console.error('Sync PATCH failed for', sprite.name, patchErr.message);
                     }
                 } catch(e) {
                     failed++;
@@ -1909,10 +1924,11 @@
                     if (typeof v === 'string' && !v.startsWith('data:')) cleanedActions[k] = v;
                 }
 
-                const { error: cleanErr } = await _supabase.from(GALLERY_TABLE)
-                    .update({ actions: cleanedActions }).eq('id', row.id);
-                if (!cleanErr) { cleaned++; imgCache.delete(row.id); }
-                else console.error('Cleanup failed for', row.name, cleanErr);
+                try {
+                    await restPatch(GALLERY_TABLE, row.id, { actions: cleanedActions });
+                    cleaned++;
+                    imgCache.delete(row.id);
+                } catch(e) { console.error('Cleanup PATCH failed for', row.name, e.message); }
             }
             if (cleaned > 0) showToast('\u{1F9F9} Wiped base64 from ' + cleaned + ' sprite(s)');
         } catch(e) {
