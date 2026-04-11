@@ -88,65 +88,42 @@
         }
         .header-info-btn:hover { color: white; background: rgba(255,255,255,0.13); }
 
-        /* ── Member bar (redesigned clean pill row) ── */
+        /* ── Participant row + live ticker ── */
         .chat-header-bar {
-            display: flex; align-items: center; gap: 10px;
-            padding: 6px 14px 12px;
+            display: flex; align-items: center; gap: 8px;
+            padding: 5px 14px 10px;
+            border-top: 1px solid rgba(255,255,255,0.04);
         }
-
-        /* Scrollable avatar pill strip */
-        .member-pill-strip {
-            display: flex; align-items: center; gap: 6px;
-            overflow-x: auto; flex: 1;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
+        .participant-avatars { display: flex; align-items: center; flex-shrink: 0; }
+        .participant-avatar {
+            width: 22px; height: 22px; border-radius: 50%;
+            border: 2px solid rgba(0,0,0,0.7);
+            background: #1e1e22; object-fit: cover;
+            margin-left: -5px; flex-shrink: 0;
+            transition: transform .12s; cursor: pointer;
         }
-        .member-pill-strip::-webkit-scrollbar { display: none; }
-
-        .member-pill {
-            display: flex; align-items: center; gap: 5px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 20px; padding: 3px 9px 3px 3px;
-            flex-shrink: 0; cursor: pointer; transition: .14s;
+        .participant-avatar:first-child { margin-left: 0; }
+        .participant-avatar:hover { transform: scale(1.25); z-index: 5; }
+        .participant-count {
+            width: 22px; height: 22px; border-radius: 50%;
+            background: rgba(255,255,255,0.09); border: 2px solid rgba(0,0,0,0.7);
+            font-size: 8px; font-weight: 900; color: #888;
+            display: flex; align-items: center; justify-content: center;
+            margin-left: -5px; flex-shrink: 0;
         }
-        .member-pill:hover { background: rgba(255,122,0,0.12); border-color: rgba(255,122,0,0.3); }
-        .member-pill-avatar {
-            width: 20px; height: 20px; border-radius: 50%;
-            object-fit: cover; background: #1e1e22; flex-shrink: 0;
-        }
-        .member-pill-name {
-            font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.55);
-            max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .member-pill.is-owner .member-pill-name { color: #ff7a00; }
-        .member-pill-status {
-            width: 5px; height: 5px; border-radius: 50%; background: #555; flex-shrink: 0;
-        }
-        .member-pill-status.online { background: #32d74b; }
-
-        /* Compact live badge */
-        .live-badge {
-            display: flex; align-items: center; gap: 4px;
-            background: rgba(50,215,75,0.08); border: 1px solid rgba(50,215,75,0.18);
-            border-radius: 20px; padding: 3px 8px; flex-shrink: 0;
-        }
-        .live-dot { width: 5px; height: 5px; border-radius: 50%; background: #32d74b; animation: livePulse 2s infinite; }
+        .live-ticker-wrap { flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 5px; }
+        .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #32d74b; flex-shrink: 0; animation: livePulse 2s infinite; }
         @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
-        .live-label { font-size: 9px; font-weight: 900; color: #32d74b; letter-spacing: .5px; }
-
-        /* Legacy compat (ticker still used in JS) */
-        .participant-avatars { display: none; }
-        .live-ticker-wrap { display: none; }
-        .participant-count { display: none; }
+        .live-ticker { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .live-ticker b { color: rgba(255,255,255,0.6); }
 
         /* ══════════════════════════════════════
            CHAT SCROLL
         ══════════════════════════════════════ */
         #chatContainer {
             flex: 1; overflow-y: auto; overflow-x: hidden;
-            padding: 14px 12px 10px;
-            display: flex; flex-direction: column; gap: 10px;
+            padding: 12px 12px 8px;
+            display: flex; flex-direction: column; gap: 3px;
             scroll-behavior: smooth;
             overscroll-behavior: contain;
         }
@@ -580,10 +557,10 @@
             <div class="header-info-btn" onclick="openInfoPanel()">ℹ</div>
         </div>
         <div class="chat-header-bar">
-            <div class="member-pill-strip" id="memberPillStrip"></div>
-            <div class="live-badge">
+            <div class="participant-avatars" id="participantAvatars"></div>
+            <div class="live-ticker-wrap">
                 <div class="live-dot"></div>
-                <span class="live-label">LIVE</span>
+                <div class="live-ticker" id="liveTicker">Loading…</div>
             </div>
         </div>
     </div>
@@ -1023,21 +1000,16 @@
     }
 
     function buildParticipantAvatarRow() {
-        const strip = document.getElementById('memberPillStrip');
-        if (!strip) return;
-        strip.innerHTML = memberList.slice(0, 10).map(m => {
+        const wrap  = document.getElementById('participantAvatars');
+        const shown = memberList.slice(0, 7);
+        const extra = memberList.length - shown.length;
+        wrap.innerHTML = shown.map(m => {
             const pic = picCache[m.handle] || '';
             const src = getProfilePicUrl(pic);
-            const isOwner = squadData?.owner_handle === m.handle;
-            const initial = (m.handle[0] || '?').toUpperCase();
-            const avatarHtml = pic
-                ? `<img class="member-pill-avatar" src="${src}" onerror="this.outerHTML='<div class=&quot;member-pill-avatar&quot; style=&quot;background:#2a2a32;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#555;&quot;>${initial}</div>'">`
-                : `<div class="member-pill-avatar" style="background:#2a2a32;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#555;">${initial}</div>`;
-            return `<div class="member-pill${isOwner?' is-owner':''}" onclick="openProfilePreview('${esc(m.handle)}', event)">
-                ${avatarHtml}
-                <span class="member-pill-name">${isOwner ? '👑 ' : ''}${esc(m.handle)}</span>
-            </div>`;
-        }).join('');
+            return pic
+                ? `<img class="participant-avatar" src="${src}" title="@${esc(m.handle)}" onerror="this.style.display='none'" onclick="openProfilePreview('${esc(m.handle)}', event)">`
+                : `<div class="participant-avatar" style="font-size:10px;font-weight:900;color:#555;display:flex;align-items:center;justify-content:center;background:#1e1e22;" onclick="openProfilePreview('${esc(m.handle)}', event)">${esc((m.handle[0]||'?').toUpperCase())}</div>`;
+        }).join('') + (extra > 0 ? `<div class="participant-count">+${extra}</div>` : '');
     }
 
     async function updateLiveTicker() {
@@ -1456,45 +1428,60 @@
     // ── Image upload ──────────────────────────────────────
     async function handleImageUpload(input) {
         if (!input.files[0]) return;
-        const file    = input.files[0]; input.value = '';
+        const file   = input.files[0]; input.value = '';
+        const tempId = 'temp-img-' + Date.now();
+
+        // Show a local blob preview immediately while upload happens
         const blobUrl = URL.createObjectURL(file);
-        const tempId  = 'temp-img-' + Date.now();
         await appendMessage({ id: tempId, sender_handle: myHandle, content: blobUrl, created_at: new Date().toISOString() });
 
-        const b64 = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
-        const url = await uploadToStorage('avatars', `chat_${myHandle}_${Date.now()}.jpg`, b64);
+        // Upload directly to userimages/squadimages — no base64 conversion
+        const ext      = file.name.split('.').pop().toLowerCase() || 'jpg';
+        const filename = `squadimages/${activeSquadId}_${myHandle}_${Date.now()}.${ext}`;
+        const url      = await uploadToStorage('userimages', filename, file);
 
+        const tr = document.getElementById(`row-${tempId}`);
         if (url) {
-            const { data, error } = await _sb.from('team_messages').insert([{ ticket_id: activeSquadId, sender_handle: myHandle, content: url }]).select().single();
-            const tr = document.getElementById(`row-${tempId}`);
-            if (data && !error && tr) tr.id = `row-${data.id}`;
+            // Swap blob preview src for the real Supabase URL
+            if (tr) {
+                const img = tr.querySelector('img');
+                if (img) img.src = url;
+            }
+            const { data, error } = await sbFetch(
+                _sb.from('team_messages').insert([{ ticket_id: activeSquadId, sender_handle: myHandle, content: url }]).select().single(),
+                12000
+            );
+            if (data && !error && tr) {
+                tr.id = `row-${data.id}`;
+            } else {
+                console.error('[ComicCore] handleImageUpload insert failed:', error);
+                if (tr) { tr.style.opacity = '0.5'; tr.title = 'Failed to save message'; }
+            }
         } else {
-            const tr = document.getElementById(`row-${tempId}`);
             if (tr) { tr.style.opacity = '0.5'; tr.title = 'Upload failed'; }
         }
+
+        // Release the local blob URL now that we're done with it
+        URL.revokeObjectURL(blobUrl);
     }
 
-    async function uploadToStorage(bucket, filename, data) {
-        const path = `${filename}`;
-        let blob = data;
-        if (typeof data === 'string' && data.startsWith('data:')) { const res = await fetch(data); blob = await res.blob(); }
-        console.log('[ComicCore] uploadToStorage start:', { bucket, path, dataType: typeof data });
-        const { data: uploadData, error } = await _sb.storage.from(bucket).upload(path, blob, { upsert: true, cacheControl: '3600', contentType: 'image/jpeg' });
+    async function uploadToStorage(bucket, path, file) {
+        console.log('[ComicCore] uploadToStorage start:', { bucket, path, type: file.type, size: file.size });
+        const { data: uploadData, error } = await _sb.storage
+            .from(bucket)
+            .upload(path, file, { upsert: true, cacheControl: '3600', contentType: file.type || 'image/jpeg' });
         if (error) {
             console.error('[ComicCore] Storage upload error:', error.code, error.message);
             return null;
         }
-        if (uploadData) {
-            const { data: urlData } = _sb.storage.from(bucket).getPublicUrl(path);
-            const publicUrl = urlData.publicUrl;
-            console.log('[ComicCore] Storage upload success:', { path, publicUrl });
-            if (!publicUrl) {
-                console.error('[ComicCore] Storage upload success, but publicUrl missing for', path);
-                return null;
-            }
-            return `${publicUrl}?t=${Date.now()}`;
+        const { data: urlData } = _sb.storage.from(bucket).getPublicUrl(path);
+        const publicUrl = urlData?.publicUrl;
+        if (!publicUrl) {
+            console.error('[ComicCore] Storage upload succeeded but publicUrl missing for', path);
+            return null;
         }
-        return null;
+        console.log('[ComicCore] Storage upload success:', publicUrl);
+        return publicUrl;
     }
 
     // ── Realtime ──────────────────────────────────────────
@@ -1666,14 +1653,18 @@
 
             if (error) {
                 console.error('[ComicCore] openProfilePreview fetch error:', error.code, error.message);
-                throw error;
+                // ── FIX: close card gracefully instead of nuking the page ──
+                closeProfilePreview();
+                return;
             }
 
             // Also fetch status
-            const { data: statusRow, error: statusErr } = await _sb.from('user_status').select('status,updated_at').eq('handle', handle).maybeSingle();
-            if (statusErr) {
-                console.error('[ComicCore] openProfilePreview status fetch error:', statusErr?.code, statusErr?.message);
-            }
+            const { data: statusRow } = await _sb
+                .from('user_status')
+                .select('status,updated_at')
+                .eq('handle', handle)
+                .maybeSingle()
+                .catch(() => ({ data: null }));
 
             if (p) {
                 const previewData = {
@@ -1694,14 +1685,14 @@
                 applyPreviewData(previewData);
                 console.log('[ComicCore] openProfilePreview success', handle);
             } else {
-                console.error('[ComicCore] No profile data found for', handle);
-                document.getElementById('infoMembers').innerHTML = '<div style="font-size:12px;color:#333;">Unable to load profile.</div>';
-                showError();
+                // ── FIX: no profile found — show minimal card, don't nuke the page ──
+                console.warn('[ComicCore] No profile_stats row found for', handle);
+                // Card already shows handle name from the reset above — that's fine
             }
         } catch (err) {
+            // ── FIX: any unexpected error — close card gracefully, never showError() ──
             console.error('[ComicCore] openProfilePreview failed:', err?.code || err, err?.message || err);
-            document.getElementById('infoMembers').innerHTML = '<div style="font-size:12px;color:#333;">Unable to load profile.</div>';
-            showError();
+            closeProfilePreview();
         }
     }
 
@@ -1804,13 +1795,10 @@
     window.addEventListener('load', runInitOnce);
 
     // After 8 seconds, force-stop the browser loading spinner
-    // by navigating to a blank fragment and back — same trick as pressing X
     setTimeout(() => {
         if (document.readyState !== 'complete') {
             window.stop();
         }
-        // Even if readyState is complete the persistent realtime connection
-        // keeps the spinner going in some browsers — this kills it cleanly
         const url = location.href.split('#')[0];
         history.replaceState(null, '', url + '#_loaded');
         history.replaceState(null, '', url);
