@@ -2031,36 +2031,41 @@
         const payload = { actions: allStaged };
         if (coverUrl) payload.image_data = coverUrl;
 
+        // Snapshot what we need BEFORE closing (closeActionMapper nulls mapperSprite)
+        const spriteId   = mapperSprite.id;
+        const spriteSnap = { ...mapperSprite };
+
         const { error } = await _supabase
             .from(GALLERY_TABLE)
             .update(payload)
-            .eq('id', mapperSprite.id);
+            .eq('id', spriteId);
 
         if (error) { showToast('❌ Save failed: ' + error.message); return; }
 
-        // Fully replace cache entry so cards + preview show URLs immediately, not stale base64
-        imgCache.delete(mapperSprite.id);
-
+        // Bust cache so nothing stale is read back
+        imgCache.delete(spriteId);
         localStorage.removeItem(GALLERY_CACHE_KEY);
+
         showToast('✅ Actions saved to DB!');
-        closeActionMapper();
+        closeActionMapper(); // safe now — we already saved spriteId/spriteSnap
 
-        // Re-fetch this sprite fresh from DB then re-open preview
-        const fresh = await fetchSpriteImage(mapperSprite.id);
-        const updatedItem = { ...mapperSprite, ...(fresh || {}), actions: allStaged, ...(coverUrl ? { image_data: coverUrl } : {}) };
-
-        // Refresh the card in the grid
-        const card = document.querySelector(`.sprite-card[data-id="${mapperSprite.id}"]`);
-        if (card) {
-            const skel = card.querySelector('.sprite-skeleton') || card.querySelector('img');
-            if (skel && coverUrl) {
+        // Refresh the card in the grid immediately with the new cover URL
+        const card = document.querySelector(`.sprite-card[data-id="${spriteId}"]`);
+        if (card && coverUrl) {
+            const old = card.querySelector('.sprite-skeleton, img');
+            if (old) {
                 const img = document.createElement('img');
                 img.src = coverUrl;
                 img.className = 'loaded';
                 img.style.cssText = 'width:100%;height:calc(100% - 44px);object-fit:contain;padding:10px;';
-                skel.replaceWith(img);
+                old.replaceWith(img);
             }
         }
+
+        // Build updated item from what we just saved — don't re-fetch (DB may still be mid-write)
+        const updatedItem = { ...spriteSnap, actions: allStaged, ...(coverUrl ? { image_data: coverUrl } : {}) };
+        // Populate cache with what we know is correct
+        imgCache.set(spriteId, { id: spriteId, name: spriteSnap.name, actions: allStaged, ...(coverUrl ? { image_data: coverUrl } : {}) });
 
         openPreview(updatedItem);
     }
