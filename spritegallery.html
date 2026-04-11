@@ -1738,32 +1738,21 @@
         localStorage.removeItem(GALLERY_CACHE_KEY);
     }
 
-    // ── Raw REST PATCH — pulls session token from Supabase localStorage key ──
-    function getSupabaseToken() {
-        // Supabase stores the session under a key like sb-<ref>-auth-token
-        try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
-                    const val = JSON.parse(localStorage.getItem(k));
-                    return val?.access_token || null;
-                }
-            }
-        } catch(e) {}
-        return null;
-    }
+    const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1teWNxZWVqaGd1emh0emt5amFqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDk0NzMxMSwiZXhwIjoyMDg2NTIzMzExfQ.TpIvTRv_VSMefmeeOQtexElPT1xwuoyN_GLqmjmp90E';
 
     async function restPatch(table, id, payload) {
-        const token = getSupabaseToken();
-        const headers = {
-            'apikey': supabaseKey,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-        };
-        if (token) headers['Authorization'] = 'Bearer ' + token;
         const res = await fetch(
             supabaseUrl + '/rest/v1/' + table + '?id=eq.' + id,
-            { method: 'PATCH', headers, body: JSON.stringify(payload) }
+            {
+                method: 'PATCH',
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': 'Bearer ' + SERVICE_KEY,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(payload)
+            }
         );
         if (!res.ok) throw new Error(await res.text());
     }
@@ -1909,52 +1898,6 @@
 
             // One small pause per batch — not per sprite
             await new Promise(r => setTimeout(r, 100));
-        }
-
-        // ── Cleanup pass: fetch only id+name, then check actions one at a time ──
-        // Avoids pulling all base64 blobs in one giant query (causes statement timeout)
-        showToast('⏳ Cleaning up leftover base64 actions…', 60000);
-        try {
-            // Re-use sprites list we already have — just fetch actions for each individually
-            // but only PATCH if it actually has base64
-            let cleaned = 0;
-            for (let i = 0; i < sprites.length; i++) {
-                const sprite = sprites[i];
-                // Fetch just this sprite's actions — small row, won't timeout
-                let row;
-                try {
-                    const r = await fetch(
-                        supabaseUrl + '/rest/v1/' + GALLERY_TABLE +
-                        '?select=id,actions&id=eq.' + sprite.id + '&limit=1',
-                        { headers: { 'apikey': supabaseKey, 'x-statement-timeout': '5000' } }
-                    );
-                    const d = await r.json();
-                    row = Array.isArray(d) ? d[0] : d;
-                } catch(e) { continue; }
-
-                if (!row) continue;
-                const actions = row.actions || {};
-                const hasBase64 = Object.values(actions).some(v => typeof v === 'string' && v.startsWith('data:'));
-                if (!hasBase64) continue;
-
-                // Strip base64, keep Storage URLs only
-                const cleanedActions = {};
-                for (const [k, v] of Object.entries(actions)) {
-                    if (typeof v === 'string' && !v.startsWith('data:')) cleanedActions[k] = v;
-                }
-
-                try {
-                    await restPatch(GALLERY_TABLE, sprite.id, { actions: cleanedActions });
-                    cleaned++;
-                    imgCache.delete(sprite.id);
-                } catch(e) { console.error('Cleanup PATCH failed for', sprite.name, e.message); }
-
-                // Tiny yield so we don't block the UI
-                if (i % 10 === 0) await new Promise(r => setTimeout(r, 50));
-            }
-            if (cleaned > 0) showToast('🧹 Wiped base64 from ' + cleaned + ' sprite(s)');
-        } catch(e) {
-            console.error('Cleanup pass error:', e);
         }
 
         imgCache.clear();
