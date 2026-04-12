@@ -3586,6 +3586,7 @@
     let _bubblePickerMode = 'speech';
     let _bubblePickerSelected = 'round';
     let _bubbleTailFlip = false; // false=left tail, true=right tail
+    let _bubblePickerWidth = 180; // default bubble width preset
 
     function populateBubbleMiniGrid() {
         if (!activeLayer) return;
@@ -3622,6 +3623,16 @@
         render();
     }
 
+    function setBubblePickerWidth(w) {
+        _bubblePickerWidth = w;
+        document.querySelectorAll('.bpick-w-btn').forEach(btn => {
+            const active = parseInt(btn.dataset.bw) === w;
+            btn.style.background   = active ? 'rgba(255,122,0,.18)' : '#111';
+            btn.style.borderColor  = active ? 'var(--accent)' : '#333';
+            btn.style.color        = active ? 'var(--accent)' : '#666';
+        });
+    }
+
     function openBubblePicker(mode) {
         _bubblePickerMode = mode;
         _bubblePickerSelected = _bubblePickerSelected || 'round';
@@ -3633,6 +3644,9 @@
         const tRight = document.getElementById('bpick-tail-right');
         if (tLeft)  { tLeft.style.background='rgba(255,122,0,.18)'; tLeft.style.borderColor='var(--accent)'; tLeft.style.color='var(--accent)'; }
         if (tRight) { tRight.style.background='#111'; tRight.style.borderColor='#333'; tRight.style.color='#666'; }
+        // Reset width picker to Medium
+        _bubblePickerWidth = 180;
+        setBubblePickerWidth(180);
 
         const grid = document.getElementById('bubble-style-grid');
         grid.innerHTML = '';
@@ -3674,9 +3688,9 @@
             type, content: txt,
             bubbleStyle: _bubblePickerSelected,
             tailFlip: _bubbleTailFlip,
-            x: Math.round((canvas.offsetWidth - 180) / 2),
+            x: Math.round((canvas.offsetWidth - _bubblePickerWidth) / 2),
             y: Math.round(canvas.offsetHeight / 2 - 60),
-            w: 180, fontSize: 22, fontFamily: "'Inter', sans-serif", id: Date.now()
+            w: _bubblePickerWidth, fontSize: 22, fontFamily: "'Inter', sans-serif", id: Date.now()
         };
         _bubbleTailFlip = false; // reset for next time
         frames[currentIdx].layers.push(nl);
@@ -7940,6 +7954,14 @@
                 style="flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.18);color:var(--accent);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">◀ Left</button>
             <button id="bpick-tail-right" onclick="_bubbleTailFlip=true; document.getElementById('bpick-tail-right').style.background='rgba(255,122,0,.18)'; document.getElementById('bpick-tail-right').style.borderColor='var(--accent)'; document.getElementById('bpick-tail-right').style.color='var(--accent)'; document.getElementById('bpick-tail-left').style.background='#111'; document.getElementById('bpick-tail-left').style.borderColor='#333'; document.getElementById('bpick-tail-left').style.color='#666';"
                 style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
+        </div>
+        <!-- Bubble width row -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+            <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;">Width</span>
+            <button class="bpick-w-btn" data-bw="120" onclick="setBubblePickerWidth(120)" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Narrow</button>
+            <button class="bpick-w-btn" data-bw="180" onclick="setBubblePickerWidth(180)" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.18);color:var(--accent);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Medium</button>
+            <button class="bpick-w-btn" data-bw="280" onclick="setBubblePickerWidth(280)" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Wide</button>
+            <button class="bpick-w-btn" data-bw="380" onclick="setBubblePickerWidth(380)" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Full</button>
         </div>
         <input id="bubble-picker-text" class="pub-input" placeholder="Enter text..." style="margin-bottom:12px;">
         <button onclick="confirmBubblePicker()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;">Add Bubble ↵</button>

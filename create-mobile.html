@@ -772,6 +772,14 @@
             <button id="mob-bpick-tail-right" onclick="mobBubbleTailFlip=true; document.getElementById('mob-bpick-tail-right').style.background='rgba(255,122,0,.18)'; document.getElementById('mob-bpick-tail-right').style.borderColor='var(--accent)'; document.getElementById('mob-bpick-tail-right').style.color='var(--accent)'; document.getElementById('mob-bpick-tail-left').style.background='#111'; document.getElementById('mob-bpick-tail-left').style.borderColor='#333'; document.getElementById('mob-bpick-tail-left').style.color='#666';"
                 style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
         </div>
+        <!-- Bubble width row -->
+        <div style="display:flex;gap:8px;align-items:center;margin:10px 0 4px;">
+            <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;">Width</span>
+            <button class="mob-bpick-w-btn" data-bw="0.3" onclick="setMobBubbleWidth(0.3)" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Narrow</button>
+            <button class="mob-bpick-w-btn" data-bw="0.5" onclick="setMobBubbleWidth(0.5)" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.18);color:var(--accent);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Medium</button>
+            <button class="mob-bpick-w-btn" data-bw="0.7" onclick="setMobBubbleWidth(0.7)" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Wide</button>
+            <button class="mob-bpick-w-btn" data-bw="0.9" onclick="setMobBubbleWidth(0.9)" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Full</button>
+        </div>
         <input id="bubble-picker-text" class="pub-input" placeholder="Enter text..." style="margin-top:8px;">
         <button onclick="confirmBubblePicker()" style="width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;">Add Bubble</button>
     </div>
@@ -3842,6 +3850,17 @@ const BUBBLE_STYLES = [
 let selectedBubbleStyle = 'round';
 let currentBubbleMode = 'speech';
 let mobBubbleTailFlip = false;
+let _mobBubbleWidthFrac = 0.5; // default bubble width (fraction of canvas)
+
+function setMobBubbleWidth(frac) {
+    _mobBubbleWidthFrac = frac;
+    document.querySelectorAll('.mob-bpick-w-btn').forEach(btn => {
+        const active = parseFloat(btn.dataset.bw) === frac;
+        btn.style.background  = active ? 'rgba(255,122,0,.18)' : '#111';
+        btn.style.borderColor = active ? 'var(--accent)' : '#333';
+        btn.style.color       = active ? 'var(--accent)' : '#666';
+    });
+}
 
 function openBubblePicker(mode) {
     currentBubbleMode = mode;
@@ -3854,6 +3873,9 @@ function openBubblePicker(mode) {
     const tR = document.getElementById('mob-bpick-tail-right');
     if (tL) { tL.style.background='rgba(255,122,0,.18)'; tL.style.borderColor='var(--accent)'; tL.style.color='var(--accent)'; }
     if (tR) { tR.style.background='#111'; tR.style.borderColor='#333'; tR.style.color='#666'; }
+    // Reset width picker to Medium
+    _mobBubbleWidthFrac = 0.5;
+    setMobBubbleWidth(0.5);
     const grid = document.getElementById('bubble-style-grid');
     grid.innerHTML = '';
     BUBBLE_STYLES.forEach(s => {
@@ -3879,7 +3901,7 @@ function confirmBubblePicker() {
     saveState();
     const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
     const bubbleType = selectedBubbleStyle === 'cloud' ? 'thinking' : 'bubble';
-    const nl = { type: bubbleType, content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, tailFlip: mobBubbleTailFlip, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw*0.5), rotation: 0, id: Date.now() };
+    const nl = { type: bubbleType, content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, tailFlip: mobBubbleTailFlip, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw * _mobBubbleWidthFrac), rotation: 0, id: Date.now() };
     mobBubbleTailFlip = false;
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
