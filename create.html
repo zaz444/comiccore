@@ -527,7 +527,9 @@
     #bg-edit-panel .panel-title {
         font-size: 11px; font-weight: 900; color: var(--accent); letter-spacing: 1px;
         text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;
+        cursor: grab;
     }
+    #bg-edit-panel .panel-title:active { cursor: grabbing; }
     .bg-slider-row { display: flex; align-items: center; gap: 10px; }
     .bg-slider-row span { font-size: 10px; color: #888; font-weight: 800; width: 60px; text-transform: uppercase; }
     .bg-slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
@@ -2740,27 +2742,27 @@
                 img.src = bg;
                 // Always cover: width >= 100% of frame, translate by offset
                 const sv2 = Math.max(1, typeof scale === 'number' ? scale : 1);
-                const panMult2 = 0.5 * sv2;
-                const bpx2 = Math.min(100, Math.max(0, 50 + xOff * panMult2));
-                const bpy2 = Math.min(100, Math.max(0, 50 + yOff * panMult2));
+                // Pan via translate so X/Y works at all zoom levels (same logic as static images).
+                const txPct2 = sv2 > 1 ? (xOff / 100) * (sv2 - 1) * 50 : 0;
+                const tyPct2 = sv2 > 1 ? (yOff / 100) * (sv2 - 1) * 50 : 0;
                 img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-                    + 'object-position:' + bpx2 + '% ' + bpy2 + '%;'
-                    + 'transform:scale(' + sv2 + ') rotate(' + rotate + 'deg);'
+                    + 'transform:scale(' + sv2 + ') rotate(' + rotate + 'deg) translate(' + txPct2 + '%, ' + tyPct2 + '%);'
                     + 'transform-origin:center center;pointer-events:none;';
                 wrapper.appendChild(img);
                 bgLayer.appendChild(wrapper);
             } else {
-                // Static image — object-fit:cover fills frame; scale(sv) zooms outward from center
+                // Static image — object-fit:cover fills frame; scale(sv) zooms outward from center.
+                // Pan via translateX/Y (% of scaled size) so X/Y works at all zoom levels.
                 const imgEl = document.createElement('img');
                 imgEl.src = bg;
                 const sv  = Math.max(1, typeof scale === 'number' ? scale : 1);
-                // Pan sensitivity scales with zoom so slider reaches full image extent
-                const panMult = 0.5 * sv;
-                const bpx = Math.min(100, Math.max(0, 50 + xOff * panMult));
-                const bpy = Math.min(100, Math.max(0, 50 + yOff * panMult));
+                // Convert slider -100..100 to a translate percentage.
+                // At scale sv, the image overflows the frame by (sv-1)*50% on each side.
+                // Map xOff/yOff range to that overflow so the slider reaches both edges.
+                const txPct = sv > 1 ? (xOff / 100) * (sv - 1) * 50 : 0;
+                const tyPct = sv > 1 ? (yOff / 100) * (sv - 1) * 50 : 0;
                 imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-                    + 'object-position:' + bpx + '% ' + bpy + '%;'
-                    + 'transform:scale(' + sv + ') rotate(' + rotate + 'deg);'
+                    + 'transform:scale(' + sv + ') rotate(' + rotate + 'deg) translate(' + txPct + '%, ' + tyPct + '%);'
                     + 'transform-origin:center center;pointer-events:none;';
                 bgLayer.appendChild(imgEl);
             }
@@ -7581,6 +7583,50 @@
             dragging = true;
 
             // First time: pin to current screen position, remove centering transform
+            if (panel.style.transform !== 'none') {
+                const rect = panel.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top  = rect.top  + 'px';
+                panel.style.bottom = 'auto';
+                panel.style.transform = 'none';
+            }
+
+            startX = e.clientX;
+            startY = e.clientY;
+            origLeft = parseInt(panel.style.left) || 0;
+            origTop  = parseInt(panel.style.top)  || 0;
+
+            title.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            panel.style.left = (origLeft + dx) + 'px';
+            panel.style.top  = (origTop  + dy) + 'px';
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (!dragging) return;
+            dragging = false;
+            title.style.cursor = 'grab';
+        });
+    })();
+
+    // ── Draggable Background Edit Panel ──
+    (function() {
+        const panel = document.getElementById('bg-edit-panel');
+        const title = panel ? panel.querySelector('.panel-title') : null;
+        if (!panel || !title) return;
+
+        let dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+        title.addEventListener('mousedown', function(e) {
+            if (e.target.tagName === 'SPAN' && e.target.getAttribute('onclick')) return;
+            e.preventDefault();
+            dragging = true;
+
             if (panel.style.transform !== 'none') {
                 const rect = panel.getBoundingClientRect();
                 panel.style.left = rect.left + 'px';
