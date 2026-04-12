@@ -2533,17 +2533,22 @@
             probe.crossOrigin = 'anonymous';
             probe.onload = () => {
                 if (!probe.naturalWidth) return;
-                const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-                const prevTrim = layer.trimData;
-                const scale = prevTrim ? (layer.w / prevTrim.trimW) : (layer.w / trimW);
+                const cropped = cropSpriteToContent(probe);
                 const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
                 const oldLeft   = layer.x;
-                layer.src = img;
-                layer.w = Math.round(trimW * scale);
-                layer.h = Math.round(trimH * scale);
-                layer.x = oldLeft;
-                layer.y = oldBottom - layer.h;
-                layer.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+                if (layer.charHeight) {
+                    // Character: lock height, derive width from new pose's aspect ratio
+                    const ar = cropped.w / cropped.h;
+                    layer.h = layer.charHeight;
+                    layer.w = Math.round(layer.charHeight * ar);
+                } else {
+                    // Effect / plain: scale by existing width
+                    const scale = layer.w / cropped.w;
+                    layer.h = Math.round(cropped.h * scale);
+                }
+                layer.src = cropped.src;
+                layer.x   = oldLeft;
+                layer.y   = oldBottom - layer.h;
                 render();
             };
             probe.onerror = () => render();
@@ -2603,17 +2608,16 @@
                     }
                 }
             }
-            if (minX > maxX || minY > maxY) return { src: img.src, w: ow, h: oh };
+            if (minX > maxX || minY > maxY) return { src: img.src, w: ow, h: oh, origW: ow, origH: oh };
             const tw = maxX - minX + 1;
             const th = maxY - minY + 1;
-            // If already tight (≤4px padding), skip rewriting src to avoid bloat
-            if (minX <= 4 && minY <= 4 && ow - maxX <= 5 && oh - maxY <= 5) return { src: img.src, w: ow, h: oh };
+            if (minX <= 4 && minY <= 4 && ow - maxX <= 5 && oh - maxY <= 5) return { src: img.src, w: ow, h: oh, origW: ow, origH: oh };
             const out = document.createElement('canvas');
             out.width = tw; out.height = th;
             out.getContext('2d').drawImage(img, minX, minY, tw, th, 0, 0, tw, th);
-            return { src: out.toDataURL('image/png'), w: tw, h: th };
+            return { src: out.toDataURL('image/png'), w: tw, h: th, origW: ow, origH: oh };
         } catch(e) {
-            return { src: img.src, w: ow, h: oh };
+            return { src: img.src, w: ow, h: oh, origW: ow, origH: oh };
         }
     }
 
@@ -2621,8 +2625,9 @@
         saveState();
         const cw = canvas.offsetWidth || 600;
         const ch = canvas.offsetHeight || 600;
-        const TARGET_W = (pack && pack.default_scale) ? pack.default_scale : Math.round(cw * 0.33);
-        const nl = { type: 'img', src, w: TARGET_W, h: TARGET_W, x: Math.round(cw * 0.33), y: Math.round(ch * 0.33), rotation: 0, flipped: false, packData: pack, id: Date.now() };
+        const isCharacter = !!(pack && pack.id);
+        const targetH = (pack && pack.default_scale) ? pack.default_scale : Math.round(ch * 0.6);
+        const nl = { type: 'img', src, w: targetH, h: targetH, x: Math.round((cw - targetH) / 2), y: Math.round(ch - targetH), rotation: 0, flipped: false, packData: pack, id: Date.now() };
         frames[currentIdx].layers.push(nl);
         activeLayer = nl;
         const probe = new Image();
@@ -2630,17 +2635,32 @@
         probe.onload = () => {
             if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
             const cropped = cropSpriteToContent(probe);
-            const scale = TARGET_W / cropped.w;
+            if (isCharacter) {
+                const ar = cropped.w / cropped.h;
+                nl.h = targetH;
+                nl.w = Math.round(targetH * ar);
+                nl.charHeight = targetH;
+            } else {
+                const initW = Math.round(cw * 0.33);
+                const scale = initW / cropped.w;
+                nl.w = Math.round(cropped.w * scale);
+                nl.h = Math.round(cropped.h * scale);
+            }
             nl.src = cropped.src;
-            nl.w = Math.round(cropped.w * scale);
-            nl.h = Math.round(cropped.h * scale);
+            nl.x = Math.round((cw - nl.w) / 2);
+            nl.y = Math.round(ch - nl.h);
             render();
         };
         probe.onerror = () => {
             const fallback = new Image();
             fallback.onload = () => {
                 if (fallback.naturalWidth && fallback.naturalHeight) {
-                    nl.h = Math.round(TARGET_W * fallback.naturalHeight / fallback.naturalWidth);
+                    if (isCharacter) {
+                        nl.h = targetH;
+                        nl.w = Math.round(targetH * fallback.naturalWidth / fallback.naturalHeight);
+                    } else {
+                        nl.h = Math.round(nl.w * fallback.naturalHeight / fallback.naturalWidth);
+                    }
                     render();
                 }
             };

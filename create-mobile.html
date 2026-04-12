@@ -3666,23 +3666,32 @@ function createActionOption(src, name, isLastUsed = false) {
 function handleActionSelect(img, pack, isEditing) {
     if (isEditing && activeLayer) {
         saveState();
-        activeLayer.src = img;
         const layer = activeLayer;
         const probe = new Image();
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
             if (!probe.naturalWidth) return;
-            const { offsetX, offsetY, trimW, trimH } = trimTransparentBounds(probe);
-            const prevTrim = layer.trimData;
-            const scale = prevTrim ? (layer.w / prevTrim.trimW) : (layer.w / trimW);
-            // Anchor bottom-left so the sprite stays planted in the same visual spot
+            const cropped = cropSpriteToContent(probe);
+
+            // Anchor bottom so the sprite feet stay on the same ground line
             const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
             const oldLeft   = layer.x;
-            layer.w = Math.round(trimW * scale);
-            layer.h = Math.round(trimH * scale);
-            layer.x = oldLeft;
-            layer.y = oldBottom - layer.h;
-            layer.trimData = { offsetX, offsetY, trimW, trimH, origW: probe.naturalWidth, origH: probe.naturalHeight };
+
+            if (layer.charHeight) {
+                // ── Character sprite: height is sacred, width derives from new pose's AR ──
+                const ar = cropped.w / cropped.h;
+                layer.h = layer.charHeight;
+                layer.w = Math.round(layer.charHeight * ar);
+            } else {
+                // ── Effect / plain: scale by width as before ──
+                const scale = layer.w / cropped.w;
+                layer.h = Math.round(cropped.h * scale);
+                // w stays the same
+            }
+
+            layer.src = cropped.src;
+            layer.x   = oldLeft;
+            layer.y   = oldBottom - layer.h;
             render();
         };
         probe.onerror = () => render();
@@ -3732,15 +3741,15 @@ function cropSpriteToContent(img) {
                 }
             }
         }
-        if (minX > maxX || minY > maxY) return { src: img.src, w: ow, h: oh };
+        if (minX > maxX || minY > maxY) return { src: img.src, w: ow, h: oh, origW: ow, origH: oh };
         const tw = maxX - minX + 1, th = maxY - minY + 1;
-        if (minX <= 4 && minY <= 4 && ow - maxX <= 5 && oh - maxY <= 5) return { src: img.src, w: ow, h: oh };
+        if (minX <= 4 && minY <= 4 && ow - maxX <= 5 && oh - maxY <= 5) return { src: img.src, w: ow, h: oh, origW: ow, origH: oh };
         const out = document.createElement('canvas');
         out.width = tw; out.height = th;
         out.getContext('2d').drawImage(img, minX, minY, tw, th, 0, 0, tw, th);
-        return { src: out.toDataURL('image/png'), w: tw, h: th };
+        return { src: out.toDataURL('image/png'), w: tw, h: th, origW: ow, origH: oh };
     } catch(e) {
-        return { src: img.src, w: ow, h: oh };
+        return { src: img.src, w: ow, h: oh, origW: ow, origH: oh };
     }
 }
 
@@ -3748,26 +3757,54 @@ function addSpriteToCanvas(src, pack) {
     saveState();
     const cw = canvas.offsetWidth || 300;
     const ch = canvas.offsetHeight || 300;
-    const initW = (pack && pack.default_scale) ? pack.default_scale : Math.round(cw * 0.4);
-    const nl = { type: 'img', src, w: initW, h: initW, x: Math.round(cw * 0.3), y: Math.round(ch * 0.3), rotation: 0, flipped: false, packData: pack, id: Date.now() };
+    const isCharacter = !!(pack && pack.id); // library/gallery sprites have an id — effects don't
+
+    // Default target height for characters: 60% of canvas height
+    // default_scale on DB is treated as a HEIGHT value for characters going forward
+    const targetH = (pack && pack.default_scale) ? pack.default_scale : Math.round(ch * 0.6);
+
+    const nl = { type: 'img', src, w: targetH, h: targetH, x: Math.round(cw * 0.3), y: Math.round(ch * 0.2), rotation: 0, flipped: false, packData: pack, id: Date.now() };
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
+
     const probe = new Image();
     probe.crossOrigin = 'anonymous';
     probe.onload = () => {
         if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
         const cropped = cropSpriteToContent(probe);
-        const scale = initW / cropped.w;
-        nl.src = cropped.src;
-        nl.w = Math.round(cropped.w * scale);
-        nl.h = Math.round(cropped.h * scale);
+
+        if (isCharacter) {
+            // ── Character sprite: anchor to HEIGHT so poses stay consistent ──
+            // Width is derived from the cropped aspect ratio at the target height
+            const aspectRatio = cropped.w / cropped.h;
+            nl.h = targetH;
+            nl.w = Math.round(targetH * aspectRatio);
+            nl.src = cropped.src;
+            // Store the canonical height on the layer so action switches can reference it
+            nl.charHeight = targetH;
+        } else {
+            // ── Effect / plain image: keep original width-based sizing ──
+            const initW = Math.round(cw * 0.4);
+            const scale = initW / cropped.w;
+            nl.src = cropped.src;
+            nl.w = Math.round(cropped.w * scale);
+            nl.h = Math.round(cropped.h * scale);
+        }
+        // Bottom-centre placement
+        nl.x = Math.round((cw - nl.w) / 2);
+        nl.y = Math.round(ch - nl.h);
         render();
     };
     probe.onerror = () => {
         const fallback = new Image();
         fallback.onload = () => {
             if (fallback.naturalWidth && fallback.naturalHeight) {
-                nl.h = Math.round(initW * fallback.naturalHeight / fallback.naturalWidth);
+                if (isCharacter) {
+                    nl.h = targetH;
+                    nl.w = Math.round(targetH * fallback.naturalWidth / fallback.naturalHeight);
+                } else {
+                    nl.h = Math.round(nl.w * fallback.naturalHeight / fallback.naturalWidth);
+                }
                 render();
             }
         };
