@@ -2682,13 +2682,21 @@
         const ch = canvas.offsetHeight || 600;
         const isCharacter = !!(pack && pack.id);
         const targetH = (pack && pack.default_scale) ? pack.default_scale : Math.round(ch * 0.6);
+        // nl is built but NOT pushed to frames or set as activeLayer yet —
+        // we wait until probe.onload resolves the true aspect-ratio dimensions
+        // so the selection outline never renders with a square placeholder size.
         const nl = { type: 'img', src, w: targetH, h: targetH, x: Math.round((cw - targetH) / 2), y: Math.round(ch - targetH), rotation: 0, flipped: false, packData: pack, id: Date.now() };
-        frames[currentIdx].layers.push(nl);
-        activeLayer = nl;
+
+        function _commit() {
+            frames[currentIdx].layers.push(nl);
+            activeLayer = nl;
+            render();
+        }
+
         const probe = new Image();
         probe.crossOrigin = 'anonymous';
         probe.onload = () => {
-            if (!probe.naturalWidth || !probe.naturalHeight) { render(); return; }
+            if (!probe.naturalWidth || !probe.naturalHeight) { _commit(); return; }
             const cropped = cropSpriteToContent(probe);
             if (isCharacter) {
                 const ar = cropped.w / cropped.h;
@@ -2704,7 +2712,7 @@
             nl.src = cropped.src;
             nl.x = Math.round((cw - nl.w) / 2);
             nl.y = Math.round(ch - nl.h);
-            render();
+            _commit();
         };
         probe.onerror = () => {
             const fallback = new Image();
@@ -2716,9 +2724,10 @@
                     } else {
                         nl.h = Math.round(nl.w * fallback.naturalHeight / fallback.naturalWidth);
                     }
-                    render();
                 }
+                _commit();
             };
+            fallback.onerror = () => { _commit(); }; // worst-case: add with placeholder dims
             fallback.src = src;
         };
         probe.src = src;
