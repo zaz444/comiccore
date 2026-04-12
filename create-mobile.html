@@ -4381,64 +4381,77 @@ function confirmMultiImport() {
     updateFrameCounter();
 }
 
-// ── SAVE / DRAFTS (Supabase-only, no localStorage caching) ──
+// ── SAVE / DRAFTS (SQL-first, bucket spill for large drafts) ──
+const _DRAFT_BUCKET = 'comiccore-assets';
+const _DRAFT_PREFIX = 'drafts/';
+const _INLINE_LIMIT = 900_000;
+
 async function saveOffline(silent = false) {
-    const ratio = canvasRatio || { w:1, h:1 };
-    const now   = new Date().toISOString();
+    const ratio  = canvasRatio || { w:1, h:1 };
+    const now    = new Date().toISOString();
     const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
 
     if (!handle) {
-        if (!silent) {
-            const t = document.createElement('div');
-            t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#3a1a1a;color:#ff453a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #5a2a2a;';
-            t.innerText = 'Please log in to save drafts';
-            document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
-        }
+        if (!silent) showMobSaveBadge('Log in to save', true);
         return;
     }
 
     try {
         const { data: { session: _cm1 } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
         const user = _cm1?.user ?? null;
+        if (!user) { if (!silent) showMobSaveBadge('Log in to save', true); return; }
 
-        if (user) {
-            if (activeDraftId && activeDraftId.toString().includes('-')) {
-                // Update existing draft
-                await _supabase.from('drafts').update({
-                    data: frames, canvas_ratio: ratio, updated_at: now
-                }).eq('id', activeDraftId);
-            } else {
-                // Create new draft
-                const title = 'Untitled Draft';
-                const { data: inserted } = await _supabase.from('drafts').insert([{
-                    owner_handle: handle, title, data: frames, canvas_ratio: ratio, updated_at: now
-                }]).select('id').single();
-                if (inserted) {
-                    activeDraftId = inserted.id;
-                    lsSet('active_draft_id', activeDraftId);
-                }
-            }
-            hasUnsavedChanges = false;
-            const dot2 = document.getElementById('unsaved-dot');
-            if (dot2) dot2.style.display = 'none';
-            if (!silent) {
-                const t = document.createElement('div');
-                t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;';
-                t.innerText = '✓ Saved';
-                document.body.appendChild(t); setTimeout(() => t.remove(), 1800);
-            }
-            return;
+        const payload = JSON.stringify(frames);
+        let rowPatch;
+
+        if (payload.length > _INLINE_LIMIT) {
+            const draftId = activeDraftId || crypto.randomUUID();
+            const path = `${_DRAFT_PREFIX}${draftId}.json`;
+            const { error: upErr } = await _supabase.storage
+                .from(_DRAFT_BUCKET)
+                .upload(path, new Blob([payload], { type: 'application/json' }), { upsert: true });
+            if (upErr) throw upErr;
+            rowPatch = { data: null, storage_path: path };
+            activeDraftId = draftId;
+        } else {
+            rowPatch = { data: frames, storage_path: null };
         }
+
+        if (activeDraftId && activeDraftId.toString().includes('-')) {
+            await _supabase.from('drafts').update({
+                ...rowPatch, canvas_ratio: ratio, updated_at: now
+            }).eq('id', activeDraftId);
+        } else {
+            const { data: inserted } = await _supabase.from('drafts').insert([{
+                owner_handle: handle, title: 'Untitled Draft',
+                ...rowPatch, canvas_ratio: ratio, updated_at: now
+            }]).select('id').single();
+            if (inserted) {
+                activeDraftId = inserted.id;
+                lsSet('active_draft_id', activeDraftId);
+                localStorage.removeItem('active_draft_storage_path');
+            }
+        }
+
+        hasUnsavedChanges = false;
+        const dot2 = document.getElementById('unsaved-dot');
+        if (dot2) dot2.style.display = 'none';
+        if (!silent) showMobSaveBadge('✓ Saved', false);
     } catch(e) {
         console.warn('Draft save failed:', e);
-        if (!silent) {
-            const t = document.createElement('div');
-            t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#3a1a1a;color:#ff453a;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #5a2a2a;';
-            t.innerText = '✗ Save failed: ' + (e.message || 'server error');
-            document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
-        }
+        if (!silent) showMobSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
     }
-    hasUnsavedChanges = false;
+}
+
+function showMobSaveBadge(msg, isErr) {
+    const existing = document.getElementById('_mob-save-badge');
+    if (existing) existing.remove();
+    const t = document.createElement('div');
+    t.id = '_mob-save-badge';
+    t.style.cssText = `position:fixed;top:60px;left:50%;transform:translateX(-50%);background:${isErr?'#3a1a1a':'#1a3a1a'};color:${isErr?'#ff453a':'#4cff7a'};padding:8px 18px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid ${isErr?'#5a2a2a':'#2a5a2a'};`;
+    t.innerText = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2000);
 }
 function goToDrafts() { saveOffline(true); location.href = 'my-comics.html'; }
 let _exitDestination = 'index.html';
@@ -4477,7 +4490,6 @@ async function finalPublish() {
         const { data: { session: _cm2 } } = await _supabase.auth.getSession();
         const user = _cm2?.user ?? null;
         if (!user) { alert('Not logged in.'); btn.disabled=false; btn.innerText='POST NOW'; return; }
-        // Resolve handle safely — never rely on an outer-scope 'handle' variable
         const pubHandle = (typeof myHandle !== 'undefined' && myHandle)
             ? myHandle
             : (JSON.parse(localStorage.getItem('user_profile') || '{}').handle || user.email || 'unknown');
@@ -4485,9 +4497,21 @@ async function finalPublish() {
         const desc = document.getElementById('pub-desc').value.trim();
         const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
         let error;
-        if (editingComicId) { ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId)); }
-        else { ({ error } = await _supabase.from('comics').insert([{ ...payload, owner_name: pubHandle, owner_handle: pubHandle }])); }
+        if (editingComicId) {
+            ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
+        } else {
+            ({ error } = await _supabase.from('comics').insert([{ ...payload, owner_name: pubHandle, owner_handle: pubHandle }]));
+        }
         if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return; }
+        // Clean up draft after publish
+        if (activeDraftId) {
+            const storagePath = localStorage.getItem('active_draft_storage_path');
+            await _supabase.from('drafts').delete().eq('id', activeDraftId).catch(() => {});
+            if (storagePath) await _supabase.storage.from('comiccore-assets').remove([storagePath]).catch(() => {});
+            localStorage.removeItem('active_draft_id');
+            localStorage.removeItem('active_draft_storage_path');
+        }
+        localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
         alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
         location.href = 'discover.html';
@@ -4812,6 +4836,19 @@ function applyPendingBg(pendingBg, pendingBgId) {
 }
 
 window.onload = async function() {
+    // ── Size and render the canvas IMMEDIATELY — before any async work ──
+    // This ensures the white canvas is visible even if Supabase is slow or offline.
+    (function initCanvas() {
+        const storedNew    = localStorage.getItem('cc-new-comic-ratio');
+        const storedActive = localStorage.getItem('cc-active-ratio');
+        if (storedNew)    { const r = JSON.parse(storedNew);    setRatio(r.w, r.h); }
+        else if (storedActive) { const r = JSON.parse(storedActive); setRatio(r.w, r.h); }
+        else              { setRatio(1, 1); }
+        render();
+        renderMobFrames();
+        updateFrameCounter();
+    })();
+
     // ── TAP BACKDROP TO CLOSE OVERLAY MODALS ──
     document.querySelectorAll('.overlay-full').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
@@ -4842,24 +4879,59 @@ window.onload = async function() {
         });
         return;
     }
+
     // After edit_comic_id is cleared, check for active draft
     const resumeId = localStorage.getItem('active_draft_id');
     if (resumeId) {
-        // Try Supabase first (UUID), then localStorage
-        if (resumeId.includes('-')) {
-            const { data: sbDraft } = await _supabase.from('drafts').select('*').eq('id', resumeId).single().catch(() => ({ data: null }));
-            if (sbDraft) {
-                frames = sbDraft.data || [];
-                activeDraftId = resumeId;
-                const r = sbDraft.canvas_ratio || { w:1, h:1 };
+        activeDraftId = resumeId;
+        const storagePath = localStorage.getItem('active_draft_storage_path');
+        if (storagePath) {
+            try {
+                const { data: blob, error: dlErr } = await _supabase.storage.from('comiccore-assets').download(storagePath);
+                if (dlErr) throw dlErr;
+                frames = JSON.parse(await blob.text());
+                const { data: row } = await _supabase.from('drafts').select('canvas_ratio').eq('id', resumeId).single().catch(() => ({ data: null }));
+                const r = row?.canvas_ratio || { w:1, h:1 };
                 setRatio(r.w, r.h); currentIdx = 0; render(); renderMobFrames(); updateFrameCounter();
                 applyPendingBg(pendingBg, pendingBgId); return;
+            } catch(e) { console.error('Bucket draft load failed:', e); }
+        } else {
+            const { data: sbDraft } = await _supabase.from('drafts')
+                .select('data, storage_path, canvas_ratio').eq('id', resumeId).single().catch(() => ({ data: null }));
+            if (sbDraft) {
+                let draftFrames = sbDraft.data;
+                if (!draftFrames && sbDraft.storage_path) {
+                    try {
+                        const { data: blob } = await _supabase.storage.from('comiccore-assets').download(sbDraft.storage_path);
+                        draftFrames = JSON.parse(await blob.text());
+                    } catch(e) { console.error('Bucket fallback failed:', e); }
+                }
+                if (draftFrames) {
+                    frames = draftFrames;
+                    const r = sbDraft.canvas_ratio || { w:1, h:1 };
+                    setRatio(r.w, r.h); currentIdx = 0; render(); renderMobFrames(); updateFrameCounter();
+                    applyPendingBg(pendingBg, pendingBgId); return;
+                }
             }
         }
-        const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-        const found  = drafts.find(d => d.id == resumeId);
-        if (found) { frames = found.data || []; activeDraftId = resumeId; const r = found.ratio || {w:1,h:1}; setRatio(r.w,r.h); currentIdx = 0; render(); renderMobFrames(); updateFrameCounter(); applyPendingBg(pendingBg,pendingBgId); return; }
     }
+
+    // Edit-published-via-draft flow from my-comics-mobile
+    const editSourceId = localStorage.getItem('edit_source_comic_id');
+    if (editSourceId) {
+        editingComicId = editSourceId;
+        document.getElementById('publish-btn').innerText = 'REPUBLISH';
+        _supabase.from('comics').select('title,tags,description,cover').eq('id', editSourceId).single().then(({ data }) => {
+            if (!data) return;
+            document.getElementById('pub-title').value = data.title || '';
+            document.getElementById('pub-tags').value = (data.tags||[]).join(', ');
+            document.getElementById('pub-desc').value = data.description || '';
+            if (data.cover) { finalCoverBase64=data.cover; const img=document.getElementById('final-cover-img'); if(img){ img.src=data.cover; img.style.display='block'; } }
+        });
+    }
+
+    // ── Apply correct ratio and re-render after all async paths complete ──
+    // (reached when: fresh comic, draft fetch failed, or returning from backgroundsource)
     const pendingFrames = localStorage.getItem('cc-pending-frames');
     if (pendingFrames) { localStorage.removeItem('cc-pending-frames'); const saved=JSON.parse(pendingFrames); frames=saved.frames; currentIdx=saved.currentIdx; }
     const storedNew = localStorage.getItem('cc-new-comic-ratio');
@@ -4867,6 +4939,9 @@ window.onload = async function() {
     if (storedNew) { const r=JSON.parse(storedNew); localStorage.removeItem('cc-new-comic-ratio'); setRatio(r.w,r.h); }
     else if (storedActive) { const r=JSON.parse(storedActive); setRatio(r.w,r.h); }
     else { setRatio(1,1); }
+    render();
+    renderMobFrames();
+    updateFrameCounter();
     applyPendingBg(pendingBg,pendingBgId);
 
     // ── Incoming Sprite / Pack from Gallery ──
@@ -4911,7 +4986,7 @@ async function openDraftsModal() {
 
     try {
         const { data: drafts, error } = await _supabase.from('drafts')
-            .select('id, title, data, canvas_ratio, updated_at')
+            .select('id, title, data, storage_path, canvas_ratio, updated_at')
             .eq('owner_handle', handle)
             .order('updated_at', { ascending: false });
 
@@ -4962,8 +5037,12 @@ async function openDraftsModal() {
                 if (!confirm('Delete this draft?')) return;
                 try {
                     await _supabase.from('drafts').delete().eq('id', draft.id);
+                    if (draft.storage_path) {
+                        await _supabase.storage.from('comiccore-assets').remove([draft.storage_path]).catch(() => {});
+                    }
                     if (String(draft.id) === String(activeDraftId)) {
                         localStorage.removeItem('active_draft_id');
+                        localStorage.removeItem('active_draft_storage_path');
                         activeDraftId = null;
                     }
                     item.remove();
@@ -4978,12 +5057,21 @@ async function openDraftsModal() {
             item.appendChild(del);
 
             // Click to load
-            item.onclick = function() {
+            item.onclick = async function() {
                 if (isCurrent) { closeDraftsModal(); return; }
                 if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
-                frames = JSON.parse(JSON.stringify(draft.data || [{ layers:[], background:'#ffffff' }]));
+                let loadedFrames = draft.data;
+                if (!loadedFrames && draft.storage_path) {
+                    try {
+                        const { data: blob } = await _supabase.storage.from('comiccore-assets').download(draft.storage_path);
+                        loadedFrames = JSON.parse(await blob.text());
+                    } catch(e) { alert('Failed to load draft: ' + e.message); return; }
+                }
+                frames = JSON.parse(JSON.stringify(loadedFrames || [{ layers:[], background:'#ffffff' }]));
                 activeDraftId = draft.id;
                 lsSet('active_draft_id', String(draft.id));
+                if (draft.storage_path) lsSet('active_draft_storage_path', draft.storage_path);
+                else localStorage.removeItem('active_draft_storage_path');
                 var r = draft.canvas_ratio || {w:1,h:1};
                 setRatio(r.w, r.h);
                 currentIdx = 0;
@@ -5011,6 +5099,7 @@ function startNewDraft() {
     frames = [{ layers: [], background: '#ffffff' }];
     activeDraftId = null;
     localStorage.removeItem('active_draft_id');
+    localStorage.removeItem('active_draft_storage_path');
     currentIdx = 0;
     activeLayer = null;
     setRatio(1,1);

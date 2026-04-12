@@ -185,22 +185,6 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
       <option value="alpha">A→Z</option>
       <option value="pages">Pages</option>
     </select>
-    <button onclick="updateStorageMini();document.getElementById('storage-mini').scrollIntoView({behavior:'smooth'});" title="Check storage usage" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:6px 10px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">💾 Storage</button>
-  </div>
-  <!-- Storage mini-bar -->
-  <div id="storage-mini" style="margin:0 16px 8px;display:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-      <span style="font-size:10px;font-weight:800;color:var(--text-dim);letter-spacing:.5px;">VAULT CAPACITY</span>
-      <span style="font-size:10px;font-weight:900;" id="storage-mini-pct">0%</span>
-    </div>
-    <div style="width:100%;height:4px;background:var(--card2);border-radius:4px;overflow:hidden;">
-      <div id="storage-mini-fill" style="height:100%;border-radius:4px;transition:.8s;"></div>
-    </div>
-    <div id="storage-mini-warn" style="display:none;margin-top:5px;font-size:10px;font-weight:800;color:var(--danger);">
-      <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/toast/storagefull.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:5px;image-rendering:pixelated;"> Storage nearly full — <button onclick="clearImageCache()" style="background:none;border:none;color:var(--danger);text-decoration:underline;cursor:pointer;font-size:10px;font-weight:800;">clear cache to free space</button>
-    </div>
-  </div>
-    </div>
   </div>
 
   <!-- Published toolbar -->
@@ -281,6 +265,45 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 <script>
 const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
 
+// ── Draft Save/Load helpers (SQL-first, Storage bucket fallback) ──────────────
+const DRAFT_BUCKET  = 'comiccore-assets';
+const DRAFT_PREFIX  = 'drafts/';
+const INLINE_LIMIT  = 900_000;
+
+async function saveDraft(draftId, title, framesData, canvasRatio) {
+  if (!myHandle) throw new Error('Not logged in');
+  const payload = JSON.stringify(framesData);
+  let rowData;
+  if (payload.length > INLINE_LIMIT) {
+    const path = `${DRAFT_PREFIX}${draftId}.json`;
+    const { error: upErr } = await _sb.storage
+      .from(DRAFT_BUCKET)
+      .upload(path, new Blob([payload], { type: 'application/json' }), { upsert: true });
+    if (upErr) throw upErr;
+    rowData = { storage_path: path };
+  } else {
+    rowData = { data: framesData, storage_path: null };
+  }
+  const row = {
+    id: draftId, owner_handle: myHandle, title,
+    canvas_ratio: canvasRatio,
+    updated_at: new Date().toISOString(),
+    ...rowData
+  };
+  const { error } = await _sb.from('drafts').upsert(row, { onConflict: 'id' });
+  if (error) throw error;
+  return draftId;
+}
+
+async function loadDraftData(d) {
+  if (d.storage_path) {
+    const { data, error } = await _sb.storage.from(DRAFT_BUCKET).download(d.storage_path);
+    if (error) throw error;
+    return JSON.parse(await data.text());
+  }
+  return d.data;
+}
+
 // ── State ──────────────────────────────────────────────────
 let currentTab = 'drafts';
 let drafts = [];
@@ -323,21 +346,19 @@ async function loadDrafts() {
 
   try {
     const { data: sbDrafts, error } = await _sb.from('drafts')
-      .select('id, title, data, canvas_ratio, updated_at, created_at')
+      .select('id, title, data, storage_path, canvas_ratio, updated_at, created_at')
       .eq('owner_handle', myHandle)
       .order('updated_at', { ascending: false });
     
     if (error) throw error;
 
-    // Normalize Supabase drafts to match shape
-    const normalized = (sbDrafts || []).map(d => ({
+    drafts = (sbDrafts || []).map(d => ({
       id: d.id, title: d.title || 'Untitled', data: d.data,
+      storage_path: d.storage_path || null,
       ratio: d.canvas_ratio || { w:1, h:1 },
       lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
       _source: 'supabase'
     }));
-    
-    drafts = normalized;
     document.getElementById('drafts-count').innerText = drafts.length;
   } catch(e) {
     console.error('Failed to load drafts:', e);
@@ -355,63 +376,9 @@ async function loadPublished() {
   published = data || [];
   document.getElementById('pub-count').innerText = published.length;
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
-  updateStorageMini();
-}
-
-// ── Storage meter ─────────────────────────────────────────
-async function updateStorageMini() {
-  try {
-    // IndexedDB (image cache) — use browser estimate
-    const idbBytes = typeof idb !== 'undefined' ? await idb.estimateSize() : 0;
-
-    const fill = document.getElementById('storage-mini-fill');
-    const pctEl = document.getElementById('storage-mini-pct');
-    const warnEl = document.getElementById('storage-mini-warn');
-    const miniEl = document.getElementById('storage-mini');
-
-    // Show idb usage as % of 500MB soft cap for display
-    const DISPLAY_CAP = 500 * 1024 * 1024;
-    const pct = Math.min(Math.round((idbBytes / DISPLAY_CAP) * 100), 100);
-    fill.style.width = Math.max(pct, 1) + '%';
-    fill.style.background = pct > 80 ? '#ff4444' : pct > 50 ? '#ff9800' : 'var(--teal)';
-    pctEl.innerText = pct + '%';
-
-    if (pct > 75) {
-      warnEl.style.display = 'block';
-      miniEl.style.display = 'block';
-    } else if (pct > 25) {
-      warnEl.style.display = 'none';
-      miniEl.style.display = 'block';
-    } else {
-      miniEl.style.display = 'none';
-    }
-  } catch(e) {
-    console.error("Storage meter failed", e);
-    document.getElementById('storage-mini').style.display = 'none';
-  }
 }
 
 // ── Clear cache ───────────────────────────────────────────
-async function clearImageCache() {
-  if (!confirm('Clear image cache? Images will reload on next use.')) return;
-  // Clear IndexedDB image cache
-  if (typeof idb !== 'undefined') {
-    await idb.clearPrefix('sb-full-');
-    await idb.clearPrefix('efx-full-');
-    await idb.clearPrefix('cc_simg_');
-    await idb.clearPrefix('cc_efx_');
-  }
-  // Also clear any old localStorage cache keys
-  const toRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key.startsWith('sb-full-') || key.startsWith('efx-full-') || key.startsWith('cc_sprites') || key.startsWith('cc_effects')) toRemove.push(key);
-  }
-  toRemove.forEach(k => localStorage.removeItem(k));
-  updateStorageMini();
-  toast('🧹 Image cache cleared');
-}
-
 // ── Stats ─────────────────────────────────────────────────
 function renderStats() {
   const totalPages = drafts.reduce((a,d) => a+(d.data?.length||0), 0);
@@ -614,15 +581,29 @@ function closeActionSheet() {
 
 // ── Actions ───────────────────────────────────────────────
 function resumeDraft(id) {
+  const draft = drafts.find(d => String(d.id) === String(id));
   localStorage.removeItem('edit_comic_id');
   localStorage.setItem('active_draft_id', String(id));
+  if (draft?.storage_path) localStorage.setItem('active_draft_storage_path', draft.storage_path);
+  else localStorage.removeItem('active_draft_storage_path');
   location.href = 'create-mobile.html';
 }
 
-function editPublished(id) {
-  localStorage.removeItem('active_draft_id');
-  localStorage.setItem('edit_comic_id', id);
-  location.href = 'create-mobile.html';
+async function editPublished(id) {
+  const comic = published.find(c => String(c.id) === String(id));
+  if (!comic) return;
+  toast('⏳ Pulling into draft…');
+  try {
+    const draftId = crypto.randomUUID();
+    await saveDraft(draftId, (comic.title || 'Untitled') + ' (edit)', comic.data || [], comic.canvas_ratio || { w:1, h:1 });
+    localStorage.setItem('edit_source_comic_id', String(id));
+    localStorage.setItem('active_draft_id', draftId);
+    localStorage.removeItem('active_draft_storage_path');
+    localStorage.removeItem('edit_comic_id');
+    location.href = 'create-mobile.html';
+  } catch(e) {
+    toast('⚠ Could not create draft: ' + e.message, 'var(--danger)');
+  }
 }
 
 function readComic(id) {
@@ -644,23 +625,18 @@ function closeDelSheet() {
 }
 
 async function confirmDelete() {
-  // Capture before closeDelSheet() nulls them
   const deleteId = pendingDeleteId;
   const deleteType = pendingDeleteType;
   closeDelSheet();
   if (deleteType === 'draft') {
     const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
-    if (draftToDelete?._source === 'supabase' || String(deleteId).includes('-')) {
-      await _sb.from('drafts').delete().eq('id', deleteId);
-    } else {
-      const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-      localStorage.setItem('comic_drafts', JSON.stringify(lsDrafts.filter(d => String(d.id) !== String(deleteId))));
-      if (String(localStorage.getItem('active_draft_id')) === String(deleteId)) localStorage.removeItem('active_draft_id');
+    await _sb.from('drafts').delete().eq('id', deleteId);
+    if (draftToDelete?.storage_path) {
+      await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
     }
     drafts = drafts.filter(d => String(d.id) !== String(deleteId));
     document.getElementById('drafts-count').innerText = drafts.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
-    updateStorageMini();
     renderStats(); renderDrafts();
     toast('🗑 Draft deleted');
   } else {
@@ -669,7 +645,6 @@ async function confirmDelete() {
     published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
-  updateStorageMini();
     renderStats(); renderPublished();
     toast('🗑 Comic removed from Discover');
   }
@@ -690,71 +665,14 @@ async function confirmRename() {
   const idx = drafts.findIndex(d => d.id == renameTargetId);
   if (idx >= 0) {
     drafts[idx].title = newTitle;
-    if (drafts[idx]._source === 'supabase' || String(renameTargetId).includes('-')) {
-      await _sb.from('drafts').update({ title: newTitle }).eq('id', renameTargetId);
-    } else {
-      const lsDrafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
-      const lsIdx = lsDrafts.findIndex(d => d.id == renameTargetId);
-      if (lsIdx >= 0) { lsDrafts[lsIdx].title = newTitle; localStorage.setItem('comic_drafts', JSON.stringify(lsDrafts)); }
-    }
+    const { error } = await _sb.from('drafts').update({ title: newTitle }).eq('id', renameTargetId);
+    if (error) { toast('⚠ Rename failed: ' + error.message, 'var(--danger)'); return; }
     renderDrafts();
     toast('✅ Renamed!');
   }
 }
 
 // ── New Comic ─────────────────────────────────────────────
-async function updateStorageMini() {
-  try {
-    // IndexedDB (image cache) — use browser estimate
-    const idbBytes = typeof idb !== 'undefined' ? await idb.estimateSize() : 0;
-
-    const fill = document.getElementById('storage-mini-fill');
-    const pctEl = document.getElementById('storage-mini-pct');
-    const warnEl = document.getElementById('storage-mini-warn');
-    const miniEl = document.getElementById('storage-mini');
-
-    // Show idb usage as % of 500MB soft cap for display
-    const DISPLAY_CAP = 500 * 1024 * 1024;
-    const pct = Math.min(Math.round((idbBytes / DISPLAY_CAP) * 100), 100);
-    fill.style.width = Math.max(pct, 1) + '%';
-    fill.style.background = pct > 80 ? '#ff4444' : pct > 50 ? '#ff9800' : 'var(--teal)';
-    pctEl.innerText = pct + '%';
-
-    if (pct > 75) {
-      warnEl.style.display = 'block';
-      miniEl.style.display = 'block';
-    } else if (pct > 25) {
-      warnEl.style.display = 'none';
-      miniEl.style.display = 'block';
-    } else {
-      miniEl.style.display = 'none';
-    }
-  } catch(e) {
-    console.error("Storage meter failed", e);
-    document.getElementById('storage-mini').style.display = 'none';
-  }
-}
-
-// ── Clear cache ───────────────────────────────────────────
-async function clearImageCache() {
-  if (!confirm('Clear image cache? Images will reload on next use.')) return;
-  // Clear IndexedDB image cache
-  if (typeof idb !== 'undefined') {
-    await idb.clearPrefix('sb-full-');
-    await idb.clearPrefix('efx-full-');
-    await idb.clearPrefix('cc_simg_');
-    await idb.clearPrefix('cc_efx_');
-  }
-  // Also clear any old localStorage cache keys
-  const toRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key.startsWith('sb-full-') || key.startsWith('efx-full-') || key.startsWith('cc_sprites') || key.startsWith('cc_effects')) toRemove.push(key);
-  }
-  toRemove.forEach(k => localStorage.removeItem(k));
-  updateStorageMini();
-  toast('🧹 Image cache cleared');
-}
 
 function openNewSheet() {
   document.getElementById('new-sheet').classList.add('open');
