@@ -3681,13 +3681,24 @@ function handleActionSelect(img, pack, isEditing) {
             const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
             const oldLeft   = layer.x;
 
-            if (layer.charHeight) {
-                // ── Character sprite: height is sacred, width derives from new pose's AR ──
-                const ar = cropped.w / cropped.h;
-                layer.h = layer.charHeight;
-                layer.w = Math.round(layer.charHeight * ar);
+            // Treat any pack sprite as a character — height is always locked.
+            // Backfill charHeight from current layer.h so legacy sprites work too.
+            const isChar = !!(layer.charHeight || layer.packData);
+            if (isChar) {
+                const lockH = layer.charHeight || layer.h;
+                if (!layer.charHeight) layer.charHeight = lockH; // persist for future switches
+                // Detect CORS fallback: cropSpriteToContent returns full natural dims unchanged
+                const corsBlocked = (cropped.src === probe.src) && (cropped.w === probe.naturalWidth) && (cropped.h === probe.naturalHeight);
+                if (corsBlocked) {
+                    // Can't trust AR — keep w unchanged, just swap src
+                    layer.h = lockH;
+                } else {
+                    const ar = cropped.w / cropped.h;
+                    layer.h = lockH;
+                    layer.w = Math.round(lockH * ar);
+                }
             } else {
-                // ── Effect / plain: scale by width as before ──
+                // Effect / plain image: scale proportionally from current width
                 const scale = layer.w / cropped.w;
                 layer.h = Math.round(cropped.h * scale);
                 // w stays the same

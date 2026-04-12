@@ -2576,13 +2576,28 @@
                 const cropped = cropSpriteToContent(probe);
                 const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
                 const oldLeft   = layer.x;
-                if (layer.charHeight) {
-                    // Character: lock height, derive width from new pose's aspect ratio
-                    const ar = cropped.w / cropped.h;
-                    layer.h = layer.charHeight;
-                    layer.w = Math.round(layer.charHeight * ar);
+
+                // Treat any pack sprite as a character — height is always locked.
+                // Backfill charHeight from current layer.h so legacy sprites work too.
+                const isChar = !!(layer.charHeight || layer.packData);
+                if (isChar) {
+                    const lockH = layer.charHeight || layer.h;
+                    if (!layer.charHeight) layer.charHeight = lockH; // persist for future switches
+                    // If cropSpriteToContent fell back to full natural dims (CORS blocked pixel
+                    // access), the aspect ratio may include transparent padding and be unreliable.
+                    // Detect this: fallback returns src===probe.src with full naturalW×naturalH.
+                    const corsBlocked = (cropped.src === probe.src) && (cropped.w === probe.naturalWidth) && (cropped.h === probe.naturalHeight);
+                    if (corsBlocked) {
+                        // Can't trust the AR — keep w unchanged, just swap the src
+                        layer.h = lockH;
+                        // w stays as-is
+                    } else {
+                        const ar = cropped.w / cropped.h;
+                        layer.h = lockH;
+                        layer.w = Math.round(lockH * ar);
+                    }
                 } else {
-                    // Effect / plain: scale by existing width
+                    // Effect / plain image: scale proportionally from current width
                     const scale = layer.w / cropped.w;
                     layer.h = Math.round(cropped.h * scale);
                 }
