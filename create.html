@@ -2908,6 +2908,17 @@
                 } else {
                     el = document.createElement('img');
                     el.src = hasFxSrc ? l._fxSrc : l.src;
+                    // Self-correct legacy layers saved with a square placeholder h value.
+                    // When the image loads, if stored layer.h doesn't match the natural
+                    // aspect ratio (within 5%), correct it so the outline fits the sprite.
+                    el.onload = () => {
+                        if (!el.naturalWidth || !el.naturalHeight) return;
+                        const expectedH = Math.round(l.w * el.naturalHeight / el.naturalWidth);
+                        if (l.h == null || Math.abs(l.h - expectedH) > Math.max(4, expectedH * 0.05)) {
+                            l.h = expectedH;
+                            el.style.height = expectedH + 'px';
+                        }
+                    };
                 }
             } else {
                 el = document.createElement('div');
@@ -3324,6 +3335,20 @@
     const _DRAFT_PREFIX  = 'drafts/';
     const _INLINE_LIMIT  = 900_000; // bytes
 
+    // ── Stamp / strip editor canvas pixel dimensions on every frame ──
+    // Gives the reader the actual pixel size used by this editor so it can
+    // scale layer coordinates correctly regardless of device. Desktop always
+    // uses BASE_SIZE=900 via setRatio(), but stamping it explicitly removes
+    // any ambiguity and keeps desktop/mobile data in a consistent format.
+    function stampEditorDimensions() {
+        const ew = canvas.offsetWidth  || 600;
+        const eh = canvas.offsetHeight || 600;
+        frames.forEach(f => { f._editorW = ew; f._editorH = eh; });
+    }
+    function clearEditorDimensionStamps() {
+        frames.forEach(f => { delete f._editorW; delete f._editorH; });
+    }
+
     async function saveOffline(silent = false) {
         const ratio  = canvasRatio || { w: 1, h: 1 };
         const now    = new Date().toISOString();
@@ -3338,7 +3363,11 @@
         }
 
         try {
+            // Stamp actual canvas pixel dimensions so the reader can scale correctly
+            stampEditorDimensions();
             const payload = JSON.stringify(frames);
+            clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
+
             let rowPatch;
 
             if (payload.length > _INLINE_LIMIT) {
@@ -3379,6 +3408,7 @@
             hasUnsavedChanges = false;
             if (!silent) showSaveBadge('✓ Saved!', false);
         } catch(e) {
+            clearEditorDimensionStamps(); // ensure clean on error too
             console.error('Draft save failed:', e);
             if (!silent) showSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
         }
@@ -3427,10 +3457,13 @@
         btn.disabled = true;
         const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
         const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
+        // Stamp actual canvas pixel dimensions so the reader can scale correctly
+        stampEditorDimensions();
         const payload = {
             title, description: desc, tags, cover: finalCoverBase64,
             data: frames, swipe_dir: swipeDir, canvas_ratio: canvasRatio
         };
+        clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
         let error;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));

@@ -1875,19 +1875,20 @@ function _renderNow() {
             const blurCSS    = hasFxSrc ? '' : getSpriteFilterCSS(layer);
             const lfCSS      = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
             const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ') || '';
-            const rotation   = layer.flipped
-                ? `rotate(${layer.rotation||0}deg) scaleX(-1)`
-                : `rotate(${layer.rotation||0}deg)`;
+
+            // ── Transform goes on EL, not img, so the selection outline
+            //    always rotates/flips with the visible sprite ──
+            const elTransform = `rotate(${layer.rotation||0}deg) scaleX(${layer.flipped ? -1 : 1})`;
 
             if (hasFxSrc && bStrength < 100) {
                 // Blend mode: clean base + fx overlay at blurStrength opacity
                 const base = document.createElement('img');
                 base.src = layer.src; base.draggable = false;
-                base.style.cssText = `width:${layer.w}px;display:block;user-select:none;transform:${rotation};`;
+                base.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;user-select:none;';
                 if (layer.fxOpacity !== undefined) base.style.opacity = layer.fxOpacity / 100;
                 const overlay = document.createElement('img');
                 overlay.src = layer._fxSrc; overlay.draggable = false;
-                overlay.style.cssText = `width:${layer.w}px;display:block;user-select:none;position:absolute;top:0;left:0;transform:${rotation};opacity:${bStrength/100};`;
+                overlay.style.cssText = `width:100%;height:100%;object-fit:contain;display:block;user-select:none;position:absolute;top:0;left:0;opacity:${bStrength/100};`;
                 el.style.position = 'relative';
                 el.appendChild(base);
                 el.appendChild(overlay);
@@ -1895,9 +1896,22 @@ function _renderNow() {
                 const img = document.createElement('img');
                 img.src = hasFxSrc ? layer._fxSrc : layer.src;
                 img.draggable = false;
-                img.style.cssText = `width:${layer.w}px;display:block;user-select:none;transform:${rotation};`;
+                img.style.cssText = 'width:100%;display:block;user-select:none;';
                 if (combinedFilter) img.style.filter = combinedFilter;
                 if (layer.fxOpacity !== undefined) img.style.opacity = layer.fxOpacity / 100;
+
+                // Self-correct legacy layers saved with a square placeholder h value.
+                // When the image loads, if the stored layer.h doesn't match the natural
+                // aspect ratio (within 5%), correct it so the outline fits the sprite.
+                img.onload = () => {
+                    if (!img.naturalWidth || !img.naturalHeight) return;
+                    const expectedH = Math.round(layer.w * img.naturalHeight / img.naturalWidth);
+                    if (layer.h == null || Math.abs(layer.h - expectedH) > Math.max(4, expectedH * 0.05)) {
+                        layer.h = expectedH;
+                        el.style.height = expectedH + 'px';
+                    }
+                };
+
                 el.appendChild(img);
             }
             if (layer.nameTag) { const nt = document.createElement('div'); nt.className = 'sprite-nametag'; nt.innerText = layer.nameTag; el.appendChild(nt); }
@@ -1964,6 +1978,9 @@ function _renderNow() {
         if (layer.type === 'img') {
             el.style.height = (layer.h != null) ? layer.h + 'px' : 'auto';
             el.style.overflow = 'visible';
+            // Apply rotation+flip on the wrapper so the outline tracks the sprite correctly
+            el.style.transform = `rotate(${layer.rotation||0}deg) scaleX(${layer.flipped ? -1 : 1})`;
+            el.style.transformOrigin = 'center center';
         }
 
         // Long-press = context menu, double-tap = edit text
@@ -4427,6 +4444,20 @@ const _DRAFT_BUCKET = 'comiccore-assets';
 const _DRAFT_PREFIX = 'drafts/';
 const _INLINE_LIMIT = 900_000;
 
+// ── Stamp / strip editor canvas pixel dimensions on every frame ──
+// The reader needs to know the actual pixel size the editor used so it can
+// scale layer coordinates correctly. Desktop always uses BASE_SIZE=900;
+// mobile uses a viewport-sized canvas (~330-400px). Without this stamp the
+// reader falls back to 900 and renders mobile-created layers far too small.
+function stampEditorDimensions() {
+    const ew = canvas.offsetWidth  || 300;
+    const eh = canvas.offsetHeight || 300;
+    frames.forEach(f => { f._editorW = ew; f._editorH = eh; });
+}
+function clearEditorDimensionStamps() {
+    frames.forEach(f => { delete f._editorW; delete f._editorH; });
+}
+
 async function saveOffline(silent = false) {
     const ratio  = canvasRatio || { w:1, h:1 };
     const now    = new Date().toISOString();
@@ -4442,7 +4473,10 @@ async function saveOffline(silent = false) {
         const user = _cm1?.user ?? null;
         if (!user) { if (!silent) showMobSaveBadge('Log in to save', true); return; }
 
+        // Stamp actual canvas pixel dimensions so the reader can scale correctly
+        stampEditorDimensions();
         const payload = JSON.stringify(frames);
+        clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
         let rowPatch;
 
         if (payload.length > _INLINE_LIMIT) {
@@ -4479,6 +4513,7 @@ async function saveOffline(silent = false) {
         if (dot2) dot2.style.display = 'none';
         if (!silent) showMobSaveBadge('✓ Saved', false);
     } catch(e) {
+        clearEditorDimensionStamps(); // ensure clean on error too
         console.warn('Draft save failed:', e);
         if (!silent) showMobSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
     }
@@ -4536,7 +4571,10 @@ async function finalPublish() {
             : (JSON.parse(localStorage.getItem('user_profile') || '{}').handle || user.email || 'unknown');
         const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
         const desc = document.getElementById('pub-desc').value.trim();
+        // Stamp actual canvas pixel dimensions so the reader can scale correctly
+        stampEditorDimensions();
         const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
+        clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
         let error;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
@@ -4557,6 +4595,7 @@ async function finalPublish() {
         alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
         location.href = 'discover.html';
     } catch (err) {
+        clearEditorDimensionStamps(); // ensure clean on error too
         console.error('finalPublish error:', err);
         alert('Publish failed: ' + (err.message || 'Unknown error'));
         btn.disabled = false;

@@ -849,8 +849,14 @@ function sizeFrame(el) {
   return { cw: Math.floor(cw), ch: Math.floor(ch) };
 }
 
-function getEditorDimensions() {
-  // create.html uses BASE_SIZE=900 on the longest edge — must match setRatio() exactly
+function getEditorDimensions(frame) {
+  // Mobile editor stamps the actual canvas pixel size onto each frame as _editorW/_editorH.
+  // Desktop create.html always uses BASE_SIZE=900 (derived from ratio via setRatio).
+  // Prefer the per-frame stamp when present so mobile-created comics render correctly.
+  if (frame && frame._editorW && frame._editorH) {
+    return { ew: frame._editorW, eh: frame._editorH };
+  }
+  // Fallback: desktop path — reconstruct from ratio × EDITOR_BASE=900
   const r = getCanvasRatio();
   const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
   const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
@@ -910,7 +916,7 @@ function renderFrame(anim = false) {
   next.style.height = ch + 'px';
 
   // 2. Scale factors: editor → reader
-  const { ew, eh } = getEditorDimensions();
+  const { ew, eh } = getEditorDimensions(f);
   const sx = cw / ew;
   const sy = ch / eh;
 
