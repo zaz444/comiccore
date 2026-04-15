@@ -2604,41 +2604,16 @@
                 layer.src = cropped.src;
                 layer.x   = oldLeft;
                 layer.y   = oldBottom - layer.h;
+                closeActionModal();
                 render();
             };
-            probe.onerror = () => render();
+            probe.onerror = () => { closeActionModal(); render(); };
             probe.src = img;
         } else {
             addSpriteToCanvas(img, pack);
+            closeActionModal(); render();
         }
-        closeActionModal(); render();
     }
-
-    // ── Trim transparent padding from a sprite image ──────────────────────────
-    function trimTransparentBounds(img) {
-        const ow = img.naturalWidth;
-        const oh = img.naturalHeight;
-        const c = document.createElement('canvas');
-        c.width = ow; c.height = oh;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        let data;
-        try { data = ctx.getImageData(0, 0, ow, oh).data; }
-        catch(e) { return { offsetX: 0, offsetY: 0, trimW: ow, trimH: oh }; }
-        let minX = ow, minY = oh, maxX = 0, maxY = 0;
-        for (let y = 0; y < oh; y++) {
-            for (let x = 0; x < ow; x++) {
-                const alpha = data[(y * ow + x) * 4 + 3];
-                if (alpha > 8) {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-            }
-        }
-        if (minX > maxX || minY > maxY) return { offsetX: 0, offsetY: 0, trimW: ow, trimH: oh };
-        return { offsetX: minX, offsetY: minY, trimW: maxX - minX + 1, trimH: maxY - minY + 1 };
     }
 
     // Returns a cropped data-URL with transparent padding removed (alpha-only, preserves white pixels).
@@ -3349,20 +3324,24 @@
         frames.forEach(f => { delete f._editorW; delete f._editorH; });
     }
 
+    let isSaving = false;
+
     async function saveOffline(silent = false) {
-        const ratio  = canvasRatio || { w: 1, h: 1 };
-        const now    = new Date().toISOString();
-        const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
-
-        const { data: { session: _cs1 } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
-        const user = _cs1?.user ?? null;
-
-        if (!user || !handle) {
-            if (!silent) showSaveBadge('✗ Log in to save', true);
-            return;
-        }
-
+        if (isSaving) return;
+        isSaving = true;
         try {
+            const ratio  = canvasRatio || { w: 1, h: 1 };
+            const now    = new Date().toISOString();
+            const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+
+            const { data: { session: _cs1 } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+            const user = _cs1?.user ?? null;
+
+            if (!user || !handle) {
+                if (!silent) showSaveBadge('✗ Log in to save', true);
+                return;
+            }
+
             // Stamp actual canvas pixel dimensions so the reader can scale correctly
             stampEditorDimensions();
             const payload = JSON.stringify(frames);
@@ -3411,6 +3390,8 @@
             clearEditorDimensionStamps(); // ensure clean on error too
             console.error('Draft save failed:', e);
             if (!silent) showSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
+        } finally {
+            isSaving = false;
         }
     }
 
@@ -3436,22 +3417,17 @@
         if (hasUnsavedChanges && activeDraftId) saveOffline(true);
     }, 30000);
 
-    // Auto-save silently before page unload (no prompt)
-    window.addEventListener('beforeunload', (e) => {
-        if (frames && frames.length && hasUnsavedChanges) {
-            saveOffline(true); // fire-and-forget silent save
-        }
-        // DO NOT set e.returnValue — we never block navigation
-    });
-
     function openPublishModal() { document.getElementById('publish-modal').style.display = 'flex'; }
 
     async function finalPublish() {
-        const title = document.getElementById('pub-title').value;
-        const desc = document.getElementById('pub-desc').value;
+        const title = document.getElementById('pub-title').value.trim();
+        const desc = document.getElementById('pub-desc').value.trim();
         const tagsRaw = document.getElementById('pub-tags').value;
         const tags = tagsRaw.split(',').map(t => t.trim()).filter(t => t !== '');
-        if (!title || !finalCoverBase64) return alert('Title and Cover required!');
+        if (!title) return alert('Title is required!');
+        if (!finalCoverBase64) return alert('Cover image is required!');
+        if (finalCoverBase64 && finalCoverBase64.length < 1000) return alert('Cover image is too small or invalid!');
+        if (!frames || frames.length === 0) return alert('Add at least one frame before publishing!');
         const btn = document.getElementById('publish-btn');
         btn.innerText = editingComicId ? 'Updating...' : 'Publishing...';
         btn.disabled = true;
@@ -3491,6 +3467,7 @@
         // Clear edit source tracking
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
+        closePublish();
         location.href = 'discover.html';
     }
 
