@@ -358,6 +358,67 @@ padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;
 opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── ToonScroll Mode ── */
+body.toonscroll{overflow:hidden;}
+body.toonscroll .reader-vp{overflow:auto;}
+body.toonscroll .reader-vp::-webkit-scrollbar{display:none;}
+body.toonscroll .reader-vp{scrollbar-width:none;-ms-overflow-style:none;}
+
+#toonscroll-strip{
+display:none;position:relative;
+}
+#toonscroll-strip.active{display:flex;}
+#toonscroll-strip.horizontal{
+flex-direction:row;width:max-content;height:100dvh;
+}
+#toonscroll-strip.vertical{
+flex-direction:column;width:100%;height:auto;
+}
+.toon-frame{
+position:relative;flex-shrink:0;
+background:#fff;overflow:hidden;
+}
+.toon-frame .r-bg-div,.toon-frame #r-bg-layer,
+.toon-frame .r-layer{position:absolute;}
+
+.toonscroll-hint{
+position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+background:rgba(0,0,0,.8);color:#fff;
+padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;
+opacity:0;transition:opacity .3s;pointer-events:none;z-index:100;
+}
+.toonscroll-hint.show{opacity:1;}
+
+/* ToonScroll toggle button in top bar */
+#ts-toggle{
+background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);
+color:white;width:38px;height:38px;border-radius:50%;cursor:pointer;
+font-size:17px;display:flex;align-items:center;justify-content:center;
+flex-shrink:0;transition:.15s;backdrop-filter:blur(8px);
+}
+#ts-toggle:hover{background:rgba(255,255,255,.2);}
+#ts-toggle.active{background:rgba(255,122,0,.2);border-color:rgba(255,122,0,.5);color:#ff7a00;}
+
+/* ToonScroll direction selector */
+#ts-dir-modal{
+position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;
+z-index:500;backdrop-filter:blur(8px);
+}
+#ts-dir-modal.open{display:flex;}
+#ts-dir-panel{
+background:#1c1c1e;border:1px solid #2c2c2e;border-radius:20px;padding:24px;
+max-width:320px;width:90%;text-align:center;
+}
+#ts-dir-panel h3{margin:0 0 8px;font-size:16px;font-weight:900;color:#fff;}
+#ts-dir-panel p{margin:0 0 20px;font-size:12px;color:#888;}
+.ts-dir-btn{
+width:100%;padding:14px;background:#2c2c2e;border:2px solid #3a3a3c;
+color:#fff;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;
+margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.ts-dir-btn:hover{background:#3a3a3c;border-color:#555;}
+.ts-dir-btn.cancel{background:transparent;border-color:#444;color:#888;margin-top:10px;margin-bottom:0;}
 </style>
 
 </head>
@@ -378,6 +439,7 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
     <button class="round-btn" id="comment-btn" onclick="openComments()" title="Comments" style="font-size:15px;">💬</button>
     <button class="round-btn" id="share-btn" onclick="openShare()" title="Share" style="font-size:15px;">↗</button>
     <button class="round-btn edit-c" id="edit-btn" style="display:none;" onclick="editComic()" title="Edit">✏</button>
+    <button class="round-btn" id="ts-toggle" onclick="toggleToonScroll()" title="ToonScroll">+</button>
     <button class="round-btn" id="fs-btn" onclick="toggleFS()" title="Fullscreen">⛶</button>
   </div>
 </div>
@@ -395,6 +457,9 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
     <div id="comic-frame"   class="cf-buf cf-active"></div>
     <div id="comic-frame-b" class="cf-buf"></div>
   </div>
+
+  <!-- ToonScroll strip container -->
+  <div id="toonscroll-strip"></div>
 
   <div class="finish-card" id="finish">
     <div class="finish-emoji">🎉</div>
@@ -498,6 +563,24 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
 
 <div class="toast" id="toast"></div>
 
+<!-- ToonScroll direction selector -->
+<div id="ts-dir-modal">
+  <div id="ts-dir-panel">
+    <h3>+ ToonScroll</h3>
+    <p>Scroll through all frames as one continuous strip</p>
+    <button class="ts-dir-btn" onclick="enableToonScroll('horizontal')">
+      ← Horizontal Strip →
+    </button>
+    <button class="ts-dir-btn" onclick="enableToonScroll('vertical')">
+      ↑ Vertical Strip ↓
+    </button>
+    <button class="ts-dir-btn cancel" onclick="closeTsDirModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- ToonScroll hint -->
+<div class="toonscroll-hint" id="ts-hint"></div>
+
 <script>
 // ── Config ────────────────────────────────────────────────
 const READER_BASE = location.origin + location.pathname;
@@ -516,6 +599,327 @@ let shareUrl = '';
 // The canonical editor canvas size (create.html uses 900px base)
 const EDITOR_BASE = 900;
 
+// ── ToonScroll State ─────────────────────────────────────
+let toonScrollMode = localStorage.getItem('cc-toonscroll') || 'off';
+let toonScrollDir = localStorage.getItem('cc-toonscroll-dir') || 'horizontal';
+let _toonScrollScrolling = false;
+
+function getToonScrollSetting() {
+    return toonScrollMode;
+}
+
+function toggleToonScroll() {
+    if (toonScrollMode === 'off') {
+        document.getElementById('ts-dir-modal').classList.add('open');
+    } else {
+        disableToonScroll();
+    }
+}
+
+function closeTsDirModal() {
+    document.getElementById('ts-dir-modal').classList.remove('open');
+}
+
+function enableToonScroll(dir) {
+    closeTsDirModal();
+    toonScrollMode = 'on';
+    toonScrollDir = dir;
+    localStorage.setItem('cc-toonscroll', 'on');
+    localStorage.setItem('cc-toonscroll-dir', dir);
+    document.getElementById('ts-toggle').classList.add('active');
+    initToonScrollStrip();
+    document.body.classList.add('toonscroll');
+    showTsHint('ToonScroll enabled — scroll to browse frames');
+}
+
+function disableToonScroll() {
+    toonScrollMode = 'off';
+    localStorage.setItem('cc-toonscroll', 'off');
+    document.getElementById('ts-toggle').classList.remove('active');
+    document.body.classList.remove('toonscroll');
+    document.getElementById('toonscroll-strip').classList.remove('active', 'horizontal', 'vertical');
+    renderFrame();
+}
+
+function showTsHint(msg) {
+    const hint = document.getElementById('ts-hint');
+    hint.innerText = msg;
+    hint.classList.add('show');
+    setTimeout(() => hint.classList.remove('show'), 2500);
+}
+
+function initToonScrollStrip() {
+    const strip = document.getElementById('toonscroll-strip');
+    strip.innerHTML = '';
+    strip.classList.remove('horizontal', 'vertical');
+    strip.classList.add(toonScrollDir);
+    strip.classList.add('active');
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const r = getCanvasRatio();
+    const ar = r.w / r.h;
+
+    let frameW, frameH;
+    if (toonScrollDir === 'horizontal') {
+        frameH = Math.min(vh * 0.95, 600);
+        frameW = frameH * ar;
+    } else {
+        frameW = Math.min(vw * 0.95, 600);
+        frameH = frameW / ar;
+    }
+
+    frames.forEach((f, i) => {
+        const frameEl = document.createElement('div');
+        frameEl.className = 'toon-frame';
+        frameEl.dataset.idx = i;
+        frameEl.style.width = frameW + 'px';
+        frameEl.style.height = frameH + 'px';
+        renderFrameToStrip(frameEl, f, frameW, frameH);
+        strip.appendChild(frameEl);
+    });
+
+    // Hide nav zones and nav dots in toonscroll
+    document.getElementById('nz-left').style.display = 'none';
+    document.getElementById('nz-right').style.display = 'none';
+    document.getElementById('nz-up').style.display = 'none';
+    document.getElementById('nz-down').style.display = 'none';
+    document.getElementById('nz-mid').style.display = 'none';
+    document.getElementById('bot-bar').style.display = 'none';
+    document.getElementById('fdots').style.display = 'none';
+
+    // Scroll to current frame
+    scrollToFrame(idx);
+
+    // Setup scroll listener
+    strip.onscroll = onToonScroll;
+}
+
+function renderFrameToStrip(frameEl, f, fw, fh) {
+    frameEl.innerHTML = '';
+
+    const { ew, eh } = getEditorDimensions(f);
+    const sx = fw / ew;
+    const sy = fh / eh;
+
+    function isAnimatedBg(src) {
+        if (!src) return false;
+        if (src.startsWith('data:image/gif')) return true;
+        if (src.startsWith('data:image/webp')) return true;
+        const lower = src.toLowerCase();
+        return lower.includes('.gif') || lower.includes('.webp');
+    }
+
+    // Background
+    const bg = f.background || '#ffffff';
+    const isBgImage = bg.startsWith('http') || bg.startsWith('data:image');
+    const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+    const isBgAnimated = isBgImage && isAnimatedBg(bg);
+    const s = f.bgSettings || {};
+    const scale = s.scale ?? 100;
+    const rotate = s.rotate ?? 0;
+    const xOff = s.x ?? 0;
+    const yOff = s.y ?? 0;
+
+    const bgLayer = document.createElement('div');
+    bgLayer.className = 'r-bg-div';
+    bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
+
+    if (isBgImage) {
+        if (isBgAnimated) {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
+            const img = document.createElement('img');
+            img.src = bg;
+            const sv2 = Math.max(1, typeof scale === 'number' ? scale : 1);
+            const bpx2 = Math.min(100, Math.max(0, 50 + xOff * 0.5));
+            const bpy2 = Math.min(100, Math.max(0, 50 + yOff * 0.5));
+            img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+                + `object-position:${bpx2}% ${bpy2}%;`
+                + `transform:scale(${sv2}) rotate(${rotate}deg);`
+                + 'transform-origin:center center;pointer-events:none;';
+            wrapper.appendChild(img);
+            bgLayer.appendChild(wrapper);
+        } else {
+            const imgEl = document.createElement('img');
+            imgEl.src = bg;
+            const sv = Math.max(1, typeof scale === 'number' ? scale : 1);
+            const bpx = Math.min(100, Math.max(0, 50 + xOff * 0.5));
+            const bpy = Math.min(100, Math.max(0, 50 + yOff * 0.5));
+            imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+                + `object-position:${bpx}% ${bpy}%;`
+                + `transform:scale(${sv}) rotate(${rotate}deg);`
+                + 'transform-origin:center center;pointer-events:none;';
+            bgLayer.appendChild(imgEl);
+        }
+    } else if (isBgGradient) {
+        bgLayer.style.background = bg;
+        bgLayer.style.backgroundSize = 'cover';
+        bgLayer.style.transform = rotate ? `rotate(${rotate}deg)` : '';
+        bgLayer.style.transformOrigin = 'center center';
+    } else {
+        bgLayer.style.background = bg;
+    }
+
+    frameEl.appendChild(bgLayer);
+
+    // Layers
+    (f.layers || []).forEach((l, layerIdx) => {
+        const el = document.createElement('div');
+        el.className = 'r-layer';
+
+        const lx = l.x * sx;
+        const ly = l.y * sy;
+        const lw = l.w * sx;
+
+        el.style.left = lx + 'px';
+        el.style.top = ly + 'px';
+        el.style.width = lw + 'px';
+        el.style.zIndex = 10 + layerIdx;
+
+        const rot = l.rotation || 0;
+        const flip = l.flipped ? -1 : 1;
+        el.style.transform = `rotate(${rot}deg) scaleX(${flip})`;
+        el.style.transformOrigin = 'center center';
+
+        const opacityVal = l.opacity ?? l.fxOpacity;
+        if (opacityVal != null && opacityVal !== 100) {
+            el.style.opacity = opacityVal / 100;
+        }
+
+        const blurCSS = getSpriteFilterCSS(l);
+        const lfCSS = ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '')
+                   || ((l.fxFilter && l.fxFilter !== 'none') ? l.fxFilter : '');
+        const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
+
+        if (l.type === 'img') {
+            const img = document.createElement('img');
+            img.src = l._fxSrc || l.src;
+            img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+            if (combinedFilter) img.style.filter = combinedFilter;
+            el.appendChild(img);
+        } else if (l.type === 'bubble' || l.type === 'thinking') {
+            const fs = (l.fontSize || 28) * sx;
+            const ff = l.fontFamily || "'Inter', sans-serif";
+            const textColor = l.color || '#000';
+            const boldW = l.bold ? '900' : '800';
+            const italicS = l.italic ? 'italic' : 'normal';
+            const alignS = l.align || 'center';
+            const bStyle = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
+            const bubBorder = l.bubbleBorderColor || '#000';
+            const bubBg = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
+
+            el.style.width = lw + 'px';
+            const bubble = document.createElement('div');
+            bubble.className = `speech-bubble bubble-style-${bStyle}`;
+            bubble.style.cssText = `font-size:${fs}px;font-family:${ff};color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};border-color:${bubBorder};background:${bubBg};--bubble-bg:${bubBg};--bubble-border:${bubBorder};padding:${Math.max(10, 14 * sx)}px ${Math.max(14, 18 * sx)}px;`;
+            bubble.appendChild(document.createTextNode(l.content || ''));
+            if (combinedFilter) el.style.filter = combinedFilter;
+            el.appendChild(bubble);
+        } else if (l.type === 'text' || l.type === 'subtitle') {
+            const fs = (l.fontSize || 28) * sx;
+            const ff = l.fontFamily || "'Inter', sans-serif";
+            const textColor = l.color || '#000';
+            const boldW = l.bold ? '900' : '800';
+            const italicS = l.italic ? 'italic' : 'normal';
+            const alignS = l.align || 'left';
+
+            el.style.color = textColor;
+            el.style.fontWeight = boldW;
+            el.style.fontStyle = italicS;
+            el.style.textAlign = alignS;
+            el.style.fontSize = fs + 'px';
+            el.style.fontFamily = ff;
+            el.style.lineHeight = '1.3';
+            el.style.whiteSpace = 'pre-wrap';
+            el.style.padding = Math.max(4, 8 * sx) + 'px';
+            if (l.type === 'subtitle') {
+                el.innerHTML = `<div style="background:${l.nameColor || '#ff9500'};color:#fff;font-size:${Math.max(8, fs * 0.55)}px;font-weight:900;font-family:${ff};padding:${Math.max(2, 3 * sx)}px ${Math.max(6, 10 * sx)}px;border-radius:5px 5px 0 0;">${esc(l.characterName || 'CHARACTER')}</div>
+                <div style="background:rgba(255,255,255,0.96);color:${textColor};font-size:${fs}px;font-weight:${boldW};font-family:${ff};padding:${Math.max(4, 6 * sx)}px ${Math.max(6, 10 * sx)}px;border-radius:0 0 5px 5px;border:1.5px solid rgba(0,0,0,.1);border-top:none;">${esc(l.content || '')}</div>`;
+            } else {
+                el.innerText = l.content || '';
+            }
+            if (combinedFilter) el.style.filter = combinedFilter;
+        }
+
+        frameEl.appendChild(el);
+    });
+}
+
+function onToonScroll() {
+    if (_toonScrollScrolling) return;
+    const strip = document.getElementById('toonscroll-strip');
+    const frameEls = strip.querySelectorAll('.toon-frame');
+
+    let newIdx = idx;
+    if (toonScrollDir === 'horizontal') {
+        const scrollMid = strip.scrollLeft + window.innerWidth / 2;
+        frameEls.forEach((el, i) => {
+            if (el.offsetLeft + el.offsetWidth / 2 < scrollMid) newIdx = i;
+        });
+    } else {
+        const scrollMid = strip.scrollTop + window.innerHeight / 2;
+        frameEls.forEach((el, i) => {
+            if (el.offsetTop + el.offsetHeight / 2 < scrollMid) newIdx = i;
+        });
+    }
+
+    if (newIdx !== idx) {
+        idx = newIdx;
+        saveProg();
+        document.getElementById('fctr').innerText = `${idx + 1} / ${frames.length}`;
+        document.getElementById('prog').style.width = ((idx + 1) / frames.length * 100) + '%';
+    }
+}
+
+function scrollToFrame(frameIdx) {
+    const strip = document.getElementById('toonscroll-strip');
+    if (!strip || !strip.classList.contains('active')) return;
+    const frameEl = strip.querySelector(`.toon-frame[data-idx="${frameIdx}"]`);
+    if (!frameEl) return;
+
+    _toonScrollScrolling = true;
+    if (toonScrollDir === 'horizontal') {
+        const targetX = frameEl.offsetLeft - (window.innerWidth - frameEl.offsetWidth) / 2;
+        strip.scrollTo({ left: Math.max(0, targetX), behavior: 'smooth' });
+    } else {
+        const targetY = frameEl.offsetTop - (window.innerHeight - frameEl.offsetHeight) / 2;
+        strip.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+    }
+    setTimeout(() => { _toonScrollScrolling = false; }, 500);
+}
+
+function nextFrame() {
+    if (toonScrollMode !== 'off') {
+        if (idx < frames.length - 1) { idx++; scrollToFrame(idx); saveProg(); }
+        return;
+    }
+    if (idx < frames.length - 1) { idx++; renderFrame(true); saveProg(); resetUI(); }
+    else showFinish();
+}
+
+function prevFrame() {
+    if (toonScrollMode !== 'off') {
+        if (idx > 0) { idx--; scrollToFrame(idx); saveProg(); }
+        return;
+    }
+    if (idx > 0) { idx--; renderFrame(true); saveProg(); }
+}
+
+function jumpTo(i) {
+    if (toonScrollMode !== 'off') {
+        idx = i; scrollToFrame(idx); saveProg(); return;
+    }
+    idx = i; renderFrame(true); saveProg();
+}
+
+function rereadComic() {
+    idx = 0; localStorage.removeItem('cc-progress-' + comicId);
+    if (toonScrollMode !== 'off') { scrollToFrame(0); }
+    else { renderFrame(); }
+    document.getElementById('finish').style.display = 'none';
+}
+
 // ── Boot ──────────────────────────────────────────────────
 async function boot() {
   comicId = new URLSearchParams(location.search).get('id');
@@ -529,6 +933,7 @@ async function boot() {
 
   if (storyRes.data && !comicRes.data) {
     // ── It's a STORY — render reading mode ──────────────────
+    document.getElementById('ts-toggle').style.display = 'none';
     bootStory(storyRes.data);
     return;
   }
@@ -566,7 +971,16 @@ async function boot() {
 
   buildDots();
   preloadAllFrameImages(frames);
-  renderFrame();
+
+  // Restore ToonScroll if it was enabled
+  if (toonScrollMode !== 'off' && frames.length > 1) {
+    initToonScrollStrip();
+    document.body.classList.add('toonscroll');
+    document.getElementById('ts-toggle').classList.add('active');
+  } else {
+    renderFrame();
+  }
+
   sched();
   buildShareUrl();
 }
