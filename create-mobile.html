@@ -790,9 +790,9 @@
     <div class="modal-content">
         <h2 style="margin-top:0;color:var(--teal);font-size:17px;">Export Comic</h2>
         <div class="export-tab-row">
-            <button class="export-tab active" onclick="switchExportTab('frames', event)">🖼 Frames</button>
-            <button class="export-tab" onclick="switchExportTab('strip', event)">📜 Strip</button>
-            <button class="export-tab" onclick="switchExportTab('gif', event)">🎞 GIF</button>
+            <button class="export-tab active" onclick="switchExportTab('frames')">🖼 Frames</button>
+            <button class="export-tab" onclick="switchExportTab('strip')">📜 Strip</button>
+            <button class="export-tab" onclick="switchExportTab('gif')">🎞 GIF</button>
         </div>
         <div id="export-frames" class="export-section active">
             <div style="font-size:11px;color:#666;margin-bottom:12px;font-weight:700;">Tap a frame to download. On iOS long-press the image to save.</div>
@@ -3724,15 +3724,36 @@ function handleActionSelect(img, pack, isEditing) {
             layer.src = cropped.src;
             layer.x   = oldLeft;
             layer.y   = oldBottom - layer.h;
-            closeActionModal();
             render();
         };
-        probe.onerror = () => { closeActionModal(); render(); };
+        probe.onerror = () => render();
         probe.src = img;
     } else {
         addSpriteToCanvas(img, pack);
-        closeActionModal(); render();
     }
+    closeActionModal(); render();
+}
+// ── Trim transparent padding from a sprite image ────────────────────────
+function trimTransparentBounds(img) {
+    const ow = img.naturalWidth, oh = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = ow; c.height = oh;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    let data;
+    try { data = ctx.getImageData(0, 0, ow, oh).data; }
+    catch(e) { return { offsetX: 0, offsetY: 0, trimW: ow, trimH: oh }; }
+    let minX = ow, minY = oh, maxX = 0, maxY = 0;
+    for (let y = 0; y < oh; y++) {
+        for (let x = 0; x < ow; x++) {
+            if (data[(y * ow + x) * 4 + 3] > 8) {
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
+        }
+    }
+    if (minX > maxX || minY > maxY) return { offsetX: 0, offsetY: 0, trimW: ow, trimH: oh };
+    return { offsetX: minX, offsetY: minY, trimW: maxX - minX + 1, trimH: maxY - minY + 1 };
 }
 
 function cropSpriteToContent(img) {
@@ -4437,21 +4458,17 @@ function clearEditorDimensionStamps() {
     frames.forEach(f => { delete f._editorW; delete f._editorH; });
 }
 
-let mobIsSaving = false;
-
 async function saveOffline(silent = false) {
-    if (mobIsSaving) return;
-    mobIsSaving = true;
+    const ratio  = canvasRatio || { w:1, h:1 };
+    const now    = new Date().toISOString();
+    const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+
+    if (!handle) {
+        if (!silent) showMobSaveBadge('Log in to save', true);
+        return;
+    }
+
     try {
-        const ratio  = canvasRatio || { w:1, h:1 };
-        const now    = new Date().toISOString();
-        const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
-
-        if (!handle) {
-            if (!silent) showMobSaveBadge('Log in to save', true);
-            return;
-        }
-
         const { data: { session: _cm1 } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
         const user = _cm1?.user ?? null;
         if (!user) { if (!silent) showMobSaveBadge('Log in to save', true); return; }
@@ -4499,8 +4516,6 @@ async function saveOffline(silent = false) {
         clearEditorDimensionStamps(); // ensure clean on error too
         console.warn('Draft save failed:', e);
         if (!silent) showMobSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
-    } finally {
-        mobIsSaving = false;
     }
 }
 
@@ -4546,8 +4561,6 @@ async function finalPublish() {
     const title = document.getElementById('pub-title').value.trim();
     if (!title) { alert('Please enter a title.'); return; }
     if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
-    if (finalCoverBase64 && finalCoverBase64.length < 1000) { alert('Cover image is too small or invalid.'); return; }
-    if (!frames || frames.length === 0) { alert('Add at least one frame before publishing!'); return; }
     btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
     try {
         const { data: { session: _cm2 } } = await _supabase.auth.getSession();
@@ -4580,7 +4593,6 @@ async function finalPublish() {
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
         alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
-        closePublish();
         location.href = 'discover.html';
     } catch (err) {
         clearEditorDimensionStamps(); // ensure clean on error too
@@ -4594,7 +4606,7 @@ async function finalPublish() {
 // ── EXPORT ──
 function openExportModal() { document.getElementById('export-modal').style.display='flex'; openExportFramesTab(); }
 function closeExportModal() { document.getElementById('export-modal').style.display='none'; }
-function switchExportTab(tab, event) {
+function switchExportTab(tab) {
     document.querySelectorAll('.export-tab').forEach(t=>t.classList.remove('active'));
     document.querySelectorAll('.export-section').forEach(s=>s.classList.remove('active'));
     event.target.classList.add('active');
@@ -4804,7 +4816,7 @@ async function exportGIF() {
     statusEl.innerText='Rendering frames...'; btn.disabled=true; btn.innerText='GENERATING...';
     var fps=parseInt(document.getElementById('gif-fps').value);
     var quality=parseInt(document.getElementById('gif-quality').value);
-    var cw=frames[0]?._editorW||canvas.offsetWidth||400, ch=frames[0]?._editorH||canvas.offsetHeight||400;
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
     try {
         var renderedFrames=[];
         for (var i=0;i<frames.length;i++) {
@@ -4834,7 +4846,7 @@ async function exportStrip() {
     var statusEl=document.getElementById('strip-status');
     var previewWrap=document.getElementById('strip-preview-wrap');
     statusEl.innerText='Rendering...';
-    var cw=frames[0]?._editorW||canvas.offsetWidth||400, ch=frames[0]?._editorH||canvas.offsetHeight||400;
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
     var rows=Math.ceil(frames.length/cols), pad=10;
     var sw=(cw+pad)*cols+pad, sh=(ch+pad)*rows+pad;
     var sc=document.createElement('canvas'); sc.width=sw; sc.height=sh;
@@ -4858,7 +4870,7 @@ async function exportStrip() {
 async function openExportFramesTab() {
     var grid=document.getElementById('export-frames-grid');
     grid.innerHTML='<div style="color:#555;font-size:12px;padding:10px;">Rendering...</div>';
-    var cw=frames[0]?._editorW||canvas.offsetWidth||400, ch=frames[0]?._editorH||canvas.offsetHeight||400;
+    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
     grid.innerHTML='';
     for (var i=0;i<frames.length;i++) {
         var fc=await renderFrameToCanvas(frames[i],cw,ch);
