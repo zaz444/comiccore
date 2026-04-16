@@ -477,6 +477,50 @@ cursor: pointer; white-space: nowrap;
 .popup-progress-fill { height: 100%; background: #ff7a00; transition: width .3s; }
 .popup-progress-label { font-size: 10px; color: #444; font-weight: 700; margin-top: 4px; }
 
+/* ── Add Episode Modal ── */
+#episode-overlay {
+position: fixed; inset: 0; z-index: 5000;
+background: rgba(0,0,0,.88); backdrop-filter: blur(8px);
+display: none; align-items: center; justify-content: center;
+}
+#episode-overlay.open { display: flex; }
+#episode-panel {
+background: #1c1c1e; border: 1px solid #2c2c2e; border-radius: 20px;
+padding: 24px; max-width: 500px; width: 95%;
+}
+.episode-panel-title {
+font-size: 18px; font-weight: 900; color: #fff; margin-bottom: 8px;
+display: flex; align-items: center; justify-content: space-between;
+}
+.episode-panel-close { background: none; border: none; color: #888; font-size: 20px; cursor: pointer; }
+.episode-panel-sub { font-size: 13px; color: #888; margin-bottom: 16px; }
+.episode-comics-grid {
+display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+max-height: 400px; overflow-y: auto; padding: 4px;
+}
+.episode-comic-card {
+border-radius: 10px; overflow: hidden; border: 2px solid #2a2a2e;
+cursor: pointer; transition: .15s; background: #111;
+}
+.episode-comic-card:hover { border-color: rgba(255,122,0,.4); }
+.episode-comic-card.selected { border-color: #ff7a00; }
+.episode-comic-cover { width: 100%; aspect-ratio: 2/3; overflow: hidden; }
+.episode-comic-cover img { width: 100%; height: 100%; object-fit: cover; }
+.episode-comic-title { padding: 8px; font-size: 11px; font-weight: 700; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.episode-selected-info { margin-top: 16px; padding: 12px; background: rgba(255,122,0,.1); border-radius: 12px; border: 1px solid rgba(255,122,0,.2); }
+.episode-selected-info h4 { margin: 0 0 8px; font-size: 14px; color: #ff7a00; }
+.episode-selected-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.episode-chip {
+padding: 6px 12px; background: #2a2a2e; border-radius: 20px;
+font-size: 12px; font-weight: 700; color: #fff; cursor: pointer;
+display: flex; align-items: center; gap: 6px;
+}
+.episode-chip:hover { background: #3a3a3e; }
+.episode-chip span { color: #888; font-size: 14px; }
+.episode-actions { display: flex; gap: 12px; margin-top: 16px; }
+.episode-btn-cancel { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid #3a3a3c; background: transparent; color: #888; font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif; }
+.episode-btn-save { flex: 1; padding: 12px; border-radius: 12px; border: none; background: #ff7a00; color: #000; font-size: 13px; font-weight: 800; cursor: pointer; font-family: 'Inter', sans-serif; }
+
 /* ── Comments overlay ── */
 .comment-overlay {
 position: fixed; inset: 0; z-index: 2000;
@@ -879,6 +923,26 @@ opacity: 0; transition: .25s; z-index: 9999; white-space: nowrap; pointer-events
         <div class="popup-progress-label" id="popup-progress-label"></div>
       </div>
       <div class="popup-btns" id="popup-btns"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Episode Modal ── -->
+<div id="episode-overlay">
+  <div id="episode-panel">
+    <div class="episode-panel-title">
+      <span>📺 Add Episode</span>
+      <button class="episode-panel-close" onclick="closeEpisodeModal()">✕</button>
+    </div>
+    <p class="episode-panel-sub">Select comics to add as episodes to this comic series</p>
+    <div id="episode-comics-grid" class="episode-comics-grid"></div>
+    <div id="episode-selected-info" class="episode-selected-info" style="display:none;">
+      <h4>Selected Episodes (<span id="episode-count">0</span>)</h4>
+      <div id="episode-selected-list" class="episode-selected-list"></div>
+    </div>
+    <div class="episode-actions">
+      <button class="episode-btn-cancel" onclick="closeEpisodeModal()">Cancel</button>
+      <button class="episode-btn-save" onclick="saveEpisodeSelection()">Save Episodes</button>
     </div>
   </div>
 </div>
@@ -1709,6 +1773,13 @@ async function openPopup(id) {
     };
     btns.appendChild(editBtn);
 
+    const episodeBtn = document.createElement('button');
+    episodeBtn.className = 'popup-icon-btn';
+    episodeBtn.innerHTML = '📺';
+    episodeBtn.title = 'Add Episode';
+    episodeBtn.onclick = () => openAddEpisodeModal(c.id);
+    btns.appendChild(episodeBtn);
+
     const delBtn = document.createElement('button');
     delBtn.className = 'popup-delete-btn';
     delBtn.innerHTML = '🗑';
@@ -1723,6 +1794,103 @@ async function openPopup(id) {
 function closePopup() {
   document.getElementById('popup-overlay').classList.remove('open');
   activePopupComic = null;
+}
+
+let _episodeParentId = null;
+let _episodeSelected = [];
+
+async function openAddEpisodeModal(parentId) {
+  _episodeParentId = parentId;
+  _episodeSelected = [];
+
+  // Load existing episodes
+  const { data: parentComic } = await _sb.from('comics').select('episodes').eq('id', parentId).maybeSingle();
+  _episodeSelected = parentComic?.episodes || [];
+
+  // Load user's comics (excluding the parent)
+  const { data: myComics } = await _sb.from('comics').select('id, title, cover').eq('owner_handle', myProfile.handle);
+
+  const grid = document.getElementById('episode-comics-grid');
+  const availableComics = (myComics || []).filter(c => c.id !== parentId);
+
+  if (!availableComics.length) {
+    grid.innerHTML = '<p style="color:#888;text-align:center;grid-column:span 3;padding:20px;">No other comics available to add as episodes</p>';
+  } else {
+    grid.innerHTML = availableComics.map(c => {
+      const isSelected = _episodeSelected.includes(c.id);
+      return `<div class="episode-comic-card ${isSelected ? 'selected' : ''}" onclick="toggleEpisodeComic('${c.id}', '${esc(c.title || 'Untitled')}', '${c.cover || ''}', this)">
+        <div class="episode-comic-cover">
+          ${c.cover ? `<img src="${c.cover}" loading="lazy">` : '<div style="width:100%;height:100%;background:#1a1a1e;display:flex;align-items:center;justify-content:center;font-size:24px;">📖</div>'}
+        </div>
+        <div class="episode-comic-title">${esc(c.title || 'Untitled')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  renderEpisodeSelection();
+  document.getElementById('episode-overlay').classList.add('open');
+}
+
+function toggleEpisodeComic(id, title, cover, el) {
+  const idx = _episodeSelected.indexOf(id);
+  if (idx > -1) {
+    _episodeSelected.splice(idx, 1);
+    el.classList.remove('selected');
+  } else {
+    _episodeSelected.push(id);
+    el.classList.add('selected');
+  }
+  renderEpisodeSelection();
+}
+
+function renderEpisodeSelection() {
+  const info = document.getElementById('episode-selected-info');
+  const count = document.getElementById('episode-count');
+  const list = document.getElementById('episode-selected-list');
+
+  if (_episodeSelected.length === 0) {
+    info.style.display = 'none';
+    return;
+  }
+
+  info.style.display = '';
+  count.innerText = _episodeSelected.length;
+  list.innerHTML = _episodeSelected.map(id => {
+    return `<div class="episode-chip" onclick="removeEpisodeComic('${id}')">${id.substring(0, 8)}... <span>✕</span></div>`;
+  }).join('');
+}
+
+function removeEpisodeComic(id) {
+  _episodeSelected = _episodeSelected.filter(e => e !== id);
+  const cards = document.querySelectorAll('.episode-comic-card');
+  cards.forEach(card => {
+    if (card.querySelector('.episode-comic-title').innerText.includes(id.substring(0, 8))) {
+      card.classList.remove('selected');
+    }
+  });
+  renderEpisodeSelection();
+}
+
+function closeEpisodeModal() {
+  document.getElementById('episode-overlay').classList.remove('open');
+  _episodeParentId = null;
+  _episodeSelected = [];
+}
+
+async function saveEpisodeSelection() {
+  if (!_episodeParentId) return;
+
+  closePopup(); // Close the comic popup too
+
+  const { error } = await _sb.from('comics').update({ episodes: _episodeSelected }).eq('id', _episodeParentId);
+
+  if (error) {
+    showToast('Error saving episodes: ' + error.message);
+  } else {
+    showToast('Episodes saved!');
+  }
+
+  closeEpisodeModal();
 }
 
 async function popupToggleStar(comicId) {

@@ -361,20 +361,27 @@ opacity:0;transition:.25s;z-index:1000;white-space:nowrap;pointer-events:none;
 
 /* ── ToonScroll Mode ── */
 body.toonscroll{overflow:hidden;}
-body.toonscroll .reader-vp{overflow:auto;}
-body.toonscroll .reader-vp::-webkit-scrollbar{display:none;}
-body.toonscroll .reader-vp{scrollbar-width:none;-ms-overflow-style:none;}
+body.toonscroll #vp{display:none;}
+body.toonscroll #finish{display:none !important;}
+body.toonscroll .bottom-bar{display:none;}
 
 #toonscroll-strip{
-display:none;position:relative;
+display:none;position:fixed;inset:0;background:#111;
 }
 #toonscroll-strip.active{display:flex;}
 #toonscroll-strip.horizontal{
-flex-direction:row;width:max-content;height:100dvh;
+flex-direction:row;width:100%;height:100vh;
+overflow-x:auto;overflow-y:hidden;
+justify-content:center;align-items:center;
 }
 #toonscroll-strip.vertical{
-flex-direction:column;width:100%;height:auto;
+flex-direction:column;width:100%;min-height:100vh;
+overflow-x:hidden;overflow-y:auto;
+justify-content:flex-start;align-items:center;
 }
+#toonscroll-strip::-webkit-scrollbar{display:none;}
+#toonscroll-strip{scrollbar-width:none;-ms-overflow-style:none;}
+
 .toon-frame{
 position:relative;flex-shrink:0;
 background:#fff;overflow:hidden;
@@ -638,6 +645,17 @@ function disableToonScroll() {
     document.getElementById('ts-toggle').classList.remove('active');
     document.body.classList.remove('toonscroll');
     document.getElementById('toonscroll-strip').classList.remove('active', 'horizontal', 'vertical');
+
+    // Restore visibility of all UI elements
+    document.getElementById('top-bar').style.display = '';
+    document.getElementById('prog-track').style.display = '';
+    document.getElementById('bot-bar').style.display = '';
+    document.getElementById('vp').style.display = '';
+    document.getElementById('finish').style.display = '';
+
+    // Restore nav zones based on swipe direction
+    setSwipeDir(swipeDir);
+
     renderFrame();
 }
 
@@ -662,7 +680,7 @@ function initToonScrollStrip() {
 
     let frameW, frameH;
     if (toonScrollDir === 'horizontal') {
-        frameH = Math.min(vh * 0.95, 600);
+        frameH = Math.min(vh * 0.9, 700);
         frameW = frameH * ar;
     } else {
         frameW = Math.min(vw * 0.95, 600);
@@ -675,21 +693,22 @@ function initToonScrollStrip() {
         frameEl.dataset.idx = i;
         frameEl.style.width = frameW + 'px';
         frameEl.style.height = frameH + 'px';
+        if (toonScrollDir === 'horizontal') {
+            frameEl.style.margin = '0 4px';
+        } else {
+            frameEl.style.margin = '4px 0';
+        }
         renderFrameToStrip(frameEl, f, frameW, frameH);
         strip.appendChild(frameEl);
     });
 
-    // Hide nav zones and nav dots in toonscroll
-    document.getElementById('nz-left').style.display = 'none';
-    document.getElementById('nz-right').style.display = 'none';
-    document.getElementById('nz-up').style.display = 'none';
-    document.getElementById('nz-down').style.display = 'none';
-    document.getElementById('nz-mid').style.display = 'none';
+    // Hide everything except the strip and top bar (for navigation)
+    document.getElementById('top-bar').style.display = 'none';
+    document.getElementById('prog-track').style.display = 'none';
     document.getElementById('bot-bar').style.display = 'none';
-    document.getElementById('fdots').style.display = 'none';
 
     // Scroll to current frame
-    scrollToFrame(idx);
+    setTimeout(() => scrollToFrame(idx), 100);
 
     // Setup scroll listener
     strip.onscroll = onToonScroll;

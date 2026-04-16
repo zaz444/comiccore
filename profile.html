@@ -423,6 +423,77 @@
         .srow-label { font-size: 13px; font-weight: 700; color: var(--text); }
         .srow-sub { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
 
+        .settings-btn-sm {
+            padding: 6px 14px; border-radius: 8px;
+            background: rgba(255,122,0,0.15); border: 1px solid rgba(255,122,0,0.35);
+            color: #ff7a00; font-size: 11px; font-weight: 800;
+            cursor: pointer; transition: .15s; font-family: 'Inter', sans-serif;
+        }
+        .settings-btn-sm:hover { background: rgba(255,122,0,0.25); }
+
+        .pinned-preview {
+            display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+        }
+        .pinned-preview-item {
+            width: 60px; height: 80px; border-radius: 8px;
+            overflow: hidden; background: #1a1a1e; border: 2px solid var(--border);
+            position: relative;
+        }
+        .pinned-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .pinned-preview-empty {
+            width: 60px; height: 80px; border-radius: 8px;
+            border: 2px dashed var(--border); background: rgba(255,255,255,0.03);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--dim); font-size: 20px;
+        }
+        .pinned-comics-banner {
+            display: flex; gap: 12px; padding: 12px 14px;
+            background: rgba(255,122,0,0.08); border: 1px solid rgba(255,122,0,0.2);
+            border-radius: 14px; margin-bottom: 12px; overflow-x: auto;
+        }
+        .pinned-comic-card {
+            flex-shrink: 0; width: 100px; cursor: pointer;
+            transition: transform .15s;
+        }
+        .pinned-comic-card:hover { transform: scale(1.03); }
+        .pinned-comic-cover {
+            width: 100px; height: 140px; border-radius: 10px;
+            overflow: hidden; background: #1a1a1e;
+        }
+        .pinned-comic-cover img { width: 100%; height: 100%; object-fit: cover; }
+        .pinned-comic-title {
+            font-size: 11px; font-weight: 700; color: var(--text);
+            margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .pinned-comics-modal-grid {
+            display: grid; grid-template-columns: repeat(3,1fr); gap: 12px;
+            max-height: 400px; overflow-y: auto; padding: 4px;
+        }
+        .pinned-select-card {
+            border-radius: 10px; overflow: hidden;
+            border: 2px solid var(--border); cursor: pointer; transition: .15s;
+            background: #1a1a1e;
+        }
+        .pinned-select-card:hover { border-color: rgba(255,122,0,0.4); }
+        .pinned-select-card.selected { border-color: #ff7a00; }
+        .pinned-select-card .card-cover {
+            width: 100%; aspect-ratio: 2/3; overflow: hidden;
+        }
+        .pinned-select-card .card-cover img { width: 100%; height: 100%; object-fit: cover; }
+        .pinned-select-card .card-title {
+            padding: 8px; font-size: 11px; font-weight: 700; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .pinned-select-card .card-check {
+            position: absolute; top: 6px; right: 6px;
+            width: 22px; height: 22px; border-radius: 50%;
+            background: #ff7a00; color: #000;
+            display: none; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 900;
+        }
+        .pinned-select-card.selected .card-check { display: flex; }
+
         /* Status picker */
         .status-picker { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-bottom: 4px; }
         .status-opt {
@@ -900,6 +971,8 @@
             <div id="milestones-list"></div>
         </div>
 
+        <div id="pinned-section" style="display:none;"></div>
+
         <div class="grid-section">
             <div class="grid-header">Creations</div>
             <div id="user-comic-grid" class="comic-grid"></div>
@@ -1017,7 +1090,9 @@
                         <div class="settings-section-header">Display Options</div>
                         <div class="srow"><div class="srow-text"><div class="srow-label">Show Social Links</div><div class="srow-sub">Display your connected accounts on your profile</div></div><label class="cc-toggle"><input type="checkbox" id="st-show-socials"><span class="cc-toggle-track"></span></label></div>
                         <div class="srow"><div class="srow-text"><div class="srow-label">Show Creations Grid</div><div class="srow-sub">Display your comics on your public profile</div></div><label class="cc-toggle"><input type="checkbox" id="st-show-grid"><span class="cc-toggle-track"></span></label></div>
-                        <div class="srow"><div class="srow-text"><div class="srow-label">Pinned Comic</div><div class="srow-sub">Feature one comic at the top of your profile</div></div><label class="cc-toggle"><input type="checkbox" id="st-pinned-comic"><span class="cc-toggle-track"></span></label></div>
+                        <div class="settings-section-header">Pinned Comics</div>
+                        <div class="srow"><div class="srow-text"><div class="srow-label">Feature Comics</div><div class="srow-sub">Pin up to 3 comics at the top of your profile</div></div><button class="settings-btn-sm" onclick="openPinnedComicsModal()">Configure</button></div>
+                        <div id="pinned-comics-preview" class="pinned-preview"></div>
                     </div>
 
                     <!-- PAGE: ACCENT & PRONOUNS -->
@@ -1129,6 +1204,23 @@
                 <button class="pfp-gallery-confirm" id="pfp-gallery-confirm" onclick="confirmGalleryPfp()">Use This Avatar</button>
             </div>
             <button class="sheet-cancel-btn" onclick="closePfpPicker()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Pinned Comics Modal -->
+    <div class="modal-overlay" id="pinned-comics-overlay" onclick="if(event.target===this)closePinnedComicsModal()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="modal-title">
+                <span>📌 Pinned Comics</span>
+                <span class="modal-close" onclick="closePinnedComicsModal()">✕</span>
+            </div>
+            <p style="font-size:12px;color:#888;margin-bottom:16px;">Select up to 3 comics to feature at the top of your profile</p>
+            <div id="pinned-comics-modal-grid" class="pinned-comics-modal-grid"></div>
+            <div style="display:flex;gap:8px;margin-top:16px;">
+                <button class="sheet-cancel-btn" onclick="closePinnedComicsModal()" style="flex:1;">Cancel</button>
+                <button onclick="savePinnedComics()" style="flex:1;padding:12px;border-radius:12px;border:none;background:#ff7a00;color:#000;font-weight:800;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;">Save</button>
+            </div>
         </div>
     </div>
 
@@ -1701,8 +1793,41 @@
         function closeFolModal() { document.getElementById('fol-overlay').classList.remove('open'); }
 
         async function loadUserComics(handle) {
-            const { data: comics } = await _supabase.from('comics').select('id, cover').eq('owner_handle', handle);
+            const { data: comics } = await _supabase.from('comics').select('id, title, cover').eq('owner_handle', handle);
             const grid = document.getElementById('user-comic-grid');
+
+            // Load profile for pinned comics
+            const { data: profile } = await _supabase.from('profiles').select('settings').eq('handle', handle).maybeSingle();
+            const pinnedIds = profile?.settings?.pinned_comics || [];
+
+            // Render pinned comics section if there are pinned comics
+            const pinnedSection = document.getElementById('pinned-section');
+            if (pinnedIds.length > 0 && comics && comics.length > 0) {
+                const pinnedComics = pinnedIds.map(id => comics.find(c => c.id === id)).filter(Boolean);
+                if (pinnedComics.length > 0) {
+                    pinnedSection.innerHTML = `
+                        <div class="grid-section">
+                            <div class="grid-header">📌 Pinned</div>
+                            <div class="pinned-comics-banner">
+                                ${pinnedComics.map(c => `
+                                    <div class="pinned-comic-card" onclick="location.href='reader.html?id=${c.id}'">
+                                        <div class="pinned-comic-cover">
+                                            ${c.cover ? `<img src="${c.cover}" loading="lazy">` : '<div style="width:100%;height:100%;background:#1a1a1e;display:flex;align-items:center;justify-content:center;">📖</div>'}
+                                        </div>
+                                        <div class="pinned-comic-title">${c.title || 'Untitled'}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    pinnedSection.style.display = '';
+                } else {
+                    pinnedSection.style.display = 'none';
+                }
+            } else {
+                pinnedSection.style.display = 'none';
+            }
+
             if (!comics || !comics.length) { grid.innerHTML = '<div class="grid-empty">No comics yet</div>'; return; }
             grid.innerHTML = comics.map(c => `<div class="grid-item" onclick="location.href='reader.html?id=${c.id}'"><img src="${c.cover}" loading="lazy"></div>`).join('');
         }
@@ -1740,7 +1865,6 @@
             document.getElementById('st-show-discover').checked   = s.show_discover !== false;
             document.getElementById('st-show-socials').checked    = s.show_socials !== false;
             document.getElementById('st-show-grid').checked       = s.show_grid !== false;
-            document.getElementById('st-pinned-comic').checked    = !!s.pinned_comic;
             _settingsAccentColor = s.accent_color || '#ff7a00';
             document.querySelectorAll('.accent-swatch').forEach(sw => sw.classList.toggle('selected', sw.dataset.color === _settingsAccentColor));
             _settingsPronoun = s.pronoun || '';
@@ -1767,6 +1891,80 @@
             // Mark clean first, then attach listeners after a tick so population doesn't trigger dirty
             markClean();
             setTimeout(attachDirtyListeners, 50);
+        }
+
+        let _pinnedComicsTemp = [];
+        let _myComicsData = [];
+
+        async function openPinnedComicsModal() {
+            _pinnedComicsTemp = [...(myProfile.settings?.pinned_comics || [])];
+            const { data } = await _supabase.from('comics').select('id, title, cover').eq('owner_handle', myProfile.handle).order('created_at', { ascending: false });
+            _myComicsData = data || [];
+            renderPinnedComicsModal();
+            document.getElementById('pinned-comics-overlay').classList.add('open');
+        }
+
+        function closePinnedComicsModal() {
+            document.getElementById('pinned-comics-overlay').classList.remove('open');
+        }
+
+        function renderPinnedComicsModal() {
+            const grid = document.getElementById('pinned-comics-modal-grid');
+            if (!_myComicsData.length) {
+                grid.innerHTML = '<p style="color:#888;text-align:center;grid-column:span 3;padding:20px;">No comics found</p>';
+                return;
+            }
+            grid.innerHTML = _myComicsData.map(c => {
+                const isSelected = _pinnedComicsTemp.includes(c.id);
+                return `<div class="pinned-select-card ${isSelected ? 'selected' : ''}" onclick="togglePinnedComic('${c.id}', this)">
+                    <div class="card-cover" style="position:relative;">
+                        ${c.cover ? `<img src="${c.cover}" loading="lazy">` : '<div style="width:100%;aspect-ratio:2/3;background:#1a1a1e;display:flex;align-items:center;justify-content:center;">📖</div>'}
+                        <div class="card-check">✓</div>
+                    </div>
+                    <div class="card-title">${c.title || 'Untitled'}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function togglePinnedComic(comicId, el) {
+            const idx = _pinnedComicsTemp.indexOf(comicId);
+            if (idx > -1) {
+                _pinnedComicsTemp.splice(idx, 1);
+                el.classList.remove('selected');
+            } else if (_pinnedComicsTemp.length < 3) {
+                _pinnedComicsTemp.push(comicId);
+                el.classList.add('selected');
+            } else {
+                showToast('Maximum 3 pinned comics allowed');
+                return;
+            }
+            renderPinnedComicsPreview();
+        }
+
+        function renderPinnedComicsPreview() {
+            const preview = document.getElementById('pinned-comics-preview');
+            const slots = [];
+            for (let i = 0; i < 3; i++) {
+                if (_pinnedComicsTemp[i]) {
+                    const comic = _myComicsData.find(c => c.id === _pinnedComicsTemp[i]);
+                    if (comic) {
+                        slots.push(`<div class="pinned-preview-item"><img src="${comic.cover || ''}" onerror="this.parentNode.innerHTML='📖'"></div>`);
+                    } else {
+                        slots.push('<div class="pinned-preview-item"><div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#555;">?</div></div>');
+                    }
+                } else {
+                    slots.push('<div class="pinned-preview-empty">+</div>');
+                }
+            }
+            preview.innerHTML = slots.join('');
+        }
+
+        function savePinnedComics() {
+            if (!myProfile.settings) myProfile.settings = {};
+            myProfile.settings.pinned_comics = _pinnedComicsTemp;
+            closePinnedComicsModal();
+            showToast('Pinned comics saved!');
+            markDirty();
         }
 
         async function saveProfile() {
@@ -1815,7 +2013,7 @@
                 show_discover:       document.getElementById('st-show-discover').checked,
                 show_socials:        document.getElementById('st-show-socials').checked,
                 show_grid:           document.getElementById('st-show-grid').checked,
-                pinned_comic:        document.getElementById('st-pinned-comic').checked ? (existingSettings.pinned_comic || null) : null,
+                pinned_comics:       myProfile.settings?.pinned_comics || [],
                 accent_color:        _settingsAccentColor,
                 pronoun:             _settingsPronoun,
                 milestones: { enabled: msEnabled, thresholds: _settingsMilestones, style: _settingsMilestoneStyle, message: msMessage || null },
