@@ -465,6 +465,7 @@
             <div class="settings-group-title">ACTIVITY</div>
             <button class="settings-nav-item" onclick="switchPage('notifications')">🔔 Notifications</button>
             <button class="settings-nav-item" onclick="switchPage('milestones')">🏆 Milestones</button>
+            <button class="settings-nav-item" onclick="switchPage('toonscroll')">📜 ToonScroll</button>
         </div>
     </div>
 
@@ -622,6 +623,28 @@
                 </div>
             </div>
 
+            <!-- PAGE: TOONSCROLL -->
+            <div class="settings-page" id="page-toonscroll">
+                <div class="settings-section-header">Default Direction</div>
+                <p style="color:var(--muted);font-size:13px;margin-bottom:16px;margin-top:-8px;">Choose which direction ToonScroll uses by default when viewing comics.</p>
+                <div class="direction-picker" style="display:flex;gap:10px;margin-bottom:20px;">
+                    <div class="ts-dir-opt" data-dir="horizontal" onclick="selectTsDir('horizontal')" style="flex:1;padding:16px;border-radius:12px;border:2px solid var(--border);background:rgba(255,255,255,0.03);cursor:pointer;text-align:center;transition:.15s;">
+                        <div style="font-size:24px;margin-bottom:6px;">→</div>
+                        <div style="font-size:12px;font-weight:700;">Horizontal</div>
+                    </div>
+                    <div class="ts-dir-opt" data-dir="vertical" onclick="selectTsDir('vertical')" style="flex:1;padding:16px;border-radius:12px;border:2px solid var(--border);background:rgba(255,255,255,0.03);cursor:pointer;text-align:center;transition:.15s;">
+                        <div style="font-size:24px;margin-bottom:6px;">↓</div>
+                        <div style="font-size:12px;font-weight:700;">Vertical</div>
+                    </div>
+                </div>
+
+                <div class="settings-section-header">My Comics</div>
+                <p style="color:var(--muted);font-size:13px;margin-bottom:16px;margin-top:-8px;">Manage ToonScroll for your published comics.</p>
+                <div id="ts-comics-list" style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="padding:16px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,0.03);text-align:center;color:var(--muted);font-size:13px;">Loading your comics...</div>
+                </div>
+            </div>
+
         </div><!-- end scroll -->
     </div><!-- end content -->
 </div><!-- end settings-view -->
@@ -727,7 +750,8 @@
     const PAGE_TITLES = {
         'profile': 'Profile', 'connections': 'Connections', 'privacy': 'Privacy & Data',
         'account': 'Account', 'profile-display': 'Profile Display',
-        'accent-pronouns': 'Accent & Pronouns', 'notifications': 'Notifications', 'milestones': 'Milestones'
+        'accent-pronouns': 'Accent & Pronouns', 'notifications': 'Notifications', 'milestones': 'Milestones',
+        'toonscroll': 'ToonScroll'
     };
 
     function switchPage(name) {
@@ -738,6 +762,71 @@
         const navItem = document.querySelector(`.settings-nav-item[onclick*="'${name}'"]`);
         if (navItem) navItem.classList.add('active');
         document.getElementById('page-title').textContent = PAGE_TITLES[name] || 'Settings';
+
+        if (name === 'toonscroll') {
+            loadToonScrollSettings();
+        }
+    }
+
+    // ── TOONSCROLL SETTINGS ──
+    let _tsDefaultDir = 'horizontal';
+
+    function selectTsDir(dir) {
+        _tsDefaultDir = dir;
+        document.querySelectorAll('.ts-dir-opt').forEach(o => {
+            const isSelected = o.dataset.dir === dir;
+            o.style.borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
+            o.style.background = isSelected ? 'rgba(255,122,0,0.1)' : 'rgba(255,255,255,0.03)';
+        });
+        markDirty();
+    }
+
+    async function loadToonScrollSettings() {
+        const savedDir = myProfile.settings?.toonscroll_default_dir || 'horizontal';
+        _tsDefaultDir = savedDir;
+        selectTsDir(savedDir);
+
+        if (!myProfile.handle || myProfile.handle === 'guest') {
+            document.getElementById('ts-comics-list').innerHTML = '<div style="padding:16px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,0.03);text-align:center;color:var(--muted);font-size:13px;">Sign in to manage ToonScroll for your comics.</div>';
+            return;
+        }
+
+        const { data: comics, error } = await _supabase.from('comics')
+            .select('id, title, cover, toonscroll_status')
+            .eq('owner_handle', myProfile.handle)
+            .order('created_at', { ascending: false });
+
+        if (error || !comics || comics.length === 0) {
+            document.getElementById('ts-comics-list').innerHTML = '<div style="padding:16px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,0.03);text-align:center;color:var(--muted);font-size:13px;">No published comics yet.</div>';
+            return;
+        }
+
+        const { data: configs } = await _supabase.from('toonscroll_configs')
+            .select('comic_id, direction, visibility, is_enabled')
+            .in('comic_id', comics.map(c => c.id));
+
+        const configMap = {};
+        (configs || []).forEach(c => { configMap[c.comic_id] = c; });
+
+        document.getElementById('ts-comics-list').innerHTML = comics.map(comic => {
+            const cfg = configMap[comic.id];
+            const hasTs = cfg && cfg.is_enabled;
+            const statusText = hasTs
+                ? (cfg.direction === 'both' ? 'Both directions' : cfg.direction.charAt(0).toUpperCase() + cfg.direction.slice(1))
+                : 'Not configured';
+            const statusColor = hasTs ? 'var(--teal)' : 'var(--muted)';
+
+            return `
+                <div style="padding:14px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,0.03);display:flex;align-items:center;gap:12px;">
+                    <img src="${comic.cover || ''}" style="width:50px;height:50px;border-radius:8px;object-fit:cover;background:#111;flex-shrink:0;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${comic.title || 'Untitled'}</div>
+                        <div style="font-size:11px;color:${statusColor};font-weight:600;margin-top:2px;">${hasTs ? '📜 ' : ''}${statusText}</div>
+                    </div>
+                    <a href="toonscroll.html?comic_id=${comic.id}" style="padding:8px 14px;border-radius:8px;background:rgba(0,210,255,0.1);border:1px solid rgba(0,210,255,0.3);color:var(--teal);font-size:11px;font-weight:800;text-decoration:none;font-family:'Inter',sans-serif;">${hasTs ? 'Edit' : 'Set up'}</a>
+                </div>
+            `;
+        }).join('');
     }
 
     function formatImageUrl(pic) {
@@ -1006,6 +1095,7 @@
             notif_announcements: document.getElementById('st-notif-announcements').checked,
             notif_milestones:    document.getElementById('st-notif-milestones').checked,
             reduced_motion:      document.getElementById('st-reduced-motion').checked,
+            toonscroll_default_dir: _tsDefaultDir,
         };
 
         const updated = { ...myProfile, name: document.getElementById('edit-name').value, bio: document.getElementById('edit-bio').value, pic: picPath, banner: bannerPath, socials, settings: updatedSettings };

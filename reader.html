@@ -621,10 +621,16 @@ function getToonScrollSetting() {
 }
 
 function toggleToonScroll() {
-    if (toonScrollMode === 'off') {
+    if (toonScrollMode !== 'off') {
+        disableToonScroll();
+        return;
+    }
+
+    if (toonScrollConfig && toonScrollConfig.direction === 'both') {
         document.getElementById('ts-dir-modal').classList.add('open');
     } else {
-        disableToonScroll();
+        const dir = toonScrollConfig ? toonScrollConfig.direction : 'horizontal';
+        enableToonScroll(dir, false);
     }
 }
 
@@ -632,7 +638,7 @@ function closeTsDirModal() {
     document.getElementById('ts-dir-modal').classList.remove('open');
 }
 
-function enableToonScroll(dir) {
+function enableToonScroll(dir, fromConfig = false) {
     closeTsDirModal();
     toonScrollMode = 'on';
     toonScrollDir = dir;
@@ -641,7 +647,17 @@ function enableToonScroll(dir) {
     document.getElementById('ts-toggle').classList.add('active');
     document.body.classList.add('toonscroll');
     initToonScrollStrip();
-    showTsHint('ToonScroll active', true);
+
+    // Don't show exit hint if visibility is 'only'
+    const canExit = !fromConfig || (toonScrollConfig && toonScrollConfig.visibility !== 'only');
+    if (canExit) {
+        showTsHint('ToonScroll active', true);
+    }
+
+    // Hide exit button if it's forced
+    if (toonScrollConfig && toonScrollConfig.visibility === 'only') {
+        document.getElementById('ts-hint').querySelector('button')?.style.setProperty('display', 'none', 'important');
+    }
 }
 
 function disableToonScroll() {
@@ -696,21 +712,82 @@ function initToonScrollStrip() {
         frameH = frameW / ar;
     }
 
-    frames.forEach((f, i) => {
+    // Use database frame order and settings if available
+    const orderedFrames = toonScrollFrames.length > 0
+        ? toonScrollFrames.map(tf => ({
+            frame: frames[tf.frame_index],
+            settings: tf,
+            originalIdx: tf.frame_index
+          }))
+        : frames.map((f, i) => ({ frame: f, settings: null, originalIdx: i }));
+
+    orderedFrames.forEach(({ frame, settings, originalIdx }) => {
+        if (!frame) return;
         const frameEl = document.createElement('div');
         frameEl.className = 'toon-frame';
-        frameEl.dataset.idx = i;
-        frameEl.style.width = frameW + 'px';
-        frameEl.style.height = frameH + 'px';
-        renderFrameToStrip(frameEl, f, frameW, frameH);
+        frameEl.dataset.idx = originalIdx;
+        frameEl.dataset.tsIdx = originalIdx;
+
+        const wRatio = settings?.custom_width || 1;
+        const hRatio = settings?.custom_height || 1;
+        frameEl.style.width = (frameW * wRatio) + 'px';
+        frameEl.style.height = (frameH * hRatio) + 'px';
+
+        renderFrameToStrip(frameEl, frame, frameW * wRatio, frameH * hRatio);
         strip.appendChild(frameEl);
     });
 
     // Scroll to current frame
-    setTimeout(() => scrollToFrame(idx), 100);
+    setTimeout(() => {
+        const currentFrameEl = strip.querySelector(`[data-idx="${idx}"]`);
+        if (currentFrameEl) {
+            currentFrameEl.scrollIntoView({ behavior: 'smooth', inline: toonScrollDir === 'horizontal' ? 'start' : undefined, block: 'start' });
+        }
+    }, 100);
+
+    // Update position indicator
+    updateTsPosition();
 
     // Setup scroll listener
     strip.onscroll = onToonScroll;
+}
+
+function updateTsPosition() {
+    const strip = document.getElementById('toonscroll-strip');
+    const frames2 = strip.querySelectorAll('.toon-frame');
+    if (frames2.length === 0) return;
+
+    let closestIdx = 0;
+    let closestDist = Infinity;
+
+    frames2.forEach((el, i) => {
+        const rect = el.getBoundingClientRect();
+        const center = toonScrollDir === 'horizontal'
+            ? rect.left + rect.width / 2
+            : rect.top + rect.height / 2;
+        const viewCenter = toonScrollDir === 'horizontal'
+            ? window.innerWidth / 2
+            : window.innerHeight / 2;
+        const dist = Math.abs(center - viewCenter);
+        if (dist < closestDist) {
+            closestDist = dist;
+            closestIdx = i;
+        }
+    });
+
+    // Update idx to match
+    const actualIdx = parseInt(frames2[closestIdx]?.dataset.idx) || closestIdx;
+    idx = actualIdx;
+
+    // Show position indicator
+    let posEl = document.getElementById('ts-position');
+    if (!posEl) {
+        posEl = document.createElement('div');
+        posEl.id = 'ts-position';
+        posEl.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:800;z-index:150;';
+        document.body.appendChild(posEl);
+    }
+    posEl.textContent = `${closestIdx + 1} / ${frames2.length}`;
 }
 
 function renderFrameToStrip(frameEl, f, fw, fh) {
@@ -866,28 +943,8 @@ function renderFrameToStrip(frameEl, f, fw, fh) {
 
 function onToonScroll() {
     if (_toonScrollScrolling) return;
-    const strip = document.getElementById('toonscroll-strip');
-    const frameEls = strip.querySelectorAll('.toon-frame');
-
-    let newIdx = idx;
-    if (toonScrollDir === 'horizontal') {
-        const scrollMid = strip.scrollLeft + window.innerWidth / 2;
-        frameEls.forEach((el, i) => {
-            if (el.offsetLeft + el.offsetWidth / 2 < scrollMid) newIdx = i;
-        });
-    } else {
-        const scrollMid = strip.scrollTop + window.innerHeight / 2;
-        frameEls.forEach((el, i) => {
-            if (el.offsetTop + el.offsetHeight / 2 < scrollMid) newIdx = i;
-        });
-    }
-
-    if (newIdx !== idx) {
-        idx = newIdx;
-        saveProg();
-        document.getElementById('fctr').innerText = `${idx + 1} / ${frames.length}`;
-        document.getElementById('prog').style.width = ((idx + 1) / frames.length * 100) + '%';
-    }
+    updateTsPosition();
+    saveProg();
 }
 
 function scrollToFrame(frameIdx) {
@@ -939,14 +996,18 @@ function rereadComic() {
 }
 
 // ── Boot ──────────────────────────────────────────────────
+let toonScrollConfig = null;
+let toonScrollFrames = [];
+
 async function boot() {
   comicId = new URLSearchParams(location.search).get('id');
   if (!comicId) return location.href = 'discover.html';
 
-  // ── Check both tables simultaneously ──────────────────────
-  const [comicRes, storyRes] = await Promise.all([
+  // ── Check all tables simultaneously ──────────────────────
+  const [comicRes, storyRes, tsConfigRes] = await Promise.all([
     _sb.from('comics').select('*').eq('id', comicId).maybeSingle(),
     _sb.from('stories').select('*').eq('id', comicId).maybeSingle(),
+    _sb.from('toonscroll_configs').select('*').eq('comic_id', comicId).maybeSingle(),
   ]);
 
   if (storyRes.data && !comicRes.data) {
@@ -962,9 +1023,20 @@ async function boot() {
   // ── It's a COMIC — original flow ────────────────────────
   comic = data;
   frames = data.data || data.frames || [];
+
+  // Load ToonScroll config
+  toonScrollConfig = tsConfigRes.data;
+  if (toonScrollConfig && toonScrollConfig.is_enabled) {
+    const { data: tsFrames } = await _sb.from('toonscroll_frames')
+      .select('*').eq('toonscroll_id', toonScrollConfig.id).order('frame_order');
+    toonScrollFrames = tsFrames || [];
+    document.getElementById('ts-toggle').style.display = 'flex';
+  } else {
+    document.getElementById('ts-toggle').style.display = 'none';
+    toonScrollConfig = null;
+  }
+
   // Write frame count so discover.html can read it without an extra fetch
-  if (comicId && frames.length > 0) localStorage.setItem('cc-frame-count-' + comicId, frames.length);
-  // Write frame count so discover.html can read it without fetching the full data blob
   if (comicId && frames.length > 0) localStorage.setItem('cc-frame-count-' + comicId, frames.length);
   document.title = (data.title || 'Comic') + ' — ComicCore';
   document.getElementById('top-title').innerText = data.title || 'Untitled';
@@ -990,7 +1062,13 @@ async function boot() {
   buildDots();
   preloadAllFrameImages(frames);
 
-  renderFrame();
+  // Check if visibility is 'only' — auto-enable ToonScroll
+  if (toonScrollConfig && toonScrollConfig.visibility === 'only') {
+    const dir = toonScrollConfig.direction === 'both' ? 'horizontal' : toonScrollConfig.direction;
+    enableToonScroll(dir, true);
+  } else {
+    renderFrame();
+  }
 
   sched();
   buildShareUrl();

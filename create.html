@@ -1184,6 +1184,16 @@
         <input type="text" id="pub-title" class="pub-input" placeholder="Comic Title">
         <input type="text" id="pub-tags" class="pub-input" placeholder="Tags (e.g. action, comedy, scifi)">
         <textarea id="pub-desc" class="pub-input" placeholder="Brief description..." style="height: 80px;"></textarea>
+        <div id="toonscroll-status-bar" style="display:none; margin-bottom:15px; padding:12px; background:rgba(0,210,255,0.08); border:1px solid rgba(0,210,255,0.2); border-radius:12px; display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:18px;">📜</span>
+                <div>
+                    <div id="ts-status-label" style="font-size:12px;font-weight:800;color:var(--teal);">ToonScroll</div>
+                    <div id="ts-status-desc" style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;">Not configured</div>
+                </div>
+            </div>
+            <button onclick="openToonScrollSetup()" style="padding:8px 16px; border-radius:8px; background:rgba(0,210,255,0.15); border:1px solid rgba(0,210,255,0.3); color:var(--teal); font-size:11px; font-weight:800; cursor:pointer; font-family:inherit;">Set up</button>
+        </div>
         <div style="display:flex; gap:12px;">
             <button onclick="closePublish()" style="flex:1; padding:14px; background:#333; color:white; border:none; border-radius:12px; font-weight:700;">Cancel</button>
             <button id="publish-btn" onclick="finalPublish()" style="flex:1; padding:14px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:900;">POST NOW</button>
@@ -3444,7 +3454,46 @@
         // DO NOT set e.returnValue — we never block navigation
     });
 
-    function openPublishModal() { document.getElementById('publish-modal').style.display = 'flex'; }
+    function openPublishModal() {
+        document.getElementById('publish-modal').style.display = 'flex';
+        checkToonScrollStatus();
+    }
+
+    async function checkToonScrollStatus() {
+        const statusBar = document.getElementById('toonscroll-status-bar');
+        const statusLabel = document.getElementById('ts-status-label');
+        const statusDesc = document.getElementById('ts-status-desc');
+
+        const comicIdToCheck = editingComicId || localStorage.getItem('edit_source_comic_id');
+        if (!comicIdToCheck || !frames || frames.length === 0) {
+            statusBar.style.display = 'none';
+            return;
+        }
+
+        statusBar.style.display = 'flex';
+
+        const { data: config } = await _supabase.from('toonscroll_configs')
+            .select('direction, visibility, is_enabled')
+            .eq('comic_id', comicIdToCheck).maybeSingle();
+
+        if (config && config.is_enabled) {
+            const dirLabels = { horizontal: 'Horizontal', vertical: 'Vertical', both: 'Horizontal + Vertical' };
+            statusLabel.textContent = config.direction === 'both' ? 'Both ✓' :
+                                      config.direction === 'horizontal' ? 'Horizontal ✓' : 'Vertical ✓';
+            statusDesc.textContent = dirLabels[config.direction] + ' • ' + (config.visibility === 'optional' ? 'Button shown' : config.visibility === 'only' ? 'Strip only' : 'Hidden');
+        } else {
+            statusLabel.textContent = 'ToonScroll';
+            statusDesc.textContent = 'Not configured';
+        }
+    }
+
+    function openToonScrollSetup() {
+        const comicIdToUse = editingComicId || localStorage.getItem('edit_source_comic_id');
+        if (comicIdToUse) {
+            closePublish();
+            setTimeout(() => { location.href = 'toonscroll.html?comic_id=' + comicIdToUse; }, 100);
+        }
+    }
 
     async function finalPublish() {
         const title = document.getElementById('pub-title').value;
