@@ -416,45 +416,54 @@
         .cc-toggle input:checked + .cc-toggle-slider::before { transform: translateX(14px); }
 
         /* ── PREVIEW ── */
-        .preview-section {
-            margin-bottom: 28px;
-        }
+        .preview-section { margin-bottom: 28px; }
         .preview-container {
-            background: #000;
+            background: var(--card);
             border-radius: 16px;
             overflow: hidden;
             position: relative;
-            height: 200px;
             border: 1px solid var(--border);
         }
+        .preview-container.dir-horizontal,
+        .preview-container.dir-both { height: 220px; }
+        .preview-container.dir-vertical { max-height: 600px; }
         .preview-strip {
             display: flex;
-            gap: 0;
-            height: 100%;
+            gap: 2px;
             overflow-x: auto;
             scroll-snap-type: x mandatory;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
+            scrollbar-width: thin;
+            scrollbar-color: #444 transparent;
+            width: fit-content;
+            max-width: 100%;
         }
-        .preview-strip::-webkit-scrollbar { display: none; }
+        .preview-strip::-webkit-scrollbar { height: 4px; }
+        .preview-strip::-webkit-scrollbar-track { background: transparent; }
+        .preview-strip::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
         .preview-strip.vertical {
             flex-direction: column;
             overflow-x: hidden;
             overflow-y: auto;
             scroll-snap-type: y mandatory;
+            width: 100%;
+            max-height: 600px;
+            scrollbar-width: thin;
+            scrollbar-color: #444 transparent;
         }
+        .preview-strip.vertical::-webkit-scrollbar { width: 4px; }
         .preview-frame {
             flex-shrink: 0;
             background: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             scroll-snap-align: start;
+            position: relative;
+            overflow: hidden;
         }
-        .preview-frame canvas, .preview-frame img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
+        .preview-empty {
+            color: #555;
+            font-size: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            width: 100%;
         }
 
         /* ── TOAST ── */
@@ -604,7 +613,7 @@
     <!-- Preview -->
     <div class="preview-section">
         <div class="section-title">Live Preview</div>
-        <div class="preview-container">
+        <div class="preview-container dir-horizontal" id="preview-container">
             <div class="preview-strip" id="preview-strip"></div>
         </div>
     </div>
@@ -757,6 +766,8 @@ function syncDirectionUI() {
         el.classList.toggle('selected', el.dataset.vis === selectedVisibility);
     });
     document.getElementById('both-notice').classList.toggle('visible', selectedDirection === 'both');
+    const c = document.getElementById('preview-container');
+    if (c) c.className = 'preview-container dir-' + selectedDirection;
 }
 
 function selectDirection(dir) {
@@ -918,7 +929,8 @@ function tsSpriteFilterCSS(layer) {
 
 function renderFrameToDiv(frameEl, f, fw, fh) {
     frameEl.innerHTML = '';
-    frameEl.style.cssText += ';position:relative;overflow:hidden;';
+    frameEl.style.position = 'relative';
+    frameEl.style.overflow = 'hidden';
 
     if (!f) { frameEl.style.background = '#fff'; return; }
 
@@ -1021,11 +1033,16 @@ function renderFrameToDiv(frameEl, f, fw, fh) {
 
 function updatePreview() {
     const strip = document.getElementById('preview-strip');
+    const container = document.getElementById('preview-container');
     strip.innerHTML = '';
-    strip.className = 'preview-strip' + (selectedDirection === 'vertical' ? ' vertical' : '');
 
-    const containerH = 200;
-    const containerW = window.innerWidth - 32;
+    const isVert = selectedDirection === 'vertical';
+    strip.className = 'preview-strip' + (isVert ? ' vertical' : '');
+
+    // Sync container class for CSS height rules
+    container.className = 'preview-container dir-' + selectedDirection;
+
+    const containerW = Math.min(window.innerWidth - 32, 860);
 
     const previewFrames = frames
         .map((f, i) => ({ frame: f, settings: frameSettings[i], idx: i }))
@@ -1033,7 +1050,7 @@ function updatePreview() {
         .sort((a, b) => a.settings.order - b.settings.order);
 
     if (previewFrames.length === 0) {
-        strip.innerHTML = '<div style="color:#555;font-size:12px;padding:20px;">No frames selected</div>';
+        strip.innerHTML = '<div class="preview-empty">No frames selected</div>';
         return;
     }
 
@@ -1043,23 +1060,22 @@ function updatePreview() {
         const div = document.createElement('div');
         div.className = 'preview-frame';
 
-        const ar = ratio * (settings.heightRatio / settings.widthRatio);
-        const isVert = selectedDirection === 'vertical';
+        // aspect ratio adjusted by custom width/height multipliers
+        const ar = ratio * (settings.widthRatio / settings.heightRatio);
 
         let fw, fh;
         if (isVert) {
-            fw = Math.min(containerW - 32, 400);
-            fh = fw / ar;
+            // Vertical (webtoon style): full container width, natural height
+            fw = Math.min(containerW - 4, 700);
+            fh = Math.round(fw / ar);
         } else {
-            fh = Math.min(containerH - 20, 180);
-            fw = fh * ar;
+            // Horizontal: fixed height, natural width
+            fh = 200;
+            fw = Math.round(fh * ar);
         }
 
-        div.style.width    = fw + 'px';
-        div.style.height   = fh + 'px';
-        div.style.flexShrink = '0';
-        div.style.background = '#fff';
-        div.style.scrollSnapAlign = 'start';
+        div.style.width  = fw + 'px';
+        div.style.height = fh + 'px';
 
         renderFrameToDiv(div, frame, fw, fh);
         strip.appendChild(div);
