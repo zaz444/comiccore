@@ -526,6 +526,36 @@
         .ts-bubble-cloud   { border: 2px solid var(--bb,#000); border-radius: 40px; }
         .ts-bubble-shout   { border: 2.5px solid var(--bb,#000); background: var(--bbg,#ffeb3b); }
         .ts-bubble-narrator{ border: 2px solid var(--bb,#000); border-radius: 4px; border-left: 5px solid var(--bb,#000); }
+
+        /* ── LAYER EDITOR ── */
+        .layer-editor-overlay { position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px; }
+        .layer-editor-overlay.hidden { display:none; }
+        .layer-editor-panel { background:var(--card);border:1px solid var(--border);border-radius:20px;width:100%;max-width:660px;max-height:93vh;display:flex;flex-direction:column;overflow:hidden; }
+        .layer-editor-header { display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0; }
+        .layer-editor-header span { font-size:15px;font-weight:900; }
+        .layer-editor-header .le-btns { display:flex;gap:8px; }
+        .le-hint { font-size:11px;color:var(--muted);padding:8px 20px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);flex-shrink:0; }
+        .le-btn { padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:.15s; }
+        .le-reset { background:var(--border);color:var(--text); }
+        .le-reset:hover { background:#3a3a3c; }
+        .le-done { background:var(--accent);color:#000; }
+        .le-done:hover { filter:brightness(1.08); }
+        .le-canvas-wrap { flex:1;overflow-y:auto;padding:16px;display:flex;align-items:flex-start;justify-content:center; }
+        .le-canvas { position:relative;overflow:hidden;box-shadow:0 4px 40px rgba(0,0,0,.7);flex-shrink:0; }
+        .le-canvas.dragging { cursor:grabbing; }
+        .le-layer { position:absolute;box-sizing:border-box;outline:1.5px dashed rgba(255,122,0,.5);cursor:move; }
+        .le-layer:hover { outline-color:var(--accent); }
+        .le-layer.selected { outline:2px solid var(--accent); }
+        .le-scale-handle { position:absolute;bottom:-7px;right:-7px;width:16px;height:16px;background:var(--accent);border-radius:4px;cursor:nwse-resize;z-index:9;border:2px solid #000; }
+
+        /* ── FRAME EDIT BTN ── */
+        .frame-edit-btn { position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:white;font-size:11px;padding:3px 7px;cursor:pointer;opacity:0;transition:.15s;font-family:'Inter',sans-serif;font-weight:700; }
+        .frame-thumb-wrap:hover .frame-edit-btn { opacity:1; }
+
+        /* ── TOONSCROLL-ONLY TOGGLE ── */
+        .cc-toggle input:checked.ts-only-chk + .cc-toggle-slider { background: var(--teal); }
+        .ts-only-label { color: var(--teal) !important; }
+        .ts-only-badge { display:inline-flex;align-items:center;gap:4px;background:rgba(0,210,255,.1);border:1px solid rgba(0,210,255,.3);color:var(--teal);font-size:9px;font-weight:800;padding:3px 8px;border-radius:6px;letter-spacing:.5px;margin-top:4px; }
     </style>
 </head>
 <body>
@@ -619,6 +649,24 @@
     </div>
 </div>
 
+
+<!-- Layer Editor Modal -->
+<div class="layer-editor-overlay hidden" id="layer-editor">
+    <div class="layer-editor-panel">
+        <div class="layer-editor-header">
+            <span id="le-title">Edit Frame Layers</span>
+            <div class="le-btns">
+                <button class="le-btn le-reset" onclick="resetLayerOverrides()">↺ Reset</button>
+                <button class="le-btn le-done" onclick="closeLayerEditor()">✓ Done</button>
+            </div>
+        </div>
+        <div class="le-hint">Tap/click a layer to select it • Drag to move • Drag ◢ corner to scale</div>
+        <div class="le-canvas-wrap" id="le-canvas-wrap">
+            <div class="le-canvas" id="le-canvas"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Toast -->
 <div class="ts-toast" id="ts-toast"></div>
 
@@ -630,37 +678,23 @@ const _sb = supabase.createClient(
 );
 
 const myP = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
-let comicId = null;
-let comic = null;
-let frames = [];
-let canvasRatio = 1;
-
-let selectedDirection = 'horizontal';
-let selectedVisibility = 'optional';
+let comicId = null, comic = null, frames = [], canvasRatio = 1;
+let selectedDirection = 'horizontal', selectedVisibility = 'optional';
 let frameSettings = [];
-
 let dragItem = null;
-let dragOverIdx = null;
 
-function getComicId() {
-    const params = new URLSearchParams(location.search);
-    return params.get('comic_id');
-}
+// ── Helpers ───────────────────────────────────────────────────────────────
 
-function goBack() {
-    if (comicId) {
-        history.back();
-    } else {
-        location.href = 'create.html';
-    }
-}
+function getComicId() { return new URLSearchParams(location.search).get('comic_id'); }
+
+function goBack() { comicId ? history.back() : (location.href = 'create.html'); }
 
 function showToast(msg, type = '') {
-    const toast = document.getElementById('ts-toast');
-    toast.textContent = msg;
-    toast.className = 'ts-toast' + (type ? ' ' + type : '');
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3000);
+    const t = document.getElementById('ts-toast');
+    t.textContent = msg;
+    t.className = 'ts-toast' + (type ? ' ' + type : '');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
 }
 
 function acceptWarning() {
@@ -668,40 +702,24 @@ function acceptWarning() {
     document.getElementById('ts-main').style.display = 'block';
 }
 
+// ── Load ─────────────────────────────────────────────────────────────────
+
 async function loadComic() {
     comicId = getComicId();
-    if (!comicId) {
-        showToast('No comic ID provided', 'error');
-        document.getElementById('loading-overlay').classList.add('hidden');
-        return;
-    }
+    if (!comicId) { showToast('No comic ID provided', 'error'); document.getElementById('loading-overlay').classList.add('hidden'); return; }
 
     document.getElementById('warning-back-btn').onclick = () => {
-        if (comic && comic.owner_handle === myP.handle) {
-            location.href = 'create.html';
-        } else {
-            location.href = 'discover.html';
-        }
+        comic && comic.owner_handle === myP.handle ? (location.href = 'create.html') : (location.href = 'discover.html');
     };
 
     const { data, error } = await _sb.from('comics').select('*').eq('id', comicId).single();
-    if (error || !data) {
-        showToast('Comic not found', 'error');
-        document.getElementById('loading-overlay').classList.add('hidden');
-        return;
-    }
+    if (error || !data) { showToast('Comic not found', 'error'); document.getElementById('loading-overlay').classList.add('hidden'); return; }
 
     comic = data;
     frames = data.data || [];
-
-    if (frames.length === 0) {
-        showToast('This comic has no frames', 'error');
-        document.getElementById('loading-overlay').classList.add('hidden');
-        return;
-    }
+    if (frames.length === 0) { showToast('This comic has no frames', 'error'); document.getElementById('loading-overlay').classList.add('hidden'); return; }
 
     canvasRatio = data.canvas_ratio || 1;
-
     document.getElementById('comic-title').textContent = data.title || 'Untitled';
     document.getElementById('comic-meta').textContent = `by @${data.owner_handle || 'unknown'} • ${frames.length} frame${frames.length !== 1 ? 's' : ''}`;
     document.getElementById('comic-cover').src = data.cover || '';
@@ -712,59 +730,53 @@ async function loadComic() {
     renderFrameList();
     updatePreview();
     updateSaveButton();
-
     document.getElementById('loading-overlay').classList.add('hidden');
 }
 
 async function loadExistingConfig() {
-    const { data: configs } = await _sb.from('toonscroll_configs')
-        .select('*').eq('comic_id', comicId).maybeSingle();
-
+    const { data: configs } = await _sb.from('toonscroll_configs').select('*').eq('comic_id', comicId).maybeSingle();
     if (configs) {
-        if (configs.direction === 'both') {
-            selectedDirection = 'horizontal';
-        } else {
-            selectedDirection = configs.direction || 'horizontal';
-        }
+        selectedDirection = configs.direction === 'both' ? 'horizontal' : (configs.direction || 'horizontal');
         selectedVisibility = configs.visibility || 'optional';
     }
-
     const { data: frameConfigs } = await _sb.from('toonscroll_frames')
         .select('*').eq('toonscroll_id', configs?.id).order('frame_order');
 
     if (frameConfigs && frameConfigs.length > 0) {
-        frameSettings = frameConfigs.map(fc => ({
-            eligible: fc.is_eligible !== false,
-            widthRatio: fc.custom_width || 1,
-            heightRatio: fc.custom_height || 1,
-            order: fc.frame_order
-        }));
+        // Build frameSettings indexed by original frame index
+        frameSettings = frames.map(() => ({ eligible: true, widthRatio: 1, heightRatio: 1, order: 0, toonscrollOnly: false, layerOverrides: {} }));
+        frameConfigs.forEach((fc, displayPos) => {
+            const origIdx = fc.frame_index ?? displayPos;
+            if (origIdx >= 0 && origIdx < frameSettings.length) {
+                frameSettings[origIdx] = {
+                    eligible: fc.is_eligible !== false,
+                    widthRatio: fc.custom_width || 1,
+                    heightRatio: fc.custom_height || 1,
+                    order: fc.frame_order ?? displayPos,
+                    toonscrollOnly: fc.toonscroll_only || false,
+                    layerOverrides: fc.layer_overrides || {}
+                };
+            }
+        });
     }
 }
 
 function initFrameSettings() {
     if (frameSettings.length === 0) {
-        frameSettings = frames.map(() => ({
-            eligible: true,
-            widthRatio: 1,
-            heightRatio: 1,
-            order: 0
-        }));
+        frameSettings = frames.map((_, i) => ({ eligible: true, widthRatio: 1, heightRatio: 1, order: i, toonscrollOnly: false, layerOverrides: {} }));
     } else {
         while (frameSettings.length < frames.length) {
-            frameSettings.push({ eligible: true, widthRatio: 1, heightRatio: 1, order: frameSettings.length });
+            frameSettings.push({ eligible: true, widthRatio: 1, heightRatio: 1, order: frameSettings.length, toonscrollOnly: false, layerOverrides: {} });
         }
     }
-    frameSettings.forEach((s, i) => s.order = i);
+    frameSettings.forEach((s, i) => { if (s.order === 0 && i > 0 && frameSettings.filter(x => x.order === 0).length > 1) s.order = i; });
 }
 
+// ── Direction / Visibility ────────────────────────────────────────────────
+
 function syncDirectionUI() {
-    document.querySelectorAll('.dir-option').forEach(el => {
-        el.classList.toggle('selected', el.dataset.dir === selectedDirection);
-    });
-    document.querySelectorAll('.vis-option').forEach(el => {
-        el.classList.toggle('selected', el.dataset.vis === selectedVisibility);
-    });
+    document.querySelectorAll('.dir-option').forEach(el => el.classList.toggle('selected', el.dataset.dir === selectedDirection));
+    document.querySelectorAll('.vis-option').forEach(el => el.classList.toggle('selected', el.dataset.vis === selectedVisibility));
     document.getElementById('both-notice').classList.toggle('visible', selectedDirection === 'both');
     const c = document.getElementById('preview-container');
     if (c) c.className = 'preview-container dir-' + selectedDirection;
@@ -772,10 +784,10 @@ function syncDirectionUI() {
 
 function selectDirection(dir) {
     selectedDirection = dir;
-    document.querySelectorAll('.dir-option').forEach(el => {
-        el.classList.toggle('selected', el.dataset.dir === dir);
-    });
+    document.querySelectorAll('.dir-option').forEach(el => el.classList.toggle('selected', el.dataset.dir === dir));
     document.getElementById('both-notice').classList.toggle('visible', dir === 'both');
+    const c = document.getElementById('preview-container');
+    if (c) c.className = 'preview-container dir-' + dir;
     renderFrameList();
     updatePreview();
     updateSaveButton();
@@ -783,54 +795,54 @@ function selectDirection(dir) {
 
 function selectVisibility(vis) {
     selectedVisibility = vis;
-    document.querySelectorAll('.vis-option').forEach(el => {
-        el.classList.toggle('selected', el.dataset.vis === vis);
-    });
+    document.querySelectorAll('.vis-option').forEach(el => el.classList.toggle('selected', el.dataset.vis === vis));
     updateSaveButton();
 }
 
+// ── Frame Settings ────────────────────────────────────────────────────────
+
 function toggleFrameEligible(idx) {
     frameSettings[idx].eligible = !frameSettings[idx].eligible;
-    renderFrameList();
-    updatePreview();
-    updateSaveButton();
+    renderFrameList(); updatePreview(); updateSaveButton();
+}
+
+function toggleToonscrollOnly(idx) {
+    frameSettings[idx].toonscrollOnly = !frameSettings[idx].toonscrollOnly;
+    renderFrameList(); updateSaveButton();
 }
 
 function updateFrameRatio(idx, field, value) {
     const num = parseFloat(value) || 1;
     frameSettings[idx][field] = Math.max(0.1, Math.min(3, num));
-    updatePreview();
-    updateSaveButton();
+    updatePreview(); updateSaveButton();
 }
+
+// ── Frame List Render ─────────────────────────────────────────────────────
 
 function renderFrameList() {
     const container = document.getElementById('frames-list');
     const eligibleCount = frameSettings.filter(s => s.eligible).length;
     document.getElementById('frames-count').textContent = `${eligibleCount} of ${frames.length} frames included`;
-
     container.innerHTML = '';
 
-    const sortedIndices = frameSettings.map((s, i) => ({ s, i }))
-        .sort((a, b) => a.s.order - b.s.order)
-        .map(x => x.i);
+    const sortedIndices = frameSettings.map((s, i) => ({ s, i })).sort((a, b) => a.s.order - b.s.order).map(x => x.i);
+    const widthDisabled  = selectedDirection === 'vertical'   || selectedDirection === 'both';
+    const heightDisabled = selectedDirection === 'horizontal' || selectedDirection === 'both';
 
     sortedIndices.forEach((originalIdx, displayIdx) => {
         const settings = frameSettings[originalIdx];
         const frame = frames[originalIdx];
-
         const item = document.createElement('div');
         item.className = 'frame-item' + (settings.eligible ? '' : ' ineligible');
         item.dataset.idx = originalIdx;
         item.draggable = true;
-
-        const widthDisabled = selectedDirection === 'vertical' || selectedDirection === 'both';
-        const heightDisabled = selectedDirection === 'horizontal' || selectedDirection === 'both';
 
         item.innerHTML = `
             <div class="frame-drag-handle" title="Drag to reorder">⋮⋮</div>
             <div class="frame-thumb-wrap">
                 <span class="frame-number">${displayIdx + 1}</span>
                 <div class="frame-thumb-dom"></div>
+                <button class="frame-edit-btn" onclick="event.stopPropagation();openLayerEditor(${originalIdx})">✏ Edit</button>
             </div>
             <div class="frame-controls">
                 <div class="frame-controls-row">
@@ -838,214 +850,324 @@ function renderFrameList() {
                         <label>Width ×</label>
                         <input type="number" step="0.1" min="0.1" max="3" value="${settings.widthRatio.toFixed(1)}"
                             ${widthDisabled ? 'disabled' : ''}
-                            onchange="updateFrameRatio(${originalIdx}, 'widthRatio', this.value)"
-                            oninput="updateFrameRatio(${originalIdx}, 'widthRatio', this.value)">
+                            onchange="updateFrameRatio(${originalIdx},'widthRatio',this.value)"
+                            oninput="updateFrameRatio(${originalIdx},'widthRatio',this.value)">
                     </div>
                     <div class="frame-ratio-input${heightDisabled ? ' ratio-disabled' : ''}">
                         <label>Height ×</label>
                         <input type="number" step="0.1" min="0.1" max="3" value="${settings.heightRatio.toFixed(1)}"
                             ${heightDisabled ? 'disabled' : ''}
-                            onchange="updateFrameRatio(${originalIdx}, 'heightRatio', this.value)"
-                            oninput="updateFrameRatio(${originalIdx}, 'heightRatio', this.value)">
+                            onchange="updateFrameRatio(${originalIdx},'heightRatio',this.value)"
+                            oninput="updateFrameRatio(${originalIdx},'heightRatio',this.value)">
                     </div>
                 </div>
-                <div class="frame-eligible-toggle">
+                ${settings.toonscrollOnly ? '<div class="ts-only-badge">👁 ToonScroll Only</div>' : ''}
+                <div class="frame-eligible-toggle" style="margin-top:8px;">
                     <label class="cc-toggle">
                         <input type="checkbox" ${settings.eligible ? 'checked' : ''} onchange="toggleFrameEligible(${originalIdx})">
                         <span class="cc-toggle-slider"></span>
                     </label>
                     <label onclick="toggleFrameEligible(${originalIdx})">Include in ToonScroll</label>
                 </div>
-            </div>
-        `;
+                <div class="frame-eligible-toggle" style="margin-top:6px;">
+                    <label class="cc-toggle">
+                        <input type="checkbox" class="ts-only-chk" ${settings.toonscrollOnly ? 'checked' : ''} onchange="toggleToonscrollOnly(${originalIdx})">
+                        <span class="cc-toggle-slider" style="${settings.toonscrollOnly ? 'background:var(--teal)' : ''}"></span>
+                    </label>
+                    <label class="${settings.toonscrollOnly ? 'ts-only-label' : ''}" onclick="toggleToonscrollOnly(${originalIdx})" style="${settings.toonscrollOnly ? 'color:var(--teal)' : ''}">Hide from reader</label>
+                </div>
+            </div>`;
 
-        // Render thumbnail via DOM (images load naturally, no img.complete issues)
         const thumbDom = item.querySelector('.frame-thumb-dom');
         thumbDom.style.cssText = 'width:100%;height:100%;position:relative;overflow:hidden;';
-        renderFrameToDiv(thumbDom, frame, 70, 70);
+        renderFrameToDiv(thumbDom, frame, 70, 70, settings.layerOverrides);
 
+        // ── Drag to reorder ──────────────────────────────────────────────
         item.addEventListener('dragstart', e => {
             dragItem = originalIdx;
-            item.style.opacity = '0.5';
+            item.style.opacity = '0.45';
             e.dataTransfer.effectAllowed = 'move';
         });
-
-        item.addEventListener('dragend', () => {
-            item.style.opacity = '1';
-            dragItem = null;
-            dragOverIdx = null;
-        });
-
-        item.addEventListener('dragover', e => {
-            e.preventDefault();
-            dragOverIdx = originalIdx;
-        });
-
+        item.addEventListener('dragend', () => { item.style.opacity = '1'; dragItem = null; });
+        item.addEventListener('dragover', e => { e.preventDefault(); item.style.borderColor = 'var(--accent)'; });
+        item.addEventListener('dragleave', () => { item.style.borderColor = ''; });
         item.addEventListener('drop', e => {
             e.preventDefault();
-            if (dragItem !== null && dragItem !== originalIdx) {
-                const fromSettings = frameSettings[dragItem];
-                frameSettings.splice(dragItem, 1);
-                const newIdx = originalIdx > dragItem ? originalIdx - 1 : originalIdx;
-                frameSettings.splice(newIdx, 0, fromSettings);
-                frameSettings.forEach((s, i) => s.order = i);
-                renderFrameList();
-                updatePreview();
-                updateSaveButton();
-            }
+            item.style.borderColor = '';
+            if (dragItem === null || dragItem === originalIdx) return;
+            // Reorder in sorted space — swap correctly
+            const sorted = frameSettings.map((s, i) => ({ s, i })).sort((a, b) => a.s.order - b.s.order);
+            const fromPos = sorted.findIndex(x => x.i === dragItem);
+            const toPos   = sorted.findIndex(x => x.i === originalIdx);
+            if (fromPos === -1 || toPos === -1) return;
+            const [moved] = sorted.splice(fromPos, 1);
+            sorted.splice(toPos, 0, moved);
+            sorted.forEach((x, pos) => { x.s.order = pos; });
+            renderFrameList(); updatePreview(); updateSaveButton();
         });
 
         container.appendChild(item);
     });
 }
 
-// ── DOM-based frame renderer (mirrors reader.html's renderFrameToStrip) ──────
+// ── Layer Editor ─────────────────────────────────────────────────────────
+
+let leFrameIdx = -1, leOverrides = {};
+let leSx = 1, leSy = 1;
+let leDragging = false, leDragLayerIdx = -1, leDragType = 'move';
+let leDragStartX = 0, leDragStartY = 0;
+let leDragOrigDx = 0, leDragOrigDy = 0, leDragOrigScale = 1, leDragOrigW = 0;
+
+function openLayerEditor(frameIdx) {
+    leFrameIdx = frameIdx;
+    leOverrides = JSON.parse(JSON.stringify(frameSettings[frameIdx].layerOverrides || {}));
+    const dispIdx = frameSettings.map((s, i) => ({ s, i })).sort((a, b) => a.s.order - b.s.order).findIndex(x => x.i === frameIdx);
+    document.getElementById('le-title').textContent = `Frame ${dispIdx + 1} — Edit Layers`;
+    renderLayerEditor();
+    document.getElementById('layer-editor').classList.remove('hidden');
+}
+
+function closeLayerEditor() {
+    frameSettings[leFrameIdx].layerOverrides = JSON.parse(JSON.stringify(leOverrides));
+    document.getElementById('layer-editor').classList.add('hidden');
+    renderFrameList(); updatePreview();
+    leFrameIdx = -1;
+}
+
+function resetLayerOverrides() {
+    leOverrides = {};
+    renderLayerEditor();
+}
+
+function renderLayerEditor() {
+    const canvas = document.getElementById('le-canvas');
+    const wrap   = document.getElementById('le-canvas-wrap');
+    canvas.innerHTML = '';
+
+    const frame = frames[leFrameIdx];
+    const { ew, eh } = tsGetEditorDimensions(frame);
+    const availW = Math.min(wrap.clientWidth - 20, 600);
+    const fw = availW;
+    const fh = Math.round(fw / (ew / eh));
+    leSx = fw / ew; leSy = fh / eh;
+
+    canvas.style.width  = fw + 'px';
+    canvas.style.height = fh + 'px';
+
+    // Background (not interactive)
+    const bgDiv = document.createElement('div');
+    bgDiv.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden;';
+    const bg = frame.background || '#fff';
+    if (bg.startsWith('http') || bg.startsWith('data:image')) {
+        const img = document.createElement('img'); img.src = bg;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;pointer-events:none;';
+        bgDiv.appendChild(img);
+    } else if (bg.includes('gradient')) { bgDiv.style.background = bg; bgDiv.style.backgroundSize = 'cover'; }
+    else { bgDiv.style.background = bg; }
+    canvas.appendChild(bgDiv);
+
+    // Layers
+    (frame.layers || []).forEach((l, li) => {
+        if (!l || !l.type) return;
+        const ov  = leOverrides[li] || { dx: 0, dy: 0, scale: 1 };
+        const lx  = (l.x + (ov.dx || 0)) * leSx;
+        const ly  = (l.y + (ov.dy || 0)) * leSy;
+        const lw  = l.w * (ov.scale || 1) * leSx;
+        const rot = l.rotation || 0;
+        const flip = l.flipped ? -1 : 1;
+
+        const div = document.createElement('div');
+        div.className = 'le-layer';
+        div.dataset.li = li;
+        div.style.cssText = `left:${lx}px;top:${ly}px;width:${lw}px;z-index:${10 + li};transform:rotate(${rot}deg) scaleX(${flip});transform-origin:center top;`;
+
+        if (l.type === 'img') {
+            const img = document.createElement('img'); img.src = l._fxSrc || l.src;
+            img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+            div.appendChild(img);
+        } else if (l.type === 'bubble' || l.type === 'thinking') {
+            const bStyle = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
+            const bub = document.createElement('div');
+            bub.className = `ts-speech-bubble ts-bubble-${bStyle}`;
+            bub.style.cssText = `font-size:${(l.fontSize||28)*leSx}px;font-family:${l.fontFamily||'Inter'};color:${l.color||'#000'};background:${l.bubbleBg||'#fff'};--bb:${l.bubbleBorderColor||'#000'};pointer-events:none;`;
+            bub.textContent = l.content || '';
+            div.appendChild(bub);
+        } else if (l.type === 'text') {
+            div.style.color = l.color || '#000';
+            div.style.fontSize = ((l.fontSize||28)*leSx) + 'px';
+            div.style.fontFamily = l.fontFamily || 'Inter';
+            div.style.fontWeight = l.bold ? '900' : '800';
+            div.style.whiteSpace = 'pre-wrap';
+            div.style.padding = '4px';
+            div.textContent = l.content || '';
+        }
+
+        // Scale handle
+        const sh = document.createElement('div');
+        sh.className = 'le-scale-handle';
+        sh.title = 'Drag to scale';
+        sh.addEventListener('mousedown',  e => { e.stopPropagation(); leStartDrag(e.clientX, e.clientY, li, 'scale'); });
+        sh.addEventListener('touchstart', e => { e.stopPropagation(); e.preventDefault(); leStartDrag(e.touches[0].clientX, e.touches[0].clientY, li, 'scale'); }, { passive: false });
+        div.appendChild(sh);
+
+        div.addEventListener('mousedown',  e => { if (e.target !== sh) leStartDrag(e.clientX, e.clientY, li, 'move'); });
+        div.addEventListener('touchstart', e => { if (e.target !== sh) { e.preventDefault(); leStartDrag(e.touches[0].clientX, e.touches[0].clientY, li, 'move'); } }, { passive: false });
+
+        canvas.appendChild(div);
+    });
+}
+
+function leStartDrag(cx, cy, li, type) {
+    leDragging = true; leDragLayerIdx = li; leDragType = type;
+    leDragStartX = cx; leDragStartY = cy;
+    const ov = leOverrides[li] || { dx: 0, dy: 0, scale: 1 };
+    leDragOrigDx = ov.dx || 0; leDragOrigDy = ov.dy || 0; leDragOrigScale = ov.scale || 1;
+    leDragOrigW = frames[leFrameIdx].layers[li].w * leDragOrigScale * leSx;
+    document.getElementById('le-canvas').classList.add('dragging');
+    // Select visually
+    document.querySelectorAll('#le-canvas .le-layer').forEach(d => d.classList.remove('selected'));
+    document.querySelector(`#le-canvas .le-layer[data-li="${li}"]`)?.classList.add('selected');
+}
+
+function leDoDrag(cx, cy) {
+    if (!leDragging) return;
+    const ddx = cx - leDragStartX, ddy = cy - leDragStartY;
+    if (!leOverrides[leDragLayerIdx]) leOverrides[leDragLayerIdx] = { dx: 0, dy: 0, scale: 1 };
+    const ov = leOverrides[leDragLayerIdx];
+
+    if (leDragType === 'move') {
+        ov.dx = leDragOrigDx + ddx / leSx;
+        ov.dy = leDragOrigDy + ddy / leSy;
+    } else {
+        const newW = Math.max(20, leDragOrigW + ddx);
+        ov.scale = newW / (frames[leFrameIdx].layers[leDragLayerIdx].w * leSx);
+    }
+
+    // Live update the layer div without full re-render
+    const layerDiv = document.querySelector(`#le-canvas .le-layer[data-li="${leDragLayerIdx}"]`);
+    if (layerDiv) {
+        const l  = frames[leFrameIdx].layers[leDragLayerIdx];
+        layerDiv.style.left  = (l.x + ov.dx) * leSx + 'px';
+        layerDiv.style.top   = (l.y + ov.dy) * leSy + 'px';
+        layerDiv.style.width = l.w * (ov.scale || 1) * leSx + 'px';
+    }
+}
+
+function leStopDrag() {
+    if (!leDragging) return;
+    leDragging = false;
+    document.getElementById('le-canvas')?.classList.remove('dragging');
+}
+
+document.addEventListener('mousemove',  e => leDoDrag(e.clientX, e.clientY));
+document.addEventListener('touchmove',  e => { if (leDragging) { e.preventDefault(); leDoDrag(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
+document.addEventListener('mouseup',    leStopDrag);
+document.addEventListener('touchend',   leStopDrag);
+
+// ── DOM Frame Renderer ────────────────────────────────────────────────────
 
 function tsGetRatio() {
-    // canvasRatio may be a {w,h} object or a plain number (w/h)
-    if (typeof canvasRatio === 'object' && canvasRatio?.w && canvasRatio?.h)
-        return canvasRatio.w / canvasRatio.h;
+    if (typeof canvasRatio === 'object' && canvasRatio?.w && canvasRatio?.h) return canvasRatio.w / canvasRatio.h;
     return (typeof canvasRatio === 'number' && canvasRatio > 0) ? canvasRatio : 1;
 }
 
 function tsGetEditorDimensions(frame) {
-    if (frame && frame._editorW && frame._editorH)
-        return { ew: frame._editorW, eh: frame._editorH };
+    if (frame && frame._editorW && frame._editorH) return { ew: frame._editorW, eh: frame._editorH };
     const ratio = tsGetRatio();
     const BASE = 900;
-    const ew = ratio >= 1 ? BASE : Math.round(BASE * ratio);
-    const eh = ratio <= 1 ? BASE : Math.round(BASE / ratio);
-    return { ew, eh };
+    return { ew: ratio >= 1 ? BASE : Math.round(BASE * ratio), eh: ratio <= 1 ? BASE : Math.round(BASE / ratio) };
 }
 
-function tsSpriteFilterCSS(layer) {
-    const bt = layer.blurType || 'none';
+function tsSpriteFilterCSS(l) {
+    const bt = l.blurType || 'none';
     if (bt === 'none') return '';
-    const amt = layer.blurAmount ?? layer.blurAmt ?? 4;
+    const amt = l.blurAmount ?? l.blurAmt ?? 4;
     if (bt === 'soft')  return `blur(${amt}px)`;
-    if (bt === 'pixel') return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
+    if (bt === 'pixel') return `blur(${Math.max(1, Math.round(amt*0.6))}px) contrast(${100+amt*4}%) saturate(120%)`;
     return '';
 }
 
-function renderFrameToDiv(frameEl, f, fw, fh) {
+function renderFrameToDiv(frameEl, f, fw, fh, overrides = {}) {
     frameEl.innerHTML = '';
     frameEl.style.position = 'relative';
     frameEl.style.overflow = 'hidden';
-
     if (!f) { frameEl.style.background = '#fff'; return; }
 
     const { ew, eh } = tsGetEditorDimensions(f);
-    const sx = fw / ew;
-    const sy = fh / eh;
+    const sx = fw / ew, sy = fh / eh;
 
-    // Background
     const bg = f.background || '#ffffff';
     const isBgImage    = bg.startsWith('http') || bg.startsWith('data:image');
-    const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+    const isBgGradient = bg.includes('gradient');
     const s = f.bgSettings || {};
-    const bgScale  = typeof s.scale === 'number' ? Math.max(1, s.scale) : 1;
-    const bgRotate = s.rotate ?? 0;
-    const bgXOff   = s.x ?? 0;
-    const bgYOff   = s.y ?? 0;
+    const bgScale = typeof s.scale === 'number' ? Math.max(1, s.scale) : 1;
+    const bgRotate = s.rotate ?? 0, bgXOff = s.x ?? 0, bgYOff = s.y ?? 0;
 
     const bgLayer = document.createElement('div');
     bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
-
     if (isBgImage) {
-        const imgEl = document.createElement('img');
-        imgEl.src = bg;
-        const bpx = Math.min(100, Math.max(0, 50 + bgXOff * 0.5));
-        const bpy = Math.min(100, Math.max(0, 50 + bgYOff * 0.5));
-        imgEl.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;`
-            + `object-position:${bpx}% ${bpy}%;`
-            + `transform:scale(${bgScale}) rotate(${bgRotate}deg);`
-            + `transform-origin:center center;pointer-events:none;`;
+        const imgEl = document.createElement('img'); imgEl.src = bg;
+        imgEl.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${Math.min(100,Math.max(0,50+bgXOff*0.5))}% ${Math.min(100,Math.max(0,50+bgYOff*0.5))}%;transform:scale(${bgScale}) rotate(${bgRotate}deg);transform-origin:center;pointer-events:none;`;
         bgLayer.appendChild(imgEl);
-    } else if (isBgGradient) {
-        bgLayer.style.background = bg;
-        bgLayer.style.backgroundSize = 'cover';
-        if (bgRotate) bgLayer.style.transform = `rotate(${bgRotate}deg)`;
-    } else {
-        bgLayer.style.background = bg;
-    }
+    } else if (isBgGradient) { bgLayer.style.background = bg; bgLayer.style.backgroundSize = 'cover'; }
+    else { bgLayer.style.background = bg; }
     frameEl.appendChild(bgLayer);
 
-    // Layers
-    (f.layers || []).forEach((l, layerIdx) => {
+    (f.layers || []).forEach((l, li) => {
         if (!l || !l.type) return;
+        const ov  = overrides[li] || {};
+        const lx  = (l.x + (ov.dx || 0)) * sx;
+        const ly  = (l.y + (ov.dy || 0)) * sy;
+        const lw  = l.w * (ov.scale || 1) * sx;
+        const rot = l.rotation || 0;
+        const flip = l.flipped ? -1 : 1;
+
         const el = document.createElement('div');
         el.className = 'ts-preview-layer';
-
-        el.style.left   = (l.x * sx) + 'px';
-        el.style.top    = (l.y * sy) + 'px';
-        el.style.width  = (l.w * sx) + 'px';
-        el.style.zIndex = 10 + layerIdx;
-
-        const rot  = l.rotation || 0;
-        const flip = l.flipped ? -1 : 1;
+        el.style.left = lx + 'px'; el.style.top = ly + 'px'; el.style.width = lw + 'px';
+        el.style.zIndex = 10 + li;
         el.style.transform = `rotate(${rot}deg) scaleX(${flip})`;
-
         const opVal = l.opacity ?? l.fxOpacity;
         if (opVal != null && opVal !== 100) el.style.opacity = opVal / 100;
-
-        const blurCSS = tsSpriteFilterCSS(l);
-        const lfCSS   = ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '')
-                     || ((l.fxFilter    && l.fxFilter    !== 'none') ? l.fxFilter    : '');
-        const filter  = [blurCSS, lfCSS].filter(Boolean).join(' ');
+        const filter = [tsSpriteFilterCSS(l), ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '') || ((l.fxFilter && l.fxFilter !== 'none') ? l.fxFilter : '')].filter(Boolean).join(' ');
 
         if (l.type === 'img') {
-            const img = document.createElement('img');
-            img.src = l._fxSrc || l.src;
+            const img = document.createElement('img'); img.src = l._fxSrc || l.src;
             img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
             if (filter) img.style.filter = filter;
             el.appendChild(img);
-
         } else if (l.type === 'bubble' || l.type === 'thinking') {
-            const fs        = (l.fontSize || 28) * sx;
-            const bStyle    = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
-            const bubBorder = l.bubbleBorderColor || '#000';
-            const bubBg     = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
-            el.style.width  = (l.w * sx) + 'px';
-
-            const bubble = document.createElement('div');
-            bubble.className = `ts-speech-bubble ts-bubble-${bStyle}`;
-            bubble.style.cssText = `font-size:${fs}px;font-family:${l.fontFamily||'Inter'};`
-                + `color:${l.color||'#000'};font-weight:${l.bold?'900':'800'};`
-                + `background:${bubBg};--bb:${bubBorder};--bbg:${bubBg};`;
-            bubble.textContent = l.content || '';
+            const bStyle = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
+            const bub = document.createElement('div');
+            bub.className = `ts-speech-bubble ts-bubble-${bStyle}`;
+            bub.style.cssText = `font-size:${(l.fontSize||28)*sx}px;font-family:${l.fontFamily||'Inter'};color:${l.color||'#000'};font-weight:${l.bold?'900':'800'};background:${l.bubbleBg||'#fff'};--bb:${l.bubbleBorderColor||'#000'};--bbg:${l.bubbleBg||'#fff'};`;
+            bub.textContent = l.content || '';
             if (filter) el.style.filter = filter;
-            el.appendChild(bubble);
-
+            el.style.width = lw + 'px';
+            el.appendChild(bub);
         } else if (l.type === 'text' || l.type === 'subtitle') {
-            const fs = (l.fontSize || 28) * sx;
-            el.style.color      = l.color || '#000';
-            el.style.fontWeight = l.bold ? '900' : '800';
-            el.style.fontSize   = fs + 'px';
-            el.style.fontFamily = l.fontFamily || 'Inter';
-            el.style.whiteSpace = 'pre-wrap';
-            el.innerText = l.content || '';
+            el.style.color = l.color || '#000'; el.style.fontWeight = l.bold ? '900' : '800';
+            el.style.fontSize = ((l.fontSize||28)*sx) + 'px'; el.style.fontFamily = l.fontFamily || 'Inter';
+            el.style.whiteSpace = 'pre-wrap'; el.innerText = l.content || '';
             if (filter) el.style.filter = filter;
         }
-
         frameEl.appendChild(el);
     });
 }
+
+// ── Preview ───────────────────────────────────────────────────────────────
 
 function updatePreview() {
     const strip = document.getElementById('preview-strip');
     const container = document.getElementById('preview-container');
     strip.innerHTML = '';
-
     const isVert = selectedDirection === 'vertical';
     strip.className = 'preview-strip' + (isVert ? ' vertical' : '');
-
-    // Sync container class for CSS height rules
     container.className = 'preview-container dir-' + selectedDirection;
 
     const containerW = Math.min(window.innerWidth - 32, 860);
-
     const previewFrames = frames
-        .map((f, i) => ({ frame: f, settings: frameSettings[i], idx: i }))
+        .map((f, i) => ({ frame: f, settings: frameSettings[i], origIdx: i }))
         .filter(({ settings }) => settings.eligible)
         .sort((a, b) => a.settings.order - b.settings.order);
 
@@ -1055,122 +1177,73 @@ function updatePreview() {
     }
 
     const ratio = tsGetRatio();
-
-    previewFrames.forEach(({ frame, settings }) => {
+    previewFrames.forEach(({ frame, settings, origIdx }) => {
         const div = document.createElement('div');
         div.className = 'preview-frame';
-
-        // aspect ratio adjusted by custom width/height multipliers
         const ar = ratio * (settings.widthRatio / settings.heightRatio);
-
         let fw, fh;
-        if (isVert) {
-            // Vertical (webtoon style): full container width, natural height
-            fw = Math.min(containerW - 4, 700);
-            fh = Math.round(fw / ar);
-        } else {
-            // Horizontal: fixed height, natural width
-            fh = 200;
-            fw = Math.round(fh * ar);
-        }
-
-        div.style.width  = fw + 'px';
-        div.style.height = fh + 'px';
-
-        renderFrameToDiv(div, frame, fw, fh);
+        if (isVert) { fw = Math.min(containerW - 4, 700); fh = Math.round(fw / ar); }
+        else        { fh = 200; fw = Math.round(fh * ar); }
+        div.style.width = fw + 'px'; div.style.height = fh + 'px';
+        renderFrameToDiv(div, frame, fw, fh, settings.layerOverrides || {});
         strip.appendChild(div);
     });
 }
 
+// ── Save ──────────────────────────────────────────────────────────────────
+
 function updateSaveButton() {
-    const btn = document.getElementById('save-btn');
-    const eligibleCount = frameSettings.filter(s => s.eligible).length;
-    btn.disabled = eligibleCount === 0;
+    document.getElementById('save-btn').disabled = frameSettings.filter(s => s.eligible).length === 0;
 }
 
 async function saveToonScroll() {
     const btn = document.getElementById('save-btn');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
-
+    btn.disabled = true; btn.textContent = 'Saving...';
     try {
         const eligibleFrames = frames
-            .map((f, i) => ({ frame: f, settings: frameSettings[i], idx: i }))
+            .map((f, i) => ({ frame: f, settings: frameSettings[i], origIdx: i }))
             .filter(({ settings }) => settings.eligible)
             .sort((a, b) => a.settings.order - b.settings.order);
 
-        if (eligibleFrames.length === 0) {
-            showToast('Select at least one frame', 'error');
-            btn.disabled = false;
-            btn.textContent = 'Save';
-            return;
-        }
+        if (eligibleFrames.length === 0) { showToast('Select at least one frame', 'error'); btn.disabled = false; btn.textContent = 'Save'; return; }
 
-        const finalDirection = selectedDirection;
-        const finalVisibility = selectedVisibility;
-
-        const { data: existingConfig } = await _sb.from('toonscroll_configs')
-            .select('id').eq('comic_id', comicId).maybeSingle();
-
+        const { data: existingConfig } = await _sb.from('toonscroll_configs').select('id').eq('comic_id', comicId).maybeSingle();
         let configId;
         if (existingConfig) {
-            await _sb.from('toonscroll_configs').update({
-                direction: finalDirection,
-                is_enabled: true,
-                visibility: finalVisibility,
-                updated_at: new Date().toISOString()
-            }).eq('id', existingConfig.id);
+            await _sb.from('toonscroll_configs').update({ direction: selectedDirection, is_enabled: true, visibility: selectedVisibility, updated_at: new Date().toISOString() }).eq('id', existingConfig.id);
             configId = existingConfig.id;
-
             await _sb.from('toonscroll_frames').delete().eq('toonscroll_id', configId);
         } else {
-            const { data: newConfig } = await _sb.from('toonscroll_configs').insert([{
-                comic_id: comicId,
-                direction: finalDirection,
-                is_enabled: true,
-                visibility: finalVisibility
-            }]).select('id').single();
+            const { data: newConfig } = await _sb.from('toonscroll_configs').insert([{ comic_id: comicId, direction: selectedDirection, is_enabled: true, visibility: selectedVisibility }]).select('id').single();
             configId = newConfig.id;
         }
 
-        const frameInserts = eligibleFrames.map(({ settings }, i) => ({
+        const inserts = eligibleFrames.map(({ settings, origIdx }, i) => ({
             toonscroll_id: configId,
-            frame_index: settings.order,
-            frame_order: i,
-            is_eligible: settings.eligible,
-            custom_width: settings.widthRatio,
-            custom_height: settings.heightRatio
+            frame_index:   origIdx,
+            frame_order:   i,
+            is_eligible:   settings.eligible,
+            custom_width:  settings.widthRatio,
+            custom_height: settings.heightRatio,
+            toonscroll_only: settings.toonscrollOnly || false,
+            layer_overrides: settings.layerOverrides || {}
         }));
+        if (inserts.length > 0) await _sb.from('toonscroll_frames').insert(inserts);
 
-        if (frameInserts.length > 0) {
-            await _sb.from('toonscroll_frames').insert(frameInserts);
-        }
-
-        let tsStatus = 'none';
-        if (finalVisibility !== 'never') {
-            tsStatus = finalDirection === 'both' ? 'both' :
-                       finalDirection === 'horizontal' ? 'horizontal' : 'vertical';
-        }
-
+        const tsStatus = selectedVisibility === 'never' ? 'none' : (selectedDirection === 'both' ? 'both' : selectedDirection === 'horizontal' ? 'horizontal' : 'vertical');
         await _sb.from('comics').update({ toonscroll_status: tsStatus }).eq('id', comicId);
 
         showToast('ToonScroll saved!', 'success');
         btn.textContent = 'Saved!';
-        setTimeout(() => {
-            btn.textContent = 'Save';
-            btn.disabled = false;
-        }, 2000);
-
+        setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 2000);
     } catch (err) {
         console.error('Save error:', err);
         showToast('Failed to save: ' + (err.message || 'Unknown error'), 'error');
-        btn.textContent = 'Save';
-        btn.disabled = false;
+        btn.textContent = 'Save'; btn.disabled = false;
     }
 }
 
 window.addEventListener('resize', updatePreview);
-
 window.addEventListener('load', loadComic);
 </script>
 
