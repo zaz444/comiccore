@@ -663,6 +663,12 @@ animation: slideUp .3s cubic-bezier(.4,0,.2,1);
 @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 .skel-cover { width:70px;height:90px;border-radius:8px;flex-shrink:0;background:linear-gradient(90deg,#1a1a1a 25%,#2c2c2c 50%,#1a1a1a 75%);background-size:200%;animation:shimmer 1.5s infinite; }
 .skel-line  { height:14px;border-radius:4px;background:linear-gradient(90deg,#1a1a1a 25%,#2c2c2c 50%,#1a1a1a 75%);background-size:200%;animation:shimmer 1.5s infinite; }
+.comic-card-skel { background:var(--card,#1c1c1e);border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.06);pointer-events:none; }
+.comic-card-skel .cover-skel { width:100%;aspect-ratio:1;background:linear-gradient(90deg,#1a1a1a 25%,#2c2c2c 50%,#1a1a1a 75%);background-size:200%;animation:shimmer 1.5s infinite;border-radius:14px 14px 0 0; }
+.comic-card-skel .info-skel  { padding:8px 10px;display:flex;flex-direction:column;gap:6px; }
+.comic-card-skel .line-skel  { height:11px;border-radius:4px;background:linear-gradient(90deg,#1a1a1a 25%,#2c2c2c 50%,#1a1a1a 75%);background-size:200%;animation:shimmer 1.5s infinite; }
+.comic-card-cover img { transition: opacity .3s; }
+.comic-card-cover img.cover-loading { opacity: 0; }
 
 /* ── Toast ── */
 .toast {
@@ -1415,12 +1421,15 @@ async function loadFeeds() {
     renderComics(allComics, globalRatings);
     updateContinueBadge();
     loadTopCreators(currentRankTab);
+  } else {
+    // No cache yet — show skeleton placeholders while fetching
+    showComicSkeletons();
   }
 
   // ── 3. Fetch only what's needed — no full data blobs ────
   const [{ data: comics }, { data: ratings }] = await Promise.all([
     _sb.from('comics')
-      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio')
       .order('created_at', { ascending: false })
       .limit(80),
     _sb.from('messages').select('receiver_hand,content').eq('reaction','rating').limit(2000),
@@ -1465,6 +1474,20 @@ function updateContinueBadge() {
   }
 }
 
+// ── Skeleton placeholders ────────────────────────────────
+function showComicSkeletons(count = 12) {
+  const container = document.getElementById('recentFeed');
+  if (!container) return;
+  container.innerHTML = Array.from({ length: count }, () => `
+    <div class="comic-card comic-card-skel">
+      <div class="cover-skel"></div>
+      <div class="info-skel">
+        <div class="line-skel" style="width:75%"></div>
+        <div class="line-skel" style="width:45%;height:9px;margin-top:2px;"></div>
+      </div>
+    </div>`).join('');
+}
+
 // ── Render comics grid ────────────────────────────────────
 function renderComics(comics, stars) {
   const sorted    = sortedComics(comics, stars);
@@ -1489,12 +1512,15 @@ function renderComics(comics, stars) {
     const isNew      = isNewComic(c.created_at) && !isMine;
     const prog       = getProgress(c.id, getCachedFrameCount(c.id));
     const coverHtml  = c.cover
-      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+      ? `<img src="${esc(c.cover)}" loading="lazy" decoding="async" class="cover-loading" onload="this.classList.remove('cover-loading')" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
       : `<div class="no-cover">📖</div>`;
     const progressHtml = prog
       ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
     const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
+    const tsHtml = c.toonscroll_status && c.toonscroll_status !== 'none'
+      ? `<div class="tile-ts" title="ToonScroll available" style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#00d2ff;font-size:9px;font-weight:800;padding:2px 6px;letter-spacing:.4px;">📜 SCROLL</div>`
+      : '';
     const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">⭐ ${avgRating.toFixed(1)} (${starCount})</div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const followBtn = (!isMine && myProfile.handle !== 'guest')
@@ -1503,7 +1529,7 @@ function renderComics(comics, stars) {
     return `<div class="comic-card" data-id="${esc(c.id)}">
       <div class="comic-card-cover">
         <div style="width:100%;height:100%;border-radius:14px;overflow:hidden;position:relative;">
-          ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}
+          ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}${tsHtml}
         </div>
       </div>
       <div class="comic-card-info">
@@ -2702,7 +2728,7 @@ async function loadFavoritesSection() {
   if (missing.length) {
     const { data: extras } = await _sb
       .from('comics')
-      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio')
       .in('id', missing);
     if (extras) favoriteComics = [...favoriteComics, ...extras.filter(c => c.title && c.owner_handle)];
   }
@@ -2731,7 +2757,7 @@ function renderFavoritesPage() {
     const isMine = c.owner_handle === myProfile.handle;
     const prog = getProgress(c.id, getCachedFrameCount(c.id));
     const coverHtml = c.cover
-      ? `<img src="${esc(c.cover)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-cover>\ud83d\udcd6</div>'">`
+      ? `<img src="${esc(c.cover)}" loading="lazy" decoding="async" class="cover-loading" onload="this.classList.remove('cover-loading')" onerror="this.parentNode.innerHTML='<div class=no-cover>\ud83d\udcd6</div>'">`
       : '<div class="no-cover">\ud83d\udcd6</div>';
     const progressHtml = prog ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');

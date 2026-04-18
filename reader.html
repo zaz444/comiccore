@@ -372,12 +372,18 @@ display:none !important;position:fixed;inset:0;background:#0a0a0c;z-index:100;
 #toonscroll-strip.horizontal{
 flex-direction:row;width:100%;height:100vh;
 overflow-x:auto;overflow-y:hidden;
-justify-content:center;align-items:center;
+justify-content:flex-start;align-items:center;
+scroll-snap-type:x mandatory;
+-webkit-overflow-scrolling:touch;
+touch-action:pan-x;
 }
 #toonscroll-strip.vertical{
-flex-direction:column;width:100%;min-height:100vh;
+flex-direction:column;width:100%;height:100vh;
 overflow-x:hidden;overflow-y:auto;
 justify-content:flex-start;align-items:center;
+scroll-snap-type:y mandatory;
+-webkit-overflow-scrolling:touch;
+touch-action:pan-y;
 }
 #toonscroll-strip::-webkit-scrollbar{display:none;}
 #toonscroll-strip{scrollbar-width:none;-ms-overflow-style:none;}
@@ -385,22 +391,42 @@ justify-content:flex-start;align-items:center;
 .toon-frame{
 position:relative;flex-shrink:0;
 background:#fff;overflow:hidden;
+scroll-snap-align:start;
+scroll-snap-stop:always;
 }
 .toon-frame .r-bg-div,.toon-frame #r-bg-layer,
 .toon-frame .r-layer{position:absolute;}
 
+/* ── Persistent ToonScroll exit button ── */
+#ts-exit-btn{
+position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;
+z-index:9999;display:none;
+background:rgba(15,15,17,.88);border:1.5px solid rgba(255,255,255,.18);
+color:#fff;padding:9px 16px;border-radius:50px;
+font-size:13px;font-weight:800;cursor:pointer;
+backdrop-filter:blur(14px);
+gap:6px;align-items:center;
+box-shadow:0 2px 16px rgba(0,0,0,.5);
+transition:background .15s,border-color .15s;
+letter-spacing:.2px;
+}
+#ts-exit-btn:active{background:rgba(255,122,0,.25);border-color:#ff7a00;}
+#toonscroll-strip.active ~ * #ts-exit-btn,
+body.toonscroll #ts-exit-btn{display:flex;}
+
 .toonscroll-hint{
-position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
-background:rgba(0,0,0,.9);color:#fff;
-padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;
-opacity:0;transition:opacity .3s;pointer-events:none;z-index:200;
-display:flex;align-items:center;gap:8px;
+position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+background:rgba(0,0,0,.85);color:rgba(255,255,255,.7);
+padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;
+opacity:0;transition:opacity .3s;pointer-events:none;z-index:9998;
+white-space:nowrap;
 }
 .toonscroll-hint.show{opacity:1;}
-.toonscroll-hint button{
-background:rgba(255,255,255,.2);border:none;color:#fff;
-padding:4px 10px;border-radius:12px;cursor:pointer;font-size:12px;font-weight:700;
-}
+
+/* Hide regular top/bottom chrome in toonscroll mode */
+body.toonscroll .top-bar { opacity:0; pointer-events:none; }
+body.toonscroll .bottom-bar { opacity:0; pointer-events:none; }
+body.toonscroll .prog-track { opacity:0; }
 
 /* ToonScroll toggle button in top bar */
 #ts-toggle{
@@ -483,6 +509,9 @@ margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-conte
 
 <!-- ToonScroll strip container (outside viewport so it's visible when viewport is hidden) -->
 <div id="toonscroll-strip"></div>
+
+<!-- Persistent ToonScroll exit button — always visible while strip is active -->
+<button id="ts-exit-btn" onclick="disableToonScroll()">✕ Exit ToonScroll</button>
 
 <!-- Bottom bar -->
 
@@ -648,16 +677,12 @@ function enableToonScroll(dir, fromConfig = false) {
     document.body.classList.add('toonscroll');
     initToonScrollStrip();
 
-    // Don't show exit hint if visibility is 'only'
+    // Show persistent exit button (hidden if visibility forced to 'only')
+    const exitBtn = document.getElementById('ts-exit-btn');
     const canExit = !fromConfig || (toonScrollConfig && toonScrollConfig.visibility !== 'only');
-    if (canExit) {
-        showTsHint('ToonScroll active', true);
-    }
-
-    // Hide exit button if it's forced
-    if (toonScrollConfig && toonScrollConfig.visibility === 'only') {
-        document.getElementById('ts-hint').querySelector('button')?.style.setProperty('display', 'none', 'important');
-    }
+    if (exitBtn) exitBtn.style.display = canExit ? 'flex' : 'none';
+    // Brief hint so user knows they entered ToonScroll
+    showTsHint('ToonScroll');
 }
 
 function disableToonScroll() {
@@ -666,6 +691,8 @@ function disableToonScroll() {
     document.getElementById('ts-toggle').classList.remove('active');
     document.body.classList.remove('toonscroll');
     document.getElementById('toonscroll-strip').classList.remove('active', 'horizontal', 'vertical');
+    const exitBtn = document.getElementById('ts-exit-btn');
+    if (exitBtn) exitBtn.style.display = 'none';
 
     // Restore visibility of all UI elements
     document.getElementById('top-bar').style.cssText = '';
@@ -680,15 +707,11 @@ function disableToonScroll() {
     renderFrame();
 }
 
-function showTsHint(msg, showExitBtn = false) {
+function showTsHint(msg) {
     const hint = document.getElementById('ts-hint');
-    if (showExitBtn) {
-        hint.innerHTML = msg + ' <button onclick="disableToonScroll()">✕ Exit</button>';
-    } else {
-        hint.innerText = msg;
-    }
+    hint.innerText = msg;
     hint.classList.add('show');
-    setTimeout(() => hint.classList.remove('show'), 3000);
+    setTimeout(() => hint.classList.remove('show'), 2500);
 }
 
 function initToonScrollStrip() {
@@ -705,10 +728,12 @@ function initToonScrollStrip() {
 
     let frameW, frameH;
     if (toonScrollDir === 'horizontal') {
-        frameH = Math.min(vh * 0.9, 700);
-        frameW = frameH * ar;
+        // Each frame = full viewport width for clean snap scrolling
+        frameW = vw;
+        frameH = Math.min(frameW / ar, vh);
     } else {
-        frameW = Math.min(vw * 0.95, 600);
+        // Vertical: full viewport width, natural height (webtoon style)
+        frameW = Math.min(vw, 600);
         frameH = frameW / ar;
     }
 
@@ -733,7 +758,8 @@ function initToonScrollStrip() {
         frameEl.style.width = (frameW * wRatio) + 'px';
         frameEl.style.height = (frameH * hRatio) + 'px';
 
-        renderFrameToStrip(frameEl, frame, frameW * wRatio, frameH * hRatio);
+        const layerOvr = settings?.layer_overrides || {};
+        renderFrameToStrip(frameEl, frame, frameW * wRatio, frameH * hRatio, layerOvr);
         strip.appendChild(frameEl);
     });
 
@@ -790,7 +816,7 @@ function updateTsPosition() {
     posEl.textContent = `${closestIdx + 1} / ${frames2.length}`;
 }
 
-function renderFrameToStrip(frameEl, f, fw, fh) {
+function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     frameEl.innerHTML = '';
 
     const { ew, eh } = getEditorDimensions(f);
@@ -863,9 +889,10 @@ function renderFrameToStrip(frameEl, f, fw, fh) {
         const el = document.createElement('div');
         el.className = 'r-layer';
 
-        const lx = l.x * sx;
-        const ly = l.y * sy;
-        const lw = l.w * sx;
+        const ov  = layerOverrides[layerIdx] || {};
+        const lx  = (l.x + (ov.dx || 0)) * sx;
+        const ly  = (l.y + (ov.dy || 0)) * sy;
+        const lw  = l.w * (ov.scale || 1) * sx;
 
         el.style.left = lx + 'px';
         el.style.top = ly + 'px';
@@ -954,14 +981,13 @@ function scrollToFrame(frameIdx) {
     if (!frameEl) return;
 
     _toonScrollScrolling = true;
-    if (toonScrollDir === 'horizontal') {
-        const targetX = frameEl.offsetLeft - (window.innerWidth - frameEl.offsetWidth) / 2;
-        strip.scrollTo({ left: Math.max(0, targetX), behavior: 'smooth' });
-    } else {
-        const targetY = frameEl.offsetTop - (window.innerHeight - frameEl.offsetHeight) / 2;
-        strip.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-    }
-    setTimeout(() => { _toonScrollScrolling = false; }, 500);
+    // Use scrollIntoView so scroll-snap handles the exact landing position
+    frameEl.scrollIntoView({
+        behavior: 'smooth',
+        block:  toonScrollDir === 'horizontal' ? 'nearest' : 'start',
+        inline: toonScrollDir === 'horizontal' ? 'start'   : 'nearest'
+    });
+    setTimeout(() => { _toonScrollScrolling = false; }, 600);
 }
 
 function nextFrame() {
@@ -1026,11 +1052,35 @@ async function boot() {
 
   // Load ToonScroll config
   toonScrollConfig = tsConfigRes.data;
+  const allFrames = frames.slice(); // keep full set for toonscroll strip
   if (toonScrollConfig && toonScrollConfig.is_enabled) {
     const { data: tsFrames } = await _sb.from('toonscroll_frames')
       .select('*').eq('toonscroll_id', toonScrollConfig.id).order('frame_order');
     toonScrollFrames = tsFrames || [];
     document.getElementById('ts-toggle').style.display = 'flex';
+
+    // Build set of frame indices hidden from reader (toonscroll_only)
+    const hiddenSet = new Set(
+      toonScrollFrames.filter(tf => tf.toonscroll_only).map(tf => tf.frame_index)
+    );
+
+    if (hiddenSet.size > 0) {
+      // Filter frames for reader mode; stamp original index on each frame
+      // so renderFrame can look up toonscroll layer overrides by original idx
+      frames = allFrames
+        .map((f, i) => ({ ...f, _readerOrigIdx: i }))
+        .filter((_, i) => !hiddenSet.has(i));
+    } else {
+      // Stamp original idx even when nothing is hidden (consistent lookup)
+      frames = allFrames.map((f, i) => ({ ...f, _readerOrigIdx: i }));
+    }
+
+    // If every eligible toonscroll frame is toonscroll_only → all frames hidden
+    // from reader, so auto-enable toonscroll immediately (set flag, handled below)
+    const allToonscrollOnly = allFrames.length > 0 && frames.length === 0;
+    if (allToonscrollOnly) frames = allFrames.map((f, i) => ({ ...f, _readerOrigIdx: i }));
+    toonScrollConfig._autoEnable = allToonscrollOnly;
+
   } else {
     document.getElementById('ts-toggle').style.display = 'none';
     toonScrollConfig = null;
@@ -1062,10 +1112,15 @@ async function boot() {
   buildDots();
   preloadAllFrameImages(frames);
 
-  // Check if visibility is 'only' — auto-enable ToonScroll
-  if (toonScrollConfig && toonScrollConfig.visibility === 'only') {
+  // Auto-enable ToonScroll if visibility='only' OR all frames are toonscroll_only
+  if (toonScrollConfig && (toonScrollConfig.visibility === 'only' || toonScrollConfig._autoEnable)) {
     const dir = toonScrollConfig.direction === 'both' ? 'horizontal' : toonScrollConfig.direction;
     enableToonScroll(dir, true);
+    // If auto-enabled because all frames are toonscroll_only, hide the toggle button
+    // so users can't accidentally exit (they have no frames to fall back to)
+    if (toonScrollConfig._autoEnable && toonScrollConfig.visibility !== 'only') {
+      document.getElementById('ts-toggle').title = 'ToonScroll Comic';
+    }
   } else {
     renderFrame();
   }
@@ -1403,6 +1458,17 @@ let _activeBuf = 'a'; // 'a' = #comic-frame, 'b' = #comic-frame-b
 function getActiveCf()  { return document.getElementById(_activeBuf === 'a' ? 'comic-frame'   : 'comic-frame-b'); }
 function getInactiveCf(){ return document.getElementById(_activeBuf === 'a' ? 'comic-frame-b' : 'comic-frame');   }
 
+
+// ── Get toonscroll override for a frame by its original index ─────────────
+function getTsLayerOverrides(readerIdx) {
+  if (!toonScrollFrames || toonScrollFrames.length === 0) return {};
+  const f = frames[readerIdx];
+  // Use stamped original index if present, otherwise fall back to readerIdx
+  const origIdx = (f && f._readerOrigIdx != null) ? f._readerOrigIdx : readerIdx;
+  const tf = toonScrollFrames.find(t => t.frame_index === origIdx);
+  return tf?.layer_overrides || {};
+}
+
 function renderFrame(anim = false) {
   const f = frames[idx];
   if (!f) return;
@@ -1509,14 +1575,16 @@ function renderFrame(anim = false) {
   // 4. Remove old layers from next buffer, add new ones
   next.querySelectorAll('.r-layer').forEach(e => e.remove());
 
+  const rfLayerOvr = getTsLayerOverrides(idx);
   f.layers.forEach((l, layerIdx) => {
     const el = document.createElement('div');
     el.className = 'r-layer';
 
-    // Position & size — scaled from editor coords
-    const lx = l.x * sx;
-    const ly = l.y * sy;
-    const lw = l.w * sx;
+    // Position & size — scaled from editor coords, with toonscroll overrides applied
+    const ov  = rfLayerOvr[layerIdx] || {};
+    const lx  = (l.x + (ov.dx || 0)) * sx;
+    const ly  = (l.y + (ov.dy || 0)) * sy;
+    const lw  = l.w * (ov.scale || 1) * sx;
 
     el.style.left   = lx + 'px';
     el.style.top    = ly + 'px';
@@ -2142,6 +2210,21 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeComments();
     return;
   }
+
+  if (toonScrollMode !== 'off') {
+    // In ToonScroll mode: arrows scroll the strip by one frame using snap
+    const strip = document.getElementById('toonscroll-strip');
+    const isH = toonScrollDir === 'horizontal';
+    if (e.key === (isH ? 'ArrowRight' : 'ArrowDown')) {
+      e.preventDefault();
+      if (idx < frames.length - 1) { idx++; scrollToFrame(idx); }
+    } else if (e.key === (isH ? 'ArrowLeft' : 'ArrowUp')) {
+      e.preventDefault();
+      if (idx > 0) { idx--; scrollToFrame(idx); }
+    } else if (e.key === 'Escape') { disableToonScroll(); }
+    return;
+  }
+
   const v = swipeDir === 'vertical';
   if (e.key === 'ArrowRight' || (!v && e.key === 'ArrowDown')) nextFrame();
   else if (e.key === 'ArrowLeft' || (!v && e.key === 'ArrowUp')) prevFrame();

@@ -2131,6 +2131,32 @@
         }
     }
 
+    // ── Upload cover image to Supabase Storage (userimages/coverimages/) ──────
+    // Called right after crop — returns public URL or null on failure.
+    async function uploadCoverToStorage(dataUrl) {
+        try {
+            const handle = (typeof myHandle !== 'undefined' && myHandle)
+                || JSON.parse(localStorage.getItem('user_profile') || '{}').handle
+                || 'guest';
+            const safeHandle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'guest';
+            const res  = await fetch(dataUrl);
+            const blob = await res.blob();
+            const ext  = dataUrl.startsWith('data:image/gif')  ? 'gif'
+                       : dataUrl.startsWith('data:image/webp') ? 'webp'
+                       : dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg') ? 'jpg'
+                       : 'jpg';
+            const path = 'userimages/coverimages/' + safeHandle + '_' + Date.now() + '.' + ext;
+            const { error } = await _supabase.storage
+                .from('comiccore-assets')
+                .upload(path, blob, { upsert: true, cacheControl: '86400', contentType: 'image/' + ext });
+            if (error) { console.warn('Cover storage upload error:', error); return null; }
+            return _supabase.storage.from('comiccore-assets').getPublicUrl(path).data.publicUrl;
+        } catch (e) {
+            console.warn('uploadCoverToStorage failed:', e);
+            return null;
+        }
+    }
+
     // Safe localStorage wrapper — silently handles QuotaExceededError
     // so a full storage never crashes click handlers or other UI flows
     function lsSet(key, value) {
@@ -3148,12 +3174,20 @@
 
     document.getElementById('apply-crop-btn').onclick = async () => {
         if (currentImportType === 'cover') {
-            const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
-            finalCoverBase64 = b64;
+            const b64 = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.92);
+            // Show preview immediately with base64 while upload happens in background
             const img = document.getElementById('final-cover-img');
             img.src = b64; img.style.display = 'block';
             document.getElementById('cover-label').style.display = 'none';
             closeCrop(); render();
+            // Upload to Storage and swap to URL once done
+            finalCoverBase64 = b64; // fallback until upload completes
+            uploadCoverToStorage(b64).then(url => {
+                if (url) {
+                    finalCoverBase64 = url;
+                    img.src = url;
+                }
+            });
         } else if (currentImportType === 'bg') {
             // Store FULL original image — no rasterization.
             // Translate the crop selection into bgSettings so the visible area
@@ -3504,6 +3538,12 @@
         const btn = document.getElementById('publish-btn');
         btn.innerText = editingComicId ? 'Updating...' : 'Publishing...';
         btn.disabled = true;
+        // If cover is still base64 (old comic or upload race), upload it now
+        if (finalCoverBase64.startsWith('data:')) {
+            btn.innerText = 'Uploading cover…';
+            const uploaded = await uploadCoverToStorage(finalCoverBase64);
+            if (uploaded) finalCoverBase64 = uploaded;
+        }
         const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
         const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
         // Stamp actual canvas pixel dimensions so the reader can scale correctly

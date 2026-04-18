@@ -1489,6 +1489,30 @@ async function uploadBgToStorage(dataUrl) {
     }
 }
 
+// ── Upload cover image to Supabase Storage (userimages/coverimages/) ─────────
+async function uploadCoverToStorage(dataUrl) {
+    try {
+        const handle = (typeof myHandle !== 'undefined' && myHandle)
+            || JSON.parse(localStorage.getItem('user_profile') || '{}').handle
+            || 'guest';
+        const safeHandle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'guest';
+        const res  = await fetch(dataUrl);
+        const blob = await res.blob();
+        const ext  = dataUrl.startsWith('data:image/gif')  ? 'gif'
+                   : dataUrl.startsWith('data:image/webp') ? 'webp'
+                   : 'jpg';
+        const path = 'userimages/coverimages/' + safeHandle + '_' + Date.now() + '.' + ext;
+        const { error } = await _supabase.storage
+            .from('comiccore-assets')
+            .upload(path, blob, { upsert: true, cacheControl: '86400', contentType: 'image/' + ext });
+        if (error) { console.warn('Cover storage upload error:', error); return null; }
+        return _supabase.storage.from('comiccore-assets').getPublicUrl(path).data.publicUrl;
+    } catch (e) {
+        console.warn('uploadCoverToStorage failed:', e);
+        return null;
+    }
+}
+
 function lsSet(key, value) {
     try { localStorage.setItem(key, value); } catch(e) {
         try {
@@ -4327,12 +4351,20 @@ document.getElementById('apply-crop-btn').onclick = async () => {
         _bgChoiceSrc = null;
         closeCrop(); render();
     } else if (currentImportType === 'cover') {
-        const data = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.9);
+        const data = cropper.getCroppedCanvas().toDataURL('image/jpeg', 0.92);
         closeCrop();
+        // Show preview immediately while upload runs in background
         finalCoverBase64 = data;
         const img = document.getElementById('final-cover-img');
         img.src = data; img.style.display = 'block';
         document.getElementById('cover-label').style.display = 'none';
+        // Upload to Storage and swap to URL once done
+        uploadCoverToStorage(data).then(url => {
+            if (url) {
+                finalCoverBase64 = url;
+                img.src = url;
+            }
+        });
     } else {
         // Uploaded object — crop then upload to storage
         const data = cropper.getCroppedCanvas({ maxWidth: 1200, maxHeight: 1200 }).toDataURL('image/jpeg', 0.9);
@@ -4562,6 +4594,12 @@ async function finalPublish() {
     if (!title) { alert('Please enter a title.'); return; }
     if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
     btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
+    // If cover is still base64 (upload race or old comic), upload it now
+    if (finalCoverBase64.startsWith('data:')) {
+        btn.innerText = 'Uploading cover…';
+        const uploaded = await uploadCoverToStorage(finalCoverBase64);
+        if (uploaded) finalCoverBase64 = uploaded;
+    }
     try {
         const { data: { session: _cm2 } } = await _supabase.auth.getSession();
         const user = _cm2?.user ?? null;
