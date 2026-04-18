@@ -354,6 +354,27 @@
             outline: none;
             border-color: var(--accent);
         }
+        .frame-ratio-input input:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            color: var(--muted);
+        }
+        .frame-ratio-input.ratio-disabled label {
+            opacity: 0.3;
+        }
+        .both-notice {
+            display: none;
+            background: rgba(255,122,0,0.08);
+            border: 1px solid rgba(255,122,0,0.3);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 14px;
+            text-align: center;
+        }
+        .both-notice.visible { display: block; }
         .frame-eligible-toggle {
             display: flex;
             align-items: center;
@@ -485,6 +506,17 @@
             color: var(--muted);
             font-weight: 600;
         }
+
+        /* ── PREVIEW FRAME LAYERS (DOM renderer) ── */
+        .ts-preview-layer { position: absolute; pointer-events: none; transform-origin: center center; }
+        .ts-speech-bubble { padding: 8px 12px; background: #fff; color: #000; font-weight: 800;
+            text-align: center; word-wrap: break-word; line-height: 1.3; position: relative; }
+        .ts-bubble-round   { border: 2.5px solid var(--bb,#000); border-radius: 999px; }
+        .ts-bubble-chat    { border: 2px solid var(--bb,#000); border-radius: 14px; }
+        .ts-bubble-rect    { border: 2px solid var(--bb,#000); border-radius: 4px; }
+        .ts-bubble-cloud   { border: 2px solid var(--bb,#000); border-radius: 40px; }
+        .ts-bubble-shout   { border: 2.5px solid var(--bb,#000); background: var(--bbg,#ffeb3b); }
+        .ts-bubble-narrator{ border: 2px solid var(--bb,#000); border-radius: 4px; border-left: 5px solid var(--bb,#000); }
     </style>
 </head>
 <body>
@@ -566,6 +598,7 @@
         <div class="section-title" style="margin-bottom:0;">Frames</div>
         <div class="frames-count" id="frames-count">0 frames</div>
     </div>
+    <div class="both-notice" id="both-notice">You will not be able to change width or height with this option.</div>
     <div class="frames-list" id="frames-list"></div>
 
     <!-- Preview -->
@@ -666,6 +699,7 @@ async function loadComic() {
 
     await loadExistingConfig();
     initFrameSettings();
+    syncDirectionUI();
     renderFrameList();
     updatePreview();
     updateSaveButton();
@@ -715,11 +749,23 @@ function initFrameSettings() {
     frameSettings.forEach((s, i) => s.order = i);
 }
 
+function syncDirectionUI() {
+    document.querySelectorAll('.dir-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.dir === selectedDirection);
+    });
+    document.querySelectorAll('.vis-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.vis === selectedVisibility);
+    });
+    document.getElementById('both-notice').classList.toggle('visible', selectedDirection === 'both');
+}
+
 function selectDirection(dir) {
     selectedDirection = dir;
     document.querySelectorAll('.dir-option').forEach(el => {
         el.classList.toggle('selected', el.dataset.dir === dir);
     });
+    document.getElementById('both-notice').classList.toggle('visible', dir === 'both');
+    renderFrameList();
     updatePreview();
     updateSaveButton();
 }
@@ -766,26 +812,28 @@ function renderFrameList() {
         item.dataset.idx = originalIdx;
         item.draggable = true;
 
-        const canvas = renderFrameToCanvas(frame);
-        const thumbSrc = canvas.toDataURL();
+        const widthDisabled = selectedDirection === 'vertical' || selectedDirection === 'both';
+        const heightDisabled = selectedDirection === 'horizontal' || selectedDirection === 'both';
 
         item.innerHTML = `
             <div class="frame-drag-handle" title="Drag to reorder">⋮⋮</div>
             <div class="frame-thumb-wrap">
                 <span class="frame-number">${displayIdx + 1}</span>
-                <img src="${thumbSrc}" alt="Frame ${originalIdx + 1}">
+                <div class="frame-thumb-dom"></div>
             </div>
             <div class="frame-controls">
                 <div class="frame-controls-row">
-                    <div class="frame-ratio-input">
+                    <div class="frame-ratio-input${widthDisabled ? ' ratio-disabled' : ''}">
                         <label>Width ×</label>
                         <input type="number" step="0.1" min="0.1" max="3" value="${settings.widthRatio.toFixed(1)}"
+                            ${widthDisabled ? 'disabled' : ''}
                             onchange="updateFrameRatio(${originalIdx}, 'widthRatio', this.value)"
                             oninput="updateFrameRatio(${originalIdx}, 'widthRatio', this.value)">
                     </div>
-                    <div class="frame-ratio-input">
+                    <div class="frame-ratio-input${heightDisabled ? ' ratio-disabled' : ''}">
                         <label>Height ×</label>
                         <input type="number" step="0.1" min="0.1" max="3" value="${settings.heightRatio.toFixed(1)}"
+                            ${heightDisabled ? 'disabled' : ''}
                             onchange="updateFrameRatio(${originalIdx}, 'heightRatio', this.value)"
                             oninput="updateFrameRatio(${originalIdx}, 'heightRatio', this.value)">
                     </div>
@@ -799,6 +847,11 @@ function renderFrameList() {
                 </div>
             </div>
         `;
+
+        // Render thumbnail via DOM (images load naturally, no img.complete issues)
+        const thumbDom = item.querySelector('.frame-thumb-dom');
+        thumbDom.style.cssText = 'width:100%;height:100%;position:relative;overflow:hidden;';
+        renderFrameToDiv(thumbDom, frame, 70, 70);
 
         item.addEventListener('dragstart', e => {
             dragItem = originalIdx;
@@ -835,115 +888,135 @@ function renderFrameList() {
     });
 }
 
-function renderFrameToCanvas(frame, maxSize = 300) {
-    const canvas = document.createElement('canvas');
-    const baseW = 900;
-    const baseH = Math.round(baseW / canvasRatio);
-    canvas.width = baseW;
-    canvas.height = baseH;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, baseW, baseH);
+// ── DOM-based frame renderer (mirrors reader.html's renderFrameToStrip) ──────
 
-    if (!frame || !frame.layers) return canvas;
+function tsGetRatio() {
+    // canvasRatio may be a {w,h} object or a plain number (w/h)
+    if (typeof canvasRatio === 'object' && canvasRatio?.w && canvasRatio?.h)
+        return canvasRatio.w / canvasRatio.h;
+    return (typeof canvasRatio === 'number' && canvasRatio > 0) ? canvasRatio : 1;
+}
 
-    const scale = baseW / 900;
+function tsGetEditorDimensions(frame) {
+    if (frame && frame._editorW && frame._editorH)
+        return { ew: frame._editorW, eh: frame._editorH };
+    const ratio = tsGetRatio();
+    const BASE = 900;
+    const ew = ratio >= 1 ? BASE : Math.round(BASE * ratio);
+    const eh = ratio <= 1 ? BASE : Math.round(BASE / ratio);
+    return { ew, eh };
+}
 
-    (frame.layers || []).forEach(layer => {
-        if (!layer || !layer.type) return;
+function tsSpriteFilterCSS(layer) {
+    const bt = layer.blurType || 'none';
+    if (bt === 'none') return '';
+    const amt = layer.blurAmount ?? layer.blurAmt ?? 4;
+    if (bt === 'soft')  return `blur(${amt}px)`;
+    if (bt === 'pixel') return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
+    return '';
+}
 
-        ctx.save();
+function renderFrameToDiv(frameEl, f, fw, fh) {
+    frameEl.innerHTML = '';
+    frameEl.style.cssText += ';position:relative;overflow:hidden;';
 
-        if (layer._editorX !== undefined) ctx.translate(layer._editorX * scale, layer._editorY * scale);
-        if (layer._editorW) ctx.scale((layer._editorW / 900) * scale, 1);
+    if (!f) { frameEl.style.background = '#fff'; return; }
 
-        switch (layer.type) {
-            case 'rect':
-                ctx.fillStyle = layer.color || '#ffffff';
-                ctx.fillRect(0, 0, layer.width || 900, layer.height || baseH);
-                break;
+    const { ew, eh } = tsGetEditorDimensions(f);
+    const sx = fw / ew;
+    const sy = fh / eh;
 
-            case 'ellipse':
-                ctx.fillStyle = layer.color || '#ffffff';
-                ctx.beginPath();
-                ctx.ellipse(
-                    (layer.width || 900) / 2, (layer.height || baseH) / 2,
-                    (layer.width || 900) / 2, (layer.height || baseH) / 2,
-                    0, 0, Math.PI * 2
-                );
-                ctx.fill();
-                break;
+    // Background
+    const bg = f.background || '#ffffff';
+    const isBgImage    = bg.startsWith('http') || bg.startsWith('data:image');
+    const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+    const s = f.bgSettings || {};
+    const bgScale  = typeof s.scale === 'number' ? Math.max(1, s.scale) : 1;
+    const bgRotate = s.rotate ?? 0;
+    const bgXOff   = s.x ?? 0;
+    const bgYOff   = s.y ?? 0;
 
-            case 'img':
-            case 'image':
-                if (layer.src) {
-                    const img = new Image();
-                    img.src = layer._fxSrc || layer.src;
-                    if (img.complete) {
-                        ctx.drawImage(img, 0, 0, layer.width || 900, layer.height || baseH);
-                    }
-                }
-                break;
+    const bgLayer = document.createElement('div');
+    bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
 
-            case 'text':
-                const fontSize = layer.fontSize || 32;
-                const fontFamily = layer.fontFamily || 'Inter';
-                const fontWeight = layer.fontWeight || '700';
-                ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-                ctx.fillStyle = layer.color || '#000000';
-                ctx.textAlign = layer.textAlign || 'center';
-                ctx.textBaseline = 'middle';
-                const lines = (layer.text || '').split('\n');
-                const lineHeight = fontSize * 1.2;
-                const startY = baseH / 2 - (lines.length - 1) * lineHeight / 2;
-                lines.forEach((line, i) => {
-                    ctx.fillText(line, 450, startY + i * lineHeight);
-                });
-                break;
+    if (isBgImage) {
+        const imgEl = document.createElement('img');
+        imgEl.src = bg;
+        const bpx = Math.min(100, Math.max(0, 50 + bgXOff * 0.5));
+        const bpy = Math.min(100, Math.max(0, 50 + bgYOff * 0.5));
+        imgEl.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;`
+            + `object-position:${bpx}% ${bpy}%;`
+            + `transform:scale(${bgScale}) rotate(${bgRotate}deg);`
+            + `transform-origin:center center;pointer-events:none;`;
+        bgLayer.appendChild(imgEl);
+    } else if (isBgGradient) {
+        bgLayer.style.background = bg;
+        bgLayer.style.backgroundSize = 'cover';
+        if (bgRotate) bgLayer.style.transform = `rotate(${bgRotate}deg)`;
+    } else {
+        bgLayer.style.background = bg;
+    }
+    frameEl.appendChild(bgLayer);
 
-            case 'bubble':
-                const bw = layer.width || 300;
-                const bh = layer.height || 100;
-                const br = layer.borderRadius || 0;
-                const bc = layer.borderColor || '#000000';
-                const bg = layer.backgroundColor || '#ffffff';
+    // Layers
+    (f.layers || []).forEach((l, layerIdx) => {
+        if (!l || !l.type) return;
+        const el = document.createElement('div');
+        el.className = 'ts-preview-layer';
 
-                ctx.fillStyle = bg;
-                ctx.strokeStyle = bc;
-                ctx.lineWidth = layer.borderWidth || 3;
+        el.style.left   = (l.x * sx) + 'px';
+        el.style.top    = (l.y * sy) + 'px';
+        el.style.width  = (l.w * sx) + 'px';
+        el.style.zIndex = 10 + layerIdx;
 
-                if (br > 0) {
-                    ctx.beginPath();
-                    ctx.roundRect(0, 0, bw, bh, br);
-                    ctx.fill();
-                    ctx.stroke();
-                } else {
-                    ctx.fillRect(0, 0, bw, bh);
-                    ctx.strokeRect(0, 0, bw, bh);
-                }
+        const rot  = l.rotation || 0;
+        const flip = l.flipped ? -1 : 1;
+        el.style.transform = `rotate(${rot}deg) scaleX(${flip})`;
 
-                if (layer.text) {
-                    const bFontSize = layer.fontSize || 20;
-                    const bFontFamily = layer.fontFamily || 'Inter';
-                    const bFontWeight = layer.fontWeight || '800';
-                    ctx.font = `${bFontWeight} ${bFontSize}px ${bFontFamily}`;
-                    ctx.fillStyle = layer.textColor || '#000000';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    const bLines = layer.text.split('\n');
-                    const bLineHeight = bFontSize * 1.3;
-                    const bStartY = bh / 2 - (bLines.length - 1) * bLineHeight / 2;
-                    bLines.forEach((line, i) => {
-                        ctx.fillText(line, bw / 2, bStartY + i * bLineHeight);
-                    });
-                }
-                break;
+        const opVal = l.opacity ?? l.fxOpacity;
+        if (opVal != null && opVal !== 100) el.style.opacity = opVal / 100;
+
+        const blurCSS = tsSpriteFilterCSS(l);
+        const lfCSS   = ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '')
+                     || ((l.fxFilter    && l.fxFilter    !== 'none') ? l.fxFilter    : '');
+        const filter  = [blurCSS, lfCSS].filter(Boolean).join(' ');
+
+        if (l.type === 'img') {
+            const img = document.createElement('img');
+            img.src = l._fxSrc || l.src;
+            img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+            if (filter) img.style.filter = filter;
+            el.appendChild(img);
+
+        } else if (l.type === 'bubble' || l.type === 'thinking') {
+            const fs        = (l.fontSize || 28) * sx;
+            const bStyle    = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
+            const bubBorder = l.bubbleBorderColor || '#000';
+            const bubBg     = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
+            el.style.width  = (l.w * sx) + 'px';
+
+            const bubble = document.createElement('div');
+            bubble.className = `ts-speech-bubble ts-bubble-${bStyle}`;
+            bubble.style.cssText = `font-size:${fs}px;font-family:${l.fontFamily||'Inter'};`
+                + `color:${l.color||'#000'};font-weight:${l.bold?'900':'800'};`
+                + `background:${bubBg};--bb:${bubBorder};--bbg:${bubBg};`;
+            bubble.textContent = l.content || '';
+            if (filter) el.style.filter = filter;
+            el.appendChild(bubble);
+
+        } else if (l.type === 'text' || l.type === 'subtitle') {
+            const fs = (l.fontSize || 28) * sx;
+            el.style.color      = l.color || '#000';
+            el.style.fontWeight = l.bold ? '900' : '800';
+            el.style.fontSize   = fs + 'px';
+            el.style.fontFamily = l.fontFamily || 'Inter';
+            el.style.whiteSpace = 'pre-wrap';
+            el.innerText = l.content || '';
+            if (filter) el.style.filter = filter;
         }
 
-        ctx.restore();
+        frameEl.appendChild(el);
     });
-
-    return canvas;
 }
 
 function updatePreview() {
@@ -964,25 +1037,31 @@ function updatePreview() {
         return;
     }
 
+    const ratio = tsGetRatio();
+
     previewFrames.forEach(({ frame, settings }) => {
         const div = document.createElement('div');
         div.className = 'preview-frame';
 
-        const canvas = renderFrameToCanvas(frame);
-        const ar = canvasRatio * (settings.heightRatio / settings.widthRatio);
+        const ar = ratio * (settings.heightRatio / settings.widthRatio);
         const isVert = selectedDirection === 'vertical';
 
+        let fw, fh;
         if (isVert) {
-            const w = Math.min(containerW - 32, 400);
-            div.style.width = w + 'px';
-            div.style.height = (w / ar) + 'px';
+            fw = Math.min(containerW - 32, 400);
+            fh = fw / ar;
         } else {
-            const h = Math.min(containerH - 20, 180);
-            div.style.height = h + 'px';
-            div.style.width = (h * ar) + 'px';
+            fh = Math.min(containerH - 20, 180);
+            fw = fh * ar;
         }
 
-        div.appendChild(canvas);
+        div.style.width    = fw + 'px';
+        div.style.height   = fh + 'px';
+        div.style.flexShrink = '0';
+        div.style.background = '#fff';
+        div.style.scrollSnapAlign = 'start';
+
+        renderFrameToDiv(div, frame, fw, fh);
         strip.appendChild(div);
     });
 }
