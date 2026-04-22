@@ -518,6 +518,13 @@
     /* ── FX Panel as sheet ── */
     .fx-sheet-section { margin-bottom: 14px; }
     .fx-sheet-label { font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+
+    /* ── Lighting FX ── */
+    .fx-light-color-btn { transition: border 0.12s, transform 0.12s; -webkit-tap-highlight-color: transparent; }
+    .fx-light-color-btn:active { transform: scale(1.15); }
+    .fx-light-color-btn.active { border-color: #ffcc00 !important; box-shadow: 0 0 6px rgba(255,204,0,0.6); }
+    #fx-light-joystick { user-select: none; -webkit-user-select: none; touch-action: none; }
+    .layer-light-overlay { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; mix-blend-mode: screen; z-index: 999; }
     .fx-chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; min-height: 0; }
     .fx-chip-row:empty { display: none; }
     .fx-chip { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; background: #2c2c2e; border: 1.5px solid #3a3a3c; color: #aaa; font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.15s; white-space: nowrap; }
@@ -1217,6 +1224,57 @@
                 <span>Opacity</span>
                 <input type="range" id="fx-opacity" min="10" max="100" value="100" oninput="applyFxToSelected()">
                 <span class="bg-val" id="fx-opacity-val">100%</span>
+            </div>
+        </div>
+
+        <!-- LIGHTING SECTION -->
+        <div class="fx-sheet-section">
+            <div class="fx-sheet-label" style="display:flex;align-items:center;gap:5px;">
+                <span style="width:3px;height:9px;background:#ffcc00;border-radius:2px;display:inline-block;"></span>LIGHTING
+            </div>
+            <label style="display:flex;align-items:center;gap:10px;font-size:12px;font-weight:800;color:#aaa;cursor:pointer;margin-bottom:10px;">
+                <input type="checkbox" id="fx-light-enable" style="accent-color:#ffcc00;width:16px;height:16px;" onchange="onLightEnableChange()">
+                Enable Light Effect
+            </label>
+            <div id="fx-light-controls" style="display:none;flex-direction:column;gap:10px;">
+                <!-- Brightness -->
+                <div class="bg-slider-row">
+                    <span>Bright</span>
+                    <input type="range" id="fx-light-brightness" min="0" max="200" value="130" style="flex:1;accent-color:#ffcc00;" oninput="document.getElementById('fx-light-brightness-val').innerText=this.value+'%';applyFxToSelected()">
+                    <span class="bg-val" id="fx-light-brightness-val" style="color:#ffcc00;">130%</span>
+                </div>
+                <!-- Radius -->
+                <div class="bg-slider-row">
+                    <span>Radius</span>
+                    <input type="range" id="fx-light-radius" min="10" max="150" value="70" style="flex:1;accent-color:#ffcc00;" oninput="document.getElementById('fx-light-radius-val').innerText=this.value+'%';applyFxToSelected()">
+                    <span class="bg-val" id="fx-light-radius-val" style="color:#ffcc00;">70%</span>
+                </div>
+                <!-- Color swatches -->
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:10px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.5px;width:48px;flex-shrink:0;">Color</span>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <button class="fx-light-color-btn active" data-color="255,220,120" onclick="setLightColor(this)" style="width:26px;height:26px;border-radius:50%;background:#ffdc78;border:2px solid #ffcc00;cursor:pointer;" title="Warm"></button>
+                        <button class="fx-light-color-btn" data-color="255,255,255" onclick="setLightColor(this)" style="width:26px;height:26px;border-radius:50%;background:#ffffff;border:2px solid #444;cursor:pointer;" title="White"></button>
+                        <button class="fx-light-color-btn" data-color="120,180,255" onclick="setLightColor(this)" style="width:26px;height:26px;border-radius:50%;background:#78b4ff;border:2px solid #444;cursor:pointer;" title="Cool Blue"></button>
+                        <button class="fx-light-color-btn" data-color="255,100,100" onclick="setLightColor(this)" style="width:26px;height:26px;border-radius:50%;background:#ff6464;border:2px solid #444;cursor:pointer;" title="Red"></button>
+                        <button class="fx-light-color-btn" data-color="100,255,180" onclick="setLightColor(this)" style="width:26px;height:26px;border-radius:50%;background:#64ffb4;border:2px solid #444;cursor:pointer;" title="Neon Green"></button>
+                        <button class="fx-light-color-btn" data-color="255,160,50" onclick="setLightColor(this)" style="width:26px;height:26px;border-radius:50%;background:#ffa032;border:2px solid #444;cursor:pointer;" title="Orange"></button>
+                    </div>
+                </div>
+                <!-- Direction joystick -->
+                <div style="font-size:9px;font-weight:900;color:#555;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Light Direction — drag to aim</div>
+                <div style="display:flex;align-items:center;gap:16px;">
+                    <div id="fx-light-joystick" style="width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,#2a2a2c,#111);border:2px solid #333;position:relative;cursor:crosshair;flex-shrink:0;box-shadow:inset 0 2px 10px rgba(0,0,0,0.8);touch-action:none;">
+                        <div id="fx-light-dot" style="position:absolute;width:16px;height:16px;border-radius:50%;background:#ffcc00;box-shadow:0 0 8px #ffcc00,0 0 18px rgba(255,204,0,0.4);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+                    </div>
+                    <div style="font-size:11px;color:#666;font-weight:700;line-height:1.9;">
+                        Drag to move<br>the light source
+                        <div style="margin-top:6px;color:#555;font-size:10px;">
+                            X: <span id="fx-light-x-val" style="color:#ffcc00;">50%</span> &nbsp;
+                            Y: <span id="fx-light-y-val" style="color:#ffcc00;">30%</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1939,6 +1997,8 @@ function _renderNow() {
                 el.appendChild(img);
             }
             if (layer.nameTag) { const nt = document.createElement('div'); nt.className = 'sprite-nametag'; nt.innerText = layer.nameTag; el.appendChild(nt); }
+            // ── Lighting overlay ──
+            applyLightingToDOM(el, layer);
         } else if (layer.type === 'bubble' || layer.type === 'thinking') {
             const bub = document.createElement('div');
             const bStyle = layer.bubbleStyle || 'round';
@@ -4230,6 +4290,7 @@ function syncFxPanel() {
     if (strEl)  strEl.value = bStr;
     if (strVal) strVal.innerText = bStr + '%';
     if (strRow) strRow.style.display = (resolvedType !== 'none') ? 'block' : 'none';
+    syncLightingUI(activeLayer);
 }
 
 function setFxBlur(type) {
@@ -4264,6 +4325,16 @@ function applyFxToSelected() {
     activeLayer.blurAngle    = angle;
     activeLayer.fxOpacity    = op;
     activeLayer.blurStrength = blurStrength;
+    // ── Lighting ──
+    const lightEnabled = document.getElementById('fx-light-enable')?.checked || false;
+    activeLayer.lighting = lightEnabled ? {
+        enabled:    true,
+        brightness: parseInt(document.getElementById('fx-light-brightness')?.value || 130),
+        radius:     parseInt(document.getElementById('fx-light-radius')?.value || 70),
+        x:          _lightX,
+        y:          _lightY,
+        color:      _lightColor
+    } : { enabled: false };
     const needsRecompute = _fxCanvas_TYPES.includes(activeLayer.blurType);
     if (needsRecompute) {
         activeLayer._fxSrc = null;
@@ -4285,6 +4356,7 @@ function clearFxFromSelected() {
     activeLayer.blurAngle    = 0;
     activeLayer.blurStrength = 100;
     activeLayer._fxSrc       = null;
+    activeLayer.lighting     = { enabled: false };
     syncFxPanel();
     render();
 }
@@ -4752,6 +4824,13 @@ async function renderFrameToCanvas(frame, cw, ch) {
                 await drawLayerSrc(layer._fxSrc, baseOpacity, false);
             } else {
                 await drawLayerSrc(layer.src, baseOpacity, true);
+            }
+            // ── Lighting export overlay ──
+            if (layer.lighting && layer.lighting.enabled) {
+                const lx = layer.x || 0, ly = layer.y || 0;
+                const lw = layer.w || 100;
+                const lh = layer.h != null ? layer.h : lw;
+                renderLightingOnCanvas(ctx, layer, lx, ly, lw, lh);
             }
         } else {
             // Text / bubble / thinking / subtitle — render via SVG foreignObject for fidelity
@@ -6365,5 +6444,182 @@ document.getElementById('new-frame-popup').addEventListener('click', function(e)
 .fpill-danger { color:var(--danger); }
 .fpill-divider { height:1px;background:#2c2c2e;margin:4px 6px; }
 </style>
+<!-- ── LIGHTING FX SYSTEM ── -->
+<script>
+// ═══════════════════════════════════════
+// LIGHTING FX — shared state
+// ═══════════════════════════════════════
+let _lightX = 50, _lightY = 30, _lightColor = '255,220,120';
+
+function onLightEnableChange() {
+    const checked = document.getElementById('fx-light-enable')?.checked;
+    const ctrl = document.getElementById('fx-light-controls');
+    if (ctrl) ctrl.style.display = checked ? 'flex' : 'none';
+    applyFxToSelected();
+}
+
+function setLightColor(btn) {
+    document.querySelectorAll('.fx-light-color-btn').forEach(b => {
+        b.style.border = '2px solid #444';
+        b.classList.remove('active');
+    });
+    btn.style.border = '2px solid #ffcc00';
+    btn.classList.add('active');
+    _lightColor = btn.dataset.color;
+    applyFxToSelected();
+}
+
+// ── Joystick drag (touch-first for mobile) ──
+(function initLightJoystick() {
+    function setup() {
+        const joy = document.getElementById('fx-light-joystick');
+        const dot = document.getElementById('fx-light-dot');
+        if (!joy || !dot) { setTimeout(setup, 400); return; }
+        let dragging = false;
+
+        function clampToCircle(clientX, clientY) {
+            const r = joy.getBoundingClientRect();
+            const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+            const radius = r.width / 2 - 9;
+            const rawX = clientX - cx, rawY = clientY - cy;
+            const dist = Math.sqrt(rawX * rawX + rawY * rawY);
+            const cX = dist > radius ? (rawX / dist) * radius : rawX;
+            const cY = dist > radius ? (rawY / dist) * radius : rawY;
+            return { cX, cY, radius };
+        }
+
+        function applyPos(clientX, clientY) {
+            const { cX, cY, radius } = clampToCircle(clientX, clientY);
+            const pctX = Math.round(50 + (cX / radius) * 50);
+            const pctY = Math.round(50 + (cY / radius) * 50);
+            dot.style.left = pctX + '%';
+            dot.style.top  = pctY + '%';
+            _lightX = pctX; _lightY = pctY;
+            const xv = document.getElementById('fx-light-x-val');
+            const yv = document.getElementById('fx-light-y-val');
+            if (xv) xv.innerText = pctX + '%';
+            if (yv) yv.innerText = pctY + '%';
+            applyFxToSelected();
+        }
+
+        // Touch events (primary for mobile)
+        joy.addEventListener('touchstart', e => {
+            dragging = true;
+            applyPos(e.touches[0].clientX, e.touches[0].clientY);
+            e.preventDefault(); e.stopPropagation();
+        }, { passive: false });
+        document.addEventListener('touchmove', e => {
+            if (!dragging) return;
+            applyPos(e.touches[0].clientX, e.touches[0].clientY);
+            e.preventDefault();
+        }, { passive: false });
+        document.addEventListener('touchend', () => { dragging = false; });
+
+        // Mouse events (for desktop/dev testing)
+        joy.addEventListener('mousedown', e => { dragging = true; applyPos(e.clientX, e.clientY); e.preventDefault(); });
+        document.addEventListener('mousemove', e => { if (dragging) applyPos(e.clientX, e.clientY); });
+        document.addEventListener('mouseup', () => { dragging = false; });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
+    else setup();
+})();
+
+// ── Sync lighting UI from a layer object ──
+function syncLightingUI(layer) {
+    const enableEl = document.getElementById('fx-light-enable');
+    const ctrl     = document.getElementById('fx-light-controls');
+    const bSlider  = document.getElementById('fx-light-brightness');
+    const bVal     = document.getElementById('fx-light-brightness-val');
+    const rSlider  = document.getElementById('fx-light-radius');
+    const rVal     = document.getElementById('fx-light-radius-val');
+    const xVal     = document.getElementById('fx-light-x-val');
+    const yVal     = document.getElementById('fx-light-y-val');
+    const dot      = document.getElementById('fx-light-dot');
+    if (!enableEl) return;
+
+    const L  = (layer && layer.lighting) || {};
+    const on = !!L.enabled;
+    enableEl.checked = on;
+    if (ctrl) ctrl.style.display = on ? 'flex' : 'none';
+    if (bSlider) bSlider.value = L.brightness != null ? L.brightness : 130;
+    if (bVal)    bVal.innerText = (L.brightness != null ? L.brightness : 130) + '%';
+    if (rSlider) rSlider.value = L.radius != null ? L.radius : 70;
+    if (rVal)    rVal.innerText = (L.radius != null ? L.radius : 70) + '%';
+
+    _lightX = L.x != null ? L.x : 50;
+    _lightY = L.y != null ? L.y : 30;
+    if (xVal) xVal.innerText = _lightX + '%';
+    if (yVal) yVal.innerText = _lightY + '%';
+    if (dot) { dot.style.left = _lightX + '%'; dot.style.top = _lightY + '%'; }
+
+    const savedColor = L.color || '255,220,120';
+    _lightColor = savedColor;
+    document.querySelectorAll('.fx-light-color-btn').forEach(b => {
+        const match = b.dataset.color === savedColor;
+        b.style.border = match ? '2px solid #ffcc00' : '2px solid #444';
+        b.classList.toggle('active', match);
+    });
+}
+
+// ── Apply lighting overlay div on a DOM layer element (live preview) ──
+function applyLightingToDOM(el, layer) {
+    const old = el.querySelector('.layer-light-overlay');
+    if (old) old.remove();
+    if (!layer || !layer.lighting || !layer.lighting.enabled) return;
+
+    const L = layer.lighting;
+    const brightness = (L.brightness || 130) / 100;
+    const x = L.x != null ? L.x : 50;
+    const y = L.y != null ? L.y : 30;
+    const r = L.radius || 70;
+    const c = L.color || '255,220,120';
+    const alpha1 = Math.min(0.85, (brightness - 1) * 1.6 + 0.15).toFixed(3);
+    const alpha2 = Math.min(0.4,  (brightness - 1) * 0.7).toFixed(3);
+
+    const ov = document.createElement('div');
+    ov.className = 'layer-light-overlay';
+    ov.style.cssText = `
+        position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+        background:radial-gradient(circle at ${x}% ${y}%,
+            rgba(${c},${alpha1}) 0%,
+            rgba(${c},${alpha2}) ${r * 0.45}%,
+            rgba(${c},0) ${r}%);
+        mix-blend-mode:screen;z-index:999;
+    `;
+    el.style.position = 'relative';
+    el.style.overflow = 'visible';
+    el.appendChild(ov);
+}
+
+// ── Paint lighting on export canvas ──
+function renderLightingOnCanvas(ctx, layer, lx, ly, lw, lh) {
+    if (!layer || !layer.lighting || !layer.lighting.enabled) return;
+    const L = layer.lighting;
+    const brightness = (L.brightness || 130) / 100;
+    const x = L.x != null ? L.x : 50;
+    const y = L.y != null ? L.y : 30;
+    const r = (L.radius || 70) / 100;
+    const c = (L.color || '255,220,120').split(',').map(Number);
+    const cx = lx + (x / 100) * lw;
+    const cy = ly + (y / 100) * lh;
+    const radius = r * Math.max(lw, lh);
+    const alpha  = Math.min(0.85, (brightness - 1) * 1.6 + 0.15);
+    const alpha2 = Math.min(0.4,  (brightness - 1) * 0.7);
+
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0,    `rgba(${c[0]},${c[1]},${c[2]},${alpha})`);
+    grad.addColorStop(0.45, `rgba(${c[0]},${c[1]},${c[2]},${alpha2})`);
+    grad.addColorStop(1,    `rgba(${c[0]},${c[1]},${c[2]},0)`);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.rect(lx, ly, lw, lh);
+    ctx.fill();
+    ctx.restore();
+}
+</script>
+
 </body>
 </html>
