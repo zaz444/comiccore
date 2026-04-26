@@ -1208,6 +1208,20 @@
     </div>
 </div>
 
+<!-- ── Collab Invite Panel ── -->
+<div id="collab-panel" style="display:none; position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,.75); align-items:flex-end; justify-content:center;">
+    <div style="background:#1c1c1e; border-radius:18px 18px 0 0; width:100%; max-width:520px; padding:22px 20px 30px; max-height:80vh; overflow-y:auto; box-shadow:0 -8px 40px rgba(0,0,0,.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-weight:900; font-size:16px; color:#f5f5f7;">👥 Co-create Invite</span>
+            <button onclick="closeCollabPanel()" style="background:none;border:none;color:#555;font-size:22px;cursor:pointer;line-height:1;">✕</button>
+        </div>
+        <div style="font-size:11px; color:#444; font-weight:700; margin-bottom:14px;">Invite a squad member to co-create this comic. They'll be credited on Discover.</div>
+        <div id="collab-squad-select-wrap" style="margin-bottom:12px;"></div>
+        <div id="collab-member-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div id="collab-current" style="margin-top:14px;"></div>
+    </div>
+</div>
+
 <div id="crop-modal" class="overlay-full">
     <div style="width: 80vw; height: 60vh; background: #000; border-radius: 12px; overflow: hidden;"><img id="crop-target" style="max-width: 100%;"></div>
     <div style="margin-top:20px; display:flex; gap:15px;">
@@ -1710,6 +1724,7 @@
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="openExportModal()">Export</button>
         <button class="tb-btn accent" onclick="openPublishModal()">Publish ↑</button>
+        <button class="tb-btn" id="collab-invite-btn" onclick="openCollabPanel()" title="Invite squad member to co-create" style="display:none;">👥 Co-create</button>
 
         <!-- Editor Prefs -->
         <button class="tb-btn icon-btn" onclick="toggleEditorPrefs()" title="Editor Preferences" style="font-size:13px;">⚙</button>
@@ -2385,6 +2400,7 @@
             banner.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);background:#00d2ff;color:#000;padding:5px 20px;font-size:11px;font-weight:900;border-radius:0 0 10px 10px;z-index:9999;letter-spacing:1px;pointer-events:none;';
             banner.innerText = '✏️ EDITING PUBLISHED COMIC';
             document.body.appendChild(banner);
+            maybeShowCollabBtn();
             _supabase.from('comics').select('*').eq('id', editComicId).single().then(({ data, error }) => {
                 if (error || !data) { alert('Could not load comic for editing.'); return; }
                 frames = data.data || data.frames || [];
@@ -2416,6 +2432,7 @@
             banner.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);background:#ff7a00;color:#000;padding:5px 20px;font-size:11px;font-weight:900;border-radius:0 0 10px 10px;z-index:9999;letter-spacing:1px;pointer-events:none;';
             banner.innerText = '🔄 EDITING — PUBLISH TO UPDATE LIVE COMIC';
             document.body.appendChild(banner);
+            maybeShowCollabBtn();
             // Pre-fill publish form from original comic
             _supabase.from('comics').select('title,tags,description,cover').eq('id', editSourceId).single().then(({ data }) => {
                 if (!data) return;
@@ -3644,6 +3661,153 @@
     function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
     function closeActionModal() { document.getElementById('action-modal').style.display = 'none'; }
     function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
+
+    // ── COLLAB CO-CREATE ─────────────────────────────────────────────────────
+    let _collabCurrentInvites = [];
+
+    function maybeShowCollabBtn() {
+        if (editingComicId) {
+            document.getElementById('collab-invite-btn').style.display = '';
+        }
+    }
+
+    function openCollabPanel() {
+        if (!editingComicId) {
+            alert('Publish your comic first, then use Co-create to invite squad members.');
+            return;
+        }
+        document.getElementById('collab-panel').style.display = 'flex';
+        _loadCollabPanel();
+    }
+
+    function closeCollabPanel() {
+        document.getElementById('collab-panel').style.display = 'none';
+    }
+
+    async function _loadCollabPanel() {
+        const myHandle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+        if (!myHandle) return;
+
+        document.getElementById('collab-squad-select-wrap').innerHTML =
+            '<div style="font-size:12px;color:#444;font-weight:700;">Loading squads…</div>';
+        document.getElementById('collab-member-list').innerHTML = '';
+
+        const [{ data: owned }, { data: memberships }] = await Promise.all([
+            _supabase.from('team_tickets').select('id,team_name').eq('owner_handle', myHandle),
+            _supabase.from('team_requests').select('ticket_id').eq('sender_handle', myHandle).eq('status', 'accepted')
+        ]);
+
+        const squadIds = [...new Set([
+            ...(owned || []).map(s => String(s.id)),
+            ...(memberships || []).map(m => String(m.ticket_id))
+        ])];
+
+        if (!squadIds.length) {
+            document.getElementById('collab-squad-select-wrap').innerHTML =
+                '<div style="font-size:12px;color:#444;font-weight:700;">You\'re not in any squads yet.</div>';
+            return;
+        }
+
+        const { data: squads } = await _supabase.from('team_tickets')
+            .select('id,team_name').in('id', squadIds.map(Number).filter(Boolean));
+
+        document.getElementById('collab-squad-select-wrap').innerHTML = `
+            <select id="collab-squad-select"
+                style="width:100%;background:#111;color:#f5f5f7;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;font-size:13px;font-family:inherit;cursor:pointer;"
+                onchange="_loadCollabMembers(this.value)">
+                <option value="">— pick a squad —</option>
+                ${(squads || []).map(s => `<option value="${s.id}">${s.team_name}</option>`).join('')}
+            </select>`;
+
+        await _refreshCollabCurrent();
+    }
+
+    async function _loadCollabMembers(squadId) {
+        const myHandle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+        if (!squadId) { document.getElementById('collab-member-list').innerHTML = ''; return; }
+
+        const [{ data: reqs }, { data: squad }] = await Promise.all([
+            _supabase.from('team_requests').select('sender_handle').eq('ticket_id', squadId).eq('status', 'accepted'),
+            _supabase.from('team_tickets').select('owner_handle').eq('id', squadId).single()
+        ]);
+
+        const members = [...new Set([
+            squad?.owner_handle,
+            ...(reqs || []).map(r => r.sender_handle)
+        ])].filter(h => h && h !== myHandle);
+
+        if (!members.length) {
+            document.getElementById('collab-member-list').innerHTML =
+                '<div style="font-size:12px;color:#444;font-weight:700;padding:6px 0;">No other members in this squad.</div>';
+            return;
+        }
+
+        const alreadyInvited = _collabCurrentInvites.map(i => i.invitee_handle);
+
+        document.getElementById('collab-member-list').innerHTML = members.map(h => `
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#111;border-radius:10px;padding:10px 14px;gap:10px;">
+                <span style="font-size:13px;font-weight:700;color:#ccc;">@${h}</span>
+                ${alreadyInvited.includes(h)
+                    ? `<span style="font-size:11px;color:#555;font-weight:800;">Invited ✓</span>`
+                    : `<button onclick="_sendCollabInvite('${h}','${squadId}',this)"
+                         style="background:var(--accent);border:none;color:#000;font-size:11px;font-weight:900;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;white-space:nowrap;">
+                         + Invite
+                       </button>`
+                }
+            </div>`).join('');
+    }
+
+    async function _sendCollabInvite(inviteeHandle, squadId, btn) {
+        const myHandle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+        const comicTitle = document.getElementById('pub-title')?.value || 'Untitled';
+        btn.disabled = true; btn.textContent = '…';
+
+        const { error } = await _supabase.from('comic_collaborators').insert([{
+            comic_id:       editingComicId,
+            comic_title:    comicTitle,
+            inviter_handle: myHandle,
+            invitee_handle: inviteeHandle,
+            squad_id:       String(squadId),
+            status:         'pending'
+        }]);
+
+        if (error) {
+            btn.disabled = false; btn.textContent = '+ Invite';
+            alert('Error: ' + error.message);
+            return;
+        }
+
+        btn.textContent = 'Invited ✓';
+        btn.style.background = '#1e1e1e';
+        btn.style.color = '#555';
+        btn.style.border = '1px solid #2a2a2a';
+        await _refreshCollabCurrent();
+    }
+
+    async function _refreshCollabCurrent() {
+        const { data } = await _supabase
+            .from('comic_collaborators')
+            .select('invitee_handle,status')
+            .eq('comic_id', editingComicId);
+
+        _collabCurrentInvites = data || [];
+        const el = document.getElementById('collab-current');
+        if (!_collabCurrentInvites.length) { el.innerHTML = ''; return; }
+
+        const statusColor = { accepted: '#32d74b', declined: '#ff453a', pending: '#ff7a00' };
+        const statusLabel = { accepted: '✅ Accepted', declined: '❌ Declined', pending: '⏳ Pending' };
+
+        el.innerHTML = `
+            <div style="font-size:10px;font-weight:900;color:#333;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Co-creators</div>
+            ${_collabCurrentInvites.map(i => `
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <span style="font-size:13px;color:#ccc;font-weight:700;">@${i.invitee_handle}</span>
+                    <span style="font-size:11px;font-weight:800;color:${statusColor[i.status] || '#555'};">
+                        ${statusLabel[i.status] || i.status}
+                    </span>
+                </div>`).join('')}`;
+    }
+    // ── END COLLAB ───────────────────────────────────────────────────────────
     function closeCrop() { document.getElementById('crop-modal').style.display = 'none'; if(cropper) { cropper.destroy(); cropper = null; } }
 
     // Bg Import Choice Modal

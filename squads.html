@@ -505,6 +505,9 @@
     <button class="sq-sort-btn on" id="sort-new"     onclick="setSort('new')">Newest</button>
     <button class="sq-sort-btn"    id="sort-active"  onclick="setSort('active')">Active</button>
     <button class="sq-sort-btn"    id="sort-members" onclick="setSort('members')">Members</button>
+    <button class="sq-sort-btn"    id="sort-collab"  onclick="openCollabInvitesSheet()">
+        🎨 Co-create<span id="collab-invite-badge" style="display:none;background:var(--accent);color:#000;border-radius:6px;font-size:9px;font-weight:900;padding:1px 5px;margin-left:4px;vertical-align:middle;"></span>
+    </button>
 </div>
 
 <div class="sq-create-wrap">
@@ -595,6 +598,21 @@
         </div>
         <div id="members-view-list"></div>
         <div class="sq-btn-ghost" onclick="closeMembersModal()">Close</div>
+    </div>
+</div>
+
+<!-- ── Collab Co-create Invites Sheet ── -->
+<div class="sq-overlay" id="collab-invites-overlay">
+    <div class="sq-sheet" style="max-height:80vh;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <div class="sq-sheet-title">🎨 Co-create Invites</div>
+            <span onclick="closeCollabInvitesSheet()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+        </div>
+        <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:14px;">Comics you've been invited to co-create</div>
+        <div id="collab-invites-list">
+            <div style="font-size:12px;color:#333;font-weight:700;padding:8px 0;">Loading…</div>
+        </div>
+        <div class="sq-btn-ghost" onclick="closeCollabInvitesSheet()">Close</div>
     </div>
 </div>
 
@@ -759,6 +777,7 @@
         buildTopics('edit-topic-row');
         buildFilterChips();
         await Promise.all([loadSquads(), updateStats()]);
+        loadCollabInvites(); // populate Co-create badge on load
 
         // Handle invite auto-join: squads.html?join=squadId
         const joinId = new URLSearchParams(location.search).get('join');
@@ -1742,6 +1761,87 @@
         list.innerHTML = rows.length ? rows.join('') : '<div style="font-size:12px;color:#333;padding:10px 0;">No members yet.</div>';
     }
     function closeMembersModal() { document.getElementById('members-view-overlay').classList.remove('open'); }
+
+    // ── COLLAB CO-CREATE INVITES ─────────────────────────────────────────────
+    function openCollabInvitesSheet() {
+        document.getElementById('collab-invites-overlay').classList.add('open');
+        loadCollabInvites();
+    }
+    function closeCollabInvitesSheet() {
+        document.getElementById('collab-invites-overlay').classList.remove('open');
+    }
+
+    async function loadCollabInvites() {
+        if (!myHandle) return;
+        const listEl = document.getElementById('collab-invites-list');
+        listEl.innerHTML = '<div style="font-size:12px;color:#333;font-weight:700;padding:8px 0;">Loading…</div>';
+
+        const { data, error } = await _sb
+            .from('comic_collaborators')
+            .select('id,comic_id,comic_title,inviter_handle,status,created_at')
+            .eq('invitee_handle', myHandle)
+            .order('created_at', { ascending: false });
+
+        // Badge — count pending only
+        const pending = (data || []).filter(i => i.status === 'pending');
+        const badge = document.getElementById('collab-invite-badge');
+        if (badge) {
+            badge.textContent = pending.length || '';
+            badge.style.display = pending.length ? '' : 'none';
+        }
+
+        if (!data || !data.length) {
+            listEl.innerHTML = '<div style="font-size:12px;color:#333;font-weight:700;padding:8px 0;">No co-create invites yet.</div>';
+            return;
+        }
+
+        const statusColor = { accepted: '#32d74b', declined: '#ff453a', pending: '#ff7a00' };
+        const statusLabel = { accepted: '✅ Joined', declined: '❌ Declined', pending: '⏳ Pending' };
+
+        listEl.innerHTML = data.map(inv => `
+            <div style="background:#111;border-radius:12px;padding:14px;margin-bottom:10px;">
+                <div style="font-size:13px;font-weight:900;color:#f5f5f7;margin-bottom:3px;">
+                    📖 ${inv.comic_title || 'Untitled Comic'}
+                </div>
+                <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:10px;">
+                    Invited by @${inv.inviter_handle}
+                </div>
+                ${inv.status === 'pending' ? `
+                <div style="display:flex;gap:8px;">
+                    <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','accepted',this)"
+                        style="flex:1;background:var(--accent);border:none;color:#000;font-weight:900;font-size:12px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
+                        ✅ Accept &amp; Co-create
+                    </button>
+                    <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','declined',this)"
+                        style="background:#1e1e1e;border:1px solid #2a2a2a;color:#555;font-weight:700;font-size:12px;border-radius:10px;padding:10px 16px;cursor:pointer;font-family:inherit;white-space:nowrap;">
+                        Decline
+                    </button>
+                </div>` : `
+                <div style="font-size:12px;font-weight:800;color:${statusColor[inv.status] || '#555'};">
+                    ${statusLabel[inv.status] || inv.status}
+                </div>`}
+            </div>`).join('');
+    }
+
+    async function respondCollabInvite(inviteId, comicId, response, btn) {
+        btn.disabled = true;
+        const { error } = await _sb
+            .from('comic_collaborators')
+            .update({ status: response })
+            .eq('id', inviteId);
+
+        if (error) { btn.disabled = false; alert(error.message); return; }
+
+        if (response === 'accepted') {
+            // Store comic ID for the editor to load, then navigate
+            localStorage.setItem('edit_comic_id', comicId);
+            // Try mobile first (check screen width), then desktop
+            location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+        } else {
+            await loadCollabInvites(); // refresh list to show Declined state
+        }
+    }
+    // ── END COLLAB ───────────────────────────────────────────────────────────
 
     // ── Chat nav ──────────────────────────────────────────
     function goToChat(squadId) {

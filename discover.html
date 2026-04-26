@@ -1033,6 +1033,7 @@ const _sb = supabase.createClient(
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
 let allComics       = [];
+let collabMap       = {}; // comicId -> [accepted invitee handles]
 let activeComicId   = null;
 let globalStars     = [];
 let globalRatings   = [];
@@ -1439,6 +1440,23 @@ async function loadFeeds() {
   globalRatings = ratings || [];
   globalStars   = globalRatings; // keep in sync for legacy references
 
+  // ── Fetch accepted collaborators for all visible comics ──
+  collabMap = {};
+  try {
+    const comicIds = allComics.map(c => c.id);
+    if (comicIds.length) {
+      const { data: collabs } = await _sb
+        .from('comic_collaborators')
+        .select('comic_id, invitee_handle')
+        .in('comic_id', comicIds)
+        .eq('status', 'accepted');
+      (collabs || []).forEach(r => {
+        if (!collabMap[r.comic_id]) collabMap[r.comic_id] = [];
+        collabMap[r.comic_id].push(r.invitee_handle);
+      });
+    }
+  } catch(e) { /* non-fatal — collab table may not exist yet */ }
+
   // Reset top creators cache so it re-renders with fresh data
   topCreatorsData = { stars: [], follows: [] };
 
@@ -1523,6 +1541,11 @@ function renderComics(comics, stars) {
       : '';
     const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">⭐ ${avgRating.toFixed(1)} (${starCount})</div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
+    const coAuthors   = collabMap[c.id] || [];
+    const allAuthors  = [c.owner_handle, ...coAuthors].filter(Boolean);
+    const authorLine  = allAuthors.map(h =>
+      `<span class="comic-card-handle" onclick="event.stopPropagation(); location.href='profile.html?u=${esc(h)}'">@${esc(h)}</span>`
+    ).join('<span style="color:#333;margin:0 1px;">·</span>');
     const followBtn = (!isMine && myProfile.handle !== 'guest')
       ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
 
@@ -1538,7 +1561,7 @@ function renderComics(comics, stars) {
           <img class="comic-card-avatar comic-card-pfp" data-handle="${ownerHandle}" src="" alt=""
             onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
             onerror="this.style.display='none'">
-          <span class="comic-card-handle" onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'">@${ownerHandle}</span>
+          <span style="min-width:0;overflow:hidden;display:flex;align-items:center;gap:1px;flex-wrap:wrap;">${authorLine}</span>
           ${followBtn}
         </div>
       </div>
@@ -1677,8 +1700,13 @@ async function openPopup(id) {
   // Title & creator
   document.getElementById('popup-title').innerText   = c.title || 'Untitled';
   const ownerHandle = c.owner_handle || 'unknown';
+  const popupCollabs = collabMap[c.id] || [];
+  const popupAllAuthors = [ownerHandle, ...popupCollabs];
+  const popupAuthorLinks = popupAllAuthors.map(h =>
+    `<a href="profile.html?u=${esc(h)}" onclick="event.stopPropagation()">@${esc(h)}</a>`
+  ).join(' <span style="color:#333;">·</span> ');
   document.getElementById('popup-creator').innerHTML =
-    `by <a href="profile.html?u=${esc(ownerHandle)}" onclick="event.stopPropagation()">@${esc(ownerHandle)}</a> · ${timeAgo(c.created_at)}`;
+    `by ${popupAuthorLinks} · ${timeAgo(c.created_at)}`;
 
   // Meta — show sync cache first, then update from Supabase fetch
   let frameCount = getCachedFrameCount(c.id);
@@ -2761,6 +2789,11 @@ function renderFavoritesPage() {
       : '<div class="no-cover">\ud83d\udcd6</div>';
     const progressHtml = prog ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
+    const favCollabs  = collabMap[c.id] || [];
+    const favAllAuthors = [c.owner_handle, ...favCollabs].filter(Boolean);
+    const favAuthorLine = favAllAuthors.map(h =>
+      `<span class="comic-card-handle" onclick="event.stopPropagation(); location.href='profile.html?u=${esc(h)}'">@${esc(h)}</span>`
+    ).join('<span style="color:#333;margin:0 1px;">·</span>');
     const followBtn = (!isMine && myProfile.handle !== 'guest')
       ? `<button class="comic-card-follow" data-follow-handle="${ownerHandle}" onclick="event.stopPropagation(); tileFollow(this, '${ownerHandle}')">Follow</button>` : '';
 
@@ -2778,7 +2811,7 @@ function renderFavoritesPage() {
           <img class="comic-card-avatar" data-handle="${ownerHandle}" src="" alt=""
             onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'"
             onerror="this.style.display='none'">
-          <span class="comic-card-handle" onclick="event.stopPropagation(); location.href='profile.html?u=${ownerHandle}'">@${ownerHandle}</span>
+          <span style="min-width:0;overflow:hidden;display:flex;align-items:center;gap:1px;flex-wrap:wrap;">${favAuthorLine}</span>
           ${followBtn}
         </div>
       </div>
