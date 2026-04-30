@@ -633,6 +633,7 @@ const _sb = supabase.createClient(
 const myP = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
 let comic = null, frames = [], idx = 0, comicId = null, isStarred = false;
+let snapshotMap = {}; // frame_idx → public URL — populated after load
 let uiOn = true, hideTimer = null;
 let swipeDir = 'horizontal';
 let txX = 0, txY = 0, txT = 0;
@@ -759,7 +760,16 @@ function initToonScrollStrip() {
         frameEl.style.height = (frameH * hRatio) + 'px';
 
         const layerOvr = settings?.layer_overrides || {};
-        renderFrameToStrip(frameEl, frame, frameW * wRatio, frameH * hRatio, layerOvr);
+        // Use snapshot image if available — massively faster than DOM rebuild
+        const snapUrl = snapshotMap[originalIdx];
+        if (snapUrl) {
+            const img = document.createElement('img');
+            img.src = snapUrl;
+            img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;';
+            frameEl.appendChild(img);
+        } else {
+            renderFrameToStrip(frameEl, frame, frameW * wRatio, frameH * hRatio, layerOvr);
+        }
         strip.appendChild(frameEl);
     });
 
@@ -1030,10 +1040,11 @@ async function boot() {
   if (!comicId) return location.href = 'discover.html';
 
   // ── Check all tables simultaneously ──────────────────────
-  const [comicRes, storyRes, tsConfigRes] = await Promise.all([
+  const [comicRes, storyRes, tsConfigRes, snapRes] = await Promise.all([
     _sb.from('comics').select('*').eq('id', comicId).maybeSingle(),
     _sb.from('stories').select('*').eq('id', comicId).maybeSingle(),
     _sb.from('toonscroll_configs').select('*').eq('comic_id', comicId).maybeSingle(),
+    _sb.from('frame_snapshots').select('frame_idx,url').eq('comic_id', comicId).catch(() => ({ data: null })),
   ]);
 
   if (storyRes.data && !comicRes.data) {
@@ -1049,6 +1060,11 @@ async function boot() {
   // ── It's a COMIC — original flow ────────────────────────
   comic = data;
   frames = data.data || data.frames || [];
+
+  // Build snapshot lookup — keyed by frame index for O(1) access in renderFrame
+  snapshotMap = {};
+  const snaps = snapRes?.data || [];
+  snaps.forEach(s => { snapshotMap[s.frame_idx] = s.url; });
 
   // Load ToonScroll config
   toonScrollConfig = tsConfigRes.data;
@@ -1123,6 +1139,7 @@ async function boot() {
     }
   } else {
     renderFrame();
+    _updateReaderChrome();
   }
 
   sched();
@@ -1473,14 +1490,71 @@ function renderFrame(anim = false) {
   const f = frames[idx];
   if (!f) return;
 
-  // Pick the off-screen buffer to paint into
   const next = getInactiveCf();
   const prev = getActiveCf();
 
-  // Match size on both buffers
   const { cw, ch } = sizeFrame(next);
   prev.style.width  = cw + 'px';
   prev.style.height = ch + 'px';
+
+  // ── SNAPSHOT PATH: one <img>, zero positioning math ────────────────────
+  // Use the original frame index for snapshot lookup (toonscroll stamps _readerOrigIdx)
+  const snapIdx = f._readerOrigIdx ?? idx;
+  const snapUrl = snapshotMap[snapIdx];
+
+  if (snapUrl) {
+    // Reuse existing snapshot img if already there (prevents re-fetch flash)
+    let snapImg = next.querySelector('.r-snapshot');
+    if (!snapImg || snapImg.dataset.snapUrl !== snapUrl) {
+      next.innerHTML = '';
+      snapImg = document.createElement('img');
+      snapImg.className = 'r-snapshot';
+      snapImg.dataset.snapUrl = snapUrl;
+      snapImg.style.cssText = [
+        'position:absolute;inset:0;width:100%;height:100%;',
+        'object-fit:contain;object-position:center center;',
+        'pointer-events:none;display:block;',
+        'background:#fff;',   // matches cf-buf bg so no flash on load
+      ].join('');
+      // Preload next/prev snapshots while we have a moment
+      const preloadIdxs = [snapIdx - 1, snapIdx + 1, snapIdx + 2];
+      preloadIdxs.forEach(pi => {
+        if (snapshotMap[pi] && !document.querySelector(`link[href="${snapshotMap[pi]}"]`)) {
+          const link = document.createElement('link');
+          link.rel = 'prefetch'; link.as = 'image'; link.href = snapshotMap[pi];
+          document.head.appendChild(link);
+        }
+      });
+      next.appendChild(snapImg);
+      snapImg.src = snapUrl;
+    }
+    _swapBuffers(next, prev, anim);
+    return;
+  }
+
+  // ── DOM FALLBACK: full layer rebuild (no snapshot yet) ──────────────────
+  _renderFrameDOM(f, next, cw, ch);
+  _swapBuffers(next, prev, anim);
+}
+
+function _swapBuffers(next, prev, anim) {
+  if (anim) {
+    next.classList.remove('cf-behind');
+    next.classList.add('cf-active');
+    prev.classList.remove('cf-active');
+    prev.classList.add('cf-behind');
+    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
+  } else {
+    next.classList.remove('cf-behind');
+    next.classList.add('cf-active');
+    prev.classList.remove('cf-active');
+    prev.classList.add('cf-behind');
+    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
+  }
+}
+
+// Full DOM layer rebuild — used only when no snapshot exists yet
+function _renderFrameDOM(f, next, cw, ch) {
   next.style.width  = cw + 'px';
   next.style.height = ch + 'px';
 
@@ -1725,23 +1799,10 @@ function renderFrame(anim = false) {
     next.appendChild(el);
   });
 
-  // 5. Crossfade: show next buffer, hide prev — no black flash
-  if (anim) {
-    next.classList.remove('cf-behind');
-    next.classList.add('cf-active');
-    prev.classList.remove('cf-active');
-    prev.classList.add('cf-behind');
-    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
-  } else {
-    // First render — show next immediately
-    next.classList.remove('cf-behind');
-    next.classList.add('cf-active');
-    prev.classList.remove('cf-active');
-    prev.classList.add('cf-behind');
-    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
-  }
+  // (swap is handled by _swapBuffers — called by renderFrame after this returns)
+} // end _renderFrameDOM
 
-  // 5. Update UI chrome
+function _updateReaderChrome() {
   const tot = frames.length;
   document.getElementById('fctr').innerText = `${idx + 1} / ${tot}`;
   document.getElementById('prog').style.width = ((idx + 1) / tot * 100) + '%';
@@ -1754,13 +1815,13 @@ function renderFrame(anim = false) {
 
 // ── Nav ───────────────────────────────────────────────────
 function nextFrame() {
-  if (idx < frames.length - 1) { idx++; renderFrame(true); saveProg(); resetUI(); }
+  if (idx < frames.length - 1) { idx++; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
   else showFinish();
 }
 function prevFrame() {
-  if (idx > 0) { idx--; renderFrame(true); saveProg(); resetUI(); }
+  if (idx > 0) { idx--; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
 }
-function jumpTo(i) { idx = i; renderFrame(true); saveProg(); }
+function jumpTo(i) { idx = i; renderFrame(true); _updateReaderChrome(); saveProg(); }
 
 // ── Fullscreen ────────────────────────────────────────────
 let _fsActive = false;

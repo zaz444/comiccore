@@ -213,6 +213,21 @@
         .sq-btn-chat:hover { background: rgba(255,122,0,.22); }
         .sq-btn-manage { background: #111; color: #666; border: 1px solid #1e1e1e !important; }
         .sq-btn-manage:hover { border-color: #444 !important; color: #aaa; }
+        .sq-btn-collab-comic {
+            background: var(--accent);
+            color: #000;
+            padding: 7px 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            border: none !important;
+            cursor: pointer;
+            font-family: inherit;
+            flex-shrink: 0;
+            transition: .15s;
+        }
+        .sq-btn-collab-comic:hover { filter: brightness(1.12); transform: scale(1.04); }
         .sq-btn-leave { background: none; color: #ff3b30; border: 1px solid rgba(255,59,48,.25) !important; }
         .sq-btn-leave:hover { background: rgba(255,59,48,.08); }
         .sq-btn-members { background: #111; color: #555; border: 1px solid #1e1e1e !important; padding: 7px 10px; }
@@ -613,6 +628,45 @@
             <div style="font-size:12px;color:#333;font-weight:700;padding:8px 0;">Loading…</div>
         </div>
         <div class="sq-btn-ghost" onclick="closeCollabInvitesSheet()">Close</div>
+    </div>
+</div>
+
+<!-- ── Start Collab Comic Sheet ── -->
+<div class="sq-overlay" id="collab-comic-sheet">
+    <div class="sq-sheet" style="max-height:72vh;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <div class="sq-sheet-title" style="display:flex;align-items:center;gap:10px;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1.5" y="6" width="13" height="15" rx="2.5" stroke="var(--accent)" stroke-width="1.6" opacity="0.38"/>
+                    <rect x="9.5" y="2.5" width="13" height="15" rx="2.5" stroke="var(--accent)" stroke-width="2"/>
+                    <line x1="9.5" y1="7.5" x2="22.5" y2="7.5" stroke="var(--accent)" stroke-width="1.4" opacity="0.8"/>
+                    <line x1="16" y1="7.5" x2="16" y2="17.5" stroke="var(--accent)" stroke-width="1.3" opacity="0.55"/>
+                    <path d="M9.5 3.8 L10.5 6 L9.5 8.2 L8.5 6 Z" fill="var(--accent)"/>
+                    <path d="M7 6 L9.5 7 L12 6 L9.5 5 Z" fill="var(--accent)"/>
+                </svg>
+                Squad Comics
+            </div>
+            <span onclick="closeCollabComicSheet()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+        </div>
+        <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:16px;">Start a new comic or manage existing squad co-creations</div>
+
+        <button onclick="startNewCollabComic()" style="width:100%;background:var(--accent);border:none;color:#000;font-size:14px;font-weight:900;border-radius:12px;padding:14px;cursor:pointer;font-family:inherit;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <rect x="1.5" y="6" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6" opacity="0.38"/>
+                <rect x="9.5" y="2.5" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/>
+                <line x1="9.5" y1="7.5" x2="22.5" y2="7.5" stroke="currentColor" stroke-width="1.4" opacity="0.8"/>
+                <line x1="16" y1="7.5" x2="16" y2="17.5" stroke="currentColor" stroke-width="1.3" opacity="0.55"/>
+                <path d="M9.5 3.8 L10.5 6 L9.5 8.2 L8.5 6 Z" fill="currentColor"/>
+                <path d="M7 6 L9.5 7 L12 6 L9.5 5 Z" fill="currentColor"/>
+            </svg>
+            Start a New Comic
+        </button>
+
+        <div style="font-size:11px;font-weight:900;color:#333;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Existing Squad Co-creations</div>
+        <div id="squad-collab-comics-list">
+            <div style="font-size:12px;color:#333;font-weight:700;padding:6px 0;">Loading…</div>
+        </div>
+        <div class="sq-btn-ghost" onclick="closeCollabComicSheet()">Close</div>
     </div>
 </div>
 
@@ -1461,11 +1515,31 @@
         if (isOwner) {
             actions = `
                 <button class="sq-action-btn sq-btn-manage" onclick="event.stopPropagation();openManageModal('${sid}')">Manage</button>
-                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')">💬 Chat</button>`;
+                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')">💬 Chat</button>
+                <button class="sq-action-btn sq-btn-collab-comic" title="Make a comic with your squad" onclick="event.stopPropagation();openCollabComicSheet('${sid}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="1.5" y="6" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6" opacity="0.38"/>
+                        <rect x="9.5" y="2.5" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/>
+                        <line x1="9.5" y1="7.5" x2="22.5" y2="7.5" stroke="currentColor" stroke-width="1.4" opacity="0.8"/>
+                        <line x1="16" y1="7.5" x2="16" y2="17.5" stroke="currentColor" stroke-width="1.3" opacity="0.55"/>
+                        <path d="M9.5 3.8 L10.5 6 L9.5 8.2 L8.5 6 Z" fill="currentColor"/>
+                        <path d="M7 6 L9.5 7 L12 6 L9.5 5 Z" fill="currentColor"/>
+                    </svg>
+                </button>`;
         } else if (isMember) {
             actions = `
                 <button class="sq-action-btn sq-btn-joined">✓ Joined</button>
                 <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')">💬 Chat</button>
+                <button class="sq-action-btn sq-btn-collab-comic" title="Make a comic with your squad" onclick="event.stopPropagation();openCollabComicSheet('${sid}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="1.5" y="6" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6" opacity="0.38"/>
+                        <rect x="9.5" y="2.5" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/>
+                        <line x1="9.5" y1="7.5" x2="22.5" y2="7.5" stroke="currentColor" stroke-width="1.4" opacity="0.8"/>
+                        <line x1="16" y1="7.5" x2="16" y2="17.5" stroke="currentColor" stroke-width="1.3" opacity="0.55"/>
+                        <path d="M9.5 3.8 L10.5 6 L9.5 8.2 L8.5 6 Z" fill="currentColor"/>
+                        <path d="M7 6 L9.5 7 L12 6 L9.5 5 Z" fill="currentColor"/>
+                    </svg>
+                </button>
                 <button class="sq-action-btn sq-btn-members" onclick="event.stopPropagation();openMembersModal('${sid}')" title="View members">👥</button>
                 <button class="sq-action-btn sq-btn-leave" onclick="event.stopPropagation();leaveSquad('${sid}')">Leave</button>`;
         } else if (isPending) {
@@ -1770,6 +1844,95 @@
     function closeCollabInvitesSheet() {
         document.getElementById('collab-invites-overlay').classList.remove('open');
     }
+
+    // ── COLLAB COMIC SHEET ───────────────────────────────────────────────────
+    let _collabComicSquadId = null;
+
+    function openCollabComicSheet(squadId) {
+        _collabComicSquadId = squadId;
+        document.getElementById('collab-comic-sheet').classList.add('open');
+        loadSquadCollabComics(squadId);
+    }
+
+    function closeCollabComicSheet() {
+        document.getElementById('collab-comic-sheet').classList.remove('open');
+        _collabComicSquadId = null;
+    }
+
+    function startNewCollabComic() {
+        // Go to the right editor (mobile or desktop) — the user will publish first,
+        // then use the 👥 Co-create button to invite squad members
+        closeCollabComicSheet();
+        const dest = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+        // Store squad hint so create.html can pre-select this squad in the invite panel
+        if (_collabComicSquadId) localStorage.setItem('collab_hint_squad', _collabComicSquadId);
+        location.href = dest;
+    }
+
+    async function loadSquadCollabComics(squadId) {
+        const listEl = document.getElementById('squad-collab-comics-list');
+        listEl.innerHTML = '<div style="font-size:12px;color:#333;font-weight:700;padding:6px 0;">Loading…</div>';
+
+        try {
+            // Get all members of this squad
+            const [{ data: owned }, { data: reqs }] = await Promise.all([
+                _sb.from('team_tickets').select('owner_handle').eq('id', squadId).single(),
+                _sb.from('team_requests').select('sender_handle').eq('ticket_id', String(squadId)).eq('status', 'accepted')
+            ]);
+            const memberHandles = [...new Set([
+                owned?.owner_handle,
+                ...(reqs || []).map(r => r.sender_handle)
+            ])].filter(Boolean);
+
+            if (!memberHandles.length) {
+                listEl.innerHTML = '<div style="font-size:12px;color:#333;font-weight:700;padding:6px 0;">No members found.</div>';
+                return;
+            }
+
+            // Find accepted collab comics involving any squad member
+            const { data: collabs } = await _sb
+                .from('comic_collaborators')
+                .select('comic_id, comic_title, inviter_handle, invitee_handle, status')
+                .in('invitee_handle', memberHandles)
+                .eq('status', 'accepted');
+
+            if (!collabs || !collabs.length) {
+                listEl.innerHTML = '<div style="font-size:12px;color:#333;font-weight:700;padding:8px 0;">No co-created comics yet.<br><span style="opacity:.6;">Publish a comic, then tap 👥 to invite squad members.</span></div>';
+                return;
+            }
+
+            // Deduplicate by comic_id
+            const seen = new Set();
+            const unique = collabs.filter(c => { if (seen.has(c.comic_id)) return false; seen.add(c.comic_id); return true; });
+
+            listEl.innerHTML = unique.map(c => `
+                <div style="background:#111;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <div style="min-width:0;">
+                        <div style="font-size:13px;font-weight:900;color:#f5f5f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📖 ${esc(c.comic_title || 'Untitled')}</div>
+                        <div style="font-size:11px;color:#444;font-weight:700;margin-top:2px;">@${esc(c.inviter_handle)} + @${esc(c.invitee_handle)}</div>
+                    </div>
+                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                        <button onclick="location.href='reader.html?id=${esc(c.comic_id)}'"
+                            style="background:#1e1e1e;border:1px solid #2a2a2a;color:#ccc;font-size:11px;font-weight:700;border-radius:8px;padding:6px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">
+                            📖 Read
+                        </button>
+                        <button onclick="editCollabComic('${esc(c.comic_id)}')"
+                            style="background:var(--accent);border:none;color:#000;font-size:11px;font-weight:900;border-radius:8px;padding:6px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">
+                            ✏️ Edit
+                        </button>
+                    </div>
+                </div>`).join('');
+        } catch(e) {
+            listEl.innerHTML = '<div style="font-size:12px;color:#ff453a;font-weight:700;padding:6px 0;">Failed to load. Table may not exist yet.</div>';
+        }
+    }
+
+    function editCollabComic(comicId) {
+        localStorage.setItem('edit_comic_id', comicId);
+        closeCollabComicSheet();
+        location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+    }
+    // ── END COLLAB COMIC SHEET ───────────────────────────────────────────────
 
     async function loadCollabInvites() {
         if (!myHandle) return;

@@ -2909,8 +2909,7 @@
                 // GIF/WebP: use <img> element so animation plays
                 const wrapper = document.createElement('div');
                 wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
-                const img = document.createElement('img');
-                img.src = bg;
+                const img = document.createElement('img'); img.src = bg;
                 // Always cover: width >= 100% of frame, translate by offset
                 const sv2 = Math.max(1, typeof scale === 'number' ? scale : 1);
                 // Pan via translate so X/Y works at all zoom levels (same logic as static images).
@@ -2924,8 +2923,7 @@
             } else {
                 // Static image — object-fit:cover fills frame; scale(sv) zooms outward from center.
                 // Pan via translateX/Y (% of scaled size) so X/Y works at all zoom levels.
-                const imgEl = document.createElement('img');
-                imgEl.src = bg;
+                const imgEl = document.createElement('img'); imgEl.src = bg;
                 const sv  = Math.max(1, typeof scale === 'number' ? scale : 1);
                 // Convert slider -100..100 to a translate percentage.
                 // At scale sv, the image overflows the frame by (sv-1)*50% on each side.
@@ -2948,6 +2946,20 @@
             // Solid color — no overflow needed
             canvas.style.backgroundColor = bg;
         }
+
+        // Pool decoded <img> elements before wiping — reusing them prevents
+        // the browser re-decoding _fxSrc data-URLs on every render (the flicker source)
+        const _imgPool = new Map();
+        canvas.querySelectorAll('img').forEach(img => {
+            const k = img.src ? img.src.substring(0,120) : '';
+            if (k && !_imgPool.has(k)) _imgPool.set(k, img);
+        });
+        function _getImg(src) {
+            const k = (src||'').substring(0,120);
+            if (_imgPool.has(k)) { const i = _imgPool.get(k); _imgPool.delete(k); i.style.cssText = ''; i.className = ''; return i; }
+            const i = document.createElement('img'); i.src = src; return i;
+        }
+
 
         // Now clear the canvas and rebuild fresh, then restore preserved elements
         canvas.innerHTML = '';
@@ -3006,17 +3018,18 @@
                     // blurStrength < 100: stack clean base + fx overlay at blurStrength opacity
                     el = document.createElement('div');
                     el.style.cssText = 'position:absolute;overflow:hidden;';
-                    const base = document.createElement('img');
+                    const base = _getImg(l.src);
                     base.src = l.src;
                     base.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0;';
-                    const overlay = document.createElement('img');
+                    const overlay = _getImg(l._fxSrc);
                     overlay.src = l._fxSrc;
                     overlay.style.cssText = `width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0;opacity:${bStrength/100};`;
                     el.appendChild(base);
                     el.appendChild(overlay);
                 } else {
-                    el = document.createElement('img');
-                    el.src = hasFxSrc ? l._fxSrc : l.src;
+                    const _imgSrc = hasFxSrc ? l._fxSrc : l.src;
+                    el = _getImg(_imgSrc);
+                    el.src = _imgSrc;
                     // Self-correct legacy layers saved with a square placeholder h value.
                     // When the image loads, if stored layer.h doesn't match the natural
                     // aspect ratio (within 5%), correct it so the outline fits the sprite.
@@ -3628,13 +3641,16 @@
             data: frames, swipe_dir: swipeDir, canvas_ratio: canvasRatio
         };
         clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
-        let error;
+        let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
+            publishedId = editingComicId;
         } else {
-            ({ error } = await _supabase.from('comics').insert([{
+            const res = await _supabase.from('comics').insert([{
                 ...payload, owner_name: profile.name, owner_handle: profile.handle, stars: 0, starred_by: []
-            }]));
+            }]).select('id').single();
+            error = res.error;
+            publishedId = res.data?.id;
         }
         if (error) {
             alert(error.message);
@@ -3655,8 +3671,42 @@
         // Clear edit source tracking
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
+        // Generate frame snapshots in background — don't await, navigate first
+        if (publishedId) _generateFrameSnapshots(publishedId).catch(() => {});
         location.href = 'discover.html';
     }
+
+    // ── FRAME SNAPSHOT GENERATION ──────────────────────────────────────────────
+    // After publish, render each frame to canvas → upload PNG → save URL in
+    // frame_snapshots table. Reader uses these images instead of rebuilding the
+    // full DOM layer tree, giving instant frame navigation with no positioning math.
+    async function _generateFrameSnapshots(comicId) {
+        const SNAP_SIZE = 1200; // px — wide enough for retina, small enough to be fast
+        const bucket = 'comiccore-assets';
+        const upsertRows = [];
+
+        for (let i = 0; i < frames.length; i++) {
+            try {
+                const offscreen = await frameToCanvas(i, SNAP_SIZE);
+                const blob = await new Promise(res => offscreen.toBlob(res, 'image/jpeg', 0.88));
+                if (!blob) continue;
+                const path = `snapshots/${comicId}/${i}.jpg`;
+                const { error: upErr } = await _supabase.storage
+                    .from(bucket)
+                    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+                if (upErr) continue;
+                const { data: urlData } = _supabase.storage.from(bucket).getPublicUrl(path);
+                if (urlData?.publicUrl) {
+                    upsertRows.push({ comic_id: comicId, frame_idx: i, url: urlData.publicUrl + '?t=' + Date.now() });
+                }
+            } catch(e) { /* non-fatal — reader falls back to DOM render */ }
+        }
+
+        if (upsertRows.length) {
+            await _supabase.from('frame_snapshots').upsert(upsertRows, { onConflict: 'comic_id,frame_idx' });
+        }
+    }
+    // ── END FRAME SNAPSHOTS ────────────────────────────────────────────────────
 
     function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
     function closeActionModal() { document.getElementById('action-modal').style.display = 'none'; }
@@ -3687,6 +3737,9 @@
     async function _loadCollabPanel() {
         const myHandle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
         if (!myHandle) return;
+        // If arriving from squads.html "Make Comic Together", honour the squad hint
+        const hintSquad = localStorage.getItem('collab_hint_squad') || '';
+        if (hintSquad) localStorage.removeItem('collab_hint_squad');
 
         document.getElementById('collab-squad-select-wrap').innerHTML =
             '<div style="font-size:12px;color:#444;font-weight:700;">Loading squads…</div>';
@@ -3716,8 +3769,13 @@
                 style="width:100%;background:#111;color:#f5f5f7;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;font-size:13px;font-family:inherit;cursor:pointer;"
                 onchange="_loadCollabMembers(this.value)">
                 <option value="">— pick a squad —</option>
-                ${(squads || []).map(s => `<option value="${s.id}">${s.team_name}</option>`).join('')}
+                ${(squads || []).map(s => `<option value="${s.id}"${hintSquad && String(s.id) === String(hintSquad) ? ' selected' : ''}>${s.team_name}</option>`).join('')}
             </select>`;
+
+        // If a squad was pre-hinted (launched from squads.html), auto-load its members
+        if (hintSquad && (squads || []).find(s => String(s.id) === String(hintSquad))) {
+            await _loadCollabMembers(hintSquad);
+        }
 
         await _refreshCollabCurrent();
     }
@@ -3762,20 +3820,36 @@
         const comicTitle = document.getElementById('pub-title')?.value || 'Untitled';
         btn.disabled = true; btn.textContent = '…';
 
-        const { error } = await _supabase.from('comic_collaborators').insert([{
+        const { data: inviteRow, error } = await _supabase.from('comic_collaborators').insert([{
             comic_id:       editingComicId,
             comic_title:    comicTitle,
             inviter_handle: myHandle,
             invitee_handle: inviteeHandle,
             squad_id:       String(squadId),
             status:         'pending'
-        }]);
+        }]).select('id').single();
 
         if (error) {
             btn.disabled = false; btn.textContent = '+ Invite';
             alert('Error: ' + error.message);
             return;
         }
+
+        // Post invite card to squad chat
+        try {
+            const chatPayload = JSON.stringify({
+                invite_id:      inviteRow.id,
+                comic_id:       editingComicId,
+                comic_title:    comicTitle,
+                inviter_handle: myHandle,
+                invitee_handle: inviteeHandle
+            });
+            await _supabase.from('team_messages').insert([{
+                ticket_id:      squadId,
+                sender_handle:  myHandle,
+                content:        `[COLLAB_INVITE]:${chatPayload}`
+            }]);
+        } catch(e) { /* non-fatal — chat message is a bonus */ }
 
         btn.textContent = 'Invited ✓';
         btn.style.background = '#1e1e1e';

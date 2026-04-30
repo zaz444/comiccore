@@ -979,6 +979,11 @@
             <div class="grid-header">Creations</div>
             <div id="user-comic-grid" class="comic-grid"></div>
         </div>
+
+        <div class="grid-section" id="collab-section" style="display:none;">
+            <div class="grid-header">🤝 Co-created</div>
+            <div id="user-collab-grid" class="comic-grid"></div>
+        </div>
     </div>
 
     <!-- NEW TWO-PANEL SETTINGS LAYOUT -->
@@ -1582,6 +1587,7 @@
 
             loadFollowCounts(handle);
             loadUserComics(handle);
+            loadCollabComics(handle);
             renderMilestoneBanner(profile, handle);
 
             const folPrivacy = localStorage.getItem('cc-privacy-followers');
@@ -1832,6 +1838,39 @@
 
             if (!comics || !comics.length) { grid.innerHTML = '<div class="grid-empty">No comics yet</div>'; return; }
             grid.innerHTML = comics.map(c => `<div class="grid-item" onclick="location.href='reader.html?id=${c.id}'"><img src="${c.cover}" loading="lazy"></div>`).join('');
+        }
+
+        async function loadCollabComics(handle) {
+            const section = document.getElementById('collab-section');
+            const grid    = document.getElementById('user-collab-grid');
+            try {
+                // Get all comics this user has accepted a collab invite for
+                const { data: collabs } = await _supabase
+                    .from('comic_collaborators')
+                    .select('comic_id')
+                    .eq('invitee_handle', handle)
+                    .eq('status', 'accepted');
+
+                if (!collabs || !collabs.length) { section.style.display = 'none'; return; }
+
+                const comicIds = collabs.map(c => c.comic_id);
+                const { data: comics } = await _supabase
+                    .from('comics')
+                    .select('id, title, cover')
+                    .in('id', comicIds);
+
+                if (!comics || !comics.length) { section.style.display = 'none'; return; }
+
+                section.style.display = '';
+                grid.innerHTML = comics.map(c => `
+                    <div class="grid-item" onclick="location.href='reader.html?id=${c.id}'" title="${c.title || 'Untitled'}">
+                        ${c.cover
+                            ? `<img src="${c.cover}" loading="lazy" onerror="this.parentNode.innerHTML='<div style=\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;\'>🎨</div>'">`
+                            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;">🎨</div>`}
+                    </div>`).join('');
+            } catch(e) {
+                section.style.display = 'none';
+            }
         }
 
         function openEditor() {

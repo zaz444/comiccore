@@ -1278,10 +1278,53 @@
             const src = content.replace('[IMG_REACTION]:','').trim();
             return `<div class="bubble bubble-img"><img src="${esc(src)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(src)}')"></div>`;
         }
+        if (content.startsWith('[COLLAB_INVITE]:')) {
+            try {
+                const payload = JSON.parse(content.replace('[COLLAB_INVITE]:','').trim());
+                const isMine = m.sender_handle === myHandle;
+                return `<div class="bubble" style="background:rgba(255,122,0,0.10);border:1.5px solid rgba(255,122,0,0.3);padding:12px 14px;min-width:200px;">
+                    <div style="font-size:11px;font-weight:900;color:#ff7a00;letter-spacing:.4px;margin-bottom:6px;">🎨 CO-CREATE INVITE</div>
+                    <div style="font-size:14px;font-weight:800;color:#f5f5f7;margin-bottom:3px;">📖 ${esc(payload.comic_title || 'Untitled Comic')}</div>
+                    <div style="font-size:11px;color:#555;font-weight:700;margin-bottom:10px;">@${esc(payload.inviter_handle)} invited @${esc(payload.invitee_handle)} to co-create</div>
+                    ${!isMine && payload.invitee_handle === myHandle && payload.invite_id ? `
+                    <div style="display:flex;gap:6px;" id="collab-chat-btns-${payload.invite_id}">
+                        <button onclick="respondCollabFromChat('${payload.invite_id}','${payload.comic_id}','accepted',this)"
+                            style="flex:1;background:#ff7a00;border:none;color:#000;font-size:11px;font-weight:900;border-radius:8px;padding:7px;cursor:pointer;font-family:inherit;">
+                            ✅ Accept
+                        </button>
+                        <button onclick="respondCollabFromChat('${payload.invite_id}','${payload.comic_id}','declined',this)"
+                            style="background:#1a1a1a;border:1px solid #2a2a2a;color:#555;font-size:11px;font-weight:700;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:inherit;">
+                            Decline
+                        </button>
+                    </div>` : (!isMine ? '' : `<div style="font-size:11px;color:#555;font-weight:700;">Waiting for response…</div>`)}
+                </div>`;
+            } catch(e) {
+                return `<div class="bubble">🎨 Co-create invite</div>`;
+            }
+        }
         if (isImg(content)) {
             return `<div class="bubble bubble-img"><img src="${esc(content)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(content)}')"></div>`;
         }
         return `<div class="bubble">${esc(content)}</div>`;
+    }
+
+    async function respondCollabFromChat(inviteId, comicId, response, btn) {
+        const wrap = document.getElementById(`collab-chat-btns-${inviteId}`);
+        if (wrap) { wrap.innerHTML = '<div style="font-size:11px;color:#555;font-weight:700;">Updating…</div>'; }
+        const { error } = await _sb
+            .from('comic_collaborators')
+            .update({ status: response })
+            .eq('id', inviteId);
+        if (error) {
+            if (wrap) wrap.innerHTML = `<div style="font-size:11px;color:#ff453a;">Error: ${error.message}</div>`;
+            return;
+        }
+        if (response === 'accepted') {
+            localStorage.setItem('edit_comic_id', comicId);
+            location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+        } else {
+            if (wrap) wrap.innerHTML = '<div style="font-size:11px;color:#555;font-weight:700;">❌ Declined</div>';
+        }
     }
 
     // ── Send ──────────────────────────────────────────────

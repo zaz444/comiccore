@@ -601,13 +601,15 @@
   // ── INBOX COUNT ──────────────────────────────────────────────
   async function checkInboxCount() {
     if (!_myHandle) return;
-    const [{ count: invCount }, { count: mentionCount }] = await Promise.all([
+    const [{ count: invCount }, { count: mentionCount }, { count: collabCount }] = await Promise.all([
       supabaseClient.from('squad_invites').select('*', { count: 'exact', head: true })
         .eq('to_handle', _myHandle).eq('status', 'pending'),
       supabaseClient.from('mentions').select('*', { count: 'exact', head: true })
-        .eq('to_handle', _myHandle).eq('is_read', false)
+        .eq('to_handle', _myHandle).eq('is_read', false),
+      supabaseClient.from('comic_collaborators').select('*', { count: 'exact', head: true })
+        .eq('invitee_handle', _myHandle).eq('status', 'pending')
     ]);
-    const total = (invCount || 0) + (mentionCount || 0);
+    const total = (invCount || 0) + (mentionCount || 0) + (collabCount || 0);
     const badge = document.getElementById('inbox-badge');
     badge.textContent = total > 9 ? '9+' : total;
     badge.classList.toggle('show', total > 0);
@@ -628,29 +630,61 @@
     document.getElementById('panel-overlay').classList.remove('open');
   }
 
-  // ── INBOX: squad invites + mentions ──────────────────────────
+  // ── INBOX: squad invites + mentions + co-create ──────────────
   async function loadInboxPanel() {
     const body = document.getElementById('inbox-panel-body');
     body.innerHTML = '<div class="empty-panel">Loading…</div>';
 
-    const [{ data: invites }, { data: mentions }] = await Promise.all([
+    const [{ data: invites }, { data: mentions }, { data: collabs }] = await Promise.all([
       supabaseClient.from('squad_invites').select('*')
         .eq('to_handle', _myHandle).eq('status', 'pending')
         .order('created_at', { ascending: false }),
       supabaseClient.from('mentions').select('*')
         .eq('to_handle', _myHandle).eq('is_read', false)
+        .order('created_at', { ascending: false }),
+      supabaseClient.from('comic_collaborators')
+        .select('id,comic_id,comic_title,inviter_handle,status,created_at')
+        .eq('invitee_handle', _myHandle).eq('status', 'pending')
         .order('created_at', { ascending: false })
     ]);
 
     const hasInvites  = invites  && invites.length;
     const hasMentions = mentions && mentions.length;
+    const hasCollabs  = collabs  && collabs.length;
 
-    if (!hasInvites && !hasMentions) {
+    if (!hasInvites && !hasMentions && !hasCollabs) {
       body.innerHTML = '<div class="empty-panel">📭 No new notifications</div>';
       return;
     }
 
     body.innerHTML = '';
+
+    // ── Co-create Invites ──
+    if (hasCollabs) {
+      const hdr = document.createElement('div');
+      hdr.className = 'panel-section-hdr';
+      hdr.textContent = '🎨 Co-create Invites';
+      body.appendChild(hdr);
+
+      collabs.forEach(inv => {
+        const time = new Date(inv.created_at).toLocaleDateString();
+        const item = document.createElement('div');
+        item.className = 'inbox-item';
+        item.id = `collab-inbox-${inv.id}`;
+        item.innerHTML = `
+          <div class="inbox-item-icon">🎨</div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">📖 ${escHtml(inv.comic_title || 'Untitled Comic')}</div>
+            <div class="inbox-item-sub">@${escHtml(inv.inviter_handle)} invited you to co-create</div>
+            <div class="inbox-item-time">${time}</div>
+            <div class="inbox-item-actions">
+              <button class="inbox-accept-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','accepted',this)">✅ Co-create</button>
+              <button class="inbox-decline-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','declined',this)">Decline</button>
+            </div>
+          </div>`;
+        body.appendChild(item);
+      });
+    }
 
     // ── Mentions ──
     if (hasMentions) {
@@ -723,6 +757,21 @@
       row.style.pointerEvents = 'none';
     }
     checkInboxCount();
+  }
+
+  async function respondCollabFromInbox(inviteId, comicId, response, btn) {
+    btn.disabled = true;
+    const row = btn.closest('.inbox-item');
+    await supabaseClient.from('comic_collaborators').update({ status: response }).eq('id', inviteId);
+    if (response === 'accepted') {
+      localStorage.setItem('edit_comic_id', comicId);
+      closeInboxPanel();
+      location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+    } else {
+      row.style.opacity = '0.4';
+      row.style.pointerEvents = 'none';
+      checkInboxCount();
+    }
   }
 
   // ── REPORTS PANEL (owner only) ────────────────────────────────
@@ -884,7 +933,18 @@
     if (acceptedCount > 0) {
       teamsBtn.classList.add('has-notification');
       teamsBtn.querySelector('.card-title').innerText = 'Squads — Request Accepted!';
+      return;
     }
+    // ── Co-create invite pending ──
+    try {
+      const { count: collabCount } = await supabaseClient
+        .from('comic_collaborators').select('*', { count: 'exact', head: true })
+        .eq('invitee_handle', _myHandle).eq('status', 'pending');
+      if (collabCount > 0) {
+        teamsBtn.classList.add('has-notification');
+        teamsBtn.querySelector('.card-title').innerText = `Squads — ${collabCount} Co-create Invite${collabCount > 1 ? 's' : ''}!`;
+      }
+    } catch(e) { /* collab table not yet created */ }
   }
 
   // ── Mobile Gestures ──────────────────────────────────────

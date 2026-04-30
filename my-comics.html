@@ -199,6 +199,9 @@ select.tb{appearance:none;padding-right:10px;}
   <button class="tab" id="tab-published" onclick="switchTab('published')">
     Published <span class="tab-count" id="pub-count">0</span>
   </button>
+  <button class="tab" id="tab-collab" onclick="switchTab('collab')">
+    🎨 Collab <span class="tab-count" id="collab-count" style="display:none;"></span>
+  </button>
 </div>
 
 <!-- Content -->
@@ -233,6 +236,9 @@ select.tb{appearance:none;padding-right:10px;}
 
   <!-- Grid container -->
   <div id="grid-container"></div>
+
+  <!-- Collab container -->
+  <div id="collab-container" style="display:none;"></div>
 </div>
 
 <script>
@@ -317,6 +323,7 @@ window.onload = async () => {
 
   await loadDrafts();
   await loadPublished();
+  await loadCollab();
   renderStats();
   renderDrafts();
   buildRatioGrid();
@@ -397,12 +404,99 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tab-drafts').classList.toggle('active', tab === 'drafts');
   document.getElementById('tab-published').classList.toggle('active', tab === 'published');
+  document.getElementById('tab-collab').classList.toggle('active', tab === 'collab');
   document.getElementById('drafts-toolbar').style.display = tab === 'drafts' ? 'flex' : 'none';
   document.getElementById('pub-toolbar').style.display = tab === 'published' ? 'flex' : 'none';
   document.getElementById('draft-stats').style.display = (tab==='drafts'&&drafts.length) ? 'flex' : 'none';
   document.getElementById('pub-stats').style.display = (tab==='published'&&published.length) ? 'flex' : 'none';
-  tab === 'drafts' ? renderDrafts() : renderPublished();
+  document.getElementById('grid-container').style.display = tab === 'collab' ? 'none' : '';
+  document.getElementById('collab-container').style.display = tab === 'collab' ? '' : 'none';
+  if (tab === 'drafts') renderDrafts();
+  else if (tab === 'published') renderPublished();
+  else renderCollab();
 }
+
+// ── Collab Comics ──────────────────────────────────────────
+let collabInvites = [];
+
+async function loadCollab() {
+  if (!myHandle) return;
+  try {
+    const { data } = await _sb
+      .from('comic_collaborators')
+      .select('id,comic_id,comic_title,inviter_handle,status,created_at')
+      .eq('invitee_handle', myHandle)
+      .order('created_at', { ascending: false });
+    collabInvites = data || [];
+    const pending = collabInvites.filter(i => i.status === 'pending').length;
+    const badge = document.getElementById('collab-count');
+    if (pending > 0) {
+      badge.textContent = pending;
+      badge.style.display = '';
+      badge.style.background = 'var(--accent,#ff7a00)';
+      badge.style.color = '#000';
+    } else if (collabInvites.length) {
+      badge.textContent = collabInvites.length;
+      badge.style.display = '';
+    }
+  } catch(e) { collabInvites = []; }
+}
+
+function renderCollab() {
+  const el = document.getElementById('collab-container');
+  if (!collabInvites.length) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">🤝</div>
+        <div class="empty-title">No co-create invites yet</div>
+        <div class="empty-sub">When a squad member invites you to co-create a comic, it'll appear here.</div>
+      </div>`;
+    return;
+  }
+
+  const statusColor = { accepted: '#32d74b', declined: '#555', pending: '#ff7a00' };
+  const statusLabel = { accepted: '✅ Accepted', declined: '❌ Declined', pending: '⏳ Pending' };
+
+  el.innerHTML = `<div class="comics-grid">${collabInvites.map(inv => `
+    <div class="comic-card pub-card" style="opacity:${inv.status==='declined'?0.45:1};">
+      <div class="comic-thumb" style="display:flex;align-items:center;justify-content:center;font-size:36px;background:#111;">🎨</div>
+      <div class="comic-info">
+        <div class="comic-title">${escHtml(inv.comic_title || 'Untitled Comic')}</div>
+        <div class="comic-meta" style="font-size:11px;color:#444;font-weight:700;">Invited by @${escHtml(inv.inviter_handle)}</div>
+        <div class="comic-stars" style="color:${statusColor[inv.status]||'#555'};font-size:12px;font-weight:800;">${statusLabel[inv.status]||inv.status}</div>
+      </div>
+      <div class="card-actions">
+        ${inv.status === 'pending' ? `
+          <button class="ca-btn ca-edit" onclick="event.stopPropagation();acceptCollabInvite('${inv.id}','${inv.comic_id}')">✅ Accept</button>
+          <button class="ca-btn ca-del" onclick="event.stopPropagation();declineCollabInvite('${inv.id}')">Decline</button>
+        ` : inv.status === 'accepted' ? `
+          <button class="ca-btn ca-edit" onclick="event.stopPropagation();openCollabComic('${inv.comic_id}')">✏️ Open</button>
+          <button class="ca-btn ca-read" onclick="event.stopPropagation();readComic('${inv.comic_id}')">📖 Read</button>
+        ` : ''}
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+async function acceptCollabInvite(inviteId, comicId) {
+  await _sb.from('comic_collaborators').update({ status: 'accepted' }).eq('id', inviteId);
+  const inv = collabInvites.find(i => i.id === inviteId);
+  if (inv) inv.status = 'accepted';
+  renderCollab();
+  openCollabComic(comicId);
+}
+
+async function declineCollabInvite(inviteId) {
+  await _sb.from('comic_collaborators').update({ status: 'declined' }).eq('id', inviteId);
+  const inv = collabInvites.find(i => i.id === inviteId);
+  if (inv) inv.status = 'declined';
+  renderCollab();
+}
+
+function openCollabComic(comicId) {
+  localStorage.setItem('edit_comic_id', comicId);
+  location.href = 'create.html';
+}
+// ── End Collab ─────────────────────────────────────────────
 
 // ── Render drafts ─────────────────────────────────────────
 function renderDrafts() {

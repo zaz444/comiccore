@@ -1849,9 +1849,21 @@ function _renderNow() {
     const dragOverlay   = document.getElementById('bg-drag-overlay');
     if (onionCanvasEl && onionCanvasEl.parentNode === canvas) onionCanvasEl.remove();
     if (dragOverlay    && dragOverlay.parentNode    === canvas) dragOverlay.remove();
+    // Pool decoded <img> elements — reusing them prevents the browser
+    // re-decoding _fxSrc data-URLs on every RAF tick (the FX flicker source)
+    const _imgPool = new Map();
+    canvas.querySelectorAll('img').forEach(img => {
+        const k = img.src ? img.src.substring(0,120) : '';
+        if (k && !_imgPool.has(k)) _imgPool.set(k, img);
+    });
+    function _getImg(src) {
+        const k = (src||'').substring(0,120);
+        if (_imgPool.has(k)) { const i = _imgPool.get(k); _imgPool.delete(k); i.style.cssText = ''; i.className = ''; return i; }
+        const i = document.createElement('img'); i.src = src; return i;
+    }
+        return document.createElement('img');
+    }
     canvas.innerHTML = '';
-
-    const f = frames[currentIdx];
     const bg = f.background || '#ffffff';
     const isImg = bg.startsWith('http') || bg.startsWith('data:image');
     const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
@@ -1980,19 +1992,20 @@ function _renderNow() {
 
             if (hasFxSrc && bStrength < 100) {
                 // Blend mode: clean base + fx overlay at blurStrength opacity
-                const base = document.createElement('img');
+                const base = _getImg(layer.src);
                 base.src = layer.src; base.draggable = false;
                 base.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;user-select:none;';
                 if (layer.fxOpacity !== undefined) base.style.opacity = layer.fxOpacity / 100;
-                const overlay = document.createElement('img');
+                const overlay = _getImg(layer._fxSrc);
                 overlay.src = layer._fxSrc; overlay.draggable = false;
                 overlay.style.cssText = `width:100%;height:100%;object-fit:contain;display:block;user-select:none;position:absolute;top:0;left:0;opacity:${bStrength/100};`;
                 el.style.position = 'relative';
                 el.appendChild(base);
                 el.appendChild(overlay);
             } else {
-                const img = document.createElement('img');
-                img.src = hasFxSrc ? layer._fxSrc : layer.src;
+                const _mSrc = hasFxSrc ? layer._fxSrc : layer.src;
+                const img = _getImg(_mSrc);
+                img.src = _mSrc;
                 img.draggable = false;
                 img.style.cssText = 'width:100%;display:block;user-select:none;';
                 if (combinedFilter) img.style.filter = combinedFilter;
@@ -4702,6 +4715,8 @@ function closeCollabPanel() {
 async function _loadCollabPanel() {
     const myHandle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
     if (!myHandle) return;
+    const hintSquad = localStorage.getItem('collab_hint_squad') || '';
+    if (hintSquad) localStorage.removeItem('collab_hint_squad');
 
     document.getElementById('collab-squad-select-wrap').innerHTML =
         '<div style="font-size:12px;color:#444;font-weight:700;">Loading squads…</div>';
@@ -4731,10 +4746,15 @@ async function _loadCollabPanel() {
             style="width:100%;background:#111;color:#f5f5f7;border:1px solid #2a2a2a;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;cursor:pointer;-webkit-appearance:none;"
             onchange="_loadCollabMembers(this.value)">
             <option value="">— pick a squad —</option>
-            ${(squads || []).map(s => `<option value="${s.id}">${s.team_name}</option>`).join('')}
+            ${(squads || []).map(s => `<option value="${s.id}"${hintSquad && String(s.id) === String(hintSquad) ? ' selected' : ''}>${s.team_name}</option>`).join('')}
         </select>`;
 
     await _refreshCollabCurrent();
+
+    // Auto-load members if a squad was pre-hinted from squads.html
+    if (hintSquad && (squads || []).find(s => String(s.id) === String(hintSquad))) {
+        await _loadCollabMembers(hintSquad);
+    }
 }
 
 async function _loadCollabMembers(squadId) {
@@ -4777,20 +4797,36 @@ async function _sendCollabInvite(inviteeHandle, squadId, btn) {
     const comicTitle = document.getElementById('pub-title')?.value || 'Untitled';
     btn.disabled = true; btn.textContent = '…';
 
-    const { error } = await _supabase.from('comic_collaborators').insert([{
+    const { data: inviteRow, error } = await _supabase.from('comic_collaborators').insert([{
         comic_id:       editingComicId,
         comic_title:    comicTitle,
         inviter_handle: myHandle,
         invitee_handle: inviteeHandle,
         squad_id:       String(squadId),
         status:         'pending'
-    }]);
+    }]).select('id').single();
 
     if (error) {
         btn.disabled = false; btn.textContent = '+ Invite';
         alert('Error: ' + error.message);
         return;
     }
+
+    // Post invite card to squad chat
+    try {
+        const chatPayload = JSON.stringify({
+            invite_id:      inviteRow.id,
+            comic_id:       editingComicId,
+            comic_title:    comicTitle,
+            inviter_handle: myHandle,
+            invitee_handle: inviteeHandle
+        });
+        await _supabase.from('team_messages').insert([{
+            ticket_id:      squadId,
+            sender_handle:  myHandle,
+            content:        `[COLLAB_INVITE]:${chatPayload}`
+        }]);
+    } catch(e) { /* non-fatal */ }
 
     btn.textContent = 'Invited ✓';
     btn.style.background = '#1e1e1e';
@@ -4849,11 +4885,14 @@ async function finalPublish() {
         stampEditorDimensions();
         const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
         clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
-        let error;
+        let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
+            publishedId = editingComicId;
         } else {
-            ({ error } = await _supabase.from('comics').insert([{ ...payload, owner_name: pubHandle, owner_handle: pubHandle }]));
+            const res = await _supabase.from('comics').insert([{ ...payload, owner_name: pubHandle, owner_handle: pubHandle }]).select('id').single();
+            error = res.error;
+            publishedId = res.data?.id;
         }
         if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return; }
         // Clean up draft after publish
@@ -4867,6 +4906,7 @@ async function finalPublish() {
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
         alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
+        if (publishedId) _generateFrameSnapshots(publishedId).catch(() => {});
         location.href = 'discover.html';
     } catch (err) {
         clearEditorDimensionStamps(); // ensure clean on error too
@@ -4876,6 +4916,42 @@ async function finalPublish() {
         btn.innerText = editingComicId ? 'UPDATE' : 'POST NOW';
     }
 }
+
+// ── FRAME SNAPSHOT GENERATION (mobile) ────────────────────────────────────
+// Renders each frame to canvas → uploads as JPEG → saves URL in frame_snapshots.
+// reader.html uses these instead of rebuilding DOM layers — instant frame flips.
+async function _generateFrameSnapshots(comicId) {
+    const SNAP_SIZE = 1200;
+    const ar = (canvasRatio && canvasRatio.w && canvasRatio.h)
+        ? canvasRatio.w / canvasRatio.h : 1;
+    const snapW = ar >= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE * ar);
+    const snapH = ar <= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE / ar);
+    const upsertRows = [];
+
+    for (let i = 0; i < frames.length; i++) {
+        try {
+            const offscreen = await renderFrameToCanvas(frames[i], snapW, snapH);
+            const blob = await new Promise(res => offscreen.toBlob(res, 'image/jpeg', 0.88));
+            if (!blob) continue;
+            const path = `snapshots/${comicId}/${i}.jpg`;
+            const { error: upErr } = await _supabase.storage
+                .from('comiccore-assets')
+                .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+            if (upErr) continue;
+            const { data: urlData } = _supabase.storage.from('comiccore-assets').getPublicUrl(path);
+            if (urlData?.publicUrl) {
+                upsertRows.push({ comic_id: comicId, frame_idx: i, url: urlData.publicUrl + '?t=' + Date.now() });
+            }
+        } catch(e) { /* non-fatal — reader falls back to DOM render */ }
+    }
+
+    if (upsertRows.length) {
+        await _supabase.from('frame_snapshots')
+            .upsert(upsertRows, { onConflict: 'comic_id,frame_idx' })
+            .catch(() => {});
+    }
+}
+// ── END FRAME SNAPSHOTS ─────────────────────────────────────────────────────
 
 // ── EXPORT ──
 function openExportModal() { document.getElementById('export-modal').style.display='flex'; openExportFramesTab(); }
