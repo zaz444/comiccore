@@ -63,8 +63,10 @@ position:absolute;top:0;left:0;
 overflow:hidden;background:#fff;
 box-shadow:0 8px 60px rgba(0,0,0,.85);
 }
-.cf-buf.cf-active{opacity:1;z-index:2;position:relative;}
+.cf-buf.cf-active{opacity:1;z-index:2;}
 .cf-buf.cf-behind{opacity:0;z-index:1;pointer-events:none;}
+/* comic-frame-wrap holds both buffers and sizes to match the active frame */
+#comic-frame-wrap{position:relative;}
 
 /* All layer types sit inside #comic-frame */
 .r-layer{position:absolute;pointer-events:none;transform-origin:top left;}
@@ -843,7 +845,8 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
 
     // Background
     const bg = f.background || '#ffffff';
-    const isBgImage = bg.startsWith('http') || bg.startsWith('data:image');
+    // Exclude base64 backgrounds from DOM render — snapshots handle them
+    const isBgImage = bg.startsWith('http');
     const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
     const isBgAnimated = isBgImage && isAnimatedBg(bg);
     const s = f.bgSettings || {};
@@ -925,11 +928,15 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
 
         if (l.type === 'img') {
-            const img = document.createElement('img');
-            img.src = l._fxSrc || l.src;
-            img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
-            if (combinedFilter) img.style.filter = combinedFilter;
-            el.appendChild(img);
+            const imgSrc = l._fxSrc || l.src;
+            // Skip base64 blobs — only render real URLs; snapshots handle the rest
+            if (imgSrc && imgSrc.startsWith('http')) {
+                const img = document.createElement('img');
+                img.src = imgSrc;
+                img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+                if (combinedFilter) img.style.filter = combinedFilter;
+                el.appendChild(img);
+            }
         } else if (l.type === 'bubble' || l.type === 'thinking') {
             const fs = (l.fontSize || 28) * sx;
             const ff = l.fontFamily || "'Inter', sans-serif";
@@ -1418,10 +1425,18 @@ function sizeFrame(el) {
   if (vw / vh > ar) { ch = vh * 0.98; cw = ch * ar; }
   else              { cw = vw * 0.98; ch = cw / ar; }
 
-  cf.style.width  = Math.floor(cw) + 'px';
-  cf.style.height = Math.floor(ch) + 'px';
+  cw = Math.floor(cw);
+  ch = Math.floor(ch);
+
+  cf.style.width  = cw + 'px';
+  cf.style.height = ch + 'px';
   cf.style.backgroundSize = 'cover';
-  return { cw: Math.floor(cw), ch: Math.floor(ch) };
+
+  // Size the wrap so it contains the absolute-positioned buffers
+  const wrap = document.getElementById('comic-frame-wrap');
+  if (wrap) { wrap.style.width = cw + 'px'; wrap.style.height = ch + 'px'; }
+
+  return { cw, ch };
 }
 
 function getEditorDimensions(frame) {
@@ -1576,7 +1591,8 @@ function _renderFrameDOM(f, next, cw, ch) {
   // 3. Apply background — mirrors updated create.html render():
   //    filter goes ONLY on the bg-layer div, never on cf root, so sprites are unaffected.
   const bg = f.background || '#ffffff';
-  const isBgImage    = bg.startsWith('http') || bg.startsWith('data:image');
+  // Exclude base64 backgrounds from DOM render — snapshots handle them
+  const isBgImage    = bg.startsWith('http');
   const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
   const isBgAnimated = isBgImage && isAnimatedBg(bg);
 
@@ -1685,11 +1701,15 @@ function _renderFrameDOM(f, next, cw, ch) {
     const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
 
     if (l.type === 'img') {
-      const img = document.createElement('img');
-      img.src = l._fxSrc || l.src;
-      img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
-      if (combinedFilter) img.style.filter = combinedFilter;
-      el.appendChild(img);
+      const imgSrc = l._fxSrc || l.src;
+      // Skip base64 blobs — only render real URLs; snapshots handle the rest
+      if (imgSrc && imgSrc.startsWith('http')) {
+        const img = document.createElement('img');
+        img.src = imgSrc;
+        img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+        if (combinedFilter) img.style.filter = combinedFilter;
+        el.appendChild(img);
+      }
 
     } else if (l.type === 'bubble' || l.type === 'thinking') {
       const fs = (l.fontSize || 28) * sx;
