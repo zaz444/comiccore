@@ -52,12 +52,7 @@ width:100%;height:100dvh;position:relative;overflow:hidden;touch-action:none;
     background-color: #ffffff !important;
     overflow: hidden;
 }
-#comic-frame-b .r-layer {
-    position: relative !important;
-    top: auto !important;
-    left: auto !important;
-    margin: 0 auto;
-}
+#comic-frame-b 
 .cf-buf{
 position:absolute;top:0;left:0;
 overflow:hidden;background:#fff;
@@ -69,7 +64,7 @@ box-shadow:0 8px 60px rgba(0,0,0,.85);
 #comic-frame-wrap{position:relative;}
 
 /* All layer types sit inside #comic-frame */
-.r-layer{position:absolute;pointer-events:none;transform-origin:top left;}
+.r-layer{position:absolute;pointer-events:none;transform-origin:center center;}
 
 /* Speech bubble — base */
 .speech-bubble{
@@ -397,7 +392,7 @@ scroll-snap-align:start;
 scroll-snap-stop:always;
 }
 .toon-frame .r-bg-div,.toon-frame #r-bg-layer,
-.toon-frame .r-layer{position:absolute;}
+.toon-frame 
 
 /* ── Persistent ToonScroll exit button ── */
 #ts-exit-btn{
@@ -1083,8 +1078,9 @@ async function boot() {
   toonScrollConfig = tsConfigRes.data;
   const allFrames = frames.slice(); // keep full set for toonscroll strip
   if (toonScrollConfig && toonScrollConfig.is_enabled) {
-    const { data: tsFrames } = await _sb.from('toonscroll_frames')
-      .select('*').eq('toonscroll_id', toonScrollConfig.id).order('frame_order');
+    const tsFramesRes = await Promise.resolve(_sb.from('toonscroll_frames')
+      .select('*').eq('toonscroll_id', toonScrollConfig.id).order('frame_order')).catch(() => ({ data: [] }));
+    const tsFrames = tsFramesRes.data;
     toonScrollFrames = tsFrames || [];
     document.getElementById('ts-toggle').style.display = 'flex';
 
