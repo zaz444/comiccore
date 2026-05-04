@@ -495,7 +495,7 @@ margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-conte
 
   <div id="comic-frame-wrap" style="position:relative;">
     <div id="comic-frame"   class="cf-buf cf-active"></div>
-    <div id="comic-frame-b" class="cf-buf"></div>
+    <div id="comic-frame-b" class="cf-buf cf-behind"></div>
   </div>
 
   <div class="finish-card" id="finish">
@@ -1012,7 +1012,7 @@ function nextFrame() {
         if (idx < frames.length - 1) { idx++; scrollToFrame(idx); saveProg(); }
         return;
     }
-    if (idx < frames.length - 1) { idx++; renderFrame(true); saveProg(); resetUI(); }
+    if (idx < frames.length - 1) { idx++; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
     else showFinish();
 }
 
@@ -1021,21 +1021,21 @@ function prevFrame() {
         if (idx > 0) { idx--; scrollToFrame(idx); saveProg(); }
         return;
     }
-    if (idx > 0) { idx--; renderFrame(true); saveProg(); }
+    if (idx > 0) { idx--; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
 }
 
 function jumpTo(i) {
     if (toonScrollMode !== 'off') {
         idx = i; scrollToFrame(idx); saveProg(); return;
     }
-    idx = i; renderFrame(true); saveProg();
+    idx = i; renderFrame(true); _updateReaderChrome(); saveProg();
 }
 
 function rereadComic() {
     idx = 0; localStorage.removeItem('cc-progress-' + comicId);
-    if (toonScrollMode !== 'off') { scrollToFrame(0); }
-    else { renderFrame(); }
     document.getElementById('finish').style.display = 'none';
+    if (toonScrollMode !== 'off') { scrollToFrame(0); }
+    else { renderFrame(); _updateReaderChrome(); resetUI(); buildDots(); }
 }
 
 // ── Boot ──────────────────────────────────────────────────
@@ -1046,12 +1046,18 @@ async function boot() {
   comicId = new URLSearchParams(location.search).get('id');
   if (!comicId) return location.href = 'discover.html';
 
+  // Show loading state clearly
+  document.getElementById('top-title').innerText = 'Loading…';
+
+  try {
+
   // ── Check all tables simultaneously ──────────────────────
+  const safe = fn => fn.catch(e => { console.warn('Supabase fetch failed:', e); return { data: null }; });
   const [comicRes, storyRes, tsConfigRes, snapRes] = await Promise.all([
-    _sb.from('comics').select('*').eq('id', comicId).maybeSingle(),
-    _sb.from('stories').select('*').eq('id', comicId).maybeSingle(),
-    _sb.from('toonscroll_configs').select('*').eq('comic_id', comicId).maybeSingle(),
-    _sb.from('frame_snapshots').select('frame_idx,url').eq('comic_id', comicId).catch(() => ({ data: null })),
+    safe(_sb.from('comics').select('*').eq('id', comicId).maybeSingle()),
+    safe(_sb.from('stories').select('*').eq('id', comicId).maybeSingle()),
+    safe(_sb.from('toonscroll_configs').select('*').eq('comic_id', comicId).maybeSingle()),
+    safe(_sb.from('frame_snapshots').select('frame_idx,url').eq('comic_id', comicId)),
   ]);
 
   if (storyRes.data && !comicRes.data) {
@@ -1151,6 +1157,12 @@ async function boot() {
 
   sched();
   buildShareUrl();
+
+  } catch(err) {
+    console.error('boot() failed:', err);
+    document.getElementById('top-title').innerText = 'Error loading comic';
+    document.getElementById('top-author').innerText = err.message || 'Unknown error';
+  }
 }
 
 // ── Story reader ───────────────────────────────────────────
@@ -1526,10 +1538,10 @@ function renderFrame(anim = false) {
       snapImg.className = 'r-snapshot';
       snapImg.dataset.snapUrl = snapUrl;
       snapImg.style.cssText = [
-        'position:absolute;inset:0;width:100%;height:100%;',
+        'width:100%;height:100%;',
         'object-fit:contain;object-position:center center;',
         'pointer-events:none;display:block;',
-        'background:#fff;',   // matches cf-buf bg so no flash on load
+        'background:#fff;',
       ].join('');
       // Preload next/prev snapshots while we have a moment
       const preloadIdxs = [snapIdx - 1, snapIdx + 1, snapIdx + 2];
@@ -1834,14 +1846,7 @@ function _updateReaderChrome() {
 }
 
 // ── Nav ───────────────────────────────────────────────────
-function nextFrame() {
-  if (idx < frames.length - 1) { idx++; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
-  else showFinish();
-}
-function prevFrame() {
-  if (idx > 0) { idx--; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
-}
-function jumpTo(i) { idx = i; renderFrame(true); _updateReaderChrome(); saveProg(); }
+// nav functions defined above
 
 // ── Fullscreen ────────────────────────────────────────────
 let _fsActive = false;
@@ -2037,15 +2042,7 @@ function showFinish() {
   }
 }
 
-function rereadComic() {
-  // Clear finished flag and go back to frame 0
-  localStorage.removeItem('cc-progress-' + comicId);
-  idx = 0;
-  document.getElementById('finish').style.display = 'none';
-  renderFrame(true);
-  resetUI();
-  buildDots();
-}
+
 
 async function finishStar() {
   if (userRating > 0) {
