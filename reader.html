@@ -1052,7 +1052,7 @@ async function boot() {
   try {
 
   // ── Check all tables simultaneously ──────────────────────
-  const safe = fn => fn.catch(e => { console.warn('Supabase fetch failed:', e); return { data: null }; });
+  const safe = fn => Promise.resolve(fn).catch(e => { console.warn('Supabase fetch failed:', e); return { data: null }; });
   const [comicRes, storyRes, tsConfigRes, snapRes] = await Promise.all([
     safe(_sb.from('comics').select('*').eq('id', comicId).maybeSingle()),
     safe(_sb.from('stories').select('*').eq('id', comicId).maybeSingle()),
