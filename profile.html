@@ -1355,11 +1355,20 @@
             });
         }
 
+        function normalizeStoragePath(pic) {
+            if (!pic || pic.startsWith('data:image') || pic.startsWith('http')) return pic;
+            let path = pic;
+            let prefixes = 0;
+            while (path.startsWith('avatars/')) { path = path.slice('avatars/'.length); prefixes++; }
+            return prefixes > 0 ? `avatars/${path}` : pic;
+        }
+
         function formatImageUrl(pic) {
             if (!pic) return '';
             if (pic.startsWith('data:image')) return pic;
             if (pic.startsWith('avatars/')) {
-                const cleanPath = pic.replace('avatars/', '');
+                let cleanPath = pic;
+                while (cleanPath.startsWith('avatars/')) cleanPath = cleanPath.slice('avatars/'.length);
                 const { data } = _supabase.storage.from('avatars').getPublicUrl(cleanPath);
                 return data.publicUrl;
             }
@@ -2024,8 +2033,8 @@
         async function saveProfile() {
             if (!myProfile.handle) { alert('Session error: your handle is missing. Please log out and log in again.'); return; }
 
-            let picPath = myProfile.pic || '';
-            let bannerPath = myProfile.banner || '';
+            let picPath = normalizeStoragePath(myProfile.pic || '');
+            let bannerPath = normalizeStoragePath(myProfile.banner || '');
 
             if (pfpBase64 && pfpBase64.startsWith('data:image')) {
                 try {
