@@ -2137,6 +2137,8 @@
             pfpCropSrc = src; pfpCropOffsetX = 0; pfpCropOffsetY = 0; pfpCropScale = 1;
             document.getElementById('pfp-crop-zoom').value = 1;
             const img = document.getElementById('pfp-crop-img');
+            img.crossOrigin = 'anonymous';
+            img.onerror = () => { showToast('Could not load image for cropping'); closePfpCrop(); };
             img.src = formatImageUrl(src);
             img.onload = () => { pfpImgNatW = img.naturalWidth; pfpImgNatH = img.naturalHeight; updatePfpCropImg(); };
             document.getElementById('pfp-crop-overlay').classList.add('active');
@@ -2171,12 +2173,17 @@
             const w = pfpImgNatW * scale, h = pfpImgNatH * scale;
             const left = PFP_SIZE/2 - w/2 + pfpCropOffsetX, top = PFP_SIZE/2 - h/2 + pfpCropOffsetY;
             const sx = (-left) / scale, sy = (-top) / scale, sSize = PFP_SIZE / scale;
-            const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 400;
-            canvas.getContext('2d').drawImage(img, sx, sy, sSize, sSize, 0, 0, 400, 400);
-            pfpBase64 = canvas.toDataURL('image/jpeg', 0.9);
-            document.getElementById('pfp-preview').src = getImageUrl(pfpBase64);
-            markDirty();
-            closePfpCrop();
+            try {
+                const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 400;
+                canvas.getContext('2d').drawImage(img, sx, sy, sSize, sSize, 0, 0, 400, 400);
+                pfpBase64 = canvas.toDataURL('image/jpeg', 0.9);
+                document.getElementById('pfp-preview').src = getImageUrl(pfpBase64);
+                markDirty();
+            } catch (err) {
+                showToast('Could not crop this image (cross-origin restriction)');
+            } finally {
+                closePfpCrop();
+            }
         }
 
         document.getElementById('banner-input').onchange = (e) => {
@@ -2197,7 +2204,10 @@
 
         function openCropModal(src) {
             const overlay = document.getElementById('crop-overlay'), img = document.getElementById('crop-source');
-            overlay.classList.add('active'); img.src = formatImageUrl(src);
+            overlay.classList.add('active');
+            img.crossOrigin = 'anonymous';
+            img.onerror = () => { showToast('Could not load image for cropping'); closeCropModal(); };
+            img.src = formatImageUrl(src);
             img.onload = () => { cropImgNaturalW = img.naturalWidth; cropImgNaturalH = img.naturalHeight; cropOffsetX = 0; cropOffsetY = 0; cropScale = 1; updateCropFrame(); };
         }
         function closeCropModal() { document.getElementById('crop-overlay').classList.remove('active'); document.getElementById('crop-frame').style.display = 'none'; }
@@ -2223,16 +2233,24 @@
             const displayW = container.offsetWidth, displayH = img.offsetHeight;
             const scaleX = cropImgNaturalW / displayW, scaleY = cropImgNaturalH / displayH;
             const sy = Math.max(0, frame._top * scaleY), sw = cropImgNaturalW, sh = Math.min(frame._frameH * scaleY, cropImgNaturalH - sy);
-            const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = Math.round(1200 / BANNER_RATIO);
-            canvas.getContext('2d').drawImage(img, 0, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-            bannerBase64 = canvas.toDataURL('image/jpeg', 0.85);
-            const prev = document.getElementById('banner-preview'); prev.src = getImageUrl(bannerBase64); prev.style.display = 'block';
-            markDirty();
-            closeCropModal();
+            try {
+                const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = Math.round(1200 / BANNER_RATIO);
+                canvas.getContext('2d').drawImage(img, 0, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+                bannerBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                const prev = document.getElementById('banner-preview'); prev.src = getImageUrl(bannerBase64); prev.style.display = 'block';
+                markDirty();
+            } catch (err) {
+                showToast('Could not crop this image (cross-origin restriction)');
+            } finally {
+                closeCropModal();
+            }
         }
 
         function closeEditor() {
             markClean();
+            document.getElementById('crop-overlay').classList.remove('active');
+            document.getElementById('pfp-crop-overlay').classList.remove('active');
+            document.getElementById('pfp-source-overlay').classList.remove('open');
             if (currentViewedHandle) loadPublicProfile(currentViewedHandle);
             else location.href = 'discover.html';
         }
