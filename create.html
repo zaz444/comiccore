@@ -1716,7 +1716,7 @@
         <div class="tb-spacer"></div>
 
         <!-- Right actions -->
-        <button class="tb-btn" onclick="saveOffline(false)">💾 Save</button>
+        <button class="tb-btn" onclick="onSaveButtonClick()">💾 Save</button>
                 <span id="save-indicator" style="font-size:10px;font-weight:800;color:#3a3;letter-spacing:.3px;"></span>
                 <button class="tb-btn" id="panel-border-btn" onclick="togglePanelBorder()" title="Toggle comic panel border (P)">🔲 Border</button>
                 <button class="tb-btn" onclick="document.getElementById('kb-ref-modal').style.display='flex'" title="Keyboard shortcuts (?)">⌨️</button>
@@ -2164,6 +2164,15 @@
             <span id="sel-opacity-val" style="font-size:11px; font-weight:800; color:var(--accent); width:36px; text-align:right;">100%</span>
         </div>
         <div style="font-size:10px; color:#444; font-weight:600; line-height:1.4;">Lower this to make the orange selection box less visible. Saved automatically.</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:18px; padding-top:14px; border-top:1px solid #222;">
+        <div style="font-size:10px; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:1px;">Save Behavior</div>
+        <select id="save-pref-select" onchange="lsSet('cc-save-pref', this.value); lsSet('cc-save-pref-asked','true'); showSaveBadge('✓ Save preference updated', false);" style="width:100%; padding:8px 10px; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; color:#f5f5f7; font-size:12px; font-weight:700; font-family:inherit;">
+            <option value="every-action">A. Save on every action</option>
+            <option value="on-exit">B. Save on exit</option>
+            <option value="ask-on-exit">C. Ask before exit</option>
+        </select>
+        <div style="font-size:10px; color:#444; font-weight:600; line-height:1.4;">Controls how this draft gets saved to My Comics.</div>
     </div>
 </div>
 
@@ -3457,10 +3466,74 @@
         history.push(JSON.stringify(frames));
         if (history.length > 30) history.shift();
         redoStack = []; hasUnsavedChanges = true;
+        maybeAutoSaveOnAction();
     }
 
     function undo() { if (history.length > 0) { redoStack.push(JSON.stringify(frames)); frames = JSON.parse(history.pop()); render(); } }
     function redo() { if (redoStack.length > 0) { history.push(JSON.stringify(frames)); frames = JSON.parse(redoStack.pop()); render(); } }
+
+    // ══════════════════════════════════════════════════════
+    // SAVE PREFERENCES — "every action" / "on exit" / "ask on exit"
+    // ══════════════════════════════════════════════════════
+    const SAVE_PREF_KEY = 'cc-save-pref';        // 'every-action' | 'on-exit' | 'ask-on-exit'
+    const SAVE_PREF_ASKED_KEY = 'cc-save-pref-asked'; // 'true' once the user has answered (yes or no)
+
+    function getSavePref() {
+        return localStorage.getItem(SAVE_PREF_KEY) || 'ask-on-exit'; // default = current behavior
+    }
+    function setSavePref(val) {
+        if (val) lsSet(SAVE_PREF_KEY, val);
+        else localStorage.removeItem(SAVE_PREF_KEY);
+        lsSet(SAVE_PREF_ASKED_KEY, 'true');
+    }
+    function hasAskedSavePref() {
+        return localStorage.getItem(SAVE_PREF_ASKED_KEY) === 'true';
+    }
+
+    // Called when the toolbar 💾 Save button is clicked.
+    function onSaveButtonClick() {
+        if (!hasAskedSavePref()) {
+            document.getElementById('save-pref-step1-modal').style.display = 'flex';
+            return;
+        }
+        saveOffline(false);
+    }
+
+    // Step 1: "Do you wish to save [automatically]?" Yes/No
+    function savePrefAnswer(yes) {
+        document.getElementById('save-pref-step1-modal').style.display = 'none';
+        if (yes) {
+            document.getElementById('save-pref-step2-modal').style.display = 'flex';
+            return;
+        }
+        // "No" — don't set up auto-save, but mark as asked so we don't nag again,
+        // and just perform the normal one-time save the user originally requested.
+        setSavePref('ask-on-exit');
+        saveOffline(false);
+    }
+
+    // Step 2: A / B / C / D
+    function savePrefChoose(choice) {
+        document.getElementById('save-pref-step2-modal').style.display = 'none';
+        if (choice === null) {
+            // D. Not now — don't mark as asked, so we ask again next time Save is clicked.
+            saveOffline(false);
+            return;
+        }
+        setSavePref(choice);
+        showSaveBadge('✓ Save preference set!', false);
+        saveOffline(false);
+    }
+
+    // For option A: debounced auto-save fired after every edit action (saveState()).
+    let _autoSaveActionTimer = null;
+    function maybeAutoSaveOnAction() {
+        if (getSavePref() !== 'every-action') return;
+        clearTimeout(_autoSaveActionTimer);
+        _autoSaveActionTimer = setTimeout(() => {
+            if (hasUnsavedChanges) saveOffline(true);
+        }, 1500);
+    }
 
     // ── Draft save: SQL-first, bucket spill for large payloads ───────────────
     const _DRAFT_BUCKET  = 'comiccore-assets';
@@ -3559,8 +3632,17 @@
 
     function goToDrafts() {
         _exitDestination = 'my-comics.html';
-        if (hasUnsavedChanges) { document.getElementById('exit-confirm-modal').style.display = 'flex'; return; }
-        location.href = 'my-comics.html';
+        if (!hasUnsavedChanges) { location.href = 'my-comics.html'; return; }
+
+        const pref = getSavePref();
+        if (pref === 'every-action' || pref === 'on-exit') {
+            // Auto-save silently, then navigate — no prompt
+            saveOffline(true).then(() => { location.href = 'my-comics.html'; });
+            return;
+        }
+
+        // 'ask-on-exit' (default) — prompt the user
+        document.getElementById('exit-confirm-modal').style.display = 'flex';
     }
 
     // Auto-save every 30 seconds if there are unsaved changes
@@ -3978,11 +4060,19 @@
 
     function handleExit() {
         _exitDestination = 'index.html';
-        // Auto-save silently, then navigate — no prompt
-        if (hasUnsavedChanges && activeDraftId) {
+        if (!hasUnsavedChanges) { location.href = _exitDestination; return; }
+
+        const pref = getSavePref();
+        if (pref === 'ask-on-exit') {
+            document.getElementById('exit-confirm-modal').style.display = 'flex';
+            return;
+        }
+
+        // 'every-action' or 'on-exit' — auto-save silently, then navigate
+        if (activeDraftId) {
             saveOffline(true).then(() => { location.href = _exitDestination; });
         } else {
-            location.href = _exitDestination;
+            saveOffline(true).finally(() => { location.href = _exitDestination; });
         }
     }
 
@@ -8025,7 +8115,12 @@
 
     function toggleEditorPrefs() {
         const panel = document.getElementById('editor-prefs-panel');
-        panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+        const opening = panel.style.display !== 'flex';
+        panel.style.display = opening ? 'flex' : 'none';
+        if (opening) {
+            const sel = document.getElementById('save-pref-select');
+            if (sel) sel.value = getSavePref();
+        }
     }
     function closeEditorPrefs() {
         document.getElementById('editor-prefs-panel').style.display = 'none';
@@ -8734,6 +8829,35 @@
     });
 })();
 </script>
+
+
+<!-- ── SAVE PREFERENCE: STEP 1 (yes/no) ── -->
+<div id="save-pref-step1-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+    <div style="background:#111;border:1px solid #2a2a2a;border-radius:20px;padding:28px 24px;max-width:340px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.8);">
+        <div style="font-size:32px;margin-bottom:12px;">💾</div>
+        <div style="font-size:17px;font-weight:900;color:#f5f5f7;margin-bottom:8px;">Do you wish to save?</div>
+        <div style="font-size:12px;color:#666;font-weight:600;margin-bottom:24px;line-height:1.5;">Would you like to set up automatic saving for this comic going forward?</div>
+        <div style="display:flex;gap:10px;">
+            <button onclick="savePrefAnswer(true)" style="flex:1;padding:14px;background:#ff7a00;color:#000;border:none;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;">Yes</button>
+            <button onclick="savePrefAnswer(false)" style="flex:1;padding:14px;background:#1a1a1a;color:#aaa;border:1px solid #2a2a2a;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;">No</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── SAVE PREFERENCE: STEP 2 (A/B/C/D options) ── -->
+<div id="save-pref-step2-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+    <div style="background:#111;border:1px solid #2a2a2a;border-radius:20px;padding:28px 24px;max-width:360px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.8);">
+        <div style="font-size:32px;margin-bottom:12px;">⚙️</div>
+        <div style="font-size:17px;font-weight:900;color:#f5f5f7;margin-bottom:8px;">How should we save your work?</div>
+        <div style="font-size:12px;color:#666;font-weight:600;margin-bottom:20px;line-height:1.5;">Choose how this draft gets saved to My Comics. You can change this later in Editor Preferences.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <button onclick="savePrefChoose('every-action')" style="width:100%;padding:14px;background:#ff7a00;color:#000;border:none;border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;text-align:left;">A. Save on every action<div style="font-weight:600;font-size:11px;opacity:.75;margin-top:2px;">Auto-saves to My Comics after each edit</div></button>
+            <button onclick="savePrefChoose('on-exit')" style="width:100%;padding:14px;background:#1a1a1a;color:#f5f5f7;border:1px solid #2a2a2a;border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;text-align:left;">B. Save on exit<div style="font-weight:600;font-size:11px;opacity:.6;margin-top:2px;">Auto-saves once when you exit the editor</div></button>
+            <button onclick="savePrefChoose('ask-on-exit')" style="width:100%;padding:14px;background:#1a1a1a;color:#f5f5f7;border:1px solid #2a2a2a;border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;text-align:left;">C. Ask before exit<div style="font-weight:600;font-size:11px;opacity:.6;margin-top:2px;">Prompts you to save when leaving (default)</div></button>
+            <button onclick="savePrefChoose(null)" style="width:100%;padding:12px;background:transparent;color:#555;border:1px solid #222;border-radius:12px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;">D. Not now</button>
+        </div>
+    </div>
+</div>
 
 
 <!-- ── SAVE BEFORE LEAVING MODAL ── -->

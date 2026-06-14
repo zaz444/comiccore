@@ -1,0 +1,1242 @@
+/**
+ * StoryCreateScreen.js  ·  ComicCore
+ * Rich-text story editor powered by an embedded WebView.
+ *
+ * Install dependency first:
+ *   expo install react-native-webview
+ *
+ * Route params:
+ *   storyId?: string   — pass to load & edit an existing published story
+ *
+ * Register in App.js:
+ *   <Stack.Screen name="StoryCreate" component={StoryCreateScreen}
+ *     options={{ headerShown: false }} />
+ *
+ * Navigate to it:
+ *   navigation.navigate('StoryCreate')              // new story
+ *   navigation.navigate('StoryCreate', { storyId }) // edit existing
+ */
+
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  StatusBar,
+  Platform,
+  BackHandler,
+  ActivityIndicator,
+} from 'react-native';
+import { WebView } from 'react-native-webview';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../lib/supabase'; // adjust path to match your project
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Supabase project constants — match story-mobile.html
+───────────────────────────────────────────────────────────────────────── */
+const SUPA_URL  = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
+const SUPA_ANON = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   buildEditorHTML(sessionJson, profileJson, editStoryId?)
+   Returns the full HTML string for the WebView with:
+     • Session + profile pre-loaded in localStorage before Supabase init
+     • edit_story_id set in localStorage when editing an existing story
+     • handleExit()       → postMessage {type:'exit'}
+     • finalPublish() ok  → postMessage {type:'published'}
+     • Cover box tap      → postMessage {type:'requestCover'}
+     • window.receiveCover(dataUrl) exposed for RN to inject cover image
+───────────────────────────────────────────────────────────────────────── */
+function buildEditorHTML(sessionJson, profileJson, editStoryId) {
+  // Construct preload script using regular string building so that
+  // JSON.stringify output (which may contain backticks) is never parsed
+  // as template literal syntax in the outer template.
+  let preloadLines = 'try {\n';
+  if (sessionJson)  preloadLines += `  localStorage.setItem('cc-auth',${JSON.stringify(sessionJson)});\n`;
+  if (profileJson)  preloadLines += `  localStorage.setItem('user_profile',${JSON.stringify(profileJson)});\n`;
+  if (editStoryId)  preloadLines += `  localStorage.setItem('edit_story_id',${JSON.stringify(String(editStoryId))});\n`;
+  preloadLines += '} catch(e) {}';
+
+  // Script closing tag must be split to avoid ending the <script> block early
+  const SC = '</scr' + 'ipt>';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<script>${preloadLines}${SC}
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">${SC}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0f0f11;--card:#1c1c1e;--text:#f5f5f7;--accent:#ff7a00;--border:#2c2c2e;--teal:#00d2ff;--sheet-bg:#161618}
+body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+
+/* ── TOP BAR ── */
+#top-bar{height:52px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:6px;z-index:200;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+.tb-btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 11px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;white-space:nowrap;transition:.15s}
+.tb-btn:active{opacity:.7}
+.tb-btn.accent{background:var(--accent);color:#000;border-color:var(--accent);font-weight:900}
+.tb-btn.teal{background:rgba(0,210,255,.1);border-color:var(--teal);color:var(--teal)}
+.tb-spacer{flex:1}
+#top-title{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:1px;white-space:nowrap}
+
+/* ── FORMAT BAR ── */
+#format-bar{background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:4px;padding:6px 10px;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch}
+#format-bar::-webkit-scrollbar{display:none}
+.fmt-btn{background:#2a2a2a;border:1px solid #3a3a3a;color:var(--text);border-radius:7px;padding:6px 11px;cursor:pointer;font-size:13px;font-weight:700;white-space:nowrap;flex-shrink:0;font-family:inherit;display:flex;align-items:center;gap:4px;transition:.15s}
+.fmt-btn:active{background:#444}
+.fmt-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.fmt-divider{width:1px;height:22px;background:#3a3a3a;margin:0 2px;flex-shrink:0}
+.fmt-size-group{display:flex;align-items:center;gap:3px;flex-shrink:0}
+.fmt-size-num{background:#1a1a1a;border:1px solid #3a3a3a;color:var(--text);border-radius:6px;width:32px;text-align:center;padding:5px 2px;font-size:12px;font-weight:700}
+.color-swatch{width:18px;height:4px;border-radius:2px;pointer-events:none}
+
+/* ── WRITING AREA ── */
+#writing-area-wrap{flex:1;overflow-y:auto;background:#0a0a0a;display:flex;flex-direction:column;align-items:center;padding:20px 10px 0;-webkit-overflow-scrolling:touch}
+#pages-container{width:100%;max-width:680px;display:flex;flex-direction:column}
+.page-wrapper{position:relative;width:100%}
+.page-wrapper:first-child .story-page{border-radius:4px 4px 0 0}
+.page-wrapper:last-child  .story-page{border-radius:0 0 4px 4px}
+.page-wrapper:only-child  .story-page{border-radius:4px}
+.page-wrapper:not(:last-child) .story-page{border-bottom:2px dashed #ddd}
+.story-page{width:100%;background:#ffffff;color:#111111;padding:28px 22px 52px;box-shadow:0 4px 30px rgba(0,0,0,.5);outline:none;font-size:18px;line-height:1.8;font-family:'Merriweather',Georgia,serif;caret-color:#ff7a00;word-wrap:break-word;overflow-wrap:break-word;min-height:420px;box-sizing:border-box;-webkit-user-select:text;user-select:text}
+.story-page.is-empty::before{content:attr(data-placeholder);color:#bbb;pointer-events:none;font-family:'Merriweather',Georgia,serif;font-size:18px}
+.page-label{position:absolute;bottom:10px;right:14px;font-size:10px;color:#aaa;font-family:'Inter',sans-serif;pointer-events:none;user-select:none}
+.page-delete-btn{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.08);border:none;color:#bbb;font-size:14px;cursor:pointer;padding:4px 8px;border-radius:6px;opacity:0;transition:.2s}
+.page-wrapper:hover .page-delete-btn,.page-wrapper:focus-within .page-delete-btn{opacity:1}
+.page-delete-btn:active{background:#ffe0e0;color:#c00}
+
+/* ── In-editor images ── */
+.img-container{display:block;margin:10px 0;line-height:0;position:relative}
+.img-container.align-left{text-align:left}
+.img-container.align-center{text-align:center}
+.img-container.align-right{text-align:right}
+.inserted-img{max-width:260px;width:100%;height:auto;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.15);display:inline-block;cursor:pointer;vertical-align:bottom}
+.img-toolbar{display:none;flex-wrap:wrap;align-items:center;gap:5px;background:#1e1e1e;border:1px solid #444;border-radius:10px;padding:6px 10px;margin-bottom:6px}
+.img-container.selected .img-toolbar{display:flex}
+.img-tb-btn{background:#333;border:1px solid #555;color:#eee;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:700;line-height:1.3}
+.img-tb-btn:active,.img-tb-btn.active{background:#ff7a00;color:#000;border-color:#ff7a00}
+.img-tb-sep{width:1px;height:18px;background:#444}
+
+/* ── Add page button ── */
+#add-page-btn{display:flex;justify-content:center;padding:16px 0 32px}
+#add-page-btn button{background:#1a1a1a;border:2px dashed #444;color:#666;padding:11px 32px;border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;font-family:'Inter',sans-serif}
+#add-page-btn button:active{border-color:var(--accent);color:var(--accent)}
+
+/* ── STATUS BAR ── */
+#status-bar{height:28px;background:var(--card);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:14px;font-size:10px;color:#666;font-weight:600;flex-shrink:0;overflow-x:auto}
+#status-bar::-webkit-scrollbar{display:none}
+#status-bar span{color:var(--text);font-weight:800}
+#save-status{margin-left:auto;color:#555;white-space:nowrap}
+
+/* ── SHEET OVERLAY ── */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;backdrop-filter:blur(4px)}
+.sheet-overlay.open{display:block}
+
+/* ── BOTTOM SHEETS ── */
+.bottom-sheet{position:fixed;bottom:-100%;left:0;right:0;background:var(--sheet-bg);border-radius:20px 20px 0 0;z-index:400;transition:bottom .32s cubic-bezier(.4,0,.2,1);max-height:72vh;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+.bottom-sheet.open{bottom:0}
+.sheet-handle{width:36px;height:4px;background:#444;border-radius:2px;margin:10px auto 0;flex-shrink:0}
+.sheet-title{font-size:13px;font-weight:900;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;padding:12px 16px 8px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
+.sheet-close{background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:4px}
+.sheet-body{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch}
+.sheet-section-label{font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;margin-top:4px}
+.font-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.font-card{background:#222;border:2px solid #2c2c2e;border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;transition:.15s}
+.font-card:active{border-color:var(--accent)}
+.font-card.active{border-color:var(--accent);background:rgba(255,122,0,.1)}
+.font-card .font-name{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px}
+.font-card .font-preview{font-size:14px;color:#888;line-height:1.4}
+.opt-grid{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.opt-btn{flex:1;min-width:60px;padding:12px 8px;background:#222;border:1.5px solid #2c2c2e;color:#888;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;text-align:center;white-space:nowrap;transition:.15s}
+.opt-btn:active,.opt-btn.active{border-color:var(--teal);background:rgba(0,210,255,.08);color:var(--teal)}
+.sheet-action-btn{width:100%;padding:14px 16px;background:#222;border:1.5px solid #2c2c2e;color:var(--text);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px;margin-bottom:10px;transition:.15s}
+.sheet-action-btn:active{border-color:var(--accent);background:rgba(255,122,0,.08)}
+.sheet-action-btn .sico{font-size:20px}
+.color-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.color-row label{font-size:13px;font-weight:700;color:#aaa;width:80px;flex-shrink:0}
+.color-row input[type=color]{width:48px;height:36px;border:2px solid #3a3a3a;border-radius:8px;cursor:pointer;background:none;padding:2px}
+.color-preview{width:28px;height:28px;border-radius:6px;border:1px solid #444}
+
+/* ── PUBLISH MODAL ── */
+.overlay-full{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:600;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(8px)}
+.modal-content{background:var(--card);padding:22px;border-radius:20px;width:100%;max-width:420px;border:1px solid var(--border);max-height:88vh;overflow-y:auto}
+.pub-input{width:100%;padding:12px;background:#111;border:1px solid #333;color:white;border-radius:10px;margin-bottom:12px;font-family:inherit;font-size:14px;outline:none}
+.pub-input:focus{border-color:var(--accent)}
+
+/* ── DRAFTS MODAL ── */
+#drafts-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center}
+#drafts-modal.open{display:flex}
+#drafts-panel{background:#1a1a1a;border:1px solid #2c2c2e;border-radius:20px 20px 0 0;width:100%;max-height:75dvh;display:flex;flex-direction:column;overflow:hidden}
+#drafts-panel-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid #2c2c2e;flex-shrink:0}
+#drafts-panel-head h2{margin:0;font-size:15px;font-weight:900;color:#fff}
+#drafts-panel-head button{background:none;border:none;color:#555;font-size:22px;cursor:pointer;padding:0}
+#drafts-list{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
+.sdraft-item{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px;cursor:pointer}
+.sdraft-item:active{background:rgba(255,255,255,.12)}
+.sdraft-icon{font-size:26px;flex-shrink:0}
+.sdraft-info{flex:1;min-width:0}
+.sdraft-title{font-size:14px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sdraft-meta{font-size:11px;color:rgba(255,255,255,.4);margin-top:3px;font-weight:600}
+.sdraft-del{background:none;border:none;color:rgba(255,255,255,.25);font-size:18px;cursor:pointer;padding:6px;flex-shrink:0}
+.sdraft-del:active{color:#ff453a}
+.sdraft-new{width:100%;padding:13px;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.18);border-radius:12px;color:rgba(255,255,255,.6);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+
+/* ── TOAST ── */
+#__toast{position:fixed;top:68px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4cff7a;padding:9px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:9999;border:1px solid #2a5a2a;pointer-events:none;opacity:0;transition:opacity .2s;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<!-- ════ PUBLISH MODAL ════ -->
+<div id="publish-modal" class="overlay-full">
+  <div class="modal-content">
+    <h2 style="margin-top:0;color:var(--accent);font-size:18px;">Publish Story</h2>
+
+    <!-- Cover box: tap → postMessage to RN which opens expo-image-picker -->
+    <div id="cover-box"
+         style="width:100%;aspect-ratio:2/3;max-height:200px;background:#111;border:2px dashed #444;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;margin-bottom:14px;"
+         onclick="requestCoverFromRN()">
+      <img id="cover-img" style="width:100%;height:100%;object-fit:cover;display:none;">
+      <span id="cover-label" style="color:#555;font-size:13px;">Tap to upload cover</span>
+    </div>
+    <!-- Fallback file input for non-RN environments (dev/web preview) -->
+    <input type="file" id="cover-file-input" accept="image/*" style="display:none;" onchange="handleCoverFile(this)">
+
+    <input type="text" id="pub-title" class="pub-input" placeholder="Story Title">
+    <input type="text" id="pub-tags"  class="pub-input" placeholder="Tags (e.g. romance, fantasy)">
+    <textarea          id="pub-desc"  class="pub-input" placeholder="Brief description..." style="height:70px;resize:none;"></textarea>
+
+    <div style="display:flex;gap:10px;">
+      <button onclick="closePublish()" style="flex:1;padding:13px;background:#333;color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Cancel</button>
+      <button id="pub-btn" onclick="finalPublish()" style="flex:2;padding:13px;background:var(--accent);color:white;border:none;border-radius:12px;font-weight:900;cursor:pointer;">PUBLISH</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SHEET OVERLAY ════ -->
+<div id="sheet-overlay" class="sheet-overlay" onclick="closeAllSheets()"></div>
+
+<!-- ════ FONT SHEET ════ -->
+<div id="sheet-font" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Font <button class="sheet-close" onclick="closeSheet('font')">✕</button></div>
+  <div class="sheet-body"><div class="font-grid" id="font-grid"></div></div>
+</div>
+
+<!-- ════ SPACING SHEET ════ -->
+<div id="sheet-spacing" class="bottom-sheet" style="max-height:42vh;">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Line Spacing <button class="sheet-close" onclick="closeSheet('spacing')">✕</button></div>
+  <div class="sheet-body">
+    <div class="opt-grid">
+      <button class="opt-btn"        onclick="applySpacing('1.4',this)">Tight<br><small>1.4×</small></button>
+      <button class="opt-btn active" onclick="applySpacing('1.8',this)">Normal<br><small>1.8×</small></button>
+      <button class="opt-btn"        onclick="applySpacing('2.2',this)">Relaxed<br><small>2.2×</small></button>
+      <button class="opt-btn"        onclick="applySpacing('2.8',this)">Double<br><small>2.8×</small></button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ COLOUR SHEET ════ -->
+<div id="sheet-colour" class="bottom-sheet" style="max-height:52vh;">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Text Colour &amp; Highlight <button class="sheet-close" onclick="closeSheet('colour')">✕</button></div>
+  <div class="sheet-body">
+    <div class="sheet-section-label">Text Colour</div>
+    <div class="color-row">
+      <label>Pick colour</label>
+      <input type="color" id="mobile-text-color" value="#111111" onchange="applyTextColor(this.value)">
+      <div class="color-preview" id="text-color-preview" style="background:#111111;"></div>
+    </div>
+    <div class="opt-grid" style="margin-bottom:20px;">
+      <button class="opt-btn" onclick="pickTextColor('#111111')" style="background:#f5f5f5;color:#111;border-color:#ddd;">Black</button>
+      <button class="opt-btn" onclick="pickTextColor('#ff7a00')" style="background:#ff7a00;color:#000;border-color:#ff7a00;">Orange</button>
+      <button class="opt-btn" onclick="pickTextColor('#e63946')" style="background:#e63946;color:#fff;border-color:#e63946;">Red</button>
+      <button class="opt-btn" onclick="pickTextColor('#2196f3')" style="background:#2196f3;color:#fff;border-color:#2196f3;">Blue</button>
+      <button class="opt-btn" onclick="pickTextColor('#4caf50')" style="background:#4caf50;color:#fff;border-color:#4caf50;">Green</button>
+      <button class="opt-btn" onclick="pickTextColor('#9c27b0')" style="background:#9c27b0;color:#fff;border-color:#9c27b0;">Purple</button>
+    </div>
+    <div class="sheet-section-label">Highlight</div>
+    <div class="color-row">
+      <label>Pick colour</label>
+      <input type="color" id="mobile-highlight" value="#FFFF00" onchange="applyHighlight(this.value)">
+      <div class="color-preview" id="highlight-preview" style="background:#FFFF00;"></div>
+    </div>
+    <div class="opt-grid">
+      <button class="opt-btn" onclick="pickHighlight('#FFFF00')" style="background:#FFFF00;color:#000;border-color:#cccc00;">Yellow</button>
+      <button class="opt-btn" onclick="pickHighlight('#b3f5b3')" style="background:#b3f5b3;color:#000;border-color:#7acc7a;">Green</button>
+      <button class="opt-btn" onclick="pickHighlight('#ffd6a5')" style="background:#ffd6a5;color:#000;border-color:#e6b06e;">Peach</button>
+      <button class="opt-btn" onclick="pickHighlight('#c8d8ff')" style="background:#c8d8ff;color:#000;border-color:#8aabff;">Blue</button>
+      <button class="opt-btn" onclick="pickHighlight('#ffc8c8')" style="background:#ffc8c8;color:#000;border-color:#ff9999;">Pink</button>
+      <button class="opt-btn" onclick="applyHighlight('transparent')" style="color:#888;">None</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MORE SHEET ════ -->
+<div id="sheet-more" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">More Options <button class="sheet-close" onclick="closeSheet('more')">✕</button></div>
+  <div class="sheet-body">
+    <div class="sheet-section-label">Text Style</div>
+    <div class="opt-grid" style="margin-bottom:16px;">
+      <button class="opt-btn" onclick="applyHeading('p')">Body</button>
+      <button class="opt-btn" onclick="applyHeading('h1')">H1</button>
+      <button class="opt-btn" onclick="applyHeading('h2')">H2</button>
+      <button class="opt-btn" onclick="applyHeading('h3')">H3</button>
+      <button class="opt-btn" onclick="applyHeading('blockquote')">Quote</button>
+      <button class="opt-btn" onclick="applyHeading('pre')">Code</button>
+    </div>
+    <div class="sheet-section-label">Alignment</div>
+    <div class="opt-grid" style="margin-bottom:16px;">
+      <button class="opt-btn" onclick="fmt('justifyLeft')">≡ Left</button>
+      <button class="opt-btn" onclick="fmt('justifyCenter')">≡ Center</button>
+      <button class="opt-btn" onclick="fmt('justifyRight')">≡ Right</button>
+      <button class="opt-btn" onclick="fmt('justifyFull')">≡ Justify</button>
+    </div>
+    <div class="sheet-section-label">Lists &amp; Links</div>
+    <div class="opt-grid" style="margin-bottom:16px;">
+      <button class="opt-btn" onclick="fmt('insertUnorderedList');closeSheet('more')">• Bullets</button>
+      <button class="opt-btn" onclick="fmt('insertOrderedList');closeSheet('more')">1. Numbers</button>
+      <button class="opt-btn" onclick="insertLink();closeSheet('more')">🔗 Link</button>
+      <button class="opt-btn" onclick="fmt('removeFormat');closeSheet('more')" style="color:#ff9966;">✕ Clear</button>
+    </div>
+    <div class="sheet-section-label">Image</div>
+    <button class="sheet-action-btn" onclick="triggerImageInsert();closeSheet('more')">
+      <span class="sico">🖼</span>Insert Image from Device
+    </button>
+    <input type="file" id="img-file-input" accept="image/*" style="display:none;" onchange="insertImageFromFile(this)">
+    <div class="sheet-section-label">Pages</div>
+    <button class="sheet-action-btn" onclick="addPage();closeSheet('more')"><span class="sico">📄</span>Add New Page</button>
+    <button class="sheet-action-btn" onclick="saveDraft();closeSheet('more')"><span class="sico">💾</span>Save Draft</button>
+  </div>
+</div>
+
+<!-- ════ TOP BAR ════ -->
+<div id="top-bar">
+  <button class="tb-btn" onclick="handleExit()">← Exit</button>
+  <button class="tb-btn" onclick="document.execCommand('undo')">↩</button>
+  <button class="tb-btn" onclick="document.execCommand('redo')">↪</button>
+  <div class="tb-spacer"></div>
+  <span id="top-title">STORY</span>
+  <div class="tb-spacer"></div>
+  <button class="tb-btn teal"   onclick="saveDraft()">💾</button>
+  <button class="tb-btn teal"   onclick="openDraftsModal()">📂</button>
+  <button class="tb-btn accent" onclick="openPublish()">Publish</button>
+</div>
+
+<!-- ════ FORMAT BAR ════ -->
+<div id="format-bar">
+  <button class="fmt-btn" id="btn-bold"      onclick="fmt('bold')"><b>B</b></button>
+  <button class="fmt-btn" id="btn-italic"    onclick="fmt('italic')"><i>I</i></button>
+  <button class="fmt-btn" id="btn-underline" onclick="fmt('underline')"><u>U</u></button>
+  <button class="fmt-btn" id="btn-strike"    onclick="fmt('strikeThrough')"><s>S</s></button>
+  <div class="fmt-divider"></div>
+  <div class="fmt-size-group">
+    <button class="fmt-btn" onclick="changeFontSize(-2)">−</button>
+    <div class="fmt-size-num" id="size-display">18</div>
+    <button class="fmt-btn" onclick="changeFontSize(+2)">+</button>
+  </div>
+  <div class="fmt-divider"></div>
+  <button class="fmt-btn" onclick="openSheet('colour')" title="Text colour">
+    <span style="font-size:13px;font-weight:900;">A</span>
+    <div class="color-swatch" id="fmt-color-swatch" style="background:#111111;"></div>
+  </button>
+  <div class="fmt-divider"></div>
+  <button class="fmt-btn" onclick="openSheet('font')" id="font-label-btn">Aa Font</button>
+  <button class="fmt-btn" onclick="openSheet('spacing')">↕ Space</button>
+  <button class="fmt-btn" onclick="openSheet('more')" style="background:rgba(255,122,0,.12);border-color:var(--accent);color:var(--accent);">••• More</button>
+</div>
+
+<!-- ════ WRITING AREA ════ -->
+<div id="writing-area-wrap">
+  <div id="pages-container"></div>
+  <div id="add-page-btn"><button onclick="addPage()">+ Add Page</button></div>
+</div>
+
+<!-- ════ STATUS BAR ════ -->
+<div id="status-bar">
+  <div>Words: <span id="word-count">0</span></div>
+  <div>Chars: <span id="char-count">0</span></div>
+  <div>Pages: <span id="page-count">1</span></div>
+  <div>Read: <span id="read-time">0 min</span></div>
+  <div id="save-status">Unsaved</div>
+</div>
+
+<!-- ════ DRAFTS MODAL ════ -->
+<div id="drafts-modal" onclick="if(event.target===this)closeDraftsModal()">
+  <div id="drafts-panel">
+    <div id="drafts-panel-head">
+      <h2>📂 Story Drafts</h2>
+      <button onclick="closeDraftsModal()">✕</button>
+    </div>
+    <div id="drafts-list"></div>
+    <div style="padding:0 14px 14px;">
+      <button class="sdraft-new" onclick="startNewStory()">+ New Story</button>
+    </div>
+  </div>
+</div>
+
+<div id="__toast"></div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     EDITOR JAVASCRIPT
+     All Supabase calls run inside the WebView using the pre-injected session.
+     Navigation and cover image requests are routed through the RN bridge.
+════════════════════════════════════════════════════════════════════════ -->
+<script>
+/* ── Supabase client ──────────────────────────────────────────────── */
+const _sb = supabase.createClient('${SUPA_URL}', '${SUPA_ANON}', {
+  auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
+});
+const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+
+/* ── State ────────────────────────────────────────────────────────── */
+let activeDraftId   = null;
+let hasUnsaved      = false;
+let currentFontSize = 18;
+let currentFont     = "'Merriweather',Georgia,serif";
+let currentSpacing  = '1.8';
+let activePage      = null;
+let _savedRange     = null;
+let _coverDataUrl   = null;  // set by RN → window.receiveCover()
+let coverFile       = null;  // set by fallback file input
+
+/* ── RN Bridge ────────────────────────────────────────────────────── */
+function rnPost(obj) {
+  try { window.ReactNativeWebView.postMessage(JSON.stringify(obj)); } catch(e) {}
+}
+
+/* Called by React Native after the user picks a cover image.
+   dataUrl is a base64 data: URI (jpeg or png). */
+window.receiveCover = function(dataUrl) {
+  _coverDataUrl = dataUrl;
+  const img   = document.getElementById('cover-img');
+  const label = document.getElementById('cover-label');
+  img.src           = dataUrl;
+  img.style.display = 'block';
+  label.style.display = 'none';
+};
+
+function requestCoverFromRN() {
+  if (window.ReactNativeWebView) {
+    rnPost({ type: 'requestCover' });
+  } else {
+    // Dev/web fallback
+    document.getElementById('cover-file-input').click();
+  }
+}
+
+function handleCoverFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  coverFile = file;
+  const url = URL.createObjectURL(file);
+  window.receiveCover(url);
+}
+
+/* ── Font catalogue ───────────────────────────────────────────────── */
+const FONTS = [
+  { label:'Merriweather', value:"'Merriweather',Georgia,serif",      preview:'Classic serif'   },
+  { label:'Lora',         value:"'Lora',Georgia,serif",              preview:'Elegant story'   },
+  { label:'Playfair',     value:"'Playfair Display',Georgia,serif",  preview:'Literary feel'   },
+  { label:'Crimson',      value:"'Crimson Text',Georgia,serif",      preview:'Old-style serif' },
+  { label:'Garamond',     value:"'EB Garamond',Georgia,serif",       preview:'Classic novel'   },
+  { label:'Baskerville',  value:"'Libre Baskerville',Georgia,serif", preview:'Sharp & clean'   },
+  { label:'Nunito',       value:"'Nunito',sans-serif",               preview:'Modern round'    },
+  { label:'Inter',        value:"'Inter',sans-serif",                preview:'Clean sans'      },
+  { label:'Monospace',    value:'monospace',                         preview:'Code / draft'    },
+];
+
+function buildFontGrid() {
+  const grid = document.getElementById('font-grid');
+  grid.innerHTML = '';
+  FONTS.forEach(function(f) {
+    const card = document.createElement('div');
+    card.className = 'font-card' + (f.value === currentFont ? ' active' : '');
+    card.innerHTML =
+      '<div class="font-name">' + f.label + '</div>' +
+      '<div class="font-preview" style="font-family:' + f.value + '">' + f.preview + '</div>';
+    card.onclick = function() {
+      applyFont(f.value);
+      document.getElementById('font-label-btn').innerText = 'Aa ' + f.label;
+      grid.querySelectorAll('.font-card').forEach(function(c) { c.classList.remove('active'); });
+      card.classList.add('active');
+      closeSheet('font');
+    };
+    grid.appendChild(card);
+  });
+}
+
+/* ── Sheet helpers ────────────────────────────────────────────────── */
+function openSheet(name) {
+  closeAllSheets();
+  document.getElementById('sheet-overlay').classList.add('open');
+  document.getElementById('sheet-' + name).classList.add('open');
+  if (name === 'font') buildFontGrid();
+  saveSelection();
+}
+function closeSheet(name) {
+  document.getElementById('sheet-overlay').classList.remove('open');
+  document.getElementById('sheet-' + name).classList.remove('open');
+}
+function closeAllSheets() {
+  document.querySelectorAll('.bottom-sheet').forEach(function(s) { s.classList.remove('open'); });
+  document.getElementById('sheet-overlay').classList.remove('open');
+}
+
+/* ── Page management ──────────────────────────────────────────────── */
+function createPage(content, pageNum) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'page-wrapper';
+
+  const page = document.createElement('div');
+  page.className        = 'story-page';
+  page.contentEditable  = 'true';
+  page.spellcheck       = true;
+  page.setAttribute('data-placeholder', pageNum === 1 ? 'Start writing your story...' : 'Continue your story...');
+  page.style.fontFamily = currentFont;
+  page.style.fontSize   = currentFontSize + 'px';
+  page.style.lineHeight = currentSpacing;
+  page.innerHTML        = content || '';
+
+  const label = document.createElement('div');
+  label.className = 'page-label';
+  label.innerText = 'Page ' + pageNum;
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'page-delete-btn';
+  delBtn.innerHTML = '✕';
+  delBtn.title     = 'Delete page';
+  delBtn.onmousedown = function(e) { e.preventDefault(); };
+  delBtn.onclick     = function() { deletePage(wrapper); };
+
+  wrapper.appendChild(page);
+  wrapper.appendChild(label);
+  wrapper.appendChild(delBtn);
+
+  page.addEventListener('focus',    function() { activePage = page; updateToolbarState(); });
+  page.addEventListener('mouseup',  function() { saveSelection(); updateToolbarState(); deselectImages(); });
+  page.addEventListener('touchend', function() { saveSelection(); updateToolbarState(); });
+  page.addEventListener('keydown',  handleKeyDown);
+  page.addEventListener('keyup',    function() {
+    saveSelection();
+    updateStats();
+    hasUnsaved = true;
+    updatePlaceholder(page);
+    document.getElementById('save-status').innerText = 'Unsaved';
+  });
+  page.addEventListener('input', function() { hasUnsaved = true; updatePlaceholder(page); });
+
+  return wrapper;
+}
+
+function addPage(content) {
+  const container = document.getElementById('pages-container');
+  const pageNum   = container.children.length + 1;
+  const wrapper   = createPage(content || '', pageNum);
+  container.appendChild(wrapper);
+  updatePageNumbers();
+  var page = wrapper.querySelector('.story-page');
+  updatePlaceholder(page);
+  updateStats();
+  setTimeout(function() { page.focus(); page.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+  return wrapper;
+}
+
+function deletePage(wrapper) {
+  var container = document.getElementById('pages-container');
+  if (container.children.length <= 1) return;
+  if (!confirm('Delete this page?')) return;
+  wrapper.remove();
+  updatePageNumbers();
+  updateStats();
+}
+
+function updatePageNumbers() {
+  document.querySelectorAll('.page-wrapper').forEach(function(w, i) {
+    var label = w.querySelector('.page-label');
+    if (label) label.innerText = 'Page ' + (i + 1);
+    var page = w.querySelector('.story-page');
+    if (page) page.setAttribute('data-placeholder', i === 0 ? 'Start writing your story...' : 'Continue your story...');
+  });
+}
+
+function getAllPages() { return Array.from(document.querySelectorAll('.story-page')); }
+
+function getAllText() {
+  return getAllPages().map(function(p) {
+    var c = p.cloneNode(true);
+    c.querySelectorAll('.img-toolbar').forEach(function(el) { el.remove(); });
+    return c.innerText;
+  }).join('\n\n');
+}
+
+function getAllHTML() {
+  return getAllPages().map(function(p) {
+    var clone = p.cloneNode(true);
+    clone.querySelectorAll('.img-toolbar').forEach(function(el) { el.remove(); });
+    return clone.innerHTML;
+  }).join('<hr class="page-break">');
+}
+
+/* ── Init ─────────────────────────────────────────────────────────── */
+window.onload = async function() {
+  /* 1. Edit existing published story */
+  var editId = localStorage.getItem('edit_story_id');
+  if (editId) {
+    localStorage.removeItem('edit_story_id');
+    document.getElementById('save-status').innerText = 'Loading story…';
+    var result = await _sb.from('stories').select('*').eq('id', editId).maybeSingle();
+    var data   = result.data;
+    if (data) {
+      activeDraftId = 'published:' + editId;
+      window._editingStoryId = editId;
+      document.getElementById('pub-title').value = data.title || '';
+      if (data.font_size) { currentFontSize = data.font_size; document.getElementById('size-display').innerText = currentFontSize; }
+      if (data.font) applyFont(data.font);
+      var pages = data.content_html ? data.content_html.split('<hr class="page-break">') : [''];
+      pages.forEach(function(html) { addPage(html); });
+      document.getElementById('save-status').innerText = 'Editing published story';
+      updateStats();
+      return;
+    }
+  }
+
+  /* 2. Resume active local draft */
+  var resumeId = localStorage.getItem('active_story_draft_id');
+  if (resumeId) {
+    var drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
+    var found  = drafts.find(function(d) { return d.id == resumeId; });
+    if (found) {
+      activeDraftId = resumeId;
+      document.getElementById('pub-title').value = found.title || '';
+      if (found.fontSize) { currentFontSize = found.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
+      if (found.font) {
+        currentFont = found.font;
+        var match = FONTS.find(function(f) { return f.value === currentFont; });
+        if (match) document.getElementById('font-label-btn').innerText = 'Aa ' + match.label;
+      }
+      if (found.spacing) currentSpacing = found.spacing;
+      (found.pages || [found.content || '']).forEach(function(html) { addPage(html); });
+      document.getElementById('save-status').innerText = 'Draft loaded';
+      updateStats();
+      return;
+    }
+  }
+
+  /* 3. Fresh new story */
+  addPage('');
+};
+
+/* ── Selection helpers ────────────────────────────────────────────── */
+function saveSelection() {
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) _savedRange = sel.getRangeAt(0).cloneRange();
+}
+function restoreSelection() {
+  if (activePage) activePage.focus();
+  if (!_savedRange) return;
+  var sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(_savedRange); }
+}
+
+/* ── Rich text formatting ─────────────────────────────────────────── */
+function fmt(cmd) {
+  restoreSelection();
+  document.execCommand(cmd, false, null);
+  saveSelection();
+  updateToolbarState();
+  if (activePage) activePage.focus();
+}
+
+function changeFontSize(delta) {
+  currentFontSize = Math.min(Math.max(currentFontSize + delta, 10), 72);
+  document.getElementById('size-display').innerText = currentFontSize;
+  getAllPages().forEach(function(p) { p.style.fontSize = currentFontSize + 'px'; });
+  hasUnsaved = true;
+  if (activePage) activePage.focus();
+}
+
+function applyFont(font) {
+  currentFont = font;
+  getAllPages().forEach(function(p) { p.style.fontFamily = font; });
+  hasUnsaved = true;
+  if (activePage) activePage.focus();
+}
+
+function applySpacing(val, btn) {
+  currentSpacing = val;
+  getAllPages().forEach(function(p) { p.style.lineHeight = val; });
+  if (btn) {
+    var grid = btn.closest('.opt-grid');
+    if (grid) grid.querySelectorAll('.opt-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+  }
+  if (activePage) activePage.focus();
+}
+
+function applyHeading(tag) {
+  restoreSelection();
+  document.execCommand('formatBlock', false, tag);
+  saveSelection();
+  if (activePage) activePage.focus();
+  closeAllSheets();
+}
+
+function applyTextColor(val) {
+  document.getElementById('text-color-preview').style.background = val;
+  document.getElementById('fmt-color-swatch').style.background   = val;
+  document.getElementById('mobile-text-color').value = (val === 'transparent') ? '#111111' : val;
+  restoreSelection();
+  document.execCommand('foreColor', false, val);
+  saveSelection();
+}
+function pickTextColor(val) { document.getElementById('mobile-text-color').value = val; applyTextColor(val); }
+
+function applyHighlight(val) {
+  document.getElementById('highlight-preview').style.background = val;
+  document.getElementById('mobile-highlight').value = (val === 'transparent') ? '#FFFF00' : val;
+  restoreSelection();
+  document.execCommand('hiliteColor', false, val);
+  saveSelection();
+}
+function pickHighlight(val) { document.getElementById('mobile-highlight').value = val; applyHighlight(val); }
+
+function insertLink() {
+  restoreSelection();
+  var url = prompt('Enter URL:', 'https://');
+  if (url) document.execCommand('createLink', false, url);
+  saveSelection();
+}
+
+function updateToolbarState() {
+  document.getElementById('btn-bold').classList.toggle('active',      document.queryCommandState('bold'));
+  document.getElementById('btn-italic').classList.toggle('active',    document.queryCommandState('italic'));
+  document.getElementById('btn-underline').classList.toggle('active', document.queryCommandState('underline'));
+  document.getElementById('btn-strike').classList.toggle('active',    document.queryCommandState('strikeThrough'));
+}
+
+function handleKeyDown(e) {
+  hasUnsaved = true;
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    document.execCommand('insertHTML', false, '&emsp;&emsp;');
+  }
+}
+
+/* ── In-editor image insert ───────────────────────────────────────── */
+function triggerImageInsert() {
+  saveSelection();
+  var input = document.getElementById('img-file-input');
+  input.value = '';
+  input.click();
+}
+
+async function insertImageFromFile(input) {
+  var file = input.files[0];
+  if (!file) return;
+  showToast('Uploading image…');
+  var ext  = file.name.split('.').pop() || 'jpg';
+  var path = 'story-images/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext;
+  var upResult = await _sb.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+  if (upResult.error) { showToast('Upload failed: ' + upResult.error.message); return; }
+  var urlResult = _sb.storage.from('avatars').getPublicUrl(path);
+  restoreSelection();
+  buildImageBlock(urlResult.data.publicUrl);
+  showToast('Image inserted ✓');
+}
+
+function buildImageBlock(src) {
+  var container = document.createElement('div');
+  container.className       = 'img-container align-center';
+  container.contentEditable = 'false';
+
+  var toolbar = document.createElement('div');
+  toolbar.className = 'img-toolbar';
+  toolbar.innerHTML =
+    '<span style="color:#aaa;font-size:11px;font-weight:700;">Align:</span>' +
+    '<button class="img-tb-btn" data-align="align-left"   onclick="imgAlign(this,\'align-left\')">Left</button>' +
+    '<button class="img-tb-btn active" data-align="align-center" onclick="imgAlign(this,\'align-center\')">Center</button>' +
+    '<button class="img-tb-btn" data-align="align-right"  onclick="imgAlign(this,\'align-right\')">Right</button>' +
+    '<div class="img-tb-sep"></div>' +
+    '<span style="color:#aaa;font-size:11px;font-weight:700;">Size:</span>' +
+    '<button class="img-tb-btn" onclick="imgSize(this,160)">S</button>' +
+    '<button class="img-tb-btn active" onclick="imgSize(this,260)">M</button>' +
+    '<button class="img-tb-btn" onclick="imgSize(this,360)">L</button>' +
+    '<button class="img-tb-btn" onclick="imgSize(this,0)">Full</button>' +
+    '<div class="img-tb-sep"></div>' +
+    '<button class="img-tb-btn" style="color:#ff8888;" onclick="this.closest(\'.img-container\').remove();updateStats();">✕</button>';
+
+  var img = document.createElement('img');
+  img.src          = src;
+  img.className    = 'inserted-img';
+  img.style.maxWidth = '260px';
+  img.draggable    = false;
+  img.onclick = function(e) { e.preventDefault(); e.stopPropagation(); selectImg(container); };
+
+  container.appendChild(toolbar);
+  container.appendChild(img);
+
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && activePage && activePage.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+    var range = sel.getRangeAt(0);
+    range.collapse(false);
+    range.insertNode(container);
+    var after = document.createTextNode('\u200B');
+    container.after(after);
+    range.setStartAfter(after);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else if (activePage) {
+    activePage.appendChild(container);
+  }
+
+  updateStats();
+  hasUnsaved = true;
+}
+
+function selectImg(c) { deselectImages(); c.classList.add('selected'); }
+function deselectImages() {
+  document.querySelectorAll('.img-container.selected').forEach(function(c) { c.classList.remove('selected'); });
+}
+function imgAlign(btn, cls) {
+  var c = btn.closest('.img-container');
+  c.classList.remove('align-left','align-center','align-right');
+  c.classList.add(cls);
+  c.querySelectorAll('[data-align]').forEach(function(b) { b.classList.toggle('active', b.dataset.align === cls); });
+}
+function imgSize(btn, px) {
+  var img = btn.closest('.img-container').querySelector('.inserted-img');
+  img.style.maxWidth = px === 0 ? '100%' : px + 'px';
+  var map = { S:160, M:260, L:360, Full:0 };
+  btn.closest('.img-container').querySelectorAll('.img-tb-btn').forEach(function(b) {
+    if (b.innerText in map) b.classList.toggle('active', map[b.innerText] === px);
+  });
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.img-container')) deselectImages();
+});
+
+/* ── Placeholder + stats ──────────────────────────────────────────── */
+function updatePlaceholder(page) {
+  page.classList.toggle('is-empty', !page.innerText.replace(/[\s\u200B]/g, '').length);
+}
+
+function updateStats() {
+  var text  = getAllText();
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  document.getElementById('word-count').innerText = words.toLocaleString();
+  document.getElementById('char-count').innerText = text.length.toLocaleString();
+  document.getElementById('read-time').innerText  = Math.max(1, Math.ceil(words / 200)) + ' min';
+  document.getElementById('page-count').innerText = getAllPages().length;
+}
+
+/* ── Draft management (localStorage) ─────────────────────────────── */
+function saveDraft() {
+  var drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
+  var title  = document.getElementById('pub-title').value;
+  if (!title) {
+    title = prompt('Story name:', 'My Story') || 'Untitled Story';
+    document.getElementById('pub-title').value = title;
+  }
+  var data = {
+    pages:        getAllPages().map(function(p) { return p.cloneNode(true).innerHTML; }),
+    title:        title,
+    fontSize:     currentFontSize,
+    font:         currentFont,
+    spacing:      currentSpacing,
+    updated:      Date.now(),
+    lastModified: new Date().toLocaleString(),
+  };
+  if (activeDraftId) {
+    var idx = drafts.findIndex(function(d) { return d.id == activeDraftId; });
+    if (idx !== -1) Object.assign(drafts[idx], data);
+    else { data.id = activeDraftId; drafts.push(data); }
+  } else {
+    data.id     = Date.now();
+    activeDraftId = data.id;
+    drafts.push(data);
+  }
+  localStorage.setItem('story_drafts', JSON.stringify(drafts));
+  localStorage.setItem('active_story_draft_id', activeDraftId);
+  hasUnsaved = false;
+  document.getElementById('save-status').innerText = 'Saved ✓';
+  showToast('✓ Draft saved');
+}
+
+/* ── Publish ──────────────────────────────────────────────────────── */
+function openPublish()  { document.getElementById('publish-modal').style.display = 'flex'; }
+function closePublish() { document.getElementById('publish-modal').style.display = 'none'; }
+
+async function finalPublish() {
+  var title = document.getElementById('pub-title').value.trim();
+  var tags  = document.getElementById('pub-tags').value.split(',').map(function(t) { return t.trim(); }).filter(Boolean);
+  var desc  = document.getElementById('pub-desc').value.trim();
+  if (!title) { alert('Please add a title!'); return; }
+
+  var btn = document.getElementById('pub-btn');
+  btn.innerText = 'Uploading…'; btn.disabled = true;
+
+  /* ── Upload cover image ──────────────────────────────────────── */
+  var coverUrl = null;
+
+  if (_coverDataUrl) {
+    /* RN-provided base64 data URL → fetch as Blob → upload */
+    try {
+      var fetchRes = await fetch(_coverDataUrl);
+      var blob     = await fetchRes.blob();
+      var ext      = (blob.type || 'image/jpeg').split('/')[1] || 'jpg';
+      var path     = 'story-covers/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext;
+      var upRes    = await _sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: blob.type });
+      if (!upRes.error) {
+        coverUrl = _sb.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+      }
+    } catch(e) { console.warn('Cover upload error:', e); }
+  } else if (coverFile) {
+    /* Fallback: web file input */
+    try {
+      var ext2  = coverFile.name.split('.').pop() || 'jpg';
+      var path2 = 'story-covers/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext2;
+      var up2   = await _sb.storage.from('avatars').upload(path2, coverFile, { upsert: true, contentType: coverFile.type });
+      if (!up2.error) {
+        coverUrl = _sb.storage.from('avatars').getPublicUrl(path2).data.publicUrl;
+      }
+    } catch(e) {}
+  }
+
+  btn.innerText = 'Publishing…';
+
+  var plainText = getAllText();
+  var storyData = {
+    title:        title,
+    description:  desc,
+    tags:         tags,
+    cover:        coverUrl,
+    content_html: getAllHTML(),
+    content_text: plainText,
+    word_count:   plainText.trim() ? plainText.trim().split(/\s+/).length : 0,
+    page_count:   getAllPages().length,
+    owner_name:   myProfile.name   || 'Author',
+    owner_handle: myProfile.handle || 'user',
+    font:         currentFont,
+    font_size:    currentFontSize,
+    is_public:    true,
+  };
+
+  var dbResult;
+  if (window._editingStoryId) {
+    dbResult = await _sb.from('stories').update(storyData).eq('id', window._editingStoryId);
+  } else {
+    dbResult = await _sb.from('stories').insert([storyData]);
+  }
+
+  if (dbResult.error) {
+    alert('Publish failed: ' + dbResult.error.message);
+    btn.innerText = 'PUBLISH'; btn.disabled = false;
+  } else {
+    hasUnsaved = false;
+    showToast('Story published! 🎉');
+    /* Delay slightly so the toast shows, then tell RN to navigate away */
+    setTimeout(function() { rnPost({ type: 'published' }); }, 1200);
+  }
+}
+
+/* ── Drafts modal ─────────────────────────────────────────────────── */
+function openDraftsModal() {
+  var drafts = [];
+  try { drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]'); } catch(e) {}
+  drafts.sort(function(a, b) { return (b.updated || 0) - (a.updated || 0); });
+
+  var list = document.getElementById('drafts-list');
+  list.innerHTML = '';
+
+  if (!drafts.length) {
+    list.innerHTML = '<div style="color:#444;font-size:13px;text-align:center;padding:30px 0;">No drafts saved yet.</div>';
+  } else {
+    drafts.forEach(function(draft) {
+      var isCurrent = String(draft.id) === String(activeDraftId);
+      var pageCount = (draft.pages || []).filter(Boolean).length || 1;
+      var wordEst   = (draft.pages || []).reduce(function(acc, p) {
+        var t = document.createElement('div'); t.innerHTML = p;
+        return acc + t.innerText.trim().split(/\s+/).filter(Boolean).length;
+      }, 0);
+
+      var item = document.createElement('div');
+      item.className = 'sdraft-item';
+      item.innerHTML =
+        '<div class="sdraft-icon">📄</div>' +
+        '<div class="sdraft-info">' +
+          '<div class="sdraft-title">' + (isCurrent ? '▶ ' : '') + (draft.title || 'Untitled Story') + '</div>' +
+          '<div class="sdraft-meta">' + pageCount + ' page' + (pageCount !== 1 ? 's' : '') +
+          ' · ~' + wordEst + ' words · ' + (draft.lastModified || '') + '</div>' +
+        '</div>' +
+        '<button class="sdraft-del" onclick="event.stopPropagation();deleteDraft(' + JSON.stringify(String(draft.id)) + ')">🗑</button>';
+      item.addEventListener('click', function() { loadDraft(draft.id); });
+      list.appendChild(item);
+    });
+  }
+  document.getElementById('drafts-modal').classList.add('open');
+}
+
+function closeDraftsModal() { document.getElementById('drafts-modal').classList.remove('open'); }
+
+function deleteDraft(id) {
+  if (!confirm('Delete this draft?')) return;
+  var drafts = JSON.parse(localStorage.getItem('story_drafts') || '[]');
+  drafts = drafts.filter(function(d) { return String(d.id) !== String(id); });
+  localStorage.setItem('story_drafts', JSON.stringify(drafts));
+  if (String(id) === String(activeDraftId)) {
+    activeDraftId = null;
+    localStorage.removeItem('active_story_draft_id');
+  }
+  openDraftsModal();
+}
+
+function loadDraft(id) {
+  if (String(id) === String(activeDraftId)) { closeDraftsModal(); return; }
+  if (hasUnsaved && !confirm('Unsaved changes. Switch drafts anyway?')) return;
+  var draft = JSON.parse(localStorage.getItem('story_drafts') || '[]').find(function(d) { return String(d.id) === String(id); });
+  if (!draft) return;
+
+  document.getElementById('pages-container').innerHTML = '';
+  activeDraftId = draft.id;
+  localStorage.setItem('active_story_draft_id', String(draft.id));
+  document.getElementById('pub-title').value = draft.title || '';
+  if (draft.fontSize) { currentFontSize = draft.fontSize; document.getElementById('size-display').innerText = currentFontSize; }
+  if (draft.font) {
+    currentFont = draft.font;
+    var match = FONTS.find(function(f) { return f.value === currentFont; });
+    if (match) document.getElementById('font-label-btn').innerText = 'Aa ' + match.label;
+  }
+  if (draft.spacing) currentSpacing = draft.spacing;
+  (draft.pages || [draft.content || '']).forEach(function(html) { addPage(html); });
+  hasUnsaved = false;
+  document.getElementById('save-status').innerText = 'Draft loaded';
+  updateStats();
+  closeDraftsModal();
+  var first = document.querySelector('.story-page');
+  if (first) setTimeout(function() { first.focus(); }, 100);
+}
+
+function startNewStory() {
+  if (hasUnsaved && !confirm('Unsaved changes. Start new story anyway?')) return;
+  activeDraftId = null;
+  localStorage.removeItem('active_story_draft_id');
+  document.getElementById('pages-container').innerHTML = '';
+  document.getElementById('pub-title').value = '';
+  currentFontSize = 18;
+  document.getElementById('size-display').innerText = 18;
+  currentFont     = "'Merriweather',Georgia,serif";
+  document.getElementById('font-label-btn').innerText = 'Aa Font';
+  currentSpacing  = '1.8';
+  hasUnsaved      = false;
+  addPage('');
+  document.getElementById('save-status').innerText = 'New story';
+  closeDraftsModal();
+}
+
+/* ── Exit → React Native navigation ──────────────────────────────── */
+function handleExit() {
+  if (hasUnsaved && !confirm('Exit without saving?')) return;
+  localStorage.removeItem('active_story_draft_id');
+  rnPost({ type: 'exit' });
+}
+
+/* ── Toast ────────────────────────────────────────────────────────── */
+function showToast(msg, duration) {
+  var t = document.getElementById('__toast');
+  t.innerText = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.style.opacity = '0'; }, duration || 2200);
+}
+
+/* ── Auto-save every 60 s ─────────────────────────────────────────── */
+setInterval(function() { if (hasUnsaved) saveDraft(); }, 60000);
+</script>
+</body>
+</html>`;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   StoryCreateScreen component
+───────────────────────────────────────────────────────────────────────── */
+export default function StoryCreateScreen({ navigation, route }) {
+  const webviewRef = useRef(null);
+  const [html, setHtml] = useState(null);
+
+  const { storyId } = route?.params || {};
+
+  /* ── Build the HTML once on mount with the live session pre-injected ── */
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        /* Pull the cached profile JSON that other screens write on login */
+        let profileJson = '{}';
+        try {
+          // @react-native-async-storage/async-storage is installed as part of
+          // Supabase React Native setup. Adjust the import path if needed.
+          const AsyncStorage = (
+            await import('@react-native-async-storage/async-storage')
+          ).default;
+          profileJson = (await AsyncStorage.getItem('user_profile')) || '{}';
+        } catch (_) {
+          /* AsyncStorage unavailable — profile will be empty, editor still works */
+        }
+
+        if (!active) return;
+
+        setHtml(
+          buildEditorHTML(
+            session ? JSON.stringify(session) : null,
+            profileJson,
+            storyId ?? null
+          )
+        );
+      } catch (err) {
+        console.warn('StoryCreateScreen: failed to get session', err);
+        if (active) setHtml(buildEditorHTML(null, '{}', storyId ?? null));
+      }
+    })();
+    return () => { active = false; };
+  }, [storyId]);
+
+  /* ── Android hardware back → forward to the editor's own exit handler ── */
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      webviewRef.current?.injectJavaScript('handleExit(); true;');
+      return true; // prevent default back behaviour
+    });
+    return () => sub.remove();
+  }, []);
+
+  /* ── Handle messages posted from the WebView ── */
+  const onMessage = useCallback(
+    async (event) => {
+      let msg;
+      try {
+        msg = JSON.parse(event.nativeEvent.data);
+      } catch {
+        return;
+      }
+
+      switch (msg.type) {
+        /* User tapped Exit (confirmed no unsaved changes) */
+        case 'exit':
+          navigation.goBack();
+          break;
+
+        /* Story was published successfully — return to the home feed */
+        case 'published':
+          navigation.navigate('HomeTabs');
+          break;
+
+        /* Cover image tap: open the native image picker */
+        case 'requestCover': {
+          const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            webviewRef.current?.injectJavaScript(
+              "showToast('Photo library permission denied'); true;"
+            );
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [2, 3],   // portrait cover ratio
+            quality: 0.85,
+            base64: true,     // we embed as data URL; upload happens inside WebView
+          });
+          if (!result.canceled && result.assets?.[0]) {
+            const asset   = result.assets[0];
+            const mime    = asset.mimeType || 'image/jpeg';
+            const dataUrl = 'data:' + mime + ';base64,' + asset.base64;
+            // Inject the base64 image into the WebView
+            webviewRef.current?.injectJavaScript(
+              'window.receiveCover(' + JSON.stringify(dataUrl) + '); true;'
+            );
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+    },
+    [navigation]
+  );
+
+  /* ── Loading state while we await the session ── */
+  if (!html) {
+    return (
+      <View style={styles.loading}>
+        <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+        <ActivityIndicator size="large" color="#ff7a00" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1c1c1e" />
+      <WebView
+        ref={webviewRef}
+        /* Pass the HTML as a string. baseUrl is set to the Supabase project
+           origin so that the Supabase JS client's fetch calls are treated as
+           same-origin on Android (avoids mixed-content blocking). */
+        source={{ html, baseUrl: SUPA_URL }}
+        style={styles.webview}
+        onMessage={onMessage}
+        /* Core flags */
+        javaScriptEnabled
+        domStorageEnabled
+        /* Prevent the WebView from intercepting RN scroll gestures */
+        scrollEnabled={false}
+        /* Needed on iOS so tapping a text field shows the keyboard */
+        keyboardDisplayRequiresUserAction={false}
+        /* Keep the WebView in the same process (performance + security) */
+        setSupportMultipleWindows={false}
+        /* Allow data: and blob: URIs (used for object URL cover preview) */
+        allowFileAccessFromFileURLs
+        originWhitelist={['*']}
+        /* Prevent white flash on initial load */
+        backgroundColor="#0a0a0a"
+        /* Show nothing while the HTML compiles — we already show the spinner */
+        renderLoading={() => null}
+      />
+    </View>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Styles
+───────────────────────────────────────────────────────────────────────── */
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+    /* On Android, avoid the status bar overlapping the editor's top bar */
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0,
+  },
+  webview: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+  },
+  loading: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
