@@ -1312,6 +1312,7 @@
 
         let pfpBase64 = "";
         let bannerBase64 = "";
+        let _pfpChanged = false;
         let _isDirty = false;
         let _settingsMilestones = [];
         let _settingsMilestoneStyle = 'fire';
@@ -1906,6 +1907,7 @@
 
             if (!myProfile.pic) { pfpBase64 = randomAvatar(); } else { pfpBase64 = myProfile.pic; }
             document.getElementById('pfp-preview').src = getImageUrl(pfpBase64);
+            _pfpChanged = false;
 
             bannerBase64 = myProfile.banner || '';
             const bPrev = document.getElementById('banner-preview');
@@ -2044,6 +2046,9 @@
                     if (error) { showToast('Error uploading profile picture: ' + error.message); return; }
                     if (data) picPath = `avatars/${filename}`;
                 } catch (err) { showToast('Error uploading profile picture: ' + err.message); return; }
+            } else if (_pfpChanged && pfpBase64) {
+                // Gallery avatar or other direct URL was selected
+                picPath = pfpBase64;
             }
 
             if (bannerBase64 && bannerBase64.startsWith('data:image')) {
@@ -2098,6 +2103,7 @@
 
             if (!error) {
                 markClean();
+                _pfpChanged = false;
                 localStorage.setItem('user_profile', JSON.stringify(updated));
                 showToast('Profile saved!');
                 setTimeout(() => location.href = `profile.html?u=${myProfile.handle}`, 700);
@@ -2139,7 +2145,7 @@
         }
         function closePfpPicker() { document.getElementById('pfp-source-overlay').classList.remove('open'); selectedGalleryUrl = null; }
         function selectGalleryAvatar(idx, url) { document.querySelectorAll('.pfp-gallery-item').forEach(el => el.classList.remove('selected')); document.getElementById('gal-' + idx).classList.add('selected'); selectedGalleryUrl = url; document.getElementById('pfp-gallery-confirm').classList.add('visible'); }
-        function confirmGalleryPfp() { if (!selectedGalleryUrl) return; pfpBase64 = selectedGalleryUrl; document.getElementById('pfp-preview').src = getImageUrl(pfpBase64); markDirty(); closePfpPicker(); }
+        function confirmGalleryPfp() { if (!selectedGalleryUrl) return; pfpBase64 = selectedGalleryUrl; _pfpChanged = true; document.getElementById('pfp-preview').src = getImageUrl(pfpBase64); markDirty(); closePfpPicker(); }
 
         document.getElementById('pfp-input').onchange = (e) => {
             if (!e.target.files[0]) return;
@@ -2199,6 +2205,7 @@
                 const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 400;
                 canvas.getContext('2d').drawImage(img, sx, sy, sSize, sSize, 0, 0, 400, 400);
                 pfpBase64 = canvas.toDataURL('image/jpeg', 0.9);
+                _pfpChanged = true;
                 document.getElementById('pfp-preview').src = getImageUrl(pfpBase64);
                 markDirty();
             } catch (err) {
