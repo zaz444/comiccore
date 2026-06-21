@@ -1749,6 +1749,8 @@ let cropper = null;
 let currentImportType = null;
 let hasUnsavedChanges = false;
 let activeDraftId = null;
+let draftRowExists = false; // true once a 'drafts' row is known to exist for activeDraftId
+let myHandle = null; // BUGFIX: was referenced in saveOffline() but never declared at this scope
 let editingComicId = null;
 let finalCoverBase64 = null;
 let frameClipboard = null;
@@ -5051,6 +5053,11 @@ async function saveOffline(silent = false) {
         const user = _cm1?.user ?? null;
         if (!user) { if (!silent) showMobSaveBadge('Log in to save', true); return; }
 
+        // BUGFIX: generate the UUID once, up front — never mid-function — so the
+        // same id is used whether this is the first save or the hundredth.
+        activeDraftId = activeDraftId || crypto.randomUUID();
+        lsSet('active_draft_id', activeDraftId);
+
         // Stamp actual canvas pixel dimensions so the reader can scale correctly
         stampEditorDimensions();
         const payload = JSON.stringify(frames);
@@ -5058,33 +5065,33 @@ async function saveOffline(silent = false) {
         let rowPatch;
 
         if (payload.length > _INLINE_LIMIT) {
-            const draftId = activeDraftId || crypto.randomUUID();
-            const path = `${_DRAFT_PREFIX}${draftId}.json`;
+            const path = `${_DRAFT_PREFIX}${activeDraftId}.json`;
             const { error: upErr } = await _supabase.storage
                 .from(_DRAFT_BUCKET)
                 .upload(path, new Blob([payload], { type: 'application/json' }), { upsert: true });
             if (upErr) throw upErr;
             rowPatch = { data: null, storage_path: path };
-            activeDraftId = draftId;
+            lsSet('active_draft_storage_path', path); // BUGFIX: was never written, only ever read
         } else {
             rowPatch = { data: frames, storage_path: null };
+            localStorage.removeItem('active_draft_storage_path');
         }
 
-        if (activeDraftId && activeDraftId.toString().includes('-')) {
-            await _supabase.from('drafts').update({
-                ...rowPatch, canvas_ratio: ratio, updated_at: now
-            }).eq('id', activeDraftId);
-        } else {
-            const { data: inserted } = await _supabase.from('drafts').insert([{
-                owner_handle: handle, title: 'Untitled Draft',
-                ...rowPatch, canvas_ratio: ratio, updated_at: now
-            }]).select('id').single();
-            if (inserted) {
-                activeDraftId = inserted.id;
-                lsSet('active_draft_id', activeDraftId);
-                localStorage.removeItem('active_draft_storage_path');
-            }
-        }
+        // BUGFIX: single upsert replaces the old insert/update split that keyed off
+        // activeDraftId.includes('-') — that check broke as soon as Supabase ever
+        // returned a non-UUID id, causing duplicate-row inserts on every save after the first.
+        const row = {
+            id: activeDraftId,
+            owner_handle: handle,
+            canvas_ratio: ratio,
+            updated_at: now,
+            ...rowPatch
+        };
+        if (!draftRowExists) row.title = 'Untitled Draft'; // only stamp default title on first creation
+
+        const { error: saveErr } = await _supabase.from('drafts').upsert(row, { onConflict: 'id' });
+        if (saveErr) throw saveErr;
+        draftRowExists = true;
 
         hasUnsavedChanges = false;
         const dot2 = document.getElementById('unsaved-dot');
@@ -5741,6 +5748,8 @@ window.onload = async function() {
             }
         });
     });
+    // BUGFIX: myHandle was previously undeclared at this scope, making saveOffline() throw
+    myHandle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle || null;
     const pendingBg = localStorage.getItem('pending_background');
     const pendingBgId = localStorage.getItem('pending_bg_id');
 
@@ -5767,6 +5776,7 @@ window.onload = async function() {
     const resumeId = localStorage.getItem('active_draft_id');
     if (resumeId) {
         activeDraftId = resumeId;
+        draftRowExists = true; // row already exists in Supabase — don't reset title on next save
         const storagePath = localStorage.getItem('active_draft_storage_path');
         if (storagePath) {
             try {
