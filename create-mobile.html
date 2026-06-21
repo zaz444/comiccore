@@ -2928,10 +2928,12 @@ async function useUploadedAudioClip() {
 
         const saveToLib = document.getElementById('mob-audio-save-to-library').checked;
         if (saveToLib && handle && handle !== 'guest') {
-            await _supabase.from('audio_library').insert([{
+            // BUGFIX: this is the exact "catch is not a function" crash — .insert() returns a
+            // PostgrestBuilder (thenable-only, no .catch method). Promise.resolve(...) fixes it.
+            await Promise.resolve(_supabase.from('audio_library').insert([{
                 name: _mobAudioUploadFile.name, audio_url: url, duration: len,
                 uploaded_by: handle, created_at: new Date().toISOString()
-            }]).catch((e) => console.warn('audio_library insert skipped:', e));
+            }])).catch((e) => console.warn('audio_library insert skipped:', e));
             mobAudioLibLoaded = false; // refresh the library next time it's opened
         }
 
@@ -5350,7 +5352,9 @@ async function finalPublish() {
         // Clean up draft after publish
         if (activeDraftId) {
             const storagePath = localStorage.getItem('active_draft_storage_path');
-            await _supabase.from('drafts').delete().eq('id', activeDraftId).catch(() => {});
+            // BUGFIX: .delete() returns a PostgrestBuilder (thenable-only) — .catch() doesn't
+            // exist on it directly without first assimilating it into a real Promise.
+            await Promise.resolve(_supabase.from('drafts').delete().eq('id', activeDraftId)).catch(() => {});
             if (storagePath) await _supabase.storage.from('comiccore-assets').remove([storagePath]).catch(() => {});
             localStorage.removeItem('active_draft_id');
             localStorage.removeItem('active_draft_storage_path');
@@ -5398,9 +5402,9 @@ async function _generateFrameSnapshots(comicId) {
     }
 
     if (upsertRows.length) {
-        await _supabase.from('frame_snapshots')
-            .upsert(upsertRows, { onConflict: 'comic_id,frame_idx' })
-            .catch(() => {});
+        // BUGFIX: .upsert() returns a PostgrestBuilder (thenable-only, no .catch method)
+        await Promise.resolve(_supabase.from('frame_snapshots')
+            .upsert(upsertRows, { onConflict: 'comic_id,frame_idx' })).catch(() => {});
     }
 }
 // ── END FRAME SNAPSHOTS ─────────────────────────────────────────────────────
@@ -5783,14 +5787,17 @@ window.onload = async function() {
                 const { data: blob, error: dlErr } = await _supabase.storage.from('comiccore-assets').download(storagePath);
                 if (dlErr) throw dlErr;
                 frames = JSON.parse(await blob.text());
-                const { data: row } = await _supabase.from('drafts').select('canvas_ratio').eq('id', resumeId).single().catch(() => ({ data: null }));
+                // BUGFIX: .single() returns a PostgrestBuilder (thenable-only) — .catch() chained
+                // directly on it throws "catch is not a function" instead of falling back.
+                const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio').eq('id', resumeId).single()).catch(() => ({ data: null }));
                 const r = row?.canvas_ratio || { w:1, h:1 };
                 setRatio(r.w, r.h); currentIdx = 0; render(); renderMobFrames(); updateFrameCounter();
                 applyPendingBg(pendingBg, pendingBgId); return;
             } catch(e) { console.error('Bucket draft load failed:', e); }
         } else {
-            const { data: sbDraft } = await _supabase.from('drafts')
-                .select('data, storage_path, canvas_ratio').eq('id', resumeId).single().catch(() => ({ data: null }));
+            // BUGFIX: same PostgrestBuilder .catch() issue — wrap in Promise.resolve() first
+            const { data: sbDraft } = await Promise.resolve(_supabase.from('drafts')
+                .select('data, storage_path, canvas_ratio').eq('id', resumeId).single()).catch(() => ({ data: null }));
             if (sbDraft) {
                 let draftFrames = sbDraft.data;
                 if (!draftFrames && sbDraft.storage_path) {

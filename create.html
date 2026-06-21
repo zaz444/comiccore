@@ -2372,8 +2372,11 @@
                         .from('comiccore-assets').download(storagePath);
                     if (dlErr) throw dlErr;
                     frames = JSON.parse(await blob.text());
-                    const { data: row } = await _supabase.from('drafts')
-                        .select('canvas_ratio').eq('id', resumeId).single().catch(() => ({ data: null }));
+                    // BUGFIX: PostgrestBuilder only implements .then(), not .catch()/.finally() —
+                    // calling .catch() straight off the query chain throws "catch is not a function".
+                    // Promise.resolve(...) assimilates the thenable into a real Promise first.
+                    const { data: row } = await Promise.resolve(_supabase.from('drafts')
+                        .select('canvas_ratio').eq('id', resumeId).single()).catch(() => ({ data: null }));
                     const savedRatio = row?.canvas_ratio || { w: 1, h: 1 };
                     setRatio(savedRatio.w, savedRatio.h);
                     applyPendingBg(pendingBg, pendingBgId);
@@ -2381,8 +2384,9 @@
                 } catch(e) { console.error('Failed to load draft from bucket:', e); }
             } else {
                 // Inline draft in SQL row
-                const { data: sbDraft } = await _supabase.from('drafts')
-                    .select('data, storage_path, canvas_ratio').eq('id', resumeId).single().catch(() => ({ data: null }));
+                // BUGFIX: same PostgrestBuilder .catch() issue — wrap in Promise.resolve() first
+                const { data: sbDraft } = await Promise.resolve(_supabase.from('drafts')
+                    .select('data, storage_path, canvas_ratio').eq('id', resumeId).single()).catch(() => ({ data: null }));
                 if (sbDraft) {
                     let draftFrames = sbDraft.data;
                     if (!draftFrames && sbDraft.storage_path) {
@@ -3749,7 +3753,9 @@
         // Clean up draft row + bucket file after successful publish
         if (activeDraftId) {
             const storagePath = localStorage.getItem('active_draft_storage_path');
-            await _supabase.from('drafts').delete().eq('id', activeDraftId).catch(() => {});
+            // BUGFIX: .delete() returns a PostgrestBuilder (thenable-only) — .catch() doesn't
+            // exist on it directly, so this threw instead of silently swallowing cleanup failures.
+            await Promise.resolve(_supabase.from('drafts').delete().eq('id', activeDraftId)).catch(() => {});
             if (storagePath) {
                 await _supabase.storage.from('comiccore-assets').remove([storagePath]).catch(() => {});
             }
@@ -9535,10 +9541,12 @@ async function useUploadedAudioClip() {
 
         const saveToLib = document.getElementById('mob-audio-save-to-library').checked;
         if (saveToLib && handle && handle !== 'guest') {
-            await _supabase.from('audio_library').insert([{
+            // BUGFIX: this is the exact "catch is not a function" crash — .insert() returns a
+            // PostgrestBuilder (thenable-only, no .catch method). Promise.resolve(...) fixes it.
+            await Promise.resolve(_supabase.from('audio_library').insert([{
                 name: _mobAudioUploadFile.name, audio_url: url, duration: len,
                 uploaded_by: handle, created_at: new Date().toISOString()
-            }]).catch((e) => console.warn('audio_library insert skipped:', e));
+            }])).catch((e) => console.warn('audio_library insert skipped:', e));
             mobAudioLibLoaded = false;
         }
 
