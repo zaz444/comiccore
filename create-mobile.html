@@ -5031,13 +5031,16 @@ const _INLINE_LIMIT = 900_000;
 // scale layer coordinates correctly. Desktop always uses BASE_SIZE=900;
 // mobile uses a viewport-sized canvas (~330-400px). Without this stamp the
 // reader falls back to 900 and renders mobile-created layers far too small.
-function stampEditorDimensions() {
+// BUGFIX: the old approach mutated the live `frames` objects in place — stamp them,
+// then immediately strip the stamp back off the SAME objects. Since supabase-js builds
+// the request body lazily, the strip always won the race and published comics never
+// actually carried _editorW/_editorH. The reader then fell back to a 900px guess that
+// doesn't match the real mobile canvas, throwing every layer's position/scale off.
+// This returns a fresh array instead, so the live `frames` is never touched.
+function getStampedFrames() {
     const ew = canvas.offsetWidth  || 300;
     const eh = canvas.offsetHeight || 300;
-    frames.forEach(f => { f._editorW = ew; f._editorH = eh; });
-}
-function clearEditorDimensionStamps() {
-    frames.forEach(f => { delete f._editorW; delete f._editorH; });
+    return frames.map(f => ({ ...f, _editorW: ew, _editorH: eh }));
 }
 
 async function saveOffline(silent = false) {
@@ -5060,10 +5063,10 @@ async function saveOffline(silent = false) {
         activeDraftId = activeDraftId || crypto.randomUUID();
         lsSet('active_draft_id', activeDraftId);
 
-        // Stamp actual canvas pixel dimensions so the reader can scale correctly
-        stampEditorDimensions();
-        const payload = JSON.stringify(frames);
-        clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
+        // Stamp actual canvas pixel dimensions so the reader can scale correctly —
+        // getStampedFrames() returns a fresh array, never touching the live `frames`.
+        const stamped = getStampedFrames();
+        const payload = JSON.stringify(stamped);
         let rowPatch;
 
         if (payload.length > _INLINE_LIMIT) {
@@ -5075,7 +5078,7 @@ async function saveOffline(silent = false) {
             rowPatch = { data: null, storage_path: path };
             lsSet('active_draft_storage_path', path); // BUGFIX: was never written, only ever read
         } else {
-            rowPatch = { data: frames, storage_path: null };
+            rowPatch = { data: stamped, storage_path: null };
             localStorage.removeItem('active_draft_storage_path');
         }
 
@@ -5100,7 +5103,6 @@ async function saveOffline(silent = false) {
         if (dot2) dot2.style.display = 'none';
         if (!silent) showMobSaveBadge('✓ Saved', false);
     } catch(e) {
-        clearEditorDimensionStamps(); // ensure clean on error too
         console.warn('Draft save failed:', e);
         if (!silent) showMobSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
     }
@@ -5335,10 +5337,10 @@ async function finalPublish() {
             : (JSON.parse(localStorage.getItem('user_profile') || '{}').handle || user.email || 'unknown');
         const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
         const desc = document.getElementById('pub-desc').value.trim();
-        // Stamp actual canvas pixel dimensions so the reader can scale correctly
-        stampEditorDimensions();
-        const payload = { data: frames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
-        clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
+        // BUGFIX: same dimension-stamp race as create.html — getStampedFrames() returns a
+        // fresh array instead of mutating the live `frames`, so the stamp actually survives
+        // into the published row instead of getting wiped before Supabase serializes it.
+        const payload = { data: getStampedFrames(), cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
         let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
@@ -5362,10 +5364,13 @@ async function finalPublish() {
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
         alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
-        if (publishedId) _generateFrameSnapshots(publishedId).catch(() => {});
+        // BUGFIX: this used to fire _generateFrameSnapshots() without awaiting it, then
+        // immediately navigate — location.href unloads the page almost instantly, aborting
+        // the in-flight canvas→blob→Storage-upload work before it finishes. Snapshots
+        // essentially never completed. Awaiting it here means they actually land.
+        if (publishedId) await _generateFrameSnapshots(publishedId).catch(() => {});
         location.href = 'discover.html';
     } catch (err) {
-        clearEditorDimensionStamps(); // ensure clean on error too
         console.error('finalPublish error:', err);
         alert('Publish failed: ' + (err.message || 'Unknown error'));
         btn.disabled = false;

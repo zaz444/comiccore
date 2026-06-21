@@ -411,6 +411,23 @@ letter-spacing:.2px;
 #toonscroll-strip.active ~ * #ts-exit-btn,
 body.toonscroll #ts-exit-btn{display:flex;}
 
+/* ── Frame Audio Button — persistent, independent of top/bottom bar visibility
+   so it still works in ToonScroll mode where those bars are hidden ── */
+#r-audio-btn{
+position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:14px;
+z-index:9999;display:none;
+width:46px;height:46px;border-radius:50%;
+background:rgba(15,15,17,.88);border:1.5px solid rgba(255,255,255,.18);
+color:#fff;font-size:18px;cursor:pointer;
+align-items:center;justify-content:center;
+backdrop-filter:blur(14px);
+box-shadow:0 2px 16px rgba(0,0,0,.5);
+transition:background .15s,border-color .15s,color .15s;
+}
+#r-audio-btn.has-audio{display:flex;}
+#r-audio-btn.playing{background:rgba(0,210,255,.22);border-color:#00d2ff;color:#00d2ff;}
+#r-audio-btn:active{transform:scale(.92);}
+
 .toonscroll-hint{
 position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
 background:rgba(0,0,0,.85);color:rgba(255,255,255,.7);
@@ -509,6 +526,10 @@ margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-conte
 
 <!-- Persistent ToonScroll exit button — always visible while strip is active -->
 <button id="ts-exit-btn" onclick="disableToonScroll()">✕ Exit ToonScroll</button>
+
+<!-- Frame audio — single reusable element, swapped per frame -->
+<audio id="r-frame-audio" preload="none" style="display:none;"></audio>
+<button id="r-audio-btn" onclick="toggleFrameAudio()" title="Play frame audio">🔈</button>
 
 <!-- Bottom bar -->
 
@@ -635,6 +656,9 @@ let uiOn = true, hideTimer = null;
 let swipeDir = 'horizontal';
 let txX = 0, txY = 0, txT = 0;
 let shareUrl = '';
+// ── Frame audio ──
+let _audioUnlocked = false;   // becomes true after the first user-initiated play (autoplay-policy gate)
+let _lastAudioKey = null;     // dedupe so scroll-driven re-syncs don't restart an already-playing clip
 // The canonical editor canvas size (create.html uses 900px base)
 const EDITOR_BASE = 900;
 
@@ -811,6 +835,7 @@ function updateTsPosition() {
     // Update idx to match
     const actualIdx = parseInt(frames2[closestIdx]?.dataset.idx) || closestIdx;
     idx = actualIdx;
+    syncFrameAudio(frames[actualIdx]);
 
     // Show position indicator
     let posEl = document.getElementById('ts-position');
@@ -1498,6 +1523,57 @@ let _activeBuf = 'a'; // 'a' = #comic-frame, 'b' = #comic-frame-b
 function getActiveCf()  { return document.getElementById(_activeBuf === 'a' ? 'comic-frame'   : 'comic-frame-b'); }
 function getInactiveCf(){ return document.getElementById(_activeBuf === 'a' ? 'comic-frame-b' : 'comic-frame');   }
 
+// ── Frame audio: one reusable <audio> element, swapped per frame ──────────
+// Field names match the editor exactly: f.audio_url, f.audio_name, f.audio_start, f.audio_end
+function syncFrameAudio(f) {
+  const audioEl = document.getElementById('r-frame-audio');
+  const btn = document.getElementById('r-audio-btn');
+  if (!audioEl || !btn) return;
+
+  if (!f || !f.audio_url) {
+    btn.classList.remove('has-audio', 'playing');
+    btn.innerText = '🔈';
+    if (!audioEl.paused) audioEl.pause();
+    audioEl.removeAttribute('src');
+    _lastAudioKey = null;
+    return;
+  }
+
+  const start = f.audio_start || 0;
+  const key = f.audio_url + '|' + start;
+  if (key === _lastAudioKey) return; // same clip already loaded — scroll-driven re-syncs shouldn't restart it
+  _lastAudioKey = key;
+
+  btn.classList.add('has-audio');
+  if (!audioEl.paused) audioEl.pause();
+  audioEl.src = f.audio_url;
+  audioEl.currentTime = start;
+  const end = f.audio_end != null ? f.audio_end : Infinity;
+  audioEl.ontimeupdate = () => { if (audioEl.currentTime >= end) audioEl.pause(); };
+  audioEl.onplay  = () => { btn.classList.add('playing');    btn.innerText = '⏸'; };
+  audioEl.onpause = () => { btn.classList.remove('playing'); btn.innerText = '🔈'; };
+  audioEl.onended = () => { btn.classList.remove('playing'); btn.innerText = '🔈'; };
+
+  // Browsers block unmuted autoplay until the user has interacted at least once.
+  // After the first manual tap, keep auto-resuming sound on subsequent frames.
+  if (_audioUnlocked) {
+    audioEl.play().catch(() => { btn.classList.remove('playing'); btn.innerText = '🔈'; });
+  } else {
+    btn.classList.remove('playing');
+    btn.innerText = '🔈';
+  }
+}
+
+function toggleFrameAudio() {
+  const audioEl = document.getElementById('r-frame-audio');
+  if (!audioEl || !audioEl.src) return;
+  if (audioEl.paused) {
+    audioEl.play().then(() => { _audioUnlocked = true; }).catch(() => {});
+  } else {
+    audioEl.pause();
+  }
+}
+
 
 // ── Get toonscroll override for a frame by its original index ─────────────
 function getTsLayerOverrides(readerIdx) {
@@ -1512,6 +1588,8 @@ function getTsLayerOverrides(readerIdx) {
 function renderFrame(anim = false) {
   const f = frames[idx];
   if (!f) return;
+
+  syncFrameAudio(f);
 
   const next = getInactiveCf();
   const prev = getActiveCf();

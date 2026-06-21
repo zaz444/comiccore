@@ -3555,13 +3555,18 @@
     // scale layer coordinates correctly regardless of device. Desktop always
     // uses BASE_SIZE=900 via setRatio(), but stamping it explicitly removes
     // any ambiguity and keeps desktop/mobile data in a consistent format.
-    function stampEditorDimensions() {
+    // BUGFIX: the old approach mutated the live `frames` objects in place — stamp them,
+    // then immediately strip the stamp back off the SAME objects. Since supabase-js builds
+    // the request body lazily (JSON.stringify happens inside .then(), well after this
+    // function returns), the strip always won the race and published comics never actually
+    // carried _editorW/_editorH. The reader then fell back to a 900px guess that doesn't
+    // match the real editor canvas, throwing every layer's position/scale off — sprites end
+    // up positioned wrong or pushed off-frame entirely. This returns a fresh array instead,
+    // so the live `frames` the user is editing is never touched.
+    function getStampedFrames() {
         const ew = canvas.offsetWidth  || 600;
         const eh = canvas.offsetHeight || 600;
-        frames.forEach(f => { f._editorW = ew; f._editorH = eh; });
-    }
-    function clearEditorDimensionStamps() {
-        frames.forEach(f => { delete f._editorW; delete f._editorH; });
+        return frames.map(f => ({ ...f, _editorW: ew, _editorH: eh }));
     }
 
     async function saveOffline(silent = false) {
@@ -3583,10 +3588,11 @@
         lsSet('active_draft_id', activeDraftId);
 
         try {
-            // Stamp actual canvas pixel dimensions so the reader can scale correctly
-            stampEditorDimensions();
-            const payload = JSON.stringify(frames);
-            clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
+            // Stamp actual canvas pixel dimensions so the reader can scale correctly —
+            // getStampedFrames() returns a fresh array, never touching the live `frames`
+            // the user is actively editing.
+            const stamped = getStampedFrames();
+            const payload = JSON.stringify(stamped);
 
             let rowPatch;
 
@@ -3600,7 +3606,7 @@
                 rowPatch = { data: null, storage_path: path };
                 lsSet('active_draft_storage_path', path); // BUGFIX: was never written, only ever read
             } else {
-                rowPatch = { data: frames, storage_path: null };
+                rowPatch = { data: stamped, storage_path: null };
                 localStorage.removeItem('active_draft_storage_path');
             }
 
@@ -3623,7 +3629,6 @@
             hasUnsavedChanges = false;
             if (!silent) showSaveBadge('✓ Saved!', false);
         } catch(e) {
-            clearEditorDimensionStamps(); // ensure clean on error too
             console.error('Draft save failed:', e);
             if (!silent) showSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
         }
@@ -3726,13 +3731,16 @@
         }
         const profile = JSON.parse(localStorage.getItem('user_profile') || '{"name":"Creator","handle":"user"}');
         const swipeDir = localStorage.getItem('cc-swipe-dir') || 'horizontal';
-        // Stamp actual canvas pixel dimensions so the reader can scale correctly
-        stampEditorDimensions();
+        // BUGFIX: this used to stamp _editorW/_editorH onto the live `frames` objects,
+        // reference them in `payload.data`, then immediately strip the stamp back off the
+        // SAME objects — before Supabase ever serialized the request. Published comics never
+        // actually carried the dimension stamp, so the reader fell back to a 900px guess that
+        // doesn't match the real canvas, throwing every layer's position/scale off.
+        // getStampedFrames() returns a fresh array instead, so nothing here mutates `frames`.
         const payload = {
             title, description: desc, tags, cover: finalCoverBase64,
-            data: frames, swipe_dir: swipeDir, canvas_ratio: canvasRatio
+            data: getStampedFrames(), swipe_dir: swipeDir, canvas_ratio: canvasRatio
         };
-        clearEditorDimensionStamps(); // strip immediately — runtime frames stay clean
         let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
@@ -3765,8 +3773,16 @@
         // Clear edit source tracking
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
-        // Generate frame snapshots in background — don't await, navigate first
-        if (publishedId) _generateFrameSnapshots(publishedId).catch(() => {});
+        // BUGFIX: this used to fire _generateFrameSnapshots() without awaiting it, then
+        // immediately navigate. location.href unloads the page almost instantly, which
+        // aborts the in-flight canvas→blob→Storage-upload work before it can finish — so
+        // snapshots essentially never completed, and the reader fell back to rebuilding
+        // frames from raw layer data every time. Awaiting it here means the reader can
+        // actually rely on a snapshot existing once you land back on Discover.
+        if (publishedId) {
+            btn.innerText = 'Generating previews…';
+            await _generateFrameSnapshots(publishedId).catch(() => {});
+        }
         location.href = 'discover.html';
     }
 
