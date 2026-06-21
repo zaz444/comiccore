@@ -1725,6 +1725,35 @@ async function uploadCoverToStorage(dataUrl) {
     }
 }
 
+// ── Upload a base64 sprite/layer image to Supabase Storage (backgrounds/user/) ──
+// Same bucket+folder convention as uploadBgToStorage, but its own function because
+// cropSpriteToContent() always emits PNG (to preserve the alpha channel that trimmed
+// character sprites depend on) and needs that reflected in the extension/contentType,
+// where uploadBgToStorage defaults anything that isn't gif/webp to jpg.
+async function uploadSpriteToStorage(dataUrl) {
+    try {
+        const handle = (typeof myHandle !== 'undefined' && myHandle)
+            || JSON.parse(localStorage.getItem('user_profile') || '{}').handle
+            || 'guest';
+        const safeHandle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'guest';
+        const res  = await fetch(dataUrl);
+        const blob = await res.blob();
+        const ext  = dataUrl.startsWith('data:image/gif')  ? 'gif'
+                   : dataUrl.startsWith('data:image/webp') ? 'webp'
+                   : dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg') ? 'jpg'
+                   : 'png';
+        const path = 'user/' + safeHandle + '/sprite_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) + '.' + ext;
+        const { error } = await _supabase.storage
+            .from('backgrounds')
+            .upload(path, blob, { upsert: true, cacheControl: '86400', contentType: 'image/' + ext });
+        if (error) { console.warn('Sprite storage upload error:', error); return null; }
+        return _supabase.storage.from('backgrounds').getPublicUrl(path).data.publicUrl;
+    } catch (e) {
+        console.warn('uploadSpriteToStorage failed:', e);
+        return null;
+    }
+}
+
 function lsSet(key, value) {
     try { localStorage.setItem(key, value); } catch(e) {
         try {
@@ -5043,6 +5072,45 @@ function getStampedFrames() {
     return frames.map(f => ({ ...f, _editorW: ew, _editorH: eh }));
 }
 
+// ── Publish-time safety net: guarantee no base64 image layer ever reaches Supabase ──
+// Sprites are supposed to be uploaded to Storage the moment they're added, but
+// cropSpriteToContent() re-rasterizes any sprite that needs transparent-edge trimming
+// into a fresh canvas → toDataURL() PNG, discarding whatever URL that earlier upload
+// produced — so a base64 src can still reach `frames` even when the upload succeeded.
+// The add-time upload can also just fail outright (flaky connection) and silently fall
+// back to base64 with no retry. Either way, reader.html's DOM-rebuild fallback (used
+// whenever a frame_snapshot is missing) explicitly skips any image layer whose src isn't
+// an http URL — so a base64 sprite isn't lower quality, it's invisible. This walks the
+// stamped frames right before save and uploads anything that slipped through, so
+// publishing always guarantees real URLs. Returns a fresh array/objects — never mutates
+// the live `frames` the user is editing.
+async function ensureLayerImagesUploaded(frameList) {
+    const out = [];
+    for (const f of frameList) {
+        const srcLayers = f.layers || [];
+        let layers = srcLayers;
+        for (let i = 0; i < srcLayers.length; i++) {
+            const l = srcLayers[i];
+            if (l.type !== 'img') continue;
+            const patch = {};
+            if (l.src && l.src.startsWith('data:')) {
+                const url = await uploadSpriteToStorage(l.src);
+                if (url) patch.src = url;
+            }
+            if (l._fxSrc && l._fxSrc.startsWith('data:')) {
+                const url = await uploadSpriteToStorage(l._fxSrc);
+                if (url) patch._fxSrc = url;
+            }
+            if (Object.keys(patch).length) {
+                if (layers === srcLayers) layers = srcLayers.slice(); // copy-on-write, once
+                layers[i] = { ...l, ...patch };
+            }
+        }
+        out.push(layers === srcLayers ? f : { ...f, layers });
+    }
+    return out;
+}
+
 async function saveOffline(silent = false) {
     const ratio  = canvasRatio || { w:1, h:1 };
     const now    = new Date().toISOString();
@@ -5340,7 +5408,15 @@ async function finalPublish() {
         // BUGFIX: same dimension-stamp race as create.html — getStampedFrames() returns a
         // fresh array instead of mutating the live `frames`, so the stamp actually survives
         // into the published row instead of getting wiped before Supabase serializes it.
-        const payload = { data: getStampedFrames(), cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
+        const stamped = getStampedFrames();
+        // Safety net: catch any image layer that's still base64 (failed add-time upload,
+        // or cropSpriteToContent's re-rasterize-on-trim discarding an earlier successful
+        // upload) before it can reach Supabase and become an invisible sprite in the reader.
+        const hasUnuploadedLayer = stamped.some(f => (f.layers || []).some(l =>
+            l.type === 'img' && ((l.src && l.src.startsWith('data:')) || (l._fxSrc && l._fxSrc.startsWith('data:')))));
+        if (hasUnuploadedLayer) btn.innerText = 'Uploading artwork…';
+        const finalFrames = await ensureLayerImagesUploaded(stamped);
+        const payload = { data: finalFrames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
         let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
