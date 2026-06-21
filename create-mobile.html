@@ -395,6 +395,69 @@
         border: none; color: var(--danger); font-size: 12px; border-radius: 4px;
         cursor: pointer; padding: 2px 5px; line-height: 1;
     }
+    .mob-frame-audio-badge {
+        position: absolute; bottom: 3px; left: 3px; background: rgba(0,210,255,0.88);
+        color: #001318; font-size: 10px; border-radius: 4px; padding: 1px 4px;
+        line-height: 1.4; pointer-events: none;
+    }
+
+    /* ── AUDIO SHEET ── */
+    .mob-audio-main-tab {
+        flex: 1; padding: 8px; border-radius: 10px; border: 1px solid #222;
+        background: #111; color: #555; font-size: 11px; font-weight: 800;
+        cursor: pointer; font-family: inherit; transition: 0.15s;
+    }
+    .mob-audio-main-tab.active {
+        border-color: var(--teal); background: rgba(0,210,255,0.12); color: var(--teal);
+    }
+    .mob-audio-current {
+        display: flex; align-items: center; gap: 10px; background: rgba(0,210,255,0.08);
+        border: 1.5px solid rgba(0,210,255,0.3); border-radius: 12px; padding: 12px;
+    }
+    .mob-audio-current .ac-ico { font-size: 22px; color: var(--teal); flex-shrink: 0; }
+    .mob-audio-current .ac-info { flex: 1; min-width: 0; }
+    .mob-audio-current .ac-name { font-size: 13px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mob-audio-current .ac-range { font-size: 11px; color: #888; margin-top: 2px; }
+    .mob-audio-current .ac-btn {
+        background: #1a1a1a; border: 1px solid #2c2c2e; color: var(--teal);
+        border-radius: 8px; width: 34px; height: 34px; font-size: 14px;
+        cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    }
+    .mob-audio-current .ac-remove { color: var(--danger); }
+    .mob-audio-empty {
+        text-align: center; color: #555; font-size: 12px; font-weight: 700;
+        padding: 18px 10px; background: #161618; border: 1.5px dashed #2c2c2e; border-radius: 12px;
+    }
+    .mob-audio-row {
+        display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+        background: #1a1a1a; border: 1.5px solid #252525; border-radius: 10px;
+        margin-bottom: 6px; cursor: pointer; transition: 0.15s;
+    }
+    .mob-audio-row:active { border-color: var(--teal); }
+    .mob-audio-row .ar-play {
+        width: 30px; height: 30px; border-radius: 50%; background: rgba(0,210,255,0.12);
+        border: 1px solid rgba(0,210,255,0.4); color: var(--teal); font-size: 12px;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer;
+    }
+    .mob-audio-row .ar-info { flex: 1; min-width: 0; }
+    .mob-audio-row .ar-name { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mob-audio-row .ar-dur { font-size: 10px; color: #666; margin-top: 1px; }
+    .mob-audio-row .ar-use { font-size: 10px; font-weight: 900; color: var(--teal); text-transform: uppercase; padding: 5px 10px; background: rgba(0,210,255,0.1); border-radius: 8px; flex-shrink: 0; }
+    .mob-audio-upload-box {
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        background: #161618; border: 1.5px dashed #2c2c2e; border-radius: 12px;
+        padding: 22px 14px; cursor: pointer; text-align: center;
+    }
+    .mob-audio-upload-box .au-ico { font-size: 26px; }
+    .mob-audio-trim-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; }
+    .mob-audio-trim-row label { width: 64px; flex-shrink: 0; font-size: 10px; font-weight: 800; color: #8e8e93; text-transform: uppercase; }
+    .mob-audio-trim-row input[type=range] { flex: 1; accent-color: var(--teal); }
+    .mob-audio-use-btn {
+        width: 100%; padding: 12px; background: var(--teal); color: #001318;
+        border: none; border-radius: 12px; font-weight: 900; font-size: 13px;
+        cursor: pointer; font-family: inherit; margin-top: 10px;
+    }
+    .mob-audio-use-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
 
     /* ── TRANSFORM SHEET (appears from bottom when layer tapped) ── */
     #transform-sheet {
@@ -1142,6 +1205,77 @@
     </div>
 </div>
 
+<!-- AUDIO SHEET (per-frame, 3-15s clips) -->
+<div id="sheet-audio" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🔊 Frame Audio <span id="mob-audio-frame-label" style="font-size:12px;color:#888;font-weight:700;">Frame 1</span><button class="sheet-close" onclick="closeSheet('audio')">✕</button></div>
+    <div class="sheet-body">
+        <div style="font-size:10px;color:#555;font-weight:700;text-align:center;padding-bottom:8px;">3–15 seconds of audio plays on this frame</div>
+
+        <!-- Current clip on this frame -->
+        <div id="mob-audio-current" class="mob-audio-current" style="display:none;">
+            <span class="ac-ico">🔊</span>
+            <div class="ac-info">
+                <div class="ac-name" id="mob-audio-current-name">Track</div>
+                <div class="ac-range" id="mob-audio-current-range">0:00–0:00</div>
+            </div>
+            <button class="ac-btn" id="mob-audio-current-play" onclick="toggleCurrentFrameAudioPreview()">▶</button>
+            <button class="ac-btn ac-remove" onclick="removeFrameAudio()" title="Remove from frame">🗑</button>
+        </div>
+        <div id="mob-audio-empty" class="mob-audio-empty">No audio on this frame yet</div>
+
+        <!-- Library / Upload tabs -->
+        <div style="display:flex;gap:4px;margin:14px 0 10px;">
+            <button class="mob-audio-main-tab active" id="mob-audio-tab-library" onclick="setMobAudioMainTab('library')">🎵 Library</button>
+            <button class="mob-audio-main-tab" id="mob-audio-tab-upload" onclick="setMobAudioMainTab('upload')">⬆️ Upload</button>
+        </div>
+
+        <!-- LIBRARY pane -->
+        <div id="mob-audio-pane-library">
+            <input class="pub-input" id="mob-audio-search" placeholder="Search audio clips..." oninput="filterMobAudioLibrary()" style="margin-bottom:8px;">
+            <div id="mob-audio-list" style="max-height:42vh;overflow-y:auto;">
+                <div style="color:#555;font-size:12px;padding:16px;text-align:center;">Loading…</div>
+            </div>
+        </div>
+
+        <!-- UPLOAD pane -->
+        <div id="mob-audio-pane-upload" style="display:none;">
+            <div class="mob-audio-upload-box" id="mob-audio-upload-box" onclick="document.getElementById('audio-file-input').click()">
+                <span class="au-ico">📁</span>
+                <div style="font-size:12px;font-weight:800;color:#aaa;">Tap to choose an audio file</div>
+                <div style="font-size:10px;color:#555;">mp3, m4a, wav — trim to 3–15s</div>
+            </div>
+
+            <div id="mob-audio-upload-preview" style="display:none;">
+                <div style="font-size:12px;font-weight:800;color:var(--text);margin:12px 0 4px;" id="mob-audio-upload-name"></div>
+                <audio id="mob-audio-upload-player" style="width:100%;" controls></audio>
+
+                <div class="mob-audio-trim-row">
+                    <label>Start</label>
+                    <input type="range" id="mob-audio-trim-start" min="0" max="0" step="0.1" value="0" oninput="onAudioTrimChange()">
+                </div>
+                <div class="mob-audio-trim-row">
+                    <label>Length</label>
+                    <input type="range" id="mob-audio-trim-len" min="3" max="15" step="0.1" value="3" oninput="onAudioTrimChange()">
+                </div>
+                <div style="text-align:center;font-size:11px;color:var(--teal);font-weight:800;" id="mob-audio-trim-label">0:00 – 0:00 (3.0s)</div>
+
+                <button style="width:100%;padding:9px;background:#1a1a1a;border:1px solid #2c2c2e;color:#aaa;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;margin-top:8px;" onclick="previewAudioTrim()">▶ Preview Trim</button>
+
+                <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:11px;color:#888;font-weight:700;">
+                    <input type="checkbox" id="mob-audio-save-to-library" checked style="accent-color:var(--teal);">
+                    Also save to My Library for reuse
+                </label>
+
+                <button class="mob-audio-use-btn" id="mob-audio-use-btn" onclick="useUploadedAudioClip()">Use This Clip</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="audio-file-input" hidden accept="audio/*">
+<audio id="mob-audio-preview" style="display:none;"></audio>
+
 <!-- FX SHEET -->
 <div id="sheet-fx" class="bottom-sheet" style="max-height:80vh;">
     <div class="sheet-handle"></div>
@@ -1408,6 +1542,7 @@
         <!-- Dropdown arrow — clearly visible chevron button -->
         <button onclick="toggleFramePillMenu(event)" style="background:rgba(255,122,0,0.18);border:none;border-left:1px solid rgba(255,122,0,0.35);color:var(--accent);font-size:14px;font-weight:900;padding:6px 9px;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent;border-radius:0 20px 20px 0;" title="Frame options">⌄</button>
     </div>
+    <button id="frame-audio-badge" onclick="openSheet('audio')" style="display:none;background:rgba(0,210,255,0.15);border:1px solid rgba(0,210,255,0.4);color:var(--teal);font-size:12px;border-radius:14px;padding:6px 9px;margin-left:6px;cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1;" title="Frame has audio">🔊</button>
     <div id="unsaved-dot"></div>
     <div class="tb-spacer"></div>
     <button class="tb-btn" onclick="saveOffline(false)">💾</button>
@@ -1494,6 +1629,9 @@
     </button>
     <button class="bot-btn" onclick="openSheet('frames')">
         <span class="bico">🎞</span>Frames
+    </button>
+    <button class="bot-btn" onclick="openSheet('audio')">
+        <span class="bico">🔊</span>Audio
     </button>
     <button class="bot-btn" onclick="sbEditAction()">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/edit.webp" class="bot-custom-icon" alt="edit">Edit
@@ -1651,6 +1789,7 @@ function openSheet(name) {
     if (name === 'bg') loadMobBgs();
     if (name === 'layers') renderMobLayers();
     if (name === 'frames') renderMobFrames();
+    if (name === 'audio') renderMobAudioSheet();
     if (name === 'bg') syncBgSliders();
     if (name === 'fx') syncFxPanel();
     if (name === 'favorites') renderMobFavPanel();
@@ -1663,6 +1802,7 @@ function closeSheet(name) {
         mobBgDragActive = false;
         document.getElementById('bg-drag-overlay').style.display = 'none';
     }
+    if (name === 'audio') stopAllMobAudioPreviews();
 }
 function closeAllSheets() {
     document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('open'));
@@ -2438,6 +2578,11 @@ function updateFrameCounter() {
     // Sync the frame pill label in the top bar
     const pill = document.getElementById('frame-pill-label');
     if (pill) pill.textContent = (currentIdx + 1) + '/' + frames.length;
+    // Sync the frame audio badge in the top bar
+    const audioBadge = document.getElementById('frame-audio-badge');
+    if (audioBadge) audioBadge.style.display = (frames[currentIdx] && frames[currentIdx].audio_url) ? 'inline-block' : 'none';
+    // Keep the audio sheet's own UI in sync if it happens to be open
+    if (document.getElementById('sheet-audio')?.classList.contains('open')) renderMobAudioSheet();
 }
 
 // ── Frame Pill Dropdown ──
@@ -2493,6 +2638,12 @@ function renderMobFrames() {
         if (f.background && (f.background.startsWith('http') || f.background.startsWith('data:'))) thumb.style.backgroundImage = `url(${f.background})`;
         thumb.innerHTML = `<span>${i + 1}</span>`;
         thumb.onclick = () => goToFrame(i);
+        if (f.audio_url) {
+            const ab = document.createElement('span');
+            ab.className = 'mob-frame-audio-badge';
+            ab.innerText = '🔊';
+            thumb.appendChild(ab);
+        }
         const del = document.createElement('button');
         del.className = 'mob-frame-del'; del.innerText = '✕';
         del.onclick = (e) => { e.stopPropagation(); if (frames.length === 1) { alert('Cannot delete only frame.'); return; } saveState(); frames.splice(i, 1); if (currentIdx >= frames.length) currentIdx = frames.length - 1; activeLayer = null; render(); renderMobFrames(); updateFrameCounter(); };
@@ -2500,6 +2651,301 @@ function renderMobFrames() {
         scroll.appendChild(thumb);
     });
     if (document.getElementById('mob-frame-label')) document.getElementById('mob-frame-label').innerText = (currentIdx + 1) + ' / ' + frames.length;
+}
+
+// ── FRAME AUDIO (3-15s clip per frame) ──
+// Frame shape additions: f.audio_url, f.audio_name, f.audio_start, f.audio_end (seconds)
+let mobAudioMainTab   = 'library';
+let mobAudioLibLoaded = false;
+let mobAudioLib       = [];
+let _mobAudioUploadFile = null;
+let _mobAudioUploadObjUrl = null;
+let _mobAudioUploadDuration = 0;
+let _mobAudioRowPlaying = null; // currently playing <button> in the library list
+
+function mobFmtTime(sec) {
+    sec = Math.max(0, sec || 0);
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function stopAllMobAudioPreviews() {
+    const p = document.getElementById('mob-audio-preview');
+    if (p) { p.pause(); p.onended = null; p.ontimeupdate = null; }
+    const up = document.getElementById('mob-audio-upload-player');
+    if (up) up.pause();
+    if (_mobAudioRowPlaying) { _mobAudioRowPlaying.innerText = '▶'; _mobAudioRowPlaying = null; }
+    const curBtn = document.getElementById('mob-audio-current-play');
+    if (curBtn) curBtn.innerText = '▶';
+}
+
+function setMobAudioMainTab(tab) {
+    mobAudioMainTab = tab;
+    document.getElementById('mob-audio-tab-library').classList.toggle('active', tab === 'library');
+    document.getElementById('mob-audio-tab-upload').classList.toggle('active', tab === 'upload');
+    document.getElementById('mob-audio-pane-library').style.display = tab === 'library' ? 'block' : 'none';
+    document.getElementById('mob-audio-pane-upload').style.display = tab === 'upload' ? 'block' : 'none';
+    stopAllMobAudioPreviews();
+}
+
+// Refreshes the "current clip on this frame" header + triggers library load
+function renderMobAudioSheet() {
+    const label = document.getElementById('mob-audio-frame-label');
+    if (label) label.innerText = 'Frame ' + (currentIdx + 1);
+
+    const f = frames[currentIdx];
+    const cur = document.getElementById('mob-audio-current');
+    const empty = document.getElementById('mob-audio-empty');
+    if (f && f.audio_url) {
+        cur.style.display = 'flex';
+        empty.style.display = 'none';
+        document.getElementById('mob-audio-current-name').innerText = f.audio_name || 'Track';
+        const start = f.audio_start || 0, end = f.audio_end != null ? f.audio_end : 15;
+        document.getElementById('mob-audio-current-range').innerText =
+            mobFmtTime(start) + '–' + mobFmtTime(end) + ' (' + (end - start).toFixed(1) + 's)';
+        document.getElementById('mob-audio-current-play').innerText = '▶';
+    } else {
+        cur.style.display = 'none';
+        empty.style.display = 'block';
+    }
+
+    if (!mobAudioLibLoaded) loadMobAudioLibrary(); else renderMobAudioList();
+}
+
+function toggleCurrentFrameAudioPreview() {
+    const f = frames[currentIdx];
+    if (!f || !f.audio_url) return;
+    const p = document.getElementById('mob-audio-preview');
+    const btn = document.getElementById('mob-audio-current-play');
+    if (!p.paused && p.src === f.audio_url) {
+        p.pause(); btn.innerText = '▶'; return;
+    }
+    stopAllMobAudioPreviews();
+    const start = f.audio_start || 0, end = f.audio_end != null ? f.audio_end : (start + 15);
+    p.src = f.audio_url;
+    p.currentTime = start;
+    p.ontimeupdate = () => { if (p.currentTime >= end) { p.pause(); btn.innerText = '▶'; } };
+    p.onended = () => { btn.innerText = '▶'; };
+    p.play().catch(() => {});
+    btn.innerText = '⏸';
+}
+
+function removeFrameAudio() {
+    const f = frames[currentIdx];
+    if (!f || !f.audio_url) return;
+    stopAllMobAudioPreviews();
+    saveState();
+    delete f.audio_url; delete f.audio_name; delete f.audio_start; delete f.audio_end;
+    hasUnsavedChanges = true;
+    renderMobAudioSheet();
+    renderMobFrames();
+    updateFrameCounter();
+}
+
+function applyAudioToFrame(url, name, start, end) {
+    saveState();
+    const f = frames[currentIdx];
+    f.audio_url = url;
+    f.audio_name = name || 'Track';
+    f.audio_start = Math.max(0, start || 0);
+    f.audio_end = Math.max(f.audio_start + 3, end || (f.audio_start + 15));
+    hasUnsavedChanges = true;
+    renderMobAudioSheet();
+    renderMobFrames();
+    updateFrameCounter();
+    closeSheet('audio');
+}
+
+// ── LIBRARY (your saved clips, from `audio_library` table) ──
+async function loadMobAudioLibrary() {
+    const list = document.getElementById('mob-audio-list');
+    if (list) list.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;text-align:center;">Loading…</div>';
+    try {
+        const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+        const handle = profile.handle;
+        if (handle) {
+            const { data, error } = await _supabase.from('audio_library')
+                .select('id,name,audio_url,duration,uploaded_by').eq('uploaded_by', handle).order('id', { ascending: false });
+            if (error) throw error;
+            mobAudioLib = data || [];
+        } else { mobAudioLib = []; }
+
+        mobAudioLibLoaded = true;
+    } catch (e) {
+        console.warn('loadMobAudioLibrary error:', e);
+        if (list) {
+            list.innerHTML = '<div style="color:#ff453a;font-size:12px;padding:16px;text-align:center;cursor:pointer;">Failed to load — tap to retry</div>';
+            list.onclick = () => { list.onclick = null; mobAudioLibLoaded = false; loadMobAudioLibrary(); };
+        }
+        return;
+    }
+    renderMobAudioList();
+}
+
+function filterMobAudioLibrary() { renderMobAudioList(); }
+
+function renderMobAudioList() {
+    const list = document.getElementById('mob-audio-list');
+    if (!list) return;
+    const q = (document.getElementById('mob-audio-search')?.value || '').toLowerCase().trim();
+    const filtered = q ? mobAudioLib.filter(a => (a.name || '').toLowerCase().includes(q)) : mobAudioLib;
+
+    if (!filtered.length) {
+        list.innerHTML = '<div style="color:#555;font-size:12px;padding:16px;text-align:center;">No saved clips yet — upload one!</div>';
+        return;
+    }
+
+    list.innerHTML = '';
+    filtered.forEach(clip => {
+        const row = document.createElement('div');
+        row.className = 'mob-audio-row';
+
+        const playBtn = document.createElement('button');
+        playBtn.className = 'ar-play';
+        playBtn.innerText = '▶';
+        playBtn.onclick = (e) => { e.stopPropagation(); toggleLibraryClipPreview(clip, playBtn); };
+
+        const info = document.createElement('div');
+        info.className = 'ar-info';
+        info.innerHTML = `<div class="ar-name">${clip.name || 'Untitled'}</div><div class="ar-dur">${mobFmtTime(clip.duration || 0)}</div>`;
+
+        const useBtn = document.createElement('div');
+        useBtn.className = 'ar-use';
+        useBtn.innerText = 'Use';
+
+        row.appendChild(playBtn);
+        row.appendChild(info);
+        row.appendChild(useBtn);
+        row.onclick = () => {
+            const dur = clip.duration || 15;
+            applyAudioToFrame(clip.audio_url, clip.name, 0, Math.min(dur, 15));
+        };
+        list.appendChild(row);
+    });
+}
+
+function toggleLibraryClipPreview(clip, btnEl) {
+    const p = document.getElementById('mob-audio-preview');
+    if (_mobAudioRowPlaying === btnEl && !p.paused) {
+        p.pause(); btnEl.innerText = '▶'; _mobAudioRowPlaying = null; return;
+    }
+    stopAllMobAudioPreviews();
+    p.src = clip.audio_url;
+    p.currentTime = 0;
+    const maxLen = Math.min(clip.duration || 15, 15);
+    p.ontimeupdate = () => { if (p.currentTime >= maxLen) { p.pause(); btnEl.innerText = '▶'; _mobAudioRowPlaying = null; } };
+    p.onended = () => { btnEl.innerText = '▶'; _mobAudioRowPlaying = null; };
+    p.play().catch(() => {});
+    btnEl.innerText = '⏸';
+    _mobAudioRowPlaying = btnEl;
+}
+
+// ── UPLOAD + TRIM ──
+document.getElementById('audio-file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    _mobAudioUploadFile = file;
+    if (_mobAudioUploadObjUrl) URL.revokeObjectURL(_mobAudioUploadObjUrl);
+    _mobAudioUploadObjUrl = URL.createObjectURL(file);
+
+    const player = document.getElementById('mob-audio-upload-player');
+    player.src = _mobAudioUploadObjUrl;
+    document.getElementById('mob-audio-upload-name').innerText = file.name;
+    document.getElementById('mob-audio-upload-preview').style.display = 'block';
+    document.getElementById('mob-audio-use-btn').disabled = true;
+
+    player.onloadedmetadata = () => {
+        _mobAudioUploadDuration = player.duration || 0;
+        const startSlider = document.getElementById('mob-audio-trim-start');
+        const lenSlider = document.getElementById('mob-audio-trim-len');
+
+        if (_mobAudioUploadDuration < 3) {
+            document.getElementById('mob-audio-trim-label').innerText = 'Clip too short — needs at least 3 seconds';
+            document.getElementById('mob-audio-use-btn').disabled = true;
+            startSlider.max = 0; lenSlider.max = 3;
+            return;
+        }
+        startSlider.min = 0;
+        startSlider.max = Math.max(0, _mobAudioUploadDuration - 3);
+        startSlider.value = 0;
+        lenSlider.min = 3;
+        lenSlider.max = Math.min(15, _mobAudioUploadDuration);
+        lenSlider.value = Math.min(15, _mobAudioUploadDuration);
+        onAudioTrimChange();
+        document.getElementById('mob-audio-use-btn').disabled = false;
+    };
+});
+
+function onAudioTrimChange() {
+    const startSlider = document.getElementById('mob-audio-trim-start');
+    const lenSlider = document.getElementById('mob-audio-trim-len');
+    let start = parseFloat(startSlider.value);
+    let len = parseFloat(lenSlider.value);
+    // Keep the trim window inside the actual file duration
+    if (start + len > _mobAudioUploadDuration) len = Math.max(3, _mobAudioUploadDuration - start);
+    lenSlider.value = len;
+    const end = start + len;
+    document.getElementById('mob-audio-trim-label').innerText =
+        mobFmtTime(start) + ' – ' + mobFmtTime(end) + ' (' + len.toFixed(1) + 's)';
+}
+
+function previewAudioTrim() {
+    const player = document.getElementById('mob-audio-upload-player');
+    const start = parseFloat(document.getElementById('mob-audio-trim-start').value);
+    const len = parseFloat(document.getElementById('mob-audio-trim-len').value);
+    const end = start + len;
+    player.currentTime = start;
+    player.ontimeupdate = () => { if (player.currentTime >= end) player.pause(); };
+    player.play().catch(() => {});
+}
+
+async function useUploadedAudioClip() {
+    if (!_mobAudioUploadFile) return;
+    const start = parseFloat(document.getElementById('mob-audio-trim-start').value);
+    const len = parseFloat(document.getElementById('mob-audio-trim-len').value);
+    const end = start + len;
+    if (len < 3 || len > 15) { alert('Clip length must be between 3 and 15 seconds.'); return; }
+
+    const useBtn = document.getElementById('mob-audio-use-btn');
+    useBtn.disabled = true;
+    useBtn.innerText = 'Uploading…';
+
+    try {
+        const handle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle || 'guest';
+        const safeHandle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'guest';
+        const ext = (_mobAudioUploadFile.name.split('.').pop() || 'mp3').toLowerCase();
+        const path = 'audio/user/' + safeHandle + '/clip_' + Date.now() + '.' + ext;
+
+        const { error: upErr } = await _supabase.storage
+            .from('comiccore-assets')
+            .upload(path, _mobAudioUploadFile, { upsert: true, cacheControl: '3600' });
+        if (upErr) throw upErr;
+        const url = _supabase.storage.from('comiccore-assets').getPublicUrl(path).data.publicUrl;
+
+        const saveToLib = document.getElementById('mob-audio-save-to-library').checked;
+        if (saveToLib && handle && handle !== 'guest') {
+            await _supabase.from('audio_library').insert([{
+                name: _mobAudioUploadFile.name, audio_url: url, duration: len,
+                uploaded_by: handle, created_at: new Date().toISOString()
+            }]).catch((e) => console.warn('audio_library insert skipped:', e));
+            mobAudioLibLoaded = false; // refresh the library next time it's opened
+        }
+
+        applyAudioToFrame(url, _mobAudioUploadFile.name, start, end);
+
+        // Reset upload pane for next time
+        _mobAudioUploadFile = null;
+        if (_mobAudioUploadObjUrl) { URL.revokeObjectURL(_mobAudioUploadObjUrl); _mobAudioUploadObjUrl = null; }
+        document.getElementById('mob-audio-upload-preview').style.display = 'none';
+    } catch (e) {
+        console.warn('useUploadedAudioClip failed:', e);
+        alert('Upload failed: ' + (e.message || 'please try again'));
+    } finally {
+        useBtn.disabled = false;
+        useBtn.innerText = 'Use This Clip';
+    }
 }
 
 // ── LAYERS ──
