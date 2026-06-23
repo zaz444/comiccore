@@ -456,16 +456,6 @@ body.toonscroll .top-bar { opacity:0; pointer-events:none; }
 body.toonscroll .bottom-bar { opacity:0; pointer-events:none; }
 body.toonscroll .prog-track { opacity:0; }
 
-/* ToonScroll toggle button in top bar */
-#ts-toggle{
-background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);
-color:white;width:38px;height:38px;border-radius:50%;cursor:pointer;
-font-size:17px;display:flex;align-items:center;justify-content:center;
-flex-shrink:0;transition:.15s;backdrop-filter:blur(8px);
-}
-#ts-toggle:hover{background:rgba(255,255,255,.2);}
-#ts-toggle.active{background:rgba(255,122,0,.2);border-color:rgba(255,122,0,.5);color:#ff7a00;}
-
 /* ToonScroll direction selector */
 #ts-dir-modal{
 position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;
@@ -505,7 +495,6 @@ margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-conte
     <button class="round-btn" id="comment-btn" onclick="openComments()" title="Comments" style="font-size:15px;">💬</button>
     <button class="round-btn" id="share-btn" onclick="openShare()" title="Share" style="font-size:15px;">↗</button>
     <button class="round-btn edit-c" id="edit-btn" style="display:none;" onclick="editComic()" title="Edit">✏</button>
-    <button class="round-btn" id="ts-toggle" onclick="toggleToonScroll()" title="ToonScroll">📜</button>
     <button class="round-btn" id="fs-btn" onclick="toggleFS()" title="Fullscreen">⛶</button>
   </div>
 </div>
@@ -712,7 +701,6 @@ function enableToonScroll(dir, fromConfig = false) {
     toonScrollDir = dir;
     localStorage.setItem('cc-toonscroll', 'on');
     localStorage.setItem('cc-toonscroll-dir', dir);
-    document.getElementById('ts-toggle').classList.add('active');
     document.body.classList.add('toonscroll');
     initToonScrollStrip();
 
@@ -734,7 +722,6 @@ function enableToonScroll(dir, fromConfig = false) {
 function disableToonScroll() {
     toonScrollMode = 'off';
     localStorage.setItem('cc-toonscroll', 'off');
-    document.getElementById('ts-toggle').classList.remove('active');
     document.body.classList.remove('toonscroll');
     document.getElementById('toonscroll-strip').classList.remove('active', 'horizontal', 'vertical');
     const exitBtn = document.getElementById('ts-exit-btn');
@@ -1108,7 +1095,6 @@ async function boot() {
 
   if (storyRes.data && !comicRes.data) {
     // ── It's a STORY — render reading mode ──────────────────
-    document.getElementById('ts-toggle').style.display = 'none';
     bootStory(storyRes.data);
     return;
   }
@@ -1133,7 +1119,6 @@ async function boot() {
       .select('*').eq('toonscroll_id', toonScrollConfig.id).order('frame_order')).catch(() => ({ data: [] }));
     const tsFrames = tsFramesRes.data;
     toonScrollFrames = tsFrames || [];
-    document.getElementById('ts-toggle').style.display = 'flex';
 
     // Build set of frame indices hidden from reader (toonscroll_only)
     const hiddenSet = new Set(
@@ -1158,7 +1143,6 @@ async function boot() {
     toonScrollConfig._autoEnable = allToonscrollOnly;
 
   } else {
-    document.getElementById('ts-toggle').style.display = 'none';
     toonScrollConfig = null;
   }
 
@@ -1195,7 +1179,7 @@ async function boot() {
     // If auto-enabled because all frames are toonscroll_only, hide the toggle button
     // so users can't accidentally exit (they have no frames to fall back to)
     if (toonScrollConfig._autoEnable && toonScrollConfig.visibility !== 'only') {
-      document.getElementById('ts-toggle').title = 'ToonScroll Comic';
+
     }
   } else {
     renderFrame();
