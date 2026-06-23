@@ -1224,6 +1224,17 @@
         </div>
         <div id="mob-audio-empty" class="mob-audio-empty">No audio on this frame yet</div>
 
+        <!-- Frame span — let one clip play continuously across several consecutive frames -->
+        <div id="mob-audio-span-row" style="display:none;align-items:center;gap:10px;margin:10px 0;padding:9px 12px;background:#161617;border:1px solid #262628;border-radius:10px;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;font-weight:800;color:#aaa;">Plays across <span id="mob-audio-span-count" style="color:var(--teal);">1</span> frame<span id="mob-audio-span-plural"></span></div>
+                <div id="mob-audio-span-range" style="font-size:10px;color:#666;margin-top:1px;"></div>
+            </div>
+            <button onclick="adjustAudioSpan(-1)" style="background:#1a1a1a;border:1px solid #2c2c2e;color:var(--teal);border-radius:8px;width:30px;height:30px;font-size:16px;font-weight:800;cursor:pointer;flex-shrink:0;">−</button>
+            <button onclick="adjustAudioSpan(1)" style="background:#1a1a1a;border:1px solid #2c2c2e;color:var(--teal);border-radius:8px;width:30px;height:30px;font-size:16px;font-weight:800;cursor:pointer;flex-shrink:0;">+</button>
+        </div>
+        <button id="mob-audio-preview-span-btn" style="display:none;width:100%;padding:9px;background:rgba(0,210,255,0.1);border:1px solid rgba(0,210,255,0.35);color:var(--teal);border-radius:10px;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit;margin-bottom:10px;" onclick="openAudioSpanPreview()">▶ Preview across frames</button>
+
         <!-- Library / Upload tabs -->
         <div style="display:flex;gap:4px;margin:14px 0 10px;">
             <button class="mob-audio-main-tab active" id="mob-audio-tab-library" onclick="setMobAudioMainTab('library')">🎵 Library</button>
@@ -1275,6 +1286,25 @@
 
 <input type="file" id="audio-file-input" hidden accept="audio/*">
 <audio id="mob-audio-preview" style="display:none;"></audio>
+
+<!-- ── Audio Span Preview — step through the frames one clip spans, audio kept playing ── -->
+<div id="audio-span-preview-modal" class="overlay-full" style="display:none;z-index:9500;">
+    <div class="modal-content" style="max-width:360px;text-align:center;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h2 style="margin:0;font-size:16px;">▶ Preview across frames</h2>
+            <button onclick="closeAudioSpanPreview()" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;line-height:1;">✕</button>
+        </div>
+        <div style="font-size:11px;color:#888;font-weight:700;margin-bottom:10px;" id="asp-frame-label">Frame 1</div>
+        <div style="position:relative;width:100%;aspect-ratio:1/1;background:#111;border-radius:10px;overflow:hidden;border:1px solid #262628;">
+            <img id="asp-frame-img" style="width:100%;height:100%;object-fit:contain;display:block;" />
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px;">
+            <button id="asp-prev-btn" onclick="aspNav(-1)" style="flex:1;padding:10px;background:#1a1a1a;border:1px solid #2c2c2e;color:#fff;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;">← Prev</button>
+            <button id="asp-next-btn" onclick="aspNav(1)" style="flex:1;padding:10px;background:#1a1a1a;border:1px solid #2c2c2e;color:#fff;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;">Next →</button>
+        </div>
+        <div style="font-size:10px;color:#555;font-weight:700;margin-top:10px;">Audio keeps playing as you step through — exactly like swiping in the reader</div>
+    </div>
+</div>
 
 <!-- FX SHEET -->
 <div id="sheet-fx" class="bottom-sheet" style="max-height:80vh;">
@@ -2684,8 +2714,13 @@ function renderMobFrames() {
     if (document.getElementById('mob-frame-label')) document.getElementById('mob-frame-label').innerText = (currentIdx + 1) + ' / ' + frames.length;
 }
 
-// ── FRAME AUDIO (3-15s clip per frame) ──
-// Frame shape additions: f.audio_url, f.audio_name, f.audio_start, f.audio_end (seconds)
+// ── FRAME AUDIO (3-15s clip per frame, optionally spanning several frames) ──
+// Frame shape additions: f.audio_url, f.audio_name, f.audio_start, f.audio_end (seconds),
+// f.audio_span_start (index of the first frame in this clip's span), f.audio_span_len (span length).
+// All frames in a span share the IDENTICAL {audio_url, audio_start} pair on purpose — that
+// exact pair is the dedup key reader.html's syncFrameAudio() checks before restarting a
+// clip, so giving every frame in the span the same pair is what makes the audio keep
+// playing uninterrupted as the reader swipes through, with zero reader-side changes needed.
 let mobAudioMainTab   = 'library';
 let mobAudioLibLoaded = false;
 let mobAudioLib       = [];
@@ -2693,6 +2728,7 @@ let _mobAudioUploadFile = null;
 let _mobAudioUploadObjUrl = null;
 let _mobAudioUploadDuration = 0;
 let _mobAudioRowPlaying = null; // currently playing <button> in the library list
+let mobAudioSpanValue = 1;      // current value of the frame-span stepper in the sheet
 
 function mobFmtTime(sec) {
     sec = Math.max(0, sec || 0);
@@ -2720,7 +2756,7 @@ function setMobAudioMainTab(tab) {
     stopAllMobAudioPreviews();
 }
 
-// Refreshes the "current clip on this frame" header + triggers library load
+// Refreshes the "current clip on this frame" header + span stepper + triggers library load
 function renderMobAudioSheet() {
     const label = document.getElementById('mob-audio-frame-label');
     if (label) label.innerText = 'Frame ' + (currentIdx + 1);
@@ -2728,6 +2764,12 @@ function renderMobAudioSheet() {
     const f = frames[currentIdx];
     const cur = document.getElementById('mob-audio-current');
     const empty = document.getElementById('mob-audio-empty');
+    const spanRow = document.getElementById('mob-audio-span-row');
+    const previewBtn = document.getElementById('mob-audio-preview-span-btn');
+    const maxSpan = Math.max(1, frames.length - currentIdx);
+
+    mobAudioSpanValue = Math.min((f && f.audio_span_len) ? f.audio_span_len : 1, maxSpan);
+
     if (f && f.audio_url) {
         cur.style.display = 'flex';
         empty.style.display = 'none';
@@ -2736,12 +2778,87 @@ function renderMobAudioSheet() {
         document.getElementById('mob-audio-current-range').innerText =
             mobFmtTime(start) + '–' + mobFmtTime(end) + ' (' + (end - start).toFixed(1) + 's)';
         document.getElementById('mob-audio-current-play').innerText = '▶';
+        if (previewBtn) previewBtn.style.display = mobAudioSpanValue > 1 ? 'block' : 'none';
     } else {
         cur.style.display = 'none';
         empty.style.display = 'block';
+        if (previewBtn) previewBtn.style.display = 'none';
+    }
+
+    if (spanRow) {
+        spanRow.style.display = maxSpan > 1 ? 'flex' : 'none';
+        document.getElementById('mob-audio-span-count').innerText = mobAudioSpanValue;
+        document.getElementById('mob-audio-span-plural').innerText = mobAudioSpanValue === 1 ? '' : 's';
+        const rangeEl = document.getElementById('mob-audio-span-range');
+        if (rangeEl) {
+            rangeEl.innerText = mobAudioSpanValue > 1
+                ? ('Frames ' + (currentIdx + 1) + '–' + (currentIdx + mobAudioSpanValue))
+                : '';
+        }
     }
 
     if (!mobAudioLibLoaded) loadMobAudioLibrary(); else renderMobAudioList();
+}
+
+// +/- stepper — if a clip is already assigned to this frame, changing the span
+// immediately re-applies it across the new range so the change is visible right away.
+function adjustAudioSpan(delta) {
+    const maxSpan = Math.max(1, frames.length - currentIdx);
+    mobAudioSpanValue = Math.max(1, Math.min(maxSpan, mobAudioSpanValue + delta));
+    document.getElementById('mob-audio-span-count').innerText = mobAudioSpanValue;
+    document.getElementById('mob-audio-span-plural').innerText = mobAudioSpanValue === 1 ? '' : 's';
+    const rangeEl = document.getElementById('mob-audio-span-range');
+    if (rangeEl) {
+        rangeEl.innerText = mobAudioSpanValue > 1
+            ? ('Frames ' + (currentIdx + 1) + '–' + (currentIdx + mobAudioSpanValue))
+            : '';
+    }
+    const previewBtn = document.getElementById('mob-audio-preview-span-btn');
+    const f = frames[currentIdx];
+    if (f && f.audio_url) {
+        applyAudioSpan(f.audio_url, f.audio_name, f.audio_start, f.audio_end, mobAudioSpanValue);
+        if (previewBtn) previewBtn.style.display = mobAudioSpanValue > 1 ? 'block' : 'none';
+    }
+}
+
+// Clears audio fields from every frame belonging to the span that starts at `rootIdx`
+function clearAudioSpanFields(rootIdx) {
+    if (rootIdx == null) return;
+    frames.forEach(fr => {
+        if (fr.audio_span_start === rootIdx) {
+            delete fr.audio_url; delete fr.audio_name; delete fr.audio_start; delete fr.audio_end;
+            delete fr.audio_span_start; delete fr.audio_span_len;
+        }
+    });
+}
+
+// Applies one clip across `span` consecutive frames starting at currentIdx.
+function applyAudioSpan(url, name, start, end, span) {
+    saveState();
+    const startIdx = currentIdx;
+    const clampedSpan = Math.max(1, Math.min(span || 1, frames.length - startIdx));
+
+    const f0 = frames[startIdx];
+    if (f0 && f0.audio_span_start != null) clearAudioSpanFields(f0.audio_span_start);
+    for (let i = startIdx; i < startIdx + clampedSpan; i++) {
+        const fr = frames[i];
+        if (fr.audio_span_start != null && fr.audio_span_start !== startIdx) clearAudioSpanFields(fr.audio_span_start);
+    }
+
+    for (let i = startIdx; i < startIdx + clampedSpan; i++) {
+        const fr = frames[i];
+        fr.audio_url = url;
+        fr.audio_name = name || 'Track';
+        fr.audio_start = Math.max(0, start || 0);
+        fr.audio_end = Math.max(fr.audio_start + 3, end || (fr.audio_start + 15));
+        fr.audio_span_start = startIdx;
+        fr.audio_span_len = clampedSpan;
+    }
+    mobAudioSpanValue = clampedSpan;
+    hasUnsavedChanges = true;
+    renderMobAudioSheet();
+    renderMobFrames();
+    updateFrameCounter();
 }
 
 function toggleCurrentFrameAudioPreview() {
@@ -2767,7 +2884,9 @@ function removeFrameAudio() {
     if (!f || !f.audio_url) return;
     stopAllMobAudioPreviews();
     saveState();
-    delete f.audio_url; delete f.audio_name; delete f.audio_start; delete f.audio_end;
+    const rootIdx = f.audio_span_start != null ? f.audio_span_start : currentIdx;
+    clearAudioSpanFields(rootIdx);
+    mobAudioSpanValue = 1;
     hasUnsavedChanges = true;
     renderMobAudioSheet();
     renderMobFrames();
@@ -2775,17 +2894,71 @@ function removeFrameAudio() {
 }
 
 function applyAudioToFrame(url, name, start, end) {
-    saveState();
-    const f = frames[currentIdx];
-    f.audio_url = url;
-    f.audio_name = name || 'Track';
-    f.audio_start = Math.max(0, start || 0);
-    f.audio_end = Math.max(f.audio_start + 3, end || (f.audio_start + 15));
-    hasUnsavedChanges = true;
-    renderMobAudioSheet();
-    renderMobFrames();
-    updateFrameCounter();
+    applyAudioSpan(url, name, start, end, mobAudioSpanValue);
     closeSheet('audio');
+}
+
+// ── Preview across frames — step through the span with audio continuing uninterrupted,
+// using the exact same "same url+start = don't restart" rule reader.html relies on ──
+let _audioPreviewSpanFrames = [];
+let _audioPreviewPos = 0;
+let _aspLastKey = null;
+
+async function openAudioSpanPreview() {
+    const f = frames[currentIdx];
+    if (!f || !f.audio_url) return;
+    const startIdx = f.audio_span_start != null ? f.audio_span_start : currentIdx;
+    const spanLen = f.audio_span_len != null ? f.audio_span_len : 1;
+    _audioPreviewSpanFrames = [];
+    for (let i = startIdx; i < startIdx + spanLen && i < frames.length; i++) _audioPreviewSpanFrames.push(i);
+    _audioPreviewPos = Math.max(0, _audioPreviewSpanFrames.indexOf(currentIdx));
+    _aspLastKey = null;
+    document.getElementById('audio-span-preview-modal').style.display = 'flex';
+    await renderAudioSpanPreviewFrame();
+}
+
+async function renderAudioSpanPreviewFrame() {
+    const idx = _audioPreviewSpanFrames[_audioPreviewPos];
+    const f = frames[idx];
+    document.getElementById('asp-frame-label').innerText =
+        'Frame ' + (idx + 1) + ' (' + (_audioPreviewPos + 1) + ' of ' + _audioPreviewSpanFrames.length + ')';
+    document.getElementById('asp-prev-btn').disabled = _audioPreviewPos === 0;
+    document.getElementById('asp-next-btn').disabled = _audioPreviewPos === _audioPreviewSpanFrames.length - 1;
+
+    const img = document.getElementById('asp-frame-img');
+    try {
+        const cw = canvas.offsetWidth || 400, ch = canvas.offsetHeight || 400;
+        const offscreen = await renderFrameToCanvas(f, cw, ch);
+        img.src = offscreen.toDataURL('image/jpeg', 0.85);
+    } catch (e) { /* leave previous frame image up rather than blanking it */ }
+
+    // Same dedup key reader.html uses — identical url+start means "already playing, don't restart"
+    const p = document.getElementById('mob-audio-preview');
+    const start = f.audio_start || 0;
+    const key = f.audio_url + '|' + start;
+    if (key !== _aspLastKey) {
+        _aspLastKey = key;
+        p.pause();
+        p.src = f.audio_url;
+        p.currentTime = start;
+        const end = f.audio_end != null ? f.audio_end : Infinity;
+        p.ontimeupdate = () => { if (p.currentTime >= end) p.pause(); };
+        p.play().catch(() => {});
+    }
+}
+
+function aspNav(dir) {
+    const newPos = _audioPreviewPos + dir;
+    if (newPos < 0 || newPos >= _audioPreviewSpanFrames.length) return;
+    _audioPreviewPos = newPos;
+    renderAudioSpanPreviewFrame();
+}
+
+function closeAudioSpanPreview() {
+    document.getElementById('audio-span-preview-modal').style.display = 'none';
+    const p = document.getElementById('mob-audio-preview');
+    if (p) p.pause();
+    _aspLastKey = null;
 }
 
 // ── LIBRARY (your saved clips, from `audio_library` table) ──
@@ -5086,6 +5259,7 @@ function getStampedFrames() {
 // the live `frames` the user is editing.
 async function ensureLayerImagesUploaded(frameList) {
     const out = [];
+    let failCount = 0;
     for (const f of frameList) {
         const srcLayers = f.layers || [];
         let layers = srcLayers;
@@ -5094,12 +5268,14 @@ async function ensureLayerImagesUploaded(frameList) {
             if (l.type !== 'img') continue;
             const patch = {};
             if (l.src && l.src.startsWith('data:')) {
-                const url = await uploadSpriteToStorage(l.src);
-                if (url) patch.src = url;
+                let url = await uploadSpriteToStorage(l.src);
+                if (!url) url = await uploadSpriteToStorage(l.src); // one retry — transient hiccups shouldn't ship a broken sprite
+                if (url) patch.src = url; else failCount++;
             }
             if (l._fxSrc && l._fxSrc.startsWith('data:')) {
-                const url = await uploadSpriteToStorage(l._fxSrc);
-                if (url) patch._fxSrc = url;
+                let url = await uploadSpriteToStorage(l._fxSrc);
+                if (!url) url = await uploadSpriteToStorage(l._fxSrc);
+                if (url) patch._fxSrc = url; else failCount++;
             }
             if (Object.keys(patch).length) {
                 if (layers === srcLayers) layers = srcLayers.slice(); // copy-on-write, once
@@ -5108,6 +5284,10 @@ async function ensureLayerImagesUploaded(frameList) {
         }
         out.push(layers === srcLayers ? f : { ...f, layers });
     }
+    if (failCount > 0) {
+        console.warn(failCount + ' sprite image(s) failed to upload after retry — they will publish as embedded data and may not render until re-saved with a working connection.');
+    }
+    ensureLayerImagesUploaded._lastFailCount = failCount;
     return out;
 }
 
@@ -5416,6 +5596,9 @@ async function finalPublish() {
             l.type === 'img' && ((l.src && l.src.startsWith('data:')) || (l._fxSrc && l._fxSrc.startsWith('data:')))));
         if (hasUnuploadedLayer) btn.innerText = 'Uploading artwork…';
         const finalFrames = await ensureLayerImagesUploaded(stamped);
+        if (ensureLayerImagesUploaded._lastFailCount > 0) {
+            showToast('⚠ ' + ensureLayerImagesUploaded._lastFailCount + ' sprite(s) failed to upload — re-save once your connection is stable');
+        }
         const payload = { data: finalFrames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
         let error, publishedId;
         if (editingComicId) {
@@ -5469,17 +5652,17 @@ async function _generateFrameSnapshots(comicId) {
         try {
             const offscreen = await renderFrameToCanvas(frames[i], snapW, snapH);
             const blob = await new Promise(res => offscreen.toBlob(res, 'image/jpeg', 0.88));
-            if (!blob) continue;
+            if (!blob) { console.warn('Frame snapshot ' + i + ': toBlob() returned null'); continue; }
             const path = `snapshots/${comicId}/${i}.jpg`;
             const { error: upErr } = await _supabase.storage
                 .from('comiccore-assets')
                 .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-            if (upErr) continue;
+            if (upErr) { console.warn('Frame snapshot ' + i + ' upload failed:', upErr); continue; }
             const { data: urlData } = _supabase.storage.from('comiccore-assets').getPublicUrl(path);
             if (urlData?.publicUrl) {
                 upsertRows.push({ comic_id: comicId, frame_idx: i, url: urlData.publicUrl + '?t=' + Date.now() });
             }
-        } catch(e) { /* non-fatal — reader falls back to DOM render */ }
+        } catch(e) { console.warn('Frame snapshot ' + i + ' threw — falling back to DOM render for this frame:', e); }
     }
 
     if (upsertRows.length) {
@@ -5513,6 +5696,18 @@ async function renderFrameToCanvas(frame, cw, ch) {
     const rot    = s.rotate ?? 0;
     const isImg  = bg.startsWith('http') || bg.startsWith('data:image');
     const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+
+    // BUGFIX: layer.x/y/w/h are stored relative to the live #comic-frame element's
+    // actual on-screen size — which on mobile is whatever the device viewport
+    // happened to be (see setRatio: it sizes off vp.clientWidth/Height, not a
+    // fixed reference like desktop's BASE_SIZE=900). The 3 export call sites
+    // (GIF/strip/frame-export) pass canvas.offsetWidth/Height as cw/ch, so they
+    // accidentally get scale=1 and look fine. Snapshot generation passes a fixed
+    // ~1200px target instead, so without this factor every sprite was drawn at
+    // its raw mobile-viewport pixel position/size onto a much bigger canvas —
+    // landing tiny and near the top-left corner, easy to mistake for "missing."
+    const scaleX = cw / (canvas.offsetWidth  || cw);
+    const scaleY = ch / (canvas.offsetHeight || ch);
 
     // ── Background ──
     await new Promise(res => {
@@ -5577,9 +5772,10 @@ async function renderFrameToCanvas(frame, cw, ch) {
                 const img = new Image(); img.crossOrigin = 'anonymous';
                 img.onload = () => {
                     const iw = img.naturalWidth || 1, ih = img.naturalHeight || 1;
-                    const lw = layer.w || 100;
-                    const lh = layer.h != null ? layer.h : lw * (ih / iw);
-                    const cx = (layer.x || 0) + lw / 2, cy = (layer.y || 0) + lh / 2;
+                    const lw0 = layer.w || 100;
+                    const lh0 = layer.h != null ? layer.h : lw0 * (ih / iw);
+                    const lw = lw0 * scaleX, lh = lh0 * scaleY;
+                    const cx = (layer.x || 0) * scaleX + lw / 2, cy = (layer.y || 0) * scaleY + lh / 2;
                     ctx.save();
                     if (applyCSS && combinedCSS) ctx.filter = combinedCSS;
                     ctx.globalAlpha = alpha;
@@ -5604,16 +5800,15 @@ async function renderFrameToCanvas(frame, cw, ch) {
             }
             // ── Lighting export overlay ──
             if (layer.lighting && layer.lighting.enabled) {
-                const lx = layer.x || 0, ly = layer.y || 0;
-                const lw = layer.w || 100;
-                const lh = layer.h != null ? layer.h : lw;
+                const lx = (layer.x || 0) * scaleX, ly = (layer.y || 0) * scaleY;
+                const lw = (layer.w || 100) * scaleX, lh = (layer.h != null ? layer.h : layer.w) * scaleY;
                 renderLightingOnCanvas(ctx, layer, lx, ly, lw, lh);
             }
         } else {
             // Text / bubble / thinking / subtitle — render via SVG foreignObject for fidelity
-            const bx = layer.x || 0, by = layer.y || 0;
-            const bw = layer.w || 160;
-            const fs = layer.fontSize || (layer.type === 'subtitle' ? 16 : 22);
+            const bx = (layer.x || 0) * scaleX, by = (layer.y || 0) * scaleY;
+            const bw = (layer.w || 160) * scaleX;
+            const fs = Math.round((layer.fontSize || (layer.type === 'subtitle' ? 16 : 22)) * scaleX);
             const ff = layer.fontFamily || "'Inter', sans-serif";
             const boldW    = layer.bold   ? '900' : '800';
             const italicS  = layer.italic ? 'italic' : 'normal';

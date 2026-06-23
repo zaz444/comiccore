@@ -394,22 +394,36 @@ scroll-snap-stop:always;
 .toon-frame .r-bg-div,.toon-frame #r-bg-layer,
 .toon-frame 
 
-/* ── Persistent ToonScroll exit button ── */
+/* ── Persistent ToonScroll exit button — round, matches .round-btn ── */
 #ts-exit-btn{
 position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;
 z-index:9999;display:none;
-background:rgba(15,15,17,.88);border:1.5px solid rgba(255,255,255,.18);
-color:#fff;padding:9px 16px;border-radius:50px;
-font-size:13px;font-weight:800;cursor:pointer;
+width:38px;height:38px;border-radius:50%;
+background:rgba(255,122,0,.22);border:1.5px solid rgba(255,122,0,.5);
+color:#ff7a00;font-size:17px;cursor:pointer;
+align-items:center;justify-content:center;
 backdrop-filter:blur(14px);
-gap:6px;align-items:center;
 box-shadow:0 2px 16px rgba(0,0,0,.5);
-transition:background .15s,border-color .15s;
-letter-spacing:.2px;
+transition:background .15s,border-color .15s,transform .1s;
 }
-#ts-exit-btn:active{background:rgba(255,122,0,.25);border-color:#ff7a00;}
+#ts-exit-btn:active{background:rgba(255,122,0,.35);transform:scale(.92);}
 #toonscroll-strip.active ~ * #ts-exit-btn,
 body.toonscroll #ts-exit-btn{display:flex;}
+
+/* ── "ToonScroll only" badge — shown instead of the exit button when the
+   creator deliberately locked a comic to ToonScroll. Non-interactive,
+   so it reads as a clear design choice rather than a stuck/broken UI. ── */
+#ts-locked-badge{
+position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;
+z-index:9999;display:none;
+background:rgba(15,15,17,.88);border:1.5px solid rgba(255,255,255,.18);
+color:rgba(255,255,255,.75);padding:7px 14px;border-radius:50px;
+font-size:11px;font-weight:800;letter-spacing:.2px;
+align-items:center;gap:5px;
+backdrop-filter:blur(14px);
+box-shadow:0 2px 16px rgba(0,0,0,.5);
+pointer-events:none;
+}
 
 /* ── Frame Audio Button — persistent, independent of top/bottom bar visibility
    so it still works in ToonScroll mode where those bars are hidden ── */
@@ -524,8 +538,11 @@ margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-conte
 <!-- ToonScroll strip container (outside viewport so it's visible when viewport is hidden) -->
 <div id="toonscroll-strip"></div>
 
-<!-- Persistent ToonScroll exit button — always visible while strip is active -->
-<button id="ts-exit-btn" onclick="disableToonScroll()">✕ Exit ToonScroll</button>
+<!-- Persistent ToonScroll exit button — round icon, always available while strip is active -->
+<button id="ts-exit-btn" onclick="disableToonScroll()" title="Exit ToonScroll">📜</button>
+
+<!-- "ToonScroll only" badge — shown instead of the exit button on locked comics -->
+<div id="ts-locked-badge">📜 ToonScroll only</div>
 
 <!-- Frame audio — single reusable element, swapped per frame -->
 <audio id="r-frame-audio" preload="none" style="display:none;"></audio>
@@ -699,12 +716,19 @@ function enableToonScroll(dir, fromConfig = false) {
     document.body.classList.add('toonscroll');
     initToonScrollStrip();
 
-    // Show persistent exit button (hidden if visibility forced to 'only')
+    // The exit button is hidden ONLY when the creator deliberately locked this
+    // comic to ToonScroll (visibility:'only'). That's an intentional creator
+    // choice, so instead of silently trapping the reader, show a clear badge
+    // explaining why there's no exit. Manual toggles and the "every frame is
+    // toonscroll_only" data case always keep the real exit button available.
+    const isLocked = fromConfig && toonScrollConfig && toonScrollConfig.visibility === 'only';
     const exitBtn = document.getElementById('ts-exit-btn');
-    const canExit = !fromConfig || (toonScrollConfig && toonScrollConfig.visibility !== 'only');
-    if (exitBtn) exitBtn.style.display = canExit ? 'flex' : 'none';
-    // Brief hint so user knows they entered ToonScroll
-    showTsHint('ToonScroll');
+    const lockedBadge = document.getElementById('ts-locked-badge');
+    if (exitBtn) exitBtn.style.display = isLocked ? 'none' : 'flex';
+    if (lockedBadge) lockedBadge.style.display = isLocked ? 'flex' : 'none';
+
+    // Brief hint so the reader understands why they're here
+    showTsHint(isLocked ? 'ToonScroll only — scroll to read' : 'ToonScroll');
 }
 
 function disableToonScroll() {
@@ -715,10 +739,12 @@ function disableToonScroll() {
     document.getElementById('toonscroll-strip').classList.remove('active', 'horizontal', 'vertical');
     const exitBtn = document.getElementById('ts-exit-btn');
     if (exitBtn) exitBtn.style.display = 'none';
+    const lockedBadge = document.getElementById('ts-locked-badge');
+    if (lockedBadge) lockedBadge.style.display = 'none';
 
     // Restore visibility of all UI elements
     document.getElementById('top-bar').style.cssText = '';
-    document.getElementById('prog-track').style.cssText = '';
+    document.querySelector('.prog-track').style.cssText = '';
     document.getElementById('bot-bar').style.cssText = '';
     document.getElementById('vp').style.cssText = '';
     document.getElementById('finish').style.cssText = '';
