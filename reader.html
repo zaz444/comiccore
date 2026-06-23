@@ -1635,7 +1635,12 @@ function renderFrame(anim = false) {
       };
       next.appendChild(snapImg);
       snapImg.src = snapUrl;
-      return; // swap fires from onload/onerror
+      // If already cached, onload won't fire in some browsers — swap immediately
+      if (snapImg.complete && snapImg.naturalWidth > 0) {
+        snapImg.onload = null;
+        _swapBuffers(next, prev, anim);
+      }
+      return; // swap fires from onload/onerror or the complete check above
     }
     // Already cached — swap immediately
     _swapBuffers(next, prev, anim);
