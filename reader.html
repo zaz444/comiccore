@@ -2069,7 +2069,9 @@ async function submitRating() {
 
 // ── Finish ────────────────────────────────────────────────
 function showFinish() {
+  const alreadySeen = localStorage.getItem('cc-progress-' + comicId) === '__done__';
   saveProg(); // mark as __done__
+  if (alreadySeen) return; // don't show the card again if they've already seen it
   const fc = document.getElementById('finish');
   fc.style.display = 'flex';
   document.getElementById('fin-title').innerText = comic?.title ? `Finished "${comic.title}"!` : 'You finished it!';
@@ -2318,6 +2320,20 @@ vp.addEventListener('touchend', e => {
   }
   if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 280) resetUI();
 }, { passive: true });
+
+// ── Prevent pinch-zoom and double-tap zoom (iOS Safari ignores user-scalable=no) ──
+document.addEventListener('gesturestart',  e => e.preventDefault(), { passive: false });
+document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+document.addEventListener('gestureend',    e => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', e => {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+let _lastTap = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - _lastTap < 300) e.preventDefault();
+  _lastTap = now;
+}, { passive: false });
 
 // ── Keyboard ──────────────────────────────────────────────
 window.addEventListener('keydown', e => {
