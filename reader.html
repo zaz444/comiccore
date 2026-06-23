@@ -50,8 +50,6 @@ position:absolute;top:0;left:0;
 overflow:hidden;background:#fff;
 box-shadow:0 8px 60px rgba(0,0,0,.85);
 }
-.cf-buf.cf-active{opacity:1;z-index:2;}
-.cf-buf.cf-behind{opacity:0;z-index:1;pointer-events:none;}
 
 /* All layer types sit inside #comic-frame */
 .r-layer{position:absolute;pointer-events:none;transform-origin:center center;}
@@ -498,8 +496,7 @@ margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-conte
   <div class="nav-zone" id="nz-down"  onclick="nextFrame()"></div>
 
   <div id="comic-frame-wrap" style="position:relative;">
-    <div id="comic-frame"   class="cf-buf cf-active"></div>
-    <div id="comic-frame-b" class="cf-buf cf-behind"></div>
+    <div id="comic-frame" class="cf-buf"></div>
   </div>
 
   <div class="finish-card" id="finish">
@@ -1034,7 +1031,7 @@ function nextFrame() {
         if (idx < frames.length - 1) { idx++; scrollToFrame(idx); saveProg(); }
         return;
     }
-    if (idx < frames.length - 1) { idx++; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
+    if (idx < frames.length - 1) { idx++; renderFrame(); _updateReaderChrome(); saveProg(); resetUI(); }
     else showFinish();
 }
 
@@ -1043,14 +1040,14 @@ function prevFrame() {
         if (idx > 0) { idx--; scrollToFrame(idx); saveProg(); }
         return;
     }
-    if (idx > 0) { idx--; renderFrame(true); _updateReaderChrome(); saveProg(); resetUI(); }
+    if (idx > 0) { idx--; renderFrame(); _updateReaderChrome(); saveProg(); resetUI(); }
 }
 
 function jumpTo(i) {
     if (toonScrollMode !== 'off') {
         idx = i; scrollToFrame(idx); saveProg(); return;
     }
-    idx = i; renderFrame(true); _updateReaderChrome(); saveProg();
+    idx = i; renderFrame(); _updateReaderChrome(); saveProg();
 }
 
 function rereadComic() {
@@ -1516,11 +1513,7 @@ function preloadAllFrameImages(frames) {
   });
 }
 
-// Track which buffer is currently active
-let _activeBuf = 'a'; // 'a' = #comic-frame, 'b' = #comic-frame-b
-
-function getActiveCf()  { return document.getElementById(_activeBuf === 'a' ? 'comic-frame'   : 'comic-frame-b'); }
-function getInactiveCf(){ return document.getElementById(_activeBuf === 'a' ? 'comic-frame-b' : 'comic-frame');   }
+function getActiveCf() { return document.getElementById('comic-frame'); }
 
 // ── Frame audio: one reusable <audio> element, swapped per frame ──────────
 // Field names match the editor exactly: f.audio_url, f.audio_name, f.audio_start, f.audio_end
@@ -1584,88 +1577,49 @@ function getTsLayerOverrides(readerIdx) {
   return tf?.layer_overrides || {};
 }
 
-function renderFrame(anim = false) {
+function renderFrame() {
   const f = frames[idx];
   if (!f) return;
 
   syncFrameAudio(f);
 
-  const next = getInactiveCf();
-  const prev = getActiveCf();
+  const el = getActiveCf();
+  const { cw, ch } = sizeFrame(el);
 
-  const { cw, ch } = sizeFrame(next);
-  prev.style.width  = cw + 'px';
-  prev.style.height = ch + 'px';
-
-  // ── SNAPSHOT PATH: one <img>, zero positioning math ────────────────────
-  // Use the original frame index for snapshot lookup (toonscroll stamps _readerOrigIdx)
+  // ── SNAPSHOT PATH ────────────────────────────────────────────────────────
   const snapIdx = f._readerOrigIdx ?? idx;
   const snapUrl = snapshotMap[snapIdx];
 
   if (snapUrl) {
-    // Reuse existing snapshot img if already there (prevents re-fetch flash)
-    let snapImg = next.querySelector('.r-snapshot');
+    let snapImg = el.querySelector('.r-snapshot');
     if (!snapImg || snapImg.dataset.snapUrl !== snapUrl) {
-      next.innerHTML = '';
+      el.innerHTML = '';
       snapImg = document.createElement('img');
       snapImg.className = 'r-snapshot';
       snapImg.dataset.snapUrl = snapUrl;
-      snapImg.style.cssText = [
-        'width:100%;height:100%;',
-        'object-fit:contain;object-position:center center;',
-        'pointer-events:none;display:block;',
-        'background:#fff;',
-      ].join('');
-      // Preload next/prev snapshots while we have a moment
-      const preloadIdxs = [snapIdx - 1, snapIdx + 1, snapIdx + 2];
-      preloadIdxs.forEach(pi => {
+      snapImg.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center center;pointer-events:none;display:block;background:#fff;';
+      snapImg.onerror = () => {
+        // Snapshot broken/expired — fall back to DOM render
+        delete snapshotMap[snapIdx];
+        el.innerHTML = '';
+        _renderFrameDOM(f, el, cw, ch);
+      };
+      el.appendChild(snapImg);
+      snapImg.src = snapUrl;
+      // Preload neighbours
+      [snapIdx - 1, snapIdx + 1, snapIdx + 2].forEach(pi => {
         if (snapshotMap[pi] && !document.querySelector(`link[href="${snapshotMap[pi]}"]`)) {
           const link = document.createElement('link');
           link.rel = 'prefetch'; link.as = 'image'; link.href = snapshotMap[pi];
           document.head.appendChild(link);
         }
       });
-      snapImg.onload  = () => { _swapBuffers(next, prev, anim); };
-      snapImg.onerror = () => {
-        // Snapshot URL broken/expired — purge and fall back to DOM render
-        delete snapshotMap[snapIdx];
-        next.innerHTML = '';
-        _renderFrameDOM(f, next, cw, ch);
-        _swapBuffers(next, prev, anim);
-      };
-      next.appendChild(snapImg);
-      snapImg.src = snapUrl;
-      // If already cached, onload won't fire in some browsers — swap immediately
-      if (snapImg.complete && snapImg.naturalWidth > 0) {
-        snapImg.onload = null;
-        _swapBuffers(next, prev, anim);
-      }
-      return; // swap fires from onload/onerror or the complete check above
     }
-    // Already cached — swap immediately
-    _swapBuffers(next, prev, anim);
     return;
   }
 
-  // ── DOM FALLBACK: full layer rebuild (no snapshot yet) ──────────────────
-  _renderFrameDOM(f, next, cw, ch);
-  _swapBuffers(next, prev, anim);
-}
-
-function _swapBuffers(next, prev, anim) {
-  if (anim) {
-    next.classList.remove('cf-behind');
-    next.classList.add('cf-active');
-    prev.classList.remove('cf-active');
-    prev.classList.add('cf-behind');
-    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
-  } else {
-    next.classList.remove('cf-behind');
-    next.classList.add('cf-active');
-    prev.classList.remove('cf-active');
-    prev.classList.add('cf-behind');
-    _activeBuf = _activeBuf === 'a' ? 'b' : 'a';
-  }
+  // ── DOM FALLBACK ─────────────────────────────────────────────────────────
+  _renderFrameDOM(f, el, cw, ch);
 }
 
 // Full DOM layer rebuild — used only when no snapshot exists yet
@@ -1919,7 +1873,6 @@ function _renderFrameDOM(f, next, cw, ch) {
     next.appendChild(el);
   });
 
-  // (swap is handled by _swapBuffers — called by renderFrame after this returns)
 } // end _renderFrameDOM
 
 function _updateReaderChrome() {
