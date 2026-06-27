@@ -468,6 +468,8 @@ margin-bottom:10px;transition:.15s;display:flex;align-items:center;justify-conte
   <meta name="theme-color" content="#ff7a00">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <script src="dexie.min.js"></script>
+  <script src="idb.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -1091,21 +1093,39 @@ async function boot() {
   ]);
 
   if (storyRes.data && !comicRes.data) {
-    // ── It's a STORY — render reading mode ──────────────────
+    // ── It's a STORY ─ render reading mode ──────────────
     bootStory(storyRes.data);
     return;
   }
 
-  const data = comicRes.data;
+  let data = comicRes.data;
+  let _offlineSnaps = null;
+
+  // OFFLINE FALLBACK — Supabase gave us nothing back (no connection,
+  // most likely). Try the local on-device cache before giving up.
+  if (!data && window.CCOffline) {
+    const cached = await CCOffline.getCachedComic(comicId);
+    if (cached) {
+      data = cached;
+      _offlineSnaps = cached._cachedSnapshots || [];
+    }
+  }
+
   if (!data) { alert('Not found.'); return location.href = 'discover.html'; }
 
-  // ── It's a COMIC — original flow ────────────────────────
+  // Got a live result — cache it locally so this comic is readable
+  // offline next time. Fire-and-forget, never blocks rendering.
+  if (comicRes.data && window.CCOffline) {
+    CCOffline.cacheComic({ ...comicRes.data, _cachedSnapshots: (snapRes && snapRes.data) || [] });
+  }
+
+  // ── It's a COMIC ─ original flow ────────────────────────
   comic = data;
   frames = data.data || data.frames || [];
 
   // Build snapshot lookup — keyed by frame index for O(1) access in renderFrame
   snapshotMap = {};
-  const snaps = snapRes?.data || [];
+  const snaps = (snapRes && snapRes.data) || _offlineSnaps || [];
   snaps.forEach(s => { snapshotMap[s.frame_idx] = s.url; });
 
   // Load ToonScroll config

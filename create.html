@@ -1161,6 +1161,8 @@
   <meta name="theme-color" content="#ff7a00">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <script src="dexie.min.js"></script>
+  <script src="idb.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -2449,6 +2451,20 @@
             }
         }
 
+        // OFFLINE FALLBACK — both the storage-bucket and inline-row paths above
+        // came back empty (most likely: no network connection right now).
+        // Try the local on-device cache before falling through to a blank canvas.
+        if (resumeId && window.CCOffline) {
+            const cachedDraft = await CCOffline.getCachedDraft(resumeId);
+            if (cachedDraft && cachedDraft.data) {
+                frames = cachedDraft.data;
+                const savedRatio = cachedDraft.canvas_ratio || { w: 1, h: 1 };
+                setRatio(savedRatio.w, savedRatio.h);
+                applyPendingBg(pendingBg, pendingBgId);
+                return;
+            }
+        }
+
         // ── Load published comic for editing (triggered from reader EDIT button) ──
         const editComicId = localStorage.getItem('edit_comic_id');
         if (editComicId) {
@@ -2462,7 +2478,30 @@
             document.body.appendChild(banner);
             maybeShowCollabBtn();
             _supabase.from('comics').select('*').eq('id', editComicId).single().then(({ data, error }) => {
-                if (error || !data) { alert('Could not load comic for editing.'); return; }
+                if (error || !data) {
+                    // OFFLINE FALLBACK — try the local cache before giving up entirely
+                    if (window.CCOffline) {
+                        CCOffline.getCachedComic(editComicId).then((cached) => {
+                            if (!cached) { alert('Could not load comic for editing.'); return; }
+                            frames = cached.data || cached.frames || [];
+                            const r = cached.canvas_ratio || { w: 1, h: 1 };
+                            setRatio(r.w, r.h);
+                            document.getElementById('pub-title').value = cached.title || '';
+                            document.getElementById('pub-tags').value = (cached.tags || []).join(', ');
+                            document.getElementById('pub-desc').value = cached.description || '';
+                            if (cached.cover) {
+                                finalCoverBase64 = cached.cover;
+                                const prev = document.getElementById('cover-preview');
+                                if (prev) { prev.src = cached.cover; prev.style.display = 'block'; }
+                            }
+                            render();
+                        });
+                    } else {
+                        alert('Could not load comic for editing.');
+                    }
+                    return;
+                }
+                if (window.CCOffline) CCOffline.cacheComic(data);
                 frames = data.data || data.frames || [];
                 const r = data.canvas_ratio || { w: 1, h: 1 };
                 setRatio(r.w, r.h);
@@ -3711,15 +3750,26 @@
             };
             if (!draftRowExists) row.title = 'Untitled'; // only stamp default title on first creation — preserves any rename done from my-comics.html
 
+            // Mirror to local on-device storage too — always stores the full frame
+            // data inline (no bucket-spill needed locally), so the draft is never
+            // lost if the Supabase save below fails. Marked pending_sync until the
+            // cloud save confirms it went through (Day 3 wires up pushing this).
+            if (window.CCOffline) {
+                CCOffline.cacheDraft({ ...row, data: stamped, storage_path: null, pending_sync: true });
+            }
+
             const { error: saveErr } = await _supabase.from('drafts').upsert(row, { onConflict: 'id' });
             if (saveErr) throw saveErr;
             draftRowExists = true;
+
+            if (window.CCOffline) CCOffline.cacheDraft({ ...row, data: stamped, storage_path: null, pending_sync: false });
 
             hasUnsavedChanges = false;
             if (!silent) showSaveBadge('✓ Saved!', false);
         } catch(e) {
             console.error('Draft save failed:', e);
-            if (!silent) showSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
+            const offline = !navigator.onLine;
+            if (!silent) showSaveBadge(offline ? '⚠ Offline — saved locally, will sync later' : '✗ Save failed: ' + (e.message || 'error'), true);
         }
     }
 

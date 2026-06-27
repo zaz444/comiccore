@@ -145,6 +145,8 @@ select.tb{appearance:none;padding-right:10px;}
   <meta name="theme-color" content="#ff7a00">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <script src="dexie.min.js"></script>
+  <script src="idb.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -356,6 +358,8 @@ async function loadDrafts() {
 
     if (error) throw error;
 
+    if (window.CCOffline) CCOffline.cacheMyDrafts(myHandle, sbDrafts || []);
+
     drafts = (sbDrafts || []).map(d => ({
       id: d.id,
       title: d.title || 'Untitled',
@@ -368,6 +372,25 @@ async function loadDrafts() {
     document.getElementById('drafts-count').innerText = drafts.length;
   } catch(e) {
     console.error('Failed to load drafts:', e);
+
+    // OFFLINE FALLBACK — Supabase didn't respond (probably no connection).
+    // Show whatever drafts were cached locally the last time this loaded.
+    const cached = window.CCOffline ? await CCOffline.getCachedMyDrafts(myHandle) : [];
+    if (cached.length) {
+      drafts = cached.map(d => ({
+        id: d.id,
+        title: d.title || 'Untitled',
+        data: d.data,
+        storage_path: d.storage_path || null,
+        ratio: d.canvas_ratio || { w:1, h:1 },
+        lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
+        _source: 'cache'
+      }));
+      document.getElementById('drafts-count').innerText = drafts.length;
+      toast('Offline — showing cached drafts', 'var(--orange)');
+      return;
+    }
+
     drafts = [];
     document.getElementById('drafts-count').innerText = 0;
     toast('⚠ Could not load drafts: ' + e.message, 'var(--danger)');
@@ -376,9 +399,25 @@ async function loadDrafts() {
 
 async function loadPublished() {
   if (!myHandle) { published = []; document.getElementById('pub-count').innerText = 0; return; }
-  const { data, error } = await _sb.from('comics').select('id,title,description,cover,tags,stars,data,canvas_ratio,created_at,owner_handle').eq('owner_handle', myHandle).order('id', { ascending: false });
-  if (error) console.error('Failed to load published:', error);
-  published = data || [];
+
+  let data, error;
+  try {
+    ({ data, error } = await _sb.from('comics').select('id,title,description,cover,tags,stars,data,canvas_ratio,created_at,owner_handle').eq('owner_handle', myHandle).order('id', { ascending: false }));
+  } catch (e) {
+    error = e;
+  }
+
+  if (error) {
+    console.error('Failed to load published:', error);
+    // OFFLINE FALLBACK — show last-cached published comics instead of an empty grid
+    const cached = window.CCOffline ? await CCOffline.getCachedMyComics(myHandle) : [];
+    published = cached;
+    if (cached.length) toast('Offline — showing cached comics', 'var(--orange)');
+  } else {
+    published = data || [];
+    if (window.CCOffline) CCOffline.cacheMyComics(myHandle, published);
+  }
+
   document.getElementById('pub-count').innerText = published.length;
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
 }
