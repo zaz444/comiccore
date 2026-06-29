@@ -40,19 +40,35 @@
   window.ComicCoreDB = db;
 
   // ---------------------------------------------------
+  // 2a. ID normalization
+  // comics.id is a database-generated number (e.g. 42), but anything read
+  // from a URL (new URLSearchParams(...).get('id')) is always a string
+  // ("42"). IndexedDB keys are type-sensitive, so without this, a comic
+  // cached under the number 42 would never be found when looked up by the
+  // string "42" — every offline lookup would silently miss. drafts.id is a
+  // real UUID string (crypto.randomUUID()), which isNaN() correctly leaves
+  // untouched here.
+  // ---------------------------------------------------
+  function normalizeId(id) {
+    if (typeof id === 'string' && id !== '' && !isNaN(id)) return Number(id);
+    return id;
+  }
+
+  // ---------------------------------------------------
   // 2. Public helper API
   // ---------------------------------------------------
   window.CCOffline = {
     // -- comics (published) --------------------------
     async cacheComic(comic) {
-      if (!comic || !comic.id) return;
+      if (!comic || comic.id == null) return;
       try {
-        await db.comics.put({ ...comic, cached_at: Date.now(), pending_sync: !!comic.pending_sync });
+        const id = normalizeId(comic.id);
+        await db.comics.put({ ...comic, id, cached_at: Date.now(), pending_sync: !!comic.pending_sync });
       } catch (e) { console.warn('CCOffline.cacheComic failed:', e); }
     },
 
     async getCachedComic(id) {
-      try { return await db.comics.get(id); }
+      try { return await db.comics.get(normalizeId(id)); }
       catch (e) { console.warn('CCOffline.getCachedComic failed:', e); return null; }
     },
 
@@ -60,7 +76,7 @@
       if (!handle || !Array.isArray(comics)) return;
       try {
         await db.comics.bulkPut(
-          comics.map((c) => ({ ...c, owner_handle: handle, cached_at: Date.now(), pending_sync: !!c.pending_sync }))
+          comics.map((c) => ({ ...c, id: normalizeId(c.id), owner_handle: handle, cached_at: Date.now(), pending_sync: !!c.pending_sync }))
         );
       } catch (e) { console.warn('CCOffline.cacheMyComics failed:', e); }
     },
