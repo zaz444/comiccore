@@ -3505,7 +3505,23 @@ async function loadMobSprites() {
             renderMobSpriteGrid(sidebarSprites);
             buildMobTagChips(allSidebarMeta);
         }
+
+        // Mirror metadata to durable offline storage too (merge-safe — won't
+        // erase any image_data already cached there from sbFetchFull calls).
+        if (window.CCOffline) CCOffline.cacheSpriteLibrary(fresh);
     } catch(e) {
+        console.warn('Live sprite fetch failed:', e);
+        // OFFLINE FALLBACK — nothing rendered yet — try the durable cache.
+        if (!sidebarSprites || !sidebarSprites.length) {
+            const offline = window.CCOffline ? await CCOffline.getCachedSpriteLibrary() : [];
+            if (offline.length) {
+                sidebarSprites = offline;
+                allSidebarMeta = offline;
+                renderMobSpriteGrid(sidebarSprites);
+                buildMobTagChips(allSidebarMeta);
+                return;
+            }
+        }
         if (!cached) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Error loading sprites</div>';
     }
 }
@@ -4386,8 +4402,27 @@ async function sbFetchFull(id) {
     const fullCached = sbGetFullCache(id);
     if (fullCached) return { image_data: fullCached.img, actions: fullCached.actions, default_scale: fullCached.default_scale || null };
 
-    const { data } = await _supabase.from('sprites_library').select('*').eq('id', id).single();
-    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
+    let data = null;
+    try {
+        const res = await _supabase.from('sprites_library').select('*').eq('id', id).single();
+        data = res.data;
+    } catch (e) { console.warn('sbFetchFull live fetch failed:', e); }
+
+    if (data?.image_data) {
+        sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
+        if (window.CCOffline) CCOffline.cacheSpriteFull(id, data);
+        return data;
+    }
+
+    // OFFLINE FALLBACK — live fetch failed/returned nothing. Try the
+    // durable IndexedDB cache before giving up on this sprite entirely.
+    if (window.CCOffline) {
+        const offline = await CCOffline.getCachedSprite(id);
+        if (offline && offline.image_data) {
+            sbSetImg(id, offline.image_data);
+            return offline;
+        }
+    }
     return data;
 }
 
@@ -4398,7 +4433,17 @@ async function openLibrary() {
     const meta = sidebarSprites || sbLoadMetaCache();
     if (meta?.length) { renderLibraryGrid(grid, meta); return; }
     grid.innerHTML = "<p style='color:white;font-size:12px;'>Loading...</p>";
-    const { data } = await _supabase.from('sprites_library').select('id, name, image_data, tags, creator, created_at').order('created_at', { ascending: false });
+    try {
+        const { data } = await _supabase.from('sprites_library').select('id, name, image_data, tags, creator, created_at').order('created_at', { ascending: false });
+        sidebarSprites = data || [];
+        sbSaveMetaCache(sidebarSprites);
+        renderLibraryGrid(grid, sidebarSprites); // BUGFIX: this fetch's result was never rendered before
+    } catch (e) {
+        console.warn('openLibrary live fetch failed:', e);
+        const offline = window.CCOffline ? await CCOffline.getCachedSpriteLibrary() : [];
+        if (offline.length) { sidebarSprites = offline; renderLibraryGrid(grid, offline); }
+        else grid.innerHTML = "<p style='color:white;font-size:12px;'>Could not load sprites.</p>";
+    }
 }
 function renderLibraryGrid(grid, sprites) {
     grid.innerHTML = '';

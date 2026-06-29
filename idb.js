@@ -28,13 +28,20 @@
   // 1. Local DB schema
   // ---------------------------------------------------
   const db = new Dexie('ComicCoreLocal');
-  db.version(1).stores({
+  db.version(2).stores({
     // Published comics, cached for offline reading.
     // pending_sync = true means this row was edited/created while
     // offline and still needs to be pushed to Supabase (wired up Day 3).
     comics: 'id, owner_handle, cached_at, pending_sync',
     // In-progress drafts, mirrored from the existing cloud autosave.
     drafts: 'id, owner_handle, updated_at, pending_sync',
+    // Sprite library (id, name, tags, creator, created_at, image_data,
+    // actions, default_scale). The existing in-app cache for this is
+    // localStorage/sessionStorage based with short TTLs — fine for speed,
+    // but localStorage's ~5-10MB quota can't reliably hold ~250+ sprites'
+    // worth of base64 image data, so it silently fails on many devices.
+    // This is the durable fallback underneath it.
+    sprites: 'id, cached_at',
   });
 
   window.ComicCoreDB = db;
@@ -142,6 +149,52 @@
     async deleteCachedDraft(id) {
       try { await db.drafts.delete(id); }
       catch (e) { console.warn('CCOffline.deleteCachedDraft failed:', e); }
+    },
+
+    // -- sprite library (used by create.html's sprite picker) ----------
+    // Merges rather than overwrites: a metadata-only fetch (no image_data,
+    // e.g. the mobile editor's lighter query) should never erase image
+    // data we already cached for that sprite from an earlier fetch.
+    async cacheSpriteLibrary(sprites) {
+      if (!Array.isArray(sprites) || !sprites.length) return;
+      try {
+        const ids = sprites.map((s) => s.id);
+        const existingRows = await db.sprites.bulkGet(ids);
+        const merged = sprites.map((s, i) => ({
+          ...(existingRows[i] || {}),
+          ...s,
+          // keep existing image_data/actions if this fetch didn't bring any
+          image_data: s.image_data || existingRows[i]?.image_data,
+          actions: s.actions || existingRows[i]?.actions,
+          default_scale: s.default_scale ?? existingRows[i]?.default_scale,
+          cached_at: Date.now(),
+        }));
+        await db.sprites.bulkPut(merged);
+      } catch (e) { console.warn('CCOffline.cacheSpriteLibrary failed:', e); }
+    },
+
+    async cacheSpriteFull(id, full) {
+      if (!id || !full) return;
+      try {
+        const existing = await db.sprites.get(id);
+        await db.sprites.put({
+          ...(existing || { id }),
+          image_data: full.image_data,
+          actions: full.actions,
+          default_scale: full.default_scale,
+          cached_at: Date.now(),
+        });
+      } catch (e) { console.warn('CCOffline.cacheSpriteFull failed:', e); }
+    },
+
+    async getCachedSpriteLibrary() {
+      try { return await db.sprites.toArray(); }
+      catch (e) { console.warn('CCOffline.getCachedSpriteLibrary failed:', e); return []; }
+    },
+
+    async getCachedSprite(id) {
+      try { return await db.sprites.get(id); }
+      catch (e) { console.warn('CCOffline.getCachedSprite failed:', e); return null; }
     },
 
     // -- misc ------------------------------------------
@@ -278,7 +331,7 @@
         font-size: 13px;
         font-weight: 700;
         text-align: center;
-        padding: 8px 12px;
+        padding: 8px 38px 8px 12px;
         transform: translateY(-100%);
         transition: transform 0.25s ease;
       }
@@ -291,6 +344,20 @@
         margin-right: 7px;
         vertical-align: middle;
       }
+      #cc-offline-banner .cc-close {
+        position: absolute;
+        right: 10px; top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #ffb45c;
+        opacity: 0.7;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 4px 6px;
+      }
+      #cc-offline-banner .cc-close:hover { opacity: 1; }
       .cc-sync-toast {
         position: fixed;
         bottom: 24px; left: 50%;
@@ -322,18 +389,27 @@
       injectBannerStyles();
       el = document.createElement('div');
       el.id = 'cc-offline-banner';
-      el.innerHTML = '<span class="cc-dot"></span>You\u2019re offline \u2014 showing cached comics. Changes will save once you\u2019re back online.';
+      el.innerHTML =
+        '<span class="cc-dot"></span>You\u2019re offline \u2014 showing cached comics. Changes will save once you\u2019re back online.' +
+        '<button class="cc-close" aria-label="Dismiss">\u00d7</button>';
+      el.querySelector('.cc-close').addEventListener('click', () => {
+        bannerDismissed = true;
+        el.classList.remove('cc-show');
+      });
       document.body.appendChild(el);
     }
     return el;
   }
+
+  let bannerDismissed = false;
 
   function updateBanner() {
     const online = navigator.onLine;
     const el = ensureBanner();
     if (online) {
       el.classList.remove('cc-show');
-    } else {
+      bannerDismissed = false; // reset so it shows fresh next time you go offline
+    } else if (!bannerDismissed) {
       el.classList.add('cc-show');
     }
   }
