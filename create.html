@@ -1163,6 +1163,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script src="dexie.min.js"></script>
   <script src="idb.js"></script>
+  <script src="install-prompt.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -2354,9 +2355,15 @@
             if (pendingBgId) {
                 localStorage.removeItem('pending_bg_id');
                 currentImportType = 'bg';
-                _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single().then(({ data }) => {
-                    if (data && data.image_data) showBgImportChoice(data.image_data);
-                });
+                _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single()
+                    .then(({ data }) => {
+                        if (data && data.image_data) { showBgImportChoice(data.image_data); return; }
+                        throw new Error('no data');
+                    })
+                    .catch(async () => {
+                        const offline = window.CCOffline ? await CCOffline.getCachedBackground(pendingBgId) : null;
+                        if (offline && offline.image_data) showBgImportChoice(offline.image_data);
+                    });
                 return;
             }
             if (!pendingBg) return;
@@ -3869,6 +3876,8 @@
         const btn = document.getElementById('publish-btn');
         btn.innerText = editingComicId ? 'Updating...' : 'Publishing...';
         btn.disabled = true;
+
+        try {
         // If cover is still base64 (old comic or upload race), upload it now
         if (finalCoverBase64.startsWith('data:')) {
             btn.innerText = 'Uploading cover…';
@@ -3910,7 +3919,7 @@
             publishedId = res.data?.id;
         }
         if (error) {
-            alert(error.message);
+            alert('Publish failed: ' + error.message);
             btn.innerText = editingComicId ? 'UPDATE' : 'POST NOW';
             btn.disabled = false;
             return;
@@ -3941,6 +3950,18 @@
             await _generateFrameSnapshots(publishedId).catch(() => {});
         }
         location.href = 'discover.html';
+        } catch (e) {
+            // Catches network-level failures (e.g. fully offline) that throw instead of
+            // resolving to { error } — without this, the button was left stuck on
+            // "Publishing..." forever with zero feedback and no way to retry.
+            console.error('Publish threw unexpectedly:', e);
+            const offline = !navigator.onLine;
+            alert(offline
+                ? "You're offline — publishing needs a connection. Your draft is safe; reconnect and try again."
+                : 'Publish failed: ' + (e.message || 'unexpected error — please try again'));
+            btn.innerText = editingComicId ? 'UPDATE' : 'POST NOW';
+            btn.disabled = false;
+        }
     }
 
     // ── FRAME SNAPSHOT GENERATION ──────────────────────────────────────────────
@@ -6811,15 +6832,32 @@
             const res = await _supabase.from('backgrounds_library').select('id, image_data').in('id', batch);
             data = res.data;
         } catch(e) {
-            console.warn('BG batch load failed:', e);
-            // Re-queue so they can be retried on scroll
-            _sbBgLazyQueue.unshift(...batch);
+            console.warn('BG batch load failed, trying offline cache:', e);
+            // OFFLINE FALLBACK — try the durable cache for each id in this
+            // batch before giving up; only re-queue the ones still missing.
+            const stillMissing = [];
+            for (const id of batch) {
+                const offline = window.CCOffline ? await CCOffline.getCachedBackground(id) : null;
+                if (offline && offline.image_data) {
+                    try { sessionStorage.setItem('cc_bg_img_' + id, offline.image_data); } catch(e2) {}
+                    const card = document.querySelector(`.sb-bg-card[data-bg-id="${id}"]`);
+                    if (card) { card._imgSrc = offline.image_data; _sbBgApplyImg(card, offline.image_data); }
+                    const inOff = (sbBgOfficial||[]).find(b => b.id === id);
+                    if (inOff) inOff.image_data = offline.image_data;
+                    const inMine = (sbBgMine||[]).find(b => b.id === id);
+                    if (inMine) inMine.image_data = offline.image_data;
+                } else {
+                    stillMissing.push(id);
+                }
+            }
+            if (stillMissing.length) _sbBgLazyQueue.unshift(...stillMissing);
             return;
         }
         if (!data) return;
         data.forEach(row => {
             if (!row.image_data) return;
             try { sessionStorage.setItem('cc_bg_img_' + row.id, row.image_data); } catch(e) {}
+            if (window.CCOffline) CCOffline.cacheBackgroundFull(row.id, { image_data: row.image_data });
             const card = document.querySelector(`.sb-bg-card[data-bg-id="${row.id}"]`);
             if (card) { card._imgSrc = row.image_data; _sbBgApplyImg(card, row.image_data); }
             const inOff = (sbBgOfficial||[]).find(b => b.id === row.id);
@@ -6889,8 +6927,31 @@
                 sbBgMine = [];
             }
             _sbBgLoaded = true;
+
+            // Mirror metadata to durable offline storage (merge-safe — keeps
+            // any image_data already cached there from earlier sessions).
+            if (window.CCOffline) {
+                CCOffline.cacheBackgroundLibrary([
+                    ...sbBgOfficial.map(b => ({ ...b, is_official: true })),
+                    ...sbBgMine.map(b => ({ ...b, uploaded_by: handle })),
+                ]);
+            }
         } catch(e) {
             console.warn('loadSidebarBgs error:', e);
+
+            // OFFLINE FALLBACK — try the durable cache before showing a dead end.
+            if (window.CCOffline) {
+                const offline = await CCOffline.getCachedBackgroundLibrary();
+                if (offline.length) {
+                    sbBgOfficial = offline.filter(b => b.is_official);
+                    sbBgMine = offline.filter(b => !b.is_official);
+                    _sbBgLoaded = true;
+                    _sbBgLoading = false;
+                    renderSidebarBgGrid();
+                    return;
+                }
+            }
+
             grid.innerHTML = '<div class="sp-load-msg" style="color:#ff453a;">Failed to load — tap to retry</div>';
             grid.onclick = () => { grid.onclick = null; _sbBgLoading = false; loadSidebarBgs(); };
             _sbBgLoading = false;
@@ -6948,14 +7009,23 @@
                     card.style.opacity = '0.6';
                     try {
                         const { data, error } = await _supabase.from('backgrounds_library').select('image_data').eq('id', bg.id).single();
-                        if (error || !data?.image_data) { card.style.opacity = ''; card._bgFetching = false; return; }
+                        if (error || !data?.image_data) throw error || new Error('no data');
                         src = data.image_data;
                         bg.image_data = src;
+                        if (window.CCOffline) CCOffline.cacheBackgroundFull(bg.id, { image_data: src });
                         _sbBgApplyImg(card, src);
                     } catch(e) {
-                        card.style.opacity = '';
-                        card._bgFetching = false;
-                        return;
+                        // OFFLINE FALLBACK — try the durable cache before giving up
+                        const offline = window.CCOffline ? await CCOffline.getCachedBackground(bg.id) : null;
+                        if (offline && offline.image_data) {
+                            src = offline.image_data;
+                            bg.image_data = src;
+                            _sbBgApplyImg(card, src);
+                        } else {
+                            card.style.opacity = '';
+                            card._bgFetching = false;
+                            return;
+                        }
                     }
                     card.style.opacity = '';
                     card._bgFetching = false;
@@ -7023,7 +7093,7 @@
             const { data, error } = await _supabase.from('effects_library')
                 .select('id, name, tags, creator, created_at, default_scale')
                 .order('created_at', {ascending: false});
-            if (error) { if (!cached) grid.innerHTML = '<div class="sp-load-msg">Error loading effects</div>'; return; }
+            if (error) throw error;
             const fresh = data || [];
             const cachedIds = (sidebarEffects||[]).map(e=>e.id).join(',');
             const freshIds  = fresh.map(e=>e.id).join(',');
@@ -7033,7 +7103,19 @@
                 renderSidebarEffects(sidebarEffects);
                 buildSbEffectTagChips(sidebarEffects);
             }
+            if (window.CCOffline) CCOffline.cacheEffectLibrary(fresh);
         } catch(e) {
+            console.warn('loadSidebarEffects error:', e);
+            // OFFLINE FALLBACK — nothing rendered yet — try the durable cache.
+            if (!sidebarEffects || !sidebarEffects.length) {
+                const offline = window.CCOffline ? await CCOffline.getCachedEffectLibrary() : [];
+                if (offline.length) {
+                    sidebarEffects = offline;
+                    renderSidebarEffects(sidebarEffects);
+                    buildSbEffectTagChips(sidebarEffects);
+                    return;
+                }
+            }
             if (!cached) grid.innerHTML = '<div class="sp-load-msg">Error loading effects</div>';
         }
     }
@@ -7092,15 +7174,24 @@
                     const cached2 = efxGetImg(pack.id);
                     if (cached2) { const old=div.querySelector('div'); if(old){const img=document.createElement('img');img.src=cached2;img.className='sb-loaded';old.replaceWith(img);} return; }
                     // Fetch image_data AND actions so the full cache is populated correctly
-                    _supabase.from('effects_library').select('image_data,actions,default_scale').eq('id',pack.id).single().then(({data})=>{
-                        if (!data?.image_data) return;
+                    _supabase.from('effects_library').select('image_data,actions,default_scale').eq('id',pack.id).single().then(({data,error})=>{
+                        if (error || !data?.image_data) throw error || new Error('no data');
                         efxSetImg(pack.id, data.image_data);
                         efxSetFull(pack.id, data.image_data, data.actions || {}, data.default_scale);
+                        if (window.CCOffline) CCOffline.cacheEffectFull(pack.id, data);
                         pack.image_data = data.image_data;
                         if (data.actions) pack.actions = data.actions;
                         if (data.default_scale) pack.default_scale = data.default_scale;
                         const old = div.querySelector('div');
                         if (old) { const img=document.createElement('img'); img.src=data.image_data; img.className='sb-loaded'; old.replaceWith(img); }
+                    }).catch(async () => {
+                        // OFFLINE FALLBACK
+                        const offline = window.CCOffline ? await CCOffline.getCachedEffect(pack.id) : null;
+                        if (offline && offline.image_data) {
+                            pack.image_data = offline.image_data;
+                            const old = div.querySelector('div');
+                            if (old) { const img=document.createElement('img'); img.src=offline.image_data; img.className='sb-loaded'; old.replaceWith(img); }
+                        }
                     });
                 }, { root: document.getElementById('sb-effect-grid'), rootMargin: '200px 0px' });
                 obs.observe(div);
@@ -7115,14 +7206,25 @@
                     openEffectModal({ ...pack, image_data: cached.img, actions: cached.actions, default_scale: cached.default_scale || pack.default_scale });
                 } else {
                     div.style.opacity = '0.5';
-                    const { data, error } = await _supabase.from('effects_library')
-                        .select('id, image_data, actions, default_scale').eq('id', pack.id).single();
-                    div.style.opacity = '';
-                    if (data) {
+                    try {
+                        const { data, error } = await _supabase.from('effects_library')
+                            .select('id, image_data, actions, default_scale').eq('id', pack.id).single();
+                        if (error || !data) throw error || new Error('no data');
                         efxSetFull(pack.id, data.image_data, data.actions, data.default_scale);
+                        if (window.CCOffline) CCOffline.cacheEffectFull(pack.id, data);
                         pack.image_data = data.image_data;
                         if (data.default_scale) pack.default_scale = data.default_scale;
                         openEffectModal({ ...pack, ...data });
+                    } catch(e) {
+                        // OFFLINE FALLBACK
+                        const offline = window.CCOffline ? await CCOffline.getCachedEffect(pack.id) : null;
+                        if (offline && offline.image_data) {
+                            pack.image_data = offline.image_data;
+                            if (offline.default_scale) pack.default_scale = offline.default_scale;
+                            openEffectModal({ ...pack, ...offline });
+                        }
+                    } finally {
+                        div.style.opacity = '';
                     }
                 }
             };

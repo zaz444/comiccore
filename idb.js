@@ -28,20 +28,20 @@
   // 1. Local DB schema
   // ---------------------------------------------------
   const db = new Dexie('ComicCoreLocal');
-  db.version(2).stores({
+  db.version(3).stores({
     // Published comics, cached for offline reading.
     // pending_sync = true means this row was edited/created while
     // offline and still needs to be pushed to Supabase (wired up Day 3).
     comics: 'id, owner_handle, cached_at, pending_sync',
     // In-progress drafts, mirrored from the existing cloud autosave.
     drafts: 'id, owner_handle, updated_at, pending_sync',
-    // Sprite library (id, name, tags, creator, created_at, image_data,
-    // actions, default_scale). The existing in-app cache for this is
-    // localStorage/sessionStorage based with short TTLs — fine for speed,
-    // but localStorage's ~5-10MB quota can't reliably hold ~250+ sprites'
-    // worth of base64 image data, so it silently fails on many devices.
-    // This is the durable fallback underneath it.
+    // Asset libraries used by the editor's pickers. Each kept in its own
+    // table — sprites_library/backgrounds_library/effects_library are
+    // separate Supabase tables with their own independent id sequences,
+    // so the same numeric id could mean three different assets.
     sprites: 'id, cached_at',
+    backgrounds: 'id, cached_at',
+    effects: 'id, cached_at',
   });
 
   window.ComicCoreDB = db;
@@ -195,6 +195,76 @@
     async getCachedSprite(id) {
       try { return await db.sprites.get(id); }
       catch (e) { console.warn('CCOffline.getCachedSprite failed:', e); return null; }
+    },
+
+    // -- background library --------------------------------------------
+    async cacheBackgroundLibrary(backgrounds) {
+      if (!Array.isArray(backgrounds) || !backgrounds.length) return;
+      try {
+        const ids = backgrounds.map((b) => b.id);
+        const existingRows = await db.backgrounds.bulkGet(ids);
+        const merged = backgrounds.map((b, i) => ({
+          ...(existingRows[i] || {}),
+          ...b,
+          image_data: b.image_data || existingRows[i]?.image_data,
+          cached_at: Date.now(),
+        }));
+        await db.backgrounds.bulkPut(merged);
+      } catch (e) { console.warn('CCOffline.cacheBackgroundLibrary failed:', e); }
+    },
+
+    async cacheBackgroundFull(id, full) {
+      if (!id || !full) return;
+      try {
+        const existing = await db.backgrounds.get(id);
+        await db.backgrounds.put({ ...(existing || { id }), ...full, cached_at: Date.now() });
+      } catch (e) { console.warn('CCOffline.cacheBackgroundFull failed:', e); }
+    },
+
+    async getCachedBackgroundLibrary() {
+      try { return await db.backgrounds.toArray(); }
+      catch (e) { console.warn('CCOffline.getCachedBackgroundLibrary failed:', e); return []; }
+    },
+
+    async getCachedBackground(id) {
+      try { return await db.backgrounds.get(id); }
+      catch (e) { console.warn('CCOffline.getCachedBackground failed:', e); return null; }
+    },
+
+    // -- effect library ---------------------------------------------------
+    async cacheEffectLibrary(effects) {
+      if (!Array.isArray(effects) || !effects.length) return;
+      try {
+        const ids = effects.map((x) => x.id);
+        const existingRows = await db.effects.bulkGet(ids);
+        const merged = effects.map((x, i) => ({
+          ...(existingRows[i] || {}),
+          ...x,
+          image_data: x.image_data || existingRows[i]?.image_data,
+          actions: x.actions || existingRows[i]?.actions,
+          default_scale: x.default_scale ?? existingRows[i]?.default_scale,
+          cached_at: Date.now(),
+        }));
+        await db.effects.bulkPut(merged);
+      } catch (e) { console.warn('CCOffline.cacheEffectLibrary failed:', e); }
+    },
+
+    async cacheEffectFull(id, full) {
+      if (!id || !full) return;
+      try {
+        const existing = await db.effects.get(id);
+        await db.effects.put({ ...(existing || { id }), ...full, cached_at: Date.now() });
+      } catch (e) { console.warn('CCOffline.cacheEffectFull failed:', e); }
+    },
+
+    async getCachedEffectLibrary() {
+      try { return await db.effects.toArray(); }
+      catch (e) { console.warn('CCOffline.getCachedEffectLibrary failed:', e); return []; }
+    },
+
+    async getCachedEffect(id) {
+      try { return await db.effects.get(id); }
+      catch (e) { console.warn('CCOffline.getCachedEffect failed:', e); return null; }
     },
 
     // -- misc ------------------------------------------

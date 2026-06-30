@@ -757,6 +757,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script src="dexie.min.js"></script>
   <script src="idb.js"></script>
+  <script src="install-prompt.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -3906,11 +3907,30 @@ async function _efxFlushBatch() {
     _efxLazyTimer = null;
     if (!_efxLazyQueue.length) return;
     const batch = [...new Set(_efxLazyQueue.splice(0, 20))];
-    const { data } = await _supabase.from('effects_library')
-        .select('id, image_data').in('id', batch);
+    let data;
+    try {
+        const res = await _supabase.from('effects_library').select('id, image_data').in('id', batch);
+        data = res.data;
+    } catch(e) {
+        console.warn('Effects batch load failed, trying offline cache:', e);
+        const stillMissing = [];
+        for (const id of batch) {
+            const offline = window.CCOffline ? await CCOffline.getCachedEffect(id) : null;
+            if (offline && offline.image_data) {
+                efxSetImg(id, offline.image_data);
+                const card = document.querySelector(`.mob-sprite-card[data-efx-id="${id}"]`);
+                if (card) _efxApplyImg(card, offline.image_data);
+            } else {
+                stillMissing.push(id);
+            }
+        }
+        if (stillMissing.length) _efxLazyQueue.unshift(...stillMissing);
+        return;
+    }
     if (!data) return;
     data.forEach(row => {
         efxSetImg(row.id, row.image_data);
+        if (window.CCOffline) CCOffline.cacheEffectFull(row.id, { image_data: row.image_data });
         const card = document.querySelector(`.mob-sprite-card[data-efx-id="${row.id}"]`);
         if (card) _efxApplyImg(card, row.image_data);
     });
@@ -3965,15 +3985,30 @@ async function _bgFlushBatch() {
             .select('id, image_data').in('id', batch);
         data = res.data;
     } catch(e) {
-        console.warn('BG batch load failed:', e);
-        // Re-queue so cards can retry on next scroll nudge
-        _bgLazyQueue.unshift(...batch);
+        console.warn('BG batch load failed, trying offline cache:', e);
+        const stillMissing = [];
+        for (const id of batch) {
+            const offline = window.CCOffline ? await CCOffline.getCachedBackground(id) : null;
+            if (offline && offline.image_data) {
+                try { sessionStorage.setItem('cc_bg_img_' + id, offline.image_data); } catch(e2) {}
+                const card = document.querySelector(`.mob-bg-card[data-bg-id="${id}"]`);
+                if (card) _bgApplyImg(card, offline.image_data);
+                const inOff = (mobBgOfficial||[]).find(b => b.id === id);
+                if (inOff) inOff.image_data = offline.image_data;
+                const inMine = (mobBgMine||[]).find(b => b.id === id);
+                if (inMine) inMine.image_data = offline.image_data;
+            } else {
+                stillMissing.push(id);
+            }
+        }
+        if (stillMissing.length) _bgLazyQueue.unshift(...stillMissing);
         return;
     }
     if (!data) return;
     data.forEach(row => {
         if (!row.image_data) return;
         try { sessionStorage.setItem('cc_bg_img_' + row.id, row.image_data); } catch(e) {}
+        if (window.CCOffline) CCOffline.cacheBackgroundFull(row.id, { image_data: row.image_data });
         const card = document.querySelector(`.mob-bg-card[data-bg-id="${row.id}"]`);
         if (card) _bgApplyImg(card, row.image_data);
         // Also update our in-memory list so clicks work
@@ -4007,12 +4042,28 @@ async function loadMobEffects() {
     } else {
         grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
     }
-    const { data } = await _supabase.from('effects_library').select('id,name,tags,creator,created_at').order('created_at',{ascending:false});
-    const fresh = data || [];
-    mobSidebarEffects = fresh;
-    efxSaveMetaCache(fresh);
-    renderMobEffectGrid(fresh);
-    buildMobEffectTagChips(fresh);
+    try {
+        const { data, error } = await _supabase.from('effects_library').select('id,name,tags,creator,created_at').order('created_at',{ascending:false});
+        if (error) throw error;
+        const fresh = data || [];
+        mobSidebarEffects = fresh;
+        efxSaveMetaCache(fresh);
+        renderMobEffectGrid(fresh);
+        buildMobEffectTagChips(fresh);
+        if (window.CCOffline) CCOffline.cacheEffectLibrary(fresh);
+    } catch(e) {
+        console.warn('loadMobEffects error:', e);
+        if (!mobSidebarEffects || !mobSidebarEffects.length) {
+            const offline = window.CCOffline ? await CCOffline.getCachedEffectLibrary() : [];
+            if (offline.length) {
+                mobSidebarEffects = offline;
+                renderMobEffectGrid(offline);
+                buildMobEffectTagChips(offline);
+                return;
+            }
+        }
+        if (!cached) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Error loading effects</div>';
+    }
 }
 
 function buildMobEffectTagChips(effects) {
@@ -4068,14 +4119,24 @@ function renderMobEffectGrid(effects) {
                 openMobEffectModal({ ...pack, image_data: cached.img, actions: cached.actions });
             } else {
                 card.style.opacity = '0.5';
-                const { data } = await _supabase.from('effects_library')
-                    .select('id, image_data, actions').eq('id', pack.id).single();
-                card.style.opacity = '';
-                if (data) {
+                try {
+                    const { data, error } = await _supabase.from('effects_library')
+                        .select('id, image_data, actions').eq('id', pack.id).single();
+                    if (error || !data) throw error || new Error('no data');
                     efxSetFull(pack.id, data.image_data, data.actions);
+                    if (window.CCOffline) CCOffline.cacheEffectFull(pack.id, data);
                     pack.image_data = data.image_data;
                     closeSheet('effects');
                     openMobEffectModal({ ...pack, ...data });
+                } catch(e) {
+                    const offline = window.CCOffline ? await CCOffline.getCachedEffect(pack.id) : null;
+                    if (offline && offline.image_data) {
+                        pack.image_data = offline.image_data;
+                        closeSheet('effects');
+                        openMobEffectModal({ ...pack, ...offline });
+                    }
+                } finally {
+                    card.style.opacity = '';
                 }
             }
         };
@@ -4275,8 +4336,30 @@ async function loadMobBgs() {
         } else { mobBgMine = []; }
 
         mobBgLoaded = true;
+
+        // Mirror metadata to durable offline storage (merge-safe).
+        if (window.CCOffline) {
+            CCOffline.cacheBackgroundLibrary([
+                ...mobBgOfficial.map(b => ({ ...b, is_official: true })),
+                ...mobBgMine.map(b => ({ ...b, uploaded_by: handle })),
+            ]);
+        }
     } catch(e) {
         console.warn('loadMobBgs error:', e);
+
+        // OFFLINE FALLBACK — try the durable cache before showing a dead end.
+        if (window.CCOffline) {
+            const offline = await CCOffline.getCachedBackgroundLibrary();
+            if (offline.length) {
+                mobBgOfficial = offline.filter(b => b.is_official);
+                mobBgMine = offline.filter(b => !b.is_official);
+                mobBgLoaded = true;
+                _mobBgLoading = false;
+                renderMobBgGrid();
+                return;
+            }
+        }
+
         if (grid) {
             grid.innerHTML = '<div style="color:#ff453a;font-size:12px;padding:16px;grid-column:span 2;text-align:center;cursor:pointer;">Failed to load — tap to retry</div>';
             grid.onclick = () => { grid.onclick = null; _mobBgLoading = false; loadMobBgs(); };
@@ -4343,16 +4426,26 @@ function renderMobBgGrid() {
                 try {
                     const { data, error } = await _supabase.from('backgrounds_library')
                         .select('image_data').eq('id', bg.id).single();
-                    if (error || !data?.image_data) { card.style.opacity = ''; card._bgFetching = false; return; }
+                    if (error || !data?.image_data) throw error || new Error('no data');
                     src = data.image_data;
                     bg.image_data = src;
                     card._imgSrc = src;
                     try { sessionStorage.setItem('cc_bg_img_' + bg.id, src); } catch(e) {}
+                    if (window.CCOffline) CCOffline.cacheBackgroundFull(bg.id, { image_data: src });
                     _bgApplyImg(card, src);
                 } catch(e) {
-                    card.style.opacity = '';
-                    card._bgFetching = false;
-                    return;
+                    // OFFLINE FALLBACK
+                    const offline = window.CCOffline ? await CCOffline.getCachedBackground(bg.id) : null;
+                    if (offline && offline.image_data) {
+                        src = offline.image_data;
+                        bg.image_data = src;
+                        card._imgSrc = src;
+                        _bgApplyImg(card, src);
+                    } else {
+                        card.style.opacity = '';
+                        card._bgFetching = false;
+                        return;
+                    }
                 }
                 card.style.opacity = '';
                 card._bgFetching = false;
@@ -5678,7 +5771,13 @@ async function finalPublish() {
             error = res.error;
             publishedId = res.data?.id;
         }
-        if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return; }
+        if (error) {
+            const offline = !navigator.onLine;
+            alert(offline
+                ? "You're offline — publishing needs a connection. Your draft is safe; reconnect and try again."
+                : 'Error: ' + error.message);
+            btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return;
+        }
         // Clean up draft after publish
         if (activeDraftId) {
             const storagePath = localStorage.getItem('active_draft_storage_path');
@@ -5700,7 +5799,10 @@ async function finalPublish() {
         location.href = 'discover.html';
     } catch (err) {
         console.error('finalPublish error:', err);
-        alert('Publish failed: ' + (err.message || 'Unknown error'));
+        const offline = !navigator.onLine;
+        alert(offline
+            ? "You're offline — publishing needs a connection. Your draft is safe; reconnect and try again."
+            : 'Publish failed: ' + (err.message || 'Unknown error'));
         btn.disabled = false;
         btn.innerText = editingComicId ? 'UPDATE' : 'POST NOW';
     }
@@ -6064,7 +6166,15 @@ function applyPendingBg(pendingBg, pendingBgId) {
     if (pendingBgId) {
         localStorage.removeItem('pending_bg_id');
         currentImportType = 'bg';
-        _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single().then(({ data }) => { if (data?.image_data) showBgImportChoice(data.image_data); });
+        _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single()
+            .then(({ data }) => {
+                if (data && data.image_data) { showBgImportChoice(data.image_data); return; }
+                throw new Error('no data');
+            })
+            .catch(async () => {
+                const offline = window.CCOffline ? await CCOffline.getCachedBackground(pendingBgId) : null;
+                if (offline && offline.image_data) showBgImportChoice(offline.image_data);
+            });
         return;
     }
     if (!pendingBg) return;
