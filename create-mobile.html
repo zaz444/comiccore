@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ComicCore - Mobile Creator</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
@@ -144,13 +144,15 @@
 
     /* ── BOTTOM TOOLBAR ── */
     #bottom-bar {
-        height: 62px; background: var(--card); border-top: 1px solid var(--border);
+        height: calc(62px + env(safe-area-inset-bottom, 0px));
+        background: var(--card); border-top: 1px solid var(--border);
         display: flex; align-items: center;
-        z-index: 200; flex-shrink: 0; padding: 0 4px;
+        z-index: 200; flex-shrink: 0;
+        padding: 0 4px env(safe-area-inset-bottom, 0px) 4px;
         overflow-x: auto; overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
-        scrollbar-width: none; /* hide scrollbar on Firefox */
-        touch-action: pan-x; /* allow horizontal scroll, block pinch zoom */
+        scrollbar-width: none;
+        touch-action: pan-x;
     }
     #bottom-bar::-webkit-scrollbar { display: none; }
     .bot-btn {
@@ -1825,7 +1827,9 @@ function setRatio(w, h) {
     canvasRatio = { w, h };
     lsSet('cc-active-ratio', JSON.stringify({ w, h }));
     const vp = document.getElementById('viewport');
-    const vpW = vp.clientWidth - 24;
+    // Use visualViewport if available (accounts for Android gesture bar / keyboard)
+    // Fall back to element clientWidth/Height if not supported
+    const vpW = (window.visualViewport ? window.visualViewport.width : vp.clientWidth) - 24;
     const vpH = vp.clientHeight - 24;
     let cw, ch;
     if (w / h > vpW / vpH) { cw = vpW; ch = Math.round(vpW * h / w); }
@@ -2371,13 +2375,15 @@ function _renderNow() {
                     const startClientY = t0.clientY;
                     const isLeft = (corner === 'tl' || corner === 'bl');
                     const isTop  = (corner === 'tl' || corner === 'tr');
+                    // Use getBoundingClientRect scale for accuracy on Android TWA
+                    const _cRect = canvas.getBoundingClientRect();
+                    const _cScale = _cRect.width / (canvas.offsetWidth || 1);
                     const onMove = (mv) => {
                         if (mv.touches.length > 1) return;
                         mv.preventDefault();
                         mv.stopPropagation();
-                        // Use true diagonal delta — both axes contribute equally
-                        const rawDx = (mv.touches[0].clientX - startClientX) / vpScale;
-                        const rawDy = (mv.touches[0].clientY - startClientY) / vpScale;
+                        const rawDx = (mv.touches[0].clientX - startClientX) / _cScale;
+                        const rawDy = (mv.touches[0].clientY - startClientY) / _cScale;
                         const dx = isLeft ? -rawDx : rawDx;
                         const dy = isTop  ? -rawDy : rawDy;
                         const delta = (dx + dy) / 2;
@@ -2465,6 +2471,11 @@ function startTouchDrag(e, layer) {
         if (_isDragging) render();
         setTimeout(function() { _isDragging = false; }, 60);
     };
+    // canvasRenderedScale: accounts for vpScale AND device pixel differences between
+    // iOS Safari and Android Chrome TWA — getBoundingClientRect gives true CSS px size
+    var canvasRect = canvas.getBoundingClientRect();
+    var canvasRenderedScale = canvasRect.width / (canvas.offsetWidth || 1);
+
     var move = function(me) {
         if (me.touches.length > 1) { cleanup(); return; }
         me.preventDefault();
@@ -2476,8 +2487,8 @@ function startTouchDrag(e, layer) {
         if (!_isDragging && Math.hypot(rawDx, rawDy) < 3) return;
         if (!stateSaved) { saveState(); stateSaved = true; }
         _isDragging = true;
-        layer.x = layerStartX + rawDx / vpScale;
-        layer.y = layerStartY + rawDy / vpScale;
+        layer.x = layerStartX + rawDx / canvasRenderedScale;
+        layer.y = layerStartY + rawDy / canvasRenderedScale;
         // Direct DOM update for instant, jank-free feel — no full re-render during drag
         el.style.left = layer.x + 'px';
         el.style.top  = layer.y + 'px';
@@ -5079,10 +5090,9 @@ document.getElementById('apply-crop-btn').onclick = async () => {
         const naturalH = imgData.naturalHeight;
         const cropCX   = (cropData.x + cropData.width  / 2) / naturalW * 100;
         const cropCY   = (cropData.y + cropData.height / 2) / naturalH * 100;
-        const bgX      = Math.round(Math.max(-100, Math.min(100, cropCX - 50)));
-        const bgY      = Math.round(Math.max(-100, Math.min(100, cropCY - 50)));
-        // scale is a plain multiplier (matches the 1.0x–5.0x slider), not a percentage
-        const bgScale  = Math.round(Math.max(1, Math.min(5, naturalW / cropData.width)) * 10) / 10;
+        const bgX      = Math.round(Math.max(-50, Math.min(50, cropCX - 50)));
+        const bgY      = Math.round(Math.max(-50, Math.min(50, cropCY - 50)));
+        const bgScale  = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
 
         // Upload original image to Supabase Storage if it's base64
         let fullSrc = _bgChoiceSrc || frames[currentIdx].background;
@@ -6017,6 +6027,14 @@ window.onload = async function() {
         render();
         renderMobFrames();
         updateFrameCounter();
+
+        // Re-run setRatio when Android gesture bar / keyboard changes available height
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                const r = canvasRatio;
+                setRatio(r.w, r.h);
+            });
+        }
     })();
 
     // ── TAP BACKDROP TO CLOSE OVERLAY MODALS ──
