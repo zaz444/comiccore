@@ -751,20 +751,6 @@
     }
 
 </style>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#ff7a00">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <script src="dexie.min.js"></script>
-  <script src="idb.js"></script>
-  <script src="install-prompt.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(err => console.error('SW registration failed:', err));
-      });
-    }
-  </script>
 </head>
 <body>
 
@@ -3506,23 +3492,7 @@ async function loadMobSprites() {
             renderMobSpriteGrid(sidebarSprites);
             buildMobTagChips(allSidebarMeta);
         }
-
-        // Mirror metadata to durable offline storage too (merge-safe — won't
-        // erase any image_data already cached there from sbFetchFull calls).
-        if (window.CCOffline) CCOffline.cacheSpriteLibrary(fresh);
     } catch(e) {
-        console.warn('Live sprite fetch failed:', e);
-        // OFFLINE FALLBACK — nothing rendered yet — try the durable cache.
-        if (!sidebarSprites || !sidebarSprites.length) {
-            const offline = window.CCOffline ? await CCOffline.getCachedSpriteLibrary() : [];
-            if (offline.length) {
-                sidebarSprites = offline;
-                allSidebarMeta = offline;
-                renderMobSpriteGrid(sidebarSprites);
-                buildMobTagChips(allSidebarMeta);
-                return;
-            }
-        }
         if (!cached) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Error loading sprites</div>';
     }
 }
@@ -3907,30 +3877,11 @@ async function _efxFlushBatch() {
     _efxLazyTimer = null;
     if (!_efxLazyQueue.length) return;
     const batch = [...new Set(_efxLazyQueue.splice(0, 20))];
-    let data;
-    try {
-        const res = await _supabase.from('effects_library').select('id, image_data').in('id', batch);
-        data = res.data;
-    } catch(e) {
-        console.warn('Effects batch load failed, trying offline cache:', e);
-        const stillMissing = [];
-        for (const id of batch) {
-            const offline = window.CCOffline ? await CCOffline.getCachedEffect(id) : null;
-            if (offline && offline.image_data) {
-                efxSetImg(id, offline.image_data);
-                const card = document.querySelector(`.mob-sprite-card[data-efx-id="${id}"]`);
-                if (card) _efxApplyImg(card, offline.image_data);
-            } else {
-                stillMissing.push(id);
-            }
-        }
-        if (stillMissing.length) _efxLazyQueue.unshift(...stillMissing);
-        return;
-    }
+    const { data } = await _supabase.from('effects_library')
+        .select('id, image_data').in('id', batch);
     if (!data) return;
     data.forEach(row => {
         efxSetImg(row.id, row.image_data);
-        if (window.CCOffline) CCOffline.cacheEffectFull(row.id, { image_data: row.image_data });
         const card = document.querySelector(`.mob-sprite-card[data-efx-id="${row.id}"]`);
         if (card) _efxApplyImg(card, row.image_data);
     });
@@ -3985,30 +3936,15 @@ async function _bgFlushBatch() {
             .select('id, image_data').in('id', batch);
         data = res.data;
     } catch(e) {
-        console.warn('BG batch load failed, trying offline cache:', e);
-        const stillMissing = [];
-        for (const id of batch) {
-            const offline = window.CCOffline ? await CCOffline.getCachedBackground(id) : null;
-            if (offline && offline.image_data) {
-                try { sessionStorage.setItem('cc_bg_img_' + id, offline.image_data); } catch(e2) {}
-                const card = document.querySelector(`.mob-bg-card[data-bg-id="${id}"]`);
-                if (card) _bgApplyImg(card, offline.image_data);
-                const inOff = (mobBgOfficial||[]).find(b => b.id === id);
-                if (inOff) inOff.image_data = offline.image_data;
-                const inMine = (mobBgMine||[]).find(b => b.id === id);
-                if (inMine) inMine.image_data = offline.image_data;
-            } else {
-                stillMissing.push(id);
-            }
-        }
-        if (stillMissing.length) _bgLazyQueue.unshift(...stillMissing);
+        console.warn('BG batch load failed:', e);
+        // Re-queue so cards can retry on next scroll nudge
+        _bgLazyQueue.unshift(...batch);
         return;
     }
     if (!data) return;
     data.forEach(row => {
         if (!row.image_data) return;
         try { sessionStorage.setItem('cc_bg_img_' + row.id, row.image_data); } catch(e) {}
-        if (window.CCOffline) CCOffline.cacheBackgroundFull(row.id, { image_data: row.image_data });
         const card = document.querySelector(`.mob-bg-card[data-bg-id="${row.id}"]`);
         if (card) _bgApplyImg(card, row.image_data);
         // Also update our in-memory list so clicks work
@@ -4042,28 +3978,12 @@ async function loadMobEffects() {
     } else {
         grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Loading...</div>';
     }
-    try {
-        const { data, error } = await _supabase.from('effects_library').select('id,name,tags,creator,created_at').order('created_at',{ascending:false});
-        if (error) throw error;
-        const fresh = data || [];
-        mobSidebarEffects = fresh;
-        efxSaveMetaCache(fresh);
-        renderMobEffectGrid(fresh);
-        buildMobEffectTagChips(fresh);
-        if (window.CCOffline) CCOffline.cacheEffectLibrary(fresh);
-    } catch(e) {
-        console.warn('loadMobEffects error:', e);
-        if (!mobSidebarEffects || !mobSidebarEffects.length) {
-            const offline = window.CCOffline ? await CCOffline.getCachedEffectLibrary() : [];
-            if (offline.length) {
-                mobSidebarEffects = offline;
-                renderMobEffectGrid(offline);
-                buildMobEffectTagChips(offline);
-                return;
-            }
-        }
-        if (!cached) grid.innerHTML = '<div style="color:#555;text-align:center;padding:20px;grid-column:span 3;font-size:12px;">Error loading effects</div>';
-    }
+    const { data } = await _supabase.from('effects_library').select('id,name,tags,creator,created_at').order('created_at',{ascending:false});
+    const fresh = data || [];
+    mobSidebarEffects = fresh;
+    efxSaveMetaCache(fresh);
+    renderMobEffectGrid(fresh);
+    buildMobEffectTagChips(fresh);
 }
 
 function buildMobEffectTagChips(effects) {
@@ -4119,24 +4039,14 @@ function renderMobEffectGrid(effects) {
                 openMobEffectModal({ ...pack, image_data: cached.img, actions: cached.actions });
             } else {
                 card.style.opacity = '0.5';
-                try {
-                    const { data, error } = await _supabase.from('effects_library')
-                        .select('id, image_data, actions').eq('id', pack.id).single();
-                    if (error || !data) throw error || new Error('no data');
+                const { data } = await _supabase.from('effects_library')
+                    .select('id, image_data, actions').eq('id', pack.id).single();
+                card.style.opacity = '';
+                if (data) {
                     efxSetFull(pack.id, data.image_data, data.actions);
-                    if (window.CCOffline) CCOffline.cacheEffectFull(pack.id, data);
                     pack.image_data = data.image_data;
                     closeSheet('effects');
                     openMobEffectModal({ ...pack, ...data });
-                } catch(e) {
-                    const offline = window.CCOffline ? await CCOffline.getCachedEffect(pack.id) : null;
-                    if (offline && offline.image_data) {
-                        pack.image_data = offline.image_data;
-                        closeSheet('effects');
-                        openMobEffectModal({ ...pack, ...offline });
-                    }
-                } finally {
-                    card.style.opacity = '';
                 }
             }
         };
@@ -4336,30 +4246,8 @@ async function loadMobBgs() {
         } else { mobBgMine = []; }
 
         mobBgLoaded = true;
-
-        // Mirror metadata to durable offline storage (merge-safe).
-        if (window.CCOffline) {
-            CCOffline.cacheBackgroundLibrary([
-                ...mobBgOfficial.map(b => ({ ...b, is_official: true })),
-                ...mobBgMine.map(b => ({ ...b, uploaded_by: handle })),
-            ]);
-        }
     } catch(e) {
         console.warn('loadMobBgs error:', e);
-
-        // OFFLINE FALLBACK — try the durable cache before showing a dead end.
-        if (window.CCOffline) {
-            const offline = await CCOffline.getCachedBackgroundLibrary();
-            if (offline.length) {
-                mobBgOfficial = offline.filter(b => b.is_official);
-                mobBgMine = offline.filter(b => !b.is_official);
-                mobBgLoaded = true;
-                _mobBgLoading = false;
-                renderMobBgGrid();
-                return;
-            }
-        }
-
         if (grid) {
             grid.innerHTML = '<div style="color:#ff453a;font-size:12px;padding:16px;grid-column:span 2;text-align:center;cursor:pointer;">Failed to load — tap to retry</div>';
             grid.onclick = () => { grid.onclick = null; _mobBgLoading = false; loadMobBgs(); };
@@ -4426,26 +4314,16 @@ function renderMobBgGrid() {
                 try {
                     const { data, error } = await _supabase.from('backgrounds_library')
                         .select('image_data').eq('id', bg.id).single();
-                    if (error || !data?.image_data) throw error || new Error('no data');
+                    if (error || !data?.image_data) { card.style.opacity = ''; card._bgFetching = false; return; }
                     src = data.image_data;
                     bg.image_data = src;
                     card._imgSrc = src;
                     try { sessionStorage.setItem('cc_bg_img_' + bg.id, src); } catch(e) {}
-                    if (window.CCOffline) CCOffline.cacheBackgroundFull(bg.id, { image_data: src });
                     _bgApplyImg(card, src);
                 } catch(e) {
-                    // OFFLINE FALLBACK
-                    const offline = window.CCOffline ? await CCOffline.getCachedBackground(bg.id) : null;
-                    if (offline && offline.image_data) {
-                        src = offline.image_data;
-                        bg.image_data = src;
-                        card._imgSrc = src;
-                        _bgApplyImg(card, src);
-                    } else {
-                        card.style.opacity = '';
-                        card._bgFetching = false;
-                        return;
-                    }
+                    card.style.opacity = '';
+                    card._bgFetching = false;
+                    return;
                 }
                 card.style.opacity = '';
                 card._bgFetching = false;
@@ -4495,27 +4373,8 @@ async function sbFetchFull(id) {
     const fullCached = sbGetFullCache(id);
     if (fullCached) return { image_data: fullCached.img, actions: fullCached.actions, default_scale: fullCached.default_scale || null };
 
-    let data = null;
-    try {
-        const res = await _supabase.from('sprites_library').select('*').eq('id', id).single();
-        data = res.data;
-    } catch (e) { console.warn('sbFetchFull live fetch failed:', e); }
-
-    if (data?.image_data) {
-        sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
-        if (window.CCOffline) CCOffline.cacheSpriteFull(id, data);
-        return data;
-    }
-
-    // OFFLINE FALLBACK — live fetch failed/returned nothing. Try the
-    // durable IndexedDB cache before giving up on this sprite entirely.
-    if (window.CCOffline) {
-        const offline = await CCOffline.getCachedSprite(id);
-        if (offline && offline.image_data) {
-            sbSetImg(id, offline.image_data);
-            return offline;
-        }
-    }
+    const { data } = await _supabase.from('sprites_library').select('*').eq('id', id).single();
+    if (data?.image_data) sbSetFullCache(id, data.image_data, data.actions || {}, data.default_scale);
     return data;
 }
 
@@ -4526,17 +4385,7 @@ async function openLibrary() {
     const meta = sidebarSprites || sbLoadMetaCache();
     if (meta?.length) { renderLibraryGrid(grid, meta); return; }
     grid.innerHTML = "<p style='color:white;font-size:12px;'>Loading...</p>";
-    try {
-        const { data } = await _supabase.from('sprites_library').select('id, name, image_data, tags, creator, created_at').order('created_at', { ascending: false });
-        sidebarSprites = data || [];
-        sbSaveMetaCache(sidebarSprites);
-        renderLibraryGrid(grid, sidebarSprites); // BUGFIX: this fetch's result was never rendered before
-    } catch (e) {
-        console.warn('openLibrary live fetch failed:', e);
-        const offline = window.CCOffline ? await CCOffline.getCachedSpriteLibrary() : [];
-        if (offline.length) { sidebarSprites = offline; renderLibraryGrid(grid, offline); }
-        else grid.innerHTML = "<p style='color:white;font-size:12px;'>Could not load sprites.</p>";
-    }
+    const { data } = await _supabase.from('sprites_library').select('id, name, image_data, tags, creator, created_at').order('created_at', { ascending: false });
 }
 function renderLibraryGrid(grid, sprites) {
     grid.innerHTML = '';
@@ -5230,9 +5079,10 @@ document.getElementById('apply-crop-btn').onclick = async () => {
         const naturalH = imgData.naturalHeight;
         const cropCX   = (cropData.x + cropData.width  / 2) / naturalW * 100;
         const cropCY   = (cropData.y + cropData.height / 2) / naturalH * 100;
-        const bgX      = Math.round(Math.max(-50, Math.min(50, cropCX - 50)));
-        const bgY      = Math.round(Math.max(-50, Math.min(50, cropCY - 50)));
-        const bgScale  = Math.round(Math.max(50, Math.min(300, (naturalW / cropData.width) * 100)));
+        const bgX      = Math.round(Math.max(-100, Math.min(100, cropCX - 50)));
+        const bgY      = Math.round(Math.max(-100, Math.min(100, cropCY - 50)));
+        // scale is a plain multiplier (matches the 1.0x–5.0x slider), not a percentage
+        const bgScale  = Math.round(Math.max(1, Math.min(5, naturalW / cropData.width)) * 10) / 10;
 
         // Upload original image to Supabase Storage if it's base64
         let fullSrc = _bgChoiceSrc || frames[currentIdx].background;
@@ -5493,19 +5343,9 @@ async function saveOffline(silent = false) {
         };
         if (!draftRowExists) row.title = 'Untitled Draft'; // only stamp default title on first creation
 
-        // Mirror to local on-device storage too — always stores the full frame
-        // data inline (no bucket-spill needed locally), so the draft is never
-        // lost if the Supabase save below fails. Marked pending_sync until the
-        // cloud save confirms it went through (Day 3 wires up pushing this).
-        if (window.CCOffline) {
-            CCOffline.cacheDraft({ ...row, data: stamped, storage_path: null, pending_sync: true });
-        }
-
         const { error: saveErr } = await _supabase.from('drafts').upsert(row, { onConflict: 'id' });
         if (saveErr) throw saveErr;
         draftRowExists = true;
-
-        if (window.CCOffline) CCOffline.cacheDraft({ ...row, data: stamped, storage_path: null, pending_sync: false });
 
         hasUnsavedChanges = false;
         const dot2 = document.getElementById('unsaved-dot');
@@ -5513,8 +5353,7 @@ async function saveOffline(silent = false) {
         if (!silent) showMobSaveBadge('✓ Saved', false);
     } catch(e) {
         console.warn('Draft save failed:', e);
-        const offline = !navigator.onLine;
-        if (!silent) showMobSaveBadge(offline ? '⚠ Offline — saved locally' : '✗ Save failed: ' + (e.message || 'error'), true);
+        if (!silent) showMobSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
     }
 }
 
@@ -5771,13 +5610,7 @@ async function finalPublish() {
             error = res.error;
             publishedId = res.data?.id;
         }
-        if (error) {
-            const offline = !navigator.onLine;
-            alert(offline
-                ? "You're offline — publishing needs a connection. Your draft is safe; reconnect and try again."
-                : 'Error: ' + error.message);
-            btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return;
-        }
+        if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return; }
         // Clean up draft after publish
         if (activeDraftId) {
             const storagePath = localStorage.getItem('active_draft_storage_path');
@@ -5799,10 +5632,7 @@ async function finalPublish() {
         location.href = 'discover.html';
     } catch (err) {
         console.error('finalPublish error:', err);
-        const offline = !navigator.onLine;
-        alert(offline
-            ? "You're offline — publishing needs a connection. Your draft is safe; reconnect and try again."
-            : 'Publish failed: ' + (err.message || 'Unknown error'));
+        alert('Publish failed: ' + (err.message || 'Unknown error'));
         btn.disabled = false;
         btn.innerText = editingComicId ? 'UPDATE' : 'POST NOW';
     }
@@ -6166,15 +5996,7 @@ function applyPendingBg(pendingBg, pendingBgId) {
     if (pendingBgId) {
         localStorage.removeItem('pending_bg_id');
         currentImportType = 'bg';
-        _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single()
-            .then(({ data }) => {
-                if (data && data.image_data) { showBgImportChoice(data.image_data); return; }
-                throw new Error('no data');
-            })
-            .catch(async () => {
-                const offline = window.CCOffline ? await CCOffline.getCachedBackground(pendingBgId) : null;
-                if (offline && offline.image_data) showBgImportChoice(offline.image_data);
-            });
+        _supabase.from('backgrounds_library').select('image_data').eq('id', pendingBgId).single().then(({ data }) => { if (data?.image_data) showBgImportChoice(data.image_data); });
         return;
     }
     if (!pendingBg) return;
@@ -6219,26 +6041,7 @@ window.onload = async function() {
         document.getElementById('publish-btn').innerText = 'UPDATE';
         maybeShowCollabBtn();
         _supabase.from('comics').select('*').eq('id', editComicId).single().then(({data,error}) => {
-            if (error||!data) {
-                // OFFLINE FALLBACK — try the local cache before giving up
-                if (window.CCOffline) {
-                    CCOffline.getCachedComic(editComicId).then((cached) => {
-                        if (!cached) { alert('Could not load comic.'); return; }
-                        frames = cached.data || cached.frames || [];
-                        const r = cached.canvas_ratio || {w:1,h:1}; setRatio(r.w,r.h);
-                        document.getElementById('pub-title').value = cached.title || '';
-                        document.getElementById('pub-tags').value = (cached.tags||[]).join(', ');
-                        document.getElementById('pub-desc').value = cached.description || '';
-                        if (cached.cover) { finalCoverBase64=cached.cover; const img=document.getElementById('final-cover-img'); img.src=cached.cover; img.style.display='block'; document.getElementById('cover-label').style.display='none'; }
-                        applyPendingBg(pendingBg,pendingBgId);
-                        currentIdx = 0; render(); renderMobFrames(); updateFrameCounter();
-                    });
-                } else {
-                    alert('Could not load comic.');
-                }
-                return;
-            }
-            if (window.CCOffline) CCOffline.cacheComic(data);
+            if (error||!data) { alert('Could not load comic.'); return; }
             frames = data.data || data.frames || [];
             const r = data.canvas_ratio || {w:1,h:1}; setRatio(r.w,r.h);
             document.getElementById('pub-title').value = data.title || '';
@@ -6287,19 +6090,6 @@ window.onload = async function() {
                     applyPendingBg(pendingBg, pendingBgId); return;
                 }
             }
-        }
-    }
-
-    // OFFLINE FALLBACK — both the storage-bucket and inline-row paths above
-    // came back empty (most likely: no network connection right now).
-    // Try the local on-device cache before falling through to a blank canvas.
-    if (resumeId && window.CCOffline) {
-        const cachedDraft = await CCOffline.getCachedDraft(resumeId);
-        if (cachedDraft && cachedDraft.data) {
-            frames = cachedDraft.data;
-            const r = cachedDraft.canvas_ratio || { w:1, h:1 };
-            setRatio(r.w, r.h); currentIdx = 0; render(); renderMobFrames(); updateFrameCounter();
-            applyPendingBg(pendingBg, pendingBgId); return;
         }
     }
 
