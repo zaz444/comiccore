@@ -833,6 +833,20 @@
     </div>
 </div>
 
+<!-- Ratio-change clipping warning -->
+<div id="ratio-clip-modal" class="overlay-full" style="display:none;" onclick="if(event.target===this) closeRatioClipModal()">
+    <div class="modal-content" style="cursor:default;text-align:center;" onclick="event.stopPropagation()">
+        <div style="font-size:28px;margin-bottom:8px;">⚠️</div>
+        <div style="font-size:13px;font-weight:900;color:#fff;letter-spacing:0.5px;margin-bottom:6px;">Layers May Spill Out</div>
+        <div id="ratio-clip-msg" style="font-size:12px;color:#999;line-height:1.5;margin-bottom:18px;">This will push some layers outside the frame.</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <button onclick="viewPendingRatioFrame()" class="frames-top-btn" style="width:100%;">👀 View Frame First</button>
+            <button onclick="applyPendingRatioAnyway()" class="frames-top-btn accent-btn" style="width:100%;">Apply Anyway</button>
+            <button onclick="closeRatioClipModal()" class="frames-top-btn" style="width:100%;">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <!-- BG import choice -->
 <div id="bg-import-choice-modal" class="overlay-full" style="display:none;">
     <div style="background:var(--card);border-radius:20px;padding:22px;width:92%;max-width:380px;border:1px solid var(--border);display:flex;flex-direction:column;gap:14px;">
@@ -1209,6 +1223,14 @@
             </div>
         </div>
         <div id="mob-frame-scroll"></div>
+        <!-- Per-frame ratio control — applies only to the currently active frame -->
+        <div style="margin-top:10px;padding:10px 12px;background:#161617;border:1px solid #262628;border-radius:10px;">
+            <button onclick="openFrameRatioPicker()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;color:#ccc;font-size:12px;font-weight:800;cursor:pointer;padding:0;">
+                <span>📐 Ratio for Frame <span id="frame-ratio-frame-num">1</span></span>
+                <span style="color:var(--accent);">‎ <span id="frame-ratio-current">1:1</span> ▾</span>
+            </button>
+            <div id="frame-ratio-panel" style="display:none;margin-top:10px;flex-wrap:wrap;gap:6px;"></div>
+        </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
             <button class="frames-top-btn" onclick="copyCurrentFrame()">🎞 Copy Frame</button>
             <button class="frames-top-btn" onclick="pasteCurrentFrame()">📋 Paste Frame</button>
@@ -1838,9 +1860,12 @@ const onionCanvas = document.getElementById('onion-skin-canvas');
 const onionCtx = onionCanvas.getContext('2d');
 
 // ── RATIO + CANVAS SIZE ──
-function setRatio(w, h) {
-    canvasRatio = { w, h };
-    lsSet('cc-active-ratio', JSON.stringify({ w, h }));
+// ── RATIO + CANVAS SIZE ──
+// Computes the on-screen canvas pixel size for a given ratio, fit to the
+// current viewport. Shared by setRatio() and, at save-time, by the per-frame
+// _editorW/_editorH stamping — both need the exact same formula so the
+// reader can scale each frame's layers back out correctly.
+function computeCanvasSize(w, h) {
     const vp = document.getElementById('viewport');
     // Use visualViewport if available (accounts for Android gesture bar / keyboard)
     // Fall back to element clientWidth/Height if not supported
@@ -1849,10 +1874,148 @@ function setRatio(w, h) {
     let cw, ch;
     if (w / h > vpW / vpH) { cw = vpW; ch = Math.round(vpW * h / w); }
     else { ch = vpH; cw = Math.round(vpH * w / h); }
+    return { cw, ch };
+}
+function setRatio(w, h) {
+    canvasRatio = { w, h };
+    lsSet('cc-active-ratio', JSON.stringify({ w, h }));
+    const { cw, ch } = computeCanvasSize(w, h);
     canvas.style.width = cw + 'px';
     canvas.style.height = ch + 'px';
     onionCanvas.width = cw; onionCanvas.height = ch;
     render();
+}
+// Ratio to use for a given frame — falls back to the live canvasRatio for
+// frames created before per-frame ratio existed, so old drafts keep working.
+function getFrameRatio(f) {
+    return (f && f.ratio && f.ratio.w && f.ratio.h) ? f.ratio : canvasRatio;
+}
+// Switches currentIdx to frame i AND resizes the canvas to that frame's own
+// ratio (if it has one) before rendering — this is what makes mid-comic
+// ratio changes actually take effect as you flip between frames.
+function activateFrame(i) {
+    currentIdx = i;
+    activeLayer = null;
+    const f = frames[currentIdx];
+    const r = getFrameRatio(f);
+    if (r.w !== canvasRatio.w || r.h !== canvasRatio.h) setRatio(r.w, r.h);
+    else render();
+}
+
+// ── PER-FRAME RATIO CHANGE ──────────────────────────────────────────────
+const RATIO_PRESETS = [
+    { w: 1,  h: 1,  label: '1:1' },
+    { w: 4,  h: 5,  label: '4:5' },
+    { w: 3,  h: 4,  label: '3:4' },
+    { w: 2,  h: 3,  label: '2:3' },
+    { w: 9,  h: 16, label: '9:16' },
+    { w: 16, h: 9,  label: '16:9' },
+    { w: 3,  h: 2,  label: '3:2' },
+];
+let pendingRatioChange = null; // { idx, w, h } awaiting a clip-warning decision
+
+function openFrameRatioPicker() {
+    const panel = document.getElementById('frame-ratio-panel');
+    if (!panel) return;
+    const isOpen = panel.style.display === 'flex';
+    panel.style.display = isOpen ? 'none' : 'flex';
+    if (!isOpen) renderFrameRatioPicker();
+}
+function renderFrameRatioPicker() {
+    const panel = document.getElementById('frame-ratio-panel');
+    if (!panel) return;
+    const active = getFrameRatio(frames[currentIdx]);
+    panel.innerHTML = RATIO_PRESETS.map(p => {
+        const isActive = active.w === p.w && active.h === p.h;
+        return `<button onclick="pickFrameRatio(${p.w},${p.h})" style="padding:8px 10px;border-radius:8px;font-size:12px;font-weight:800;border:2px solid ${isActive ? 'var(--accent)' : '#333'};background:${isActive ? 'var(--accent)' : '#1b1b1c'};color:${isActive ? '#000' : '#ccc'};cursor:pointer;">${p.label}</button>`;
+    }).join('');
+    const numLbl = document.getElementById('frame-ratio-frame-num');
+    if (numLbl) numLbl.innerText = currentIdx + 1;
+    const curLbl = document.getElementById('frame-ratio-current');
+    if (curLbl) curLbl.innerText = active.w + ':' + active.h;
+}
+// Axis-aligned check — flags a layer as spilling if any part of its box
+// would fall outside the frame at the candidate ratio.
+function checkRatioClipping(frame, w, h) {
+    const { cw, ch } = computeCanvasSize(w, h);
+    return (frame.layers || []).some(l => {
+        const lw = l.w || 0;
+        const lh = (l.h != null ? l.h : lw);
+        return l.x < 0 || l.y < 0 || (l.x + lw) > cw || (l.y + lh) > ch;
+    });
+}
+function pickFrameRatio(w, h) {
+    const idx = currentIdx;
+    const frame = frames[idx];
+    const current = getFrameRatio(frame);
+    if (current.w === w && current.h === h) { document.getElementById('frame-ratio-panel').style.display = 'none'; return; }
+    if (checkRatioClipping(frame, w, h)) {
+        pendingRatioChange = { idx, w, h };
+        showRatioClipWarning(idx);
+    } else {
+        commitFrameRatioChange(idx, w, h);
+        document.getElementById('frame-ratio-panel').style.display = 'none';
+    }
+}
+function commitFrameRatioChange(idx, w, h) {
+    saveState();
+    frames[idx].ratio = { w, h };
+    if (idx === currentIdx) setRatio(w, h);
+    hasUnsavedChanges = true;
+    const dot = document.getElementById('unsaved-dot');
+    if (dot) dot.style.display = 'block';
+    renderMobFrames();
+    renderFrameRatioPicker();
+}
+function showRatioClipWarning(idx) {
+    const modal = document.getElementById('ratio-clip-modal');
+    if (!modal) return;
+    document.getElementById('ratio-clip-msg').innerText =
+        `Changing to this ratio will push one or more layers on frame ${idx + 1} outside the frame edges.`;
+    modal.style.display = 'flex';
+}
+function closeRatioClipModal() {
+    const modal = document.getElementById('ratio-clip-modal');
+    if (modal) modal.style.display = 'none';
+    pendingRatioChange = null;
+}
+function applyPendingRatioAnyway() {
+    if (!pendingRatioChange) return;
+    const { idx, w, h } = pendingRatioChange;
+    commitFrameRatioChange(idx, w, h);
+    flashClippingLayers(idx);
+    closeRatioClipModal();
+    const panel = document.getElementById('frame-ratio-panel');
+    if (panel) panel.style.display = 'none';
+}
+// Jumps to the affected frame WITHOUT applying the ratio change yet, so the
+// person can reposition layers first if they'd rather avoid the spill.
+function viewPendingRatioFrame() {
+    if (!pendingRatioChange) return;
+    const { idx } = pendingRatioChange;
+    activateFrame(idx);
+    renderMobFrames();
+    updateFrameCounter();
+    closeRatioClipModal();
+    closeSheet('frames');
+}
+// Briefly outlines the layers that fall outside the frame after a forced
+// ratio change, so it's obvious at a glance which ones need repositioning.
+function flashClippingLayers(idx) {
+    const frame = frames[idx];
+    if (!frame) return;
+    const r = getFrameRatio(frame);
+    const { cw, ch } = computeCanvasSize(r.w, r.h);
+    (frame.layers || []).forEach(l => {
+        const lw = l.w || 0;
+        const lh = (l.h != null ? l.h : lw);
+        l._clipWarn = (l.x < 0 || l.y < 0 || (l.x + lw) > cw || (l.y + lh) > ch);
+    });
+    if (idx === currentIdx) render();
+    setTimeout(() => {
+        (frame.layers || []).forEach(l => { delete l._clipWarn; });
+        if (idx === currentIdx) render();
+    }, 3500);
 }
 
 // ── SHEET SYSTEM ──
@@ -2439,6 +2602,17 @@ function _renderNow() {
         canvas.appendChild(el);
     });
 
+    // Clip-warning outlines — shown briefly after a forced per-frame ratio
+    // change so it's obvious which layers spilled outside the new boundary.
+    f.layers.forEach(layer => {
+        if (!layer._clipWarn) return;
+        const lw = layer.w || 0;
+        const lh = (layer.h != null ? layer.h : lw);
+        const warn = document.createElement('div');
+        warn.style.cssText = `position:absolute;left:${layer.x||0}px;top:${layer.y||0}px;width:${lw}px;height:${lh}px;border:2px dashed #ff3b3b;border-radius:4px;pointer-events:none;z-index:9999;box-shadow:0 0 0 2px rgba(255,59,59,0.25);`;
+        canvas.appendChild(warn);
+    });
+
     // update mobile UI
     updateFrameCounter();
     document.getElementById('mob-frame-label') && (document.getElementById('mob-frame-label').innerText = (currentIdx + 1) + ' / ' + frames.length);
@@ -2612,8 +2786,8 @@ function saveState() {
     if (history.length > 60) history.shift();
     redoStack = [];
 }
-function undo() { if (!history.length) return; redoStack.push(JSON.stringify(frames)); frames = JSON.parse(history.pop()); if (currentIdx >= frames.length) currentIdx = frames.length - 1; activeLayer = null; render(); renderMobFrames(); updateFrameCounter(); }
-function redo() { if (!redoStack.length) return; history.push(JSON.stringify(frames)); frames = JSON.parse(redoStack.pop()); activeLayer = null; render(); renderMobFrames(); updateFrameCounter(); }
+function undo() { if (!history.length) return; redoStack.push(JSON.stringify(frames)); frames = JSON.parse(history.pop()); const newIdx = currentIdx >= frames.length ? frames.length - 1 : currentIdx; activateFrame(newIdx); renderMobFrames(); updateFrameCounter(); }
+function redo() { if (!redoStack.length) return; history.push(JSON.stringify(frames)); frames = JSON.parse(redoStack.pop()); activateFrame(currentIdx); renderMobFrames(); updateFrameCounter(); }
 
 // ── DUPLICATE ──
 function topBarDuplicate() {
@@ -2634,13 +2808,13 @@ function topBarDuplicate() {
 }
 
 // ── FRAMES ──
-function addFrame() { saveState(); frames.splice(currentIdx + 1, 0, { layers: [], background: '#ffffff' }); currentIdx++; activeLayer = null; render(); renderMobFrames(); updateFrameCounter(); }
-function duplicateFrame() { saveState(); const copy = JSON.parse(JSON.stringify(frames[currentIdx])); copy.layers = copy.layers.map(l => ({ ...l, id: Date.now() + Math.random() })); frames.splice(currentIdx + 1, 0, copy); currentIdx++; render(); renderMobFrames(); updateFrameCounter(); }
-function deleteFrameIfSafe() { if (frames.length === 1) { alert('Cannot delete the only frame.'); return; } saveState(); frames.splice(currentIdx, 1); if (currentIdx >= frames.length) currentIdx = frames.length - 1; activeLayer = null; render(); renderMobFrames(); updateFrameCounter(); }
-function prevFrame() { if (currentIdx > 0) { currentIdx--; activeLayer = null; render(); updateFrameCounter(); } }
+function addFrame() { saveState(); const newFrame = { layers: [], background: '#ffffff', ratio: { ...getFrameRatio(frames[currentIdx]) } }; frames.splice(currentIdx + 1, 0, newFrame); activateFrame(currentIdx + 1); renderMobFrames(); updateFrameCounter(); }
+function duplicateFrame() { saveState(); const copy = JSON.parse(JSON.stringify(frames[currentIdx])); copy.layers = copy.layers.map(l => ({ ...l, id: Date.now() + Math.random() })); frames.splice(currentIdx + 1, 0, copy); activateFrame(currentIdx + 1); renderMobFrames(); updateFrameCounter(); }
+function deleteFrameIfSafe() { if (frames.length === 1) { alert('Cannot delete the only frame.'); return; } saveState(); frames.splice(currentIdx, 1); const newIdx = currentIdx >= frames.length ? frames.length - 1 : currentIdx; activateFrame(newIdx); renderMobFrames(); updateFrameCounter(); }
+function prevFrame() { if (currentIdx > 0) { activateFrame(currentIdx - 1); updateFrameCounter(); } }
 function nextFrame() {
     if (currentIdx < frames.length - 1) {
-        currentIdx++; activeLayer = null; render(); updateFrameCounter();
+        activateFrame(currentIdx + 1); updateFrameCounter();
     } else {
         // At the last frame — check pref before auto-adding
         const pref = localStorage.getItem('cc-new-frame-pref');
@@ -2652,9 +2826,7 @@ function nextFrame() {
 function jumpToFrame(frameNum) {
     const num = parseInt(frameNum);
     if (num >= 1 && num <= frames.length) {
-        currentIdx = num - 1;
-        activeLayer = null;
-        render();
+        activateFrame(num - 1);
         updateFrameCounter();
     } else {
         updateFrameCounter(); // Reset to valid value
@@ -2703,9 +2875,9 @@ function closeFramePillMenu() {
     const menu = document.getElementById('frame-pill-menu');
     if (menu) menu.style.display = 'none';
 }
-function goToFrame(i) { if (i >= 0 && i < frames.length) { currentIdx = i; activeLayer = null; render(); updateActiveFrameThumb(); updateFrameCounter(); closeSheet('frames'); } }
+function goToFrame(i) { if (i >= 0 && i < frames.length) { activateFrame(i); updateActiveFrameThumb(); updateFrameCounter(); closeSheet('frames'); } }
 function copyCurrentFrame() { frameClipboard = JSON.parse(JSON.stringify(frames[currentIdx])); }
-function pasteCurrentFrame() { if (!frameClipboard) return; saveState(); const copy = JSON.parse(JSON.stringify(frameClipboard)); copy.layers = copy.layers.map(l => ({...l, id: Date.now() + Math.random()})); frames.splice(currentIdx + 1, 0, copy); currentIdx++; render(); renderMobFrames(); updateFrameCounter(); }
+function pasteCurrentFrame() { if (!frameClipboard) return; saveState(); const copy = JSON.parse(JSON.stringify(frameClipboard)); copy.layers = copy.layers.map(l => ({...l, id: Date.now() + Math.random()})); frames.splice(currentIdx + 1, 0, copy); activateFrame(currentIdx + 1); renderMobFrames(); updateFrameCounter(); }
 
 let _frameStripVisible = true;
 function toggleFrameStrip() {
@@ -2748,13 +2920,24 @@ function renderMobFrames() {
             ab.innerText = '🔊';
             thumb.appendChild(ab);
         }
+        // Ratio badge — only shown when this frame's ratio differs from frame 1's,
+        // so it's obvious at a glance which frames have a custom shape.
+        const fr = getFrameRatio(f);
+        const baseR = getFrameRatio(frames[0]);
+        if (fr.w !== baseR.w || fr.h !== baseR.h) {
+            const rb = document.createElement('span');
+            rb.style.cssText = 'position:absolute;bottom:2px;left:2px;right:2px;font-size:8px;font-weight:800;color:#000;background:var(--accent);border-radius:4px;padding:1px 0;text-align:center;line-height:1.4;';
+            rb.innerText = fr.w + ':' + fr.h;
+            thumb.appendChild(rb);
+        }
         const del = document.createElement('button');
         del.className = 'mob-frame-del'; del.innerText = '✕';
-        del.onclick = (e) => { e.stopPropagation(); if (frames.length === 1) { alert('Cannot delete only frame.'); return; } saveState(); frames.splice(i, 1); if (currentIdx >= frames.length) currentIdx = frames.length - 1; activeLayer = null; render(); renderMobFrames(); updateFrameCounter(); };
+        del.onclick = (e) => { e.stopPropagation(); if (frames.length === 1) { alert('Cannot delete only frame.'); return; } saveState(); frames.splice(i, 1); const newIdx = currentIdx >= frames.length ? frames.length - 1 : currentIdx; activateFrame(newIdx); renderMobFrames(); updateFrameCounter(); };
         thumb.appendChild(del);
         scroll.appendChild(thumb);
     });
     if (document.getElementById('mob-frame-label')) document.getElementById('mob-frame-label').innerText = (currentIdx + 1) + ' / ' + frames.length;
+    if (typeof renderFrameRatioPicker === 'function') renderFrameRatioPicker();
 }
 
 // ── FRAME AUDIO (3-15s clip per frame, optionally spanning several frames) ──
@@ -5367,10 +5550,19 @@ const _SNAPSHOT_CHUNK = 300; // frame_snapshots upsert batch size — keeps each
 // actually carried _editorW/_editorH. The reader then fell back to a 900px guess that
 // doesn't match the real mobile canvas, throwing every layer's position/scale off.
 // This returns a fresh array instead, so the live `frames` is never touched.
+// BUGFIX 2: this used to stamp EVERY frame with the CURRENT live canvas size —
+// fine back when the whole comic shared one ratio, but wrong now that each frame
+// can have its own ratio. A frame edited at 16:9 needs its own 16:9-shaped
+// editorW/H, not whatever ratio happens to be on-screen at save time. Each
+// frame is recomputed from its own stored ratio via the same viewport-fit
+// formula setRatio() uses, so the aspect (and therefore the layer scaling) is
+// always correct regardless of which frame was active when the user hit save.
 function getStampedFrames() {
-    const ew = canvas.offsetWidth  || 300;
-    const eh = canvas.offsetHeight || 300;
-    return frames.map(f => ({ ...f, _editorW: ew, _editorH: eh }));
+    return frames.map(f => {
+        const r = getFrameRatio(f);
+        const { cw, ch } = computeCanvasSize(r.w, r.h);
+        return { ...f, ratio: { w: r.w, h: r.h }, _editorW: cw || 300, _editorH: ch || 300 };
+    });
 }
 
 // ── Publish-time safety net: guarantee no base64 image layer ever reaches Supabase ──
@@ -5455,7 +5647,9 @@ async function resolveFramesFromRow(row) {
 }
 
 async function saveOffline(silent = false) {
-    const ratio  = canvasRatio || { w:1, h:1 };
+    // Top-level ratio is frame 1's — same reasoning as the publish payload, this
+    // is only the back-compat/cover ratio, not a per-frame source of truth.
+    const ratio  = getFrameRatio(frames[0]) || { w:1, h:1 };
     const now    = new Date().toISOString();
     const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
 
@@ -5787,7 +5981,11 @@ async function finalPublish() {
             btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
         }
 
-        const payload = { data: dataField, storage_path: storagePathField, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
+        // canvas_ratio here is the top-level cover/back-compat ratio (used by discover
+        // thumbnails and as the reader's last-resort fallback) — it should always be
+        // frame 1's ratio, not whatever frame the editor happens to be sitting on when
+        // Publish is tapped (which could be any frame, at any of its own ratios now).
+        const payload = { data: dataField, storage_path: storagePathField, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: getFrameRatio(frames[0]) };
         let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
@@ -5853,10 +6051,8 @@ async function finalPublish() {
 // reader.html uses these instead of rebuilding DOM layers — instant frame flips.
 async function _generateFrameSnapshots(comicId, onProgress) {
     const SNAP_SIZE = 1200;
-    const ar = (canvasRatio && canvasRatio.w && canvasRatio.h)
-        ? canvasRatio.w / canvasRatio.h : 1;
-    const snapW = ar >= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE * ar);
-    const snapH = ar <= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE / ar);
+    // Snapshot dimensions are computed per-frame below (each frame can have its
+    // own ratio now) rather than once here for the whole comic.
     let upsertRows = [];
     let completed = 0;
 
@@ -5885,6 +6081,10 @@ async function _generateFrameSnapshots(comicId, onProgress) {
     const CONCURRENT_LIMIT = 6;
     async function processFrame(i) {
         try {
+            const r = getFrameRatio(frames[i]);
+            const ar = (r && r.w && r.h) ? r.w / r.h : 1;
+            const snapW = ar >= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE * ar);
+            const snapH = ar <= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE / ar);
             const offscreen = await renderFrameToCanvas(frames[i], snapW, snapH);
             const blob = await new Promise(res => offscreen.toBlob(res, 'image/jpeg', 0.88));
             if (!blob) { console.warn('Frame snapshot ' + i + ': toBlob() returned null'); return; }
@@ -5937,17 +6137,24 @@ async function renderFrameToCanvas(frame, cw, ch) {
     const isImg  = bg.startsWith('http') || bg.startsWith('data:image');
     const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
 
-    // BUGFIX: layer.x/y/w/h are stored relative to the live #comic-frame element's
-    // actual on-screen size — which on mobile is whatever the device viewport
-    // happened to be (see setRatio: it sizes off vp.clientWidth/Height, not a
-    // fixed reference like desktop's BASE_SIZE=900). The 3 export call sites
-    // (GIF/strip/frame-export) pass canvas.offsetWidth/Height as cw/ch, so they
-    // accidentally get scale=1 and look fine. Snapshot generation passes a fixed
-    // ~1200px target instead, so without this factor every sprite was drawn at
-    // its raw mobile-viewport pixel position/size onto a much bigger canvas —
-    // landing tiny and near the top-left corner, easy to mistake for "missing."
-    const scaleX = cw / (canvas.offsetWidth  || cw);
-    const scaleY = ch / (canvas.offsetHeight || ch);
+    // BUGFIX: layer.x/y/w/h are stored relative to THIS FRAME's own on-screen
+    // canvas size at the time it was edited — which on mobile is a viewport-fit
+    // size that depends on that frame's own ratio (see setRatio/computeCanvasSize),
+    // not a fixed reference like desktop's BASE_SIZE=900.
+    // BUGFIX 2: this used to divide by the LIVE #comic-frame element's current
+    // size (canvas.offsetWidth/Height) — correct only for whichever frame happens
+    // to be open in the editor right now. Snapshot generation calls this for every
+    // frame in the comic in a loop while the live canvas stays fixed on whichever
+    // frame was open when Publish was tapped, so any OTHER frame with a different
+    // ratio got the wrong scale factor and its sprites landed in the wrong place/
+    // size. Recomputing each frame's own source size from ITS OWN stored ratio
+    // fixes both the single-frame export calls (frame === the open frame, so this
+    // matches canvas.offsetWidth exactly, same as before) and the cross-frame
+    // batch snapshot case.
+    const _r = getFrameRatio(frame);
+    const _src = computeCanvasSize(_r.w, _r.h);
+    const scaleX = cw / (_src.cw || cw);
+    const scaleY = ch / (_src.ch || ch);
 
     // ── Background ──
     await new Promise(res => {
@@ -6293,7 +6500,7 @@ window.onload = async function() {
             const resolved = await resolveFramesFromRow(data);
             if (!resolved || !resolved.length) { alert('Could not load comic frames.'); return; }
             frames = resolved;
-            const r = data.canvas_ratio || {w:1,h:1}; setRatio(r.w,r.h);
+            const r = data.canvas_ratio || {w:1,h:1}; setRatio(r.w,r.h); activateFrame(0);
             document.getElementById('pub-title').value = data.title || '';
             document.getElementById('pub-tags').value = (data.tags||[]).join(', ');
             document.getElementById('pub-desc').value = data.description || '';
@@ -6318,7 +6525,7 @@ window.onload = async function() {
                 // directly on it throws "catch is not a function" instead of falling back.
                 const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio').eq('id', resumeId).single()).catch(() => ({ data: null }));
                 const r = row?.canvas_ratio || { w:1, h:1 };
-                setRatio(r.w, r.h); currentIdx = 0; render(); renderMobFrames(); updateFrameCounter();
+                setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
                 applyPendingBg(pendingBg, pendingBgId); return;
             } catch(e) { console.error('Bucket draft load failed:', e); }
         } else {
@@ -6336,7 +6543,7 @@ window.onload = async function() {
                 if (draftFrames) {
                     frames = draftFrames;
                     const r = sbDraft.canvas_ratio || { w:1, h:1 };
-                    setRatio(r.w, r.h); currentIdx = 0; render(); renderMobFrames(); updateFrameCounter();
+                    setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
                     applyPendingBg(pendingBg, pendingBgId); return;
                 }
             }
@@ -6368,7 +6575,7 @@ window.onload = async function() {
     if (storedNew) { const r=JSON.parse(storedNew); localStorage.removeItem('cc-new-comic-ratio'); setRatio(r.w,r.h); }
     else if (storedActive) { const r=JSON.parse(storedActive); setRatio(r.w,r.h); }
     else { setRatio(1,1); }
-    render();
+    activateFrame(currentIdx);
     renderMobFrames();
     updateFrameCounter();
     applyPendingBg(pendingBg,pendingBgId);
@@ -6747,8 +6954,8 @@ function vpZoomReset() {
         const dx = e.changedTouches[0].clientX - swipeStartX;
         const dy = e.changedTouches[0].clientY - swipeStartY;
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
-            if (dx < 0 && currentIdx < frames.length - 1) { currentIdx++; render(); updateActiveFrameThumb(); }
-            else if (dx > 0 && currentIdx > 0) { currentIdx--; render(); updateActiveFrameThumb(); }
+            if (dx < 0 && currentIdx < frames.length - 1) { activateFrame(currentIdx + 1); updateActiveFrameThumb(); }
+            else if (dx > 0 && currentIdx > 0) { activateFrame(currentIdx - 1); updateActiveFrameThumb(); }
         }
         swipeStartX = null;
     }, { passive: true });

@@ -758,19 +758,6 @@ function initToonScrollStrip() {
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const r = getCanvasRatio();
-    const ar = r.w / r.h;
-
-    let frameW, frameH;
-    if (toonScrollDir === 'horizontal') {
-        // Each frame = full viewport width for clean snap scrolling
-        frameW = vw;
-        frameH = Math.min(frameW / ar, vh);
-    } else {
-        // Vertical: full viewport width, natural height (webtoon style)
-        frameW = Math.min(vw, 600);
-        frameH = frameW / ar;
-    }
 
     // Use database frame order and settings if available
     const orderedFrames = toonScrollFrames.length > 0
@@ -783,6 +770,22 @@ function initToonScrollStrip() {
 
     orderedFrames.forEach(({ frame, settings, originalIdx }) => {
         if (!frame) return;
+
+        // Each frame sizes off its OWN ratio now — a frame can be a different
+        // shape from its neighbors in the same scrolling strip.
+        const r = getFrameRatio(frame);
+        const ar = r.w / r.h;
+        let frameW, frameH;
+        if (toonScrollDir === 'horizontal') {
+            // Each frame = full viewport width for clean snap scrolling
+            frameW = vw;
+            frameH = Math.min(frameW / ar, vh);
+        } else {
+            // Vertical: full viewport width, natural height (webtoon style)
+            frameW = Math.min(vw, 600);
+            frameH = frameW / ar;
+        }
+
         const frameEl = document.createElement('div');
         frameEl.className = 'toon-frame';
         frameEl.dataset.idx = originalIdx;
@@ -1101,7 +1104,6 @@ async function boot() {
 
   let data = comicRes.data;
   let _offlineSnaps = null;
-  let _offlineFrames = null;
 
   // OFFLINE FALLBACK — Supabase gave us nothing back (no connection,
   // most likely). Try the local on-device cache before giving up.
@@ -1110,38 +1112,20 @@ async function boot() {
     if (cached) {
       data = cached;
       _offlineSnaps = cached._cachedSnapshots || [];
-      _offlineFrames = cached._resolvedFrames || null;
     }
   }
 
   if (!data) { alert('Not found.'); return location.href = 'discover.html'; }
 
-  // ── Resolve frame data — either inline (`data.data`) or, for large comics,
-  // spilled to Storage as a plain JSON file (`data.storage_path`) so publishing
-  // never had to cram every frame into one oversized INSERT/UPDATE statement
-  // (that's what was tripping Supabase's statement_timeout). See finalPublish()
-  // in create-mobile.html for the write side of this.
-  let resolvedFrames = data.data || data.frames || null;
-  if (!resolvedFrames && data.storage_path) {
-    try {
-      const { data: blob, error: dlErr } = await _sb.storage.from('comiccore-assets').download(data.storage_path);
-      if (dlErr) throw dlErr;
-      resolvedFrames = JSON.parse(await blob.text());
-    } catch (e) {
-      console.warn('Failed to load out-of-line frame data from Storage:', e);
-    }
-  }
-  if (!resolvedFrames && _offlineFrames) resolvedFrames = _offlineFrames;
-
   // Got a live result — cache it locally so this comic is readable
   // offline next time. Fire-and-forget, never blocks rendering.
   if (comicRes.data && window.CCOffline) {
-    CCOffline.cacheComic({ ...comicRes.data, _cachedSnapshots: (snapRes && snapRes.data) || [], _resolvedFrames: resolvedFrames });
+    CCOffline.cacheComic({ ...comicRes.data, _cachedSnapshots: (snapRes && snapRes.data) || [] });
   }
 
   // ── It's a COMIC ─ original flow ────────────────────────
   comic = data;
-  frames = resolvedFrames || [];
+  frames = data.data || data.frames || [];
 
   // Build snapshot lookup — keyed by frame index for O(1) access in renderFrame
   snapshotMap = {};
@@ -1208,6 +1192,7 @@ async function boot() {
 
   buildDots();
   preloadAllFrameImages(frames);
+  startBackgroundPreload();
 
   // Auto-enable ToonScroll if visibility='only' OR all frames are toonscroll_only
   if (toonScrollConfig && (toonScrollConfig.visibility === 'only' || toonScrollConfig._autoEnable)) {
@@ -1470,36 +1455,48 @@ function buildShareUrl() {
 // Mirrors create.html's render() logic exactly so what you
 // see in the editor is what readers see.
 // ═══════════════════════════════════════════════════════════
-function getCanvasRatio() {
-  // 1. Top-level DB column (set by publishes after the fix)
+// Ratio for a SPECIFIC frame — checked in this order:
+//   1. That frame's own stamped ratio (per-frame ratio changes)
+//   2. The comic-level DB column (the whole-comic default)
+//   3. Any other frame in the comic that happens to carry a ratio
+//      (older comics re-saved as a draft before per-frame ratio existed)
+//   4. URL param / localStorage hints, then a 1:1 fallback
+// BUGFIX: this used to check the comic-level column FIRST, unconditionally,
+// for every frame — which meant a comic-level ratio always won even when an
+// individual frame had its own different ratio stamped on it, so per-frame
+// ratio changes made in the editor never actually showed up here. Checking
+// the frame's own ratio first is what makes mid-comic ratio changes render.
+function getFrameRatio(frame) {
+  if (frame?._ratio?.w && frame?._ratio?.h) return frame._ratio;
+  if (frame?.ratio?.w  && frame?.ratio?.h)  return frame.ratio;
+  if (frame?.canvas_ratio?.w && frame?.canvas_ratio?.h) return frame.canvas_ratio;
   if (comic?.canvas_ratio?.w && comic?.canvas_ratio?.h) return comic.canvas_ratio;
-  // 2. Per-frame _ratio stamped by editor (most reliable for older comics re-saved as draft)
   for (const f of frames) {
     if (f?._ratio?.w && f?._ratio?.h) return f._ratio;
     if (f?.ratio?.w  && f?.ratio?.h)  return f.ratio;
     if (f?.canvas_ratio?.w && f?.canvas_ratio?.h) return f.canvas_ratio;
   }
-  // 3. URL param ?ratio=4:3 (passed by discover.html as a hint for comics with known ratio)
   const urlRatio = new URLSearchParams(location.search).get('ratio');
   if (urlRatio) {
     const parts = urlRatio.split(':').map(Number);
     if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) return { w: parts[0], h: parts[1] };
   }
-  // 4. localStorage cc-active-ratio (valid if reader opened immediately after editing)
   try {
     const stored = JSON.parse(localStorage.getItem('cc-active-ratio') || 'null');
     if (stored?.w && stored?.h) return stored;
   } catch(e) {}
-  // 5. Default: 1:1
   return { w: 1, h: 1 };
 }
+// Back-compat wrapper for call sites that aren't about a specific frame
+// (e.g. a comic-wide default before any frame is known).
+function getCanvasRatio() { return getFrameRatio(null); }
 
-function sizeFrame(el) {
+function sizeFrame(el, frame) {
   const cf = el || getActiveCf();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  const r = getCanvasRatio();
+  const r = getFrameRatio(frame !== undefined ? frame : frames[idx]);
   const ar = r.w / r.h;
   let cw, ch;
   if (vw / vh > ar) { ch = vh * 0.98; cw = ch * ar; }
@@ -1526,8 +1523,8 @@ function getEditorDimensions(frame) {
   if (frame && frame._editorW && frame._editorH) {
     return { ew: frame._editorW, eh: frame._editorH };
   }
-  // Fallback: desktop path — reconstruct from ratio × EDITOR_BASE=900
-  const r = getCanvasRatio();
+  // Fallback: desktop path — reconstruct from THIS frame's own ratio × EDITOR_BASE=900
+  const r = getFrameRatio(frame);
   const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
   const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
   return { ew, eh };
@@ -1562,6 +1559,48 @@ function preloadAllFrameImages(frames) {
       }
     });
   });
+}
+
+// ── BACKGROUND SNAPSHOT PRE-LOADING ────────────────────────────────────────
+// preloadAllFrameImages() above fires every sprite/background image at once —
+// fine for the DOM-fallback render path, but the main rendering path is the
+// pre-rendered per-frame PNG snapshots in snapshotMap, and firing every
+// snapshot at once for a long comic would flood the connection and slow down
+// the very frame the person is looking at right now.
+// This instead walks outward from the current frame — ahead first, since
+// that's the direction people actually read in — one image at a time, with a
+// small gap between each, quietly warming the browser's cache well before
+// the person swipes there. renderFrame()'s own preload still exists as a
+// safety net for a cache miss, but with this running, it should rarely
+// actually have to wait on the network.
+const _preloadedSnaps = new Set();
+let _bgPreloadRunning = false;
+function _bgPreloadStep() {
+  const origIdx = i => (frames[i] && frames[i]._readerOrigIdx != null) ? frames[i]._readerOrigIdx : i;
+
+  let next = -1;
+  for (let i = idx; i < frames.length; i++) {
+    const url = snapshotMap[origIdx(i)];
+    if (url && !_preloadedSnaps.has(url)) { next = i; break; }
+  }
+  if (next === -1) {
+    for (let i = idx - 1; i >= 0; i--) {
+      const url = snapshotMap[origIdx(i)];
+      if (url && !_preloadedSnaps.has(url)) { next = i; break; }
+    }
+  }
+  if (next === -1) { _bgPreloadRunning = false; return; } // everything we know about is warmed
+
+  const url = snapshotMap[origIdx(next)];
+  _preloadedSnaps.add(url); // mark up front so a slow load can't get requeued
+  const img = new Image();
+  img.onload = img.onerror = () => setTimeout(_bgPreloadStep, 120);
+  img.src = url;
+}
+function startBackgroundPreload() {
+  if (_bgPreloadRunning) return;
+  _bgPreloadRunning = true;
+  _bgPreloadStep();
 }
 
 function getActiveCf() { return document.getElementById('comic-frame'); }
@@ -1635,41 +1674,66 @@ function renderFrame() {
   syncFrameAudio(f);
 
   const el = getActiveCf();
-  const { cw, ch } = sizeFrame(el);
 
   // ── SNAPSHOT PATH ────────────────────────────────────────────────────────
   const snapIdx = f._readerOrigIdx ?? idx;
   const snapUrl = snapshotMap[snapIdx];
 
   if (snapUrl) {
-    let snapImg = el.querySelector('.r-snapshot');
-    if (!snapImg || snapImg.dataset.snapUrl !== snapUrl) {
+    const currentImg = el.querySelector('.r-snapshot');
+    if (currentImg && currentImg.dataset.snapUrl === snapUrl) {
+      // Already showing this exact frame — just keep sizing in sync (e.g. on
+      // a viewport/orientation change) without touching the visible image.
+      sizeFrame(el, f);
+      return;
+    }
+    // BUGFIX: this used to wipe el.innerHTML and append a src-less <img>
+    // immediately, then set .src — so the previous frame's content vanished
+    // and the reader showed a blank white rectangle for as long as the new
+    // image took to load (very visible on a slow connection or an uncached
+    // frame). Preloading off-DOM first means the OLD frame stays fully
+    // visible right up until the NEW one is actually ready to show, and the
+    // resize + swap happen together in the same instant instead of a resize
+    // (revealing blank space) followed later by the image itself.
+    // If there's nothing on screen yet (e.g. this is the very first frame the
+    // reader shows), fall through to a straight blank→content swap below —
+    // startBackgroundPreload() (kicked off once snapshots are known) is what
+    // keeps this from happening on every OTHER frame by warming frames ahead
+    // of time, so this path is only ever hit once per reading session.
+    const preload = new Image();
+    preload.onload = () => {
+      // Bail if the user has since swiped past this frame again
+      if ((frames[idx]._readerOrigIdx ?? idx) !== snapIdx) return;
+      const { cw, ch } = sizeFrame(el, f);
       el.innerHTML = '';
-      snapImg = document.createElement('img');
+      const snapImg = document.createElement('img');
       snapImg.className = 'r-snapshot';
       snapImg.dataset.snapUrl = snapUrl;
-      snapImg.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center center;pointer-events:none;display:block;background:#fff;';
-      snapImg.onerror = () => {
-        // Snapshot broken/expired — fall back to DOM render
-        delete snapshotMap[snapIdx];
-        el.innerHTML = '';
-        _renderFrameDOM(f, el, cw, ch);
-      };
-      el.appendChild(snapImg);
       snapImg.src = snapUrl;
-      // Preload neighbours
-      [snapIdx - 1, snapIdx + 1, snapIdx + 2].forEach(pi => {
-        if (snapshotMap[pi] && !document.querySelector(`link[href="${snapshotMap[pi]}"]`)) {
-          const link = document.createElement('link');
-          link.rel = 'prefetch'; link.as = 'image'; link.href = snapshotMap[pi];
-          document.head.appendChild(link);
-        }
-      });
-    }
+      snapImg.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center center;pointer-events:none;display:block;background:#fff;';
+      el.appendChild(snapImg);
+    };
+    preload.onerror = () => {
+      // Snapshot broken/expired — fall back to DOM render
+      delete snapshotMap[snapIdx];
+      const { cw, ch } = sizeFrame(el, f);
+      el.innerHTML = '';
+      _renderFrameDOM(f, el, cw, ch);
+    };
+    preload.src = snapUrl;
+    // Preload neighbours
+    [snapIdx - 1, snapIdx + 1, snapIdx + 2].forEach(pi => {
+      if (snapshotMap[pi] && !document.querySelector(`link[href="${snapshotMap[pi]}"]`)) {
+        const link = document.createElement('link');
+        link.rel = 'prefetch'; link.as = 'image'; link.href = snapshotMap[pi];
+        document.head.appendChild(link);
+      }
+    });
     return;
   }
 
   // ── DOM FALLBACK ─────────────────────────────────────────────────────────
+  const { cw, ch } = sizeFrame(el, f);
   _renderFrameDOM(f, el, cw, ch);
 }
 
