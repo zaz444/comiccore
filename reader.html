@@ -1101,6 +1101,7 @@ async function boot() {
 
   let data = comicRes.data;
   let _offlineSnaps = null;
+  let _offlineFrames = null;
 
   // OFFLINE FALLBACK — Supabase gave us nothing back (no connection,
   // most likely). Try the local on-device cache before giving up.
@@ -1109,20 +1110,38 @@ async function boot() {
     if (cached) {
       data = cached;
       _offlineSnaps = cached._cachedSnapshots || [];
+      _offlineFrames = cached._resolvedFrames || null;
     }
   }
 
   if (!data) { alert('Not found.'); return location.href = 'discover.html'; }
 
+  // ── Resolve frame data — either inline (`data.data`) or, for large comics,
+  // spilled to Storage as a plain JSON file (`data.storage_path`) so publishing
+  // never had to cram every frame into one oversized INSERT/UPDATE statement
+  // (that's what was tripping Supabase's statement_timeout). See finalPublish()
+  // in create-mobile.html for the write side of this.
+  let resolvedFrames = data.data || data.frames || null;
+  if (!resolvedFrames && data.storage_path) {
+    try {
+      const { data: blob, error: dlErr } = await _sb.storage.from('comiccore-assets').download(data.storage_path);
+      if (dlErr) throw dlErr;
+      resolvedFrames = JSON.parse(await blob.text());
+    } catch (e) {
+      console.warn('Failed to load out-of-line frame data from Storage:', e);
+    }
+  }
+  if (!resolvedFrames && _offlineFrames) resolvedFrames = _offlineFrames;
+
   // Got a live result — cache it locally so this comic is readable
   // offline next time. Fire-and-forget, never blocks rendering.
   if (comicRes.data && window.CCOffline) {
-    CCOffline.cacheComic({ ...comicRes.data, _cachedSnapshots: (snapRes && snapRes.data) || [] });
+    CCOffline.cacheComic({ ...comicRes.data, _cachedSnapshots: (snapRes && snapRes.data) || [], _resolvedFrames: resolvedFrames });
   }
 
   // ── It's a COMIC ─ original flow ────────────────────────
   comic = data;
-  frames = data.data || data.frames || [];
+  frames = resolvedFrames || [];
 
   // Build snapshot lookup — keyed by frame index for O(1) access in renderFrame
   snapshotMap = {};

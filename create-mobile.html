@@ -1813,6 +1813,11 @@ let activeDraftId = null;
 let draftRowExists = false; // true once a 'drafts' row is known to exist for activeDraftId
 let myHandle = null; // BUGFIX: was referenced in saveOffline() but never declared at this scope
 let editingComicId = null;
+// Tracks the out-of-line frame-data blob path (comics.storage_path) for the
+// comic currently loaded into the editor, if any — lets a republish clean up
+// the old blob once it's superseded (edited down under the inline limit, or
+// replaced by a fresh blob at a new path). See finalPublish().
+let loadedComicStoragePath = null;
 let finalCoverBase64 = null;
 let frameClipboard = null;
 let canvasRatio = { w: 1, h: 1 };
@@ -5237,7 +5242,9 @@ function confirmMultiImport() {
 // ── SAVE / DRAFTS (SQL-first, bucket spill for large drafts) ──
 const _DRAFT_BUCKET = 'comiccore-assets';
 const _DRAFT_PREFIX = 'drafts/';
+const _PUBLISH_PREFIX = 'comics/'; // out-of-line frame-data blobs for published comics — see finalPublish()
 const _INLINE_LIMIT = 900_000;
+const _SNAPSHOT_CHUNK = 300; // frame_snapshots upsert batch size — keeps each request's statement small at any comic size
 
 // ── Stamp / strip editor canvas pixel dimensions on every frame ──
 // The reader needs to know the actual pixel size the editor used so it can
@@ -5300,6 +5307,25 @@ async function ensureLayerImagesUploaded(frameList) {
     }
     ensureLayerImagesUploaded._lastFailCount = failCount;
     return out;
+}
+
+// ── Resolve a comics/drafts row's frame array, whether it's stored inline
+// (`data`) or spilled to Storage (`storage_path`) for large comics — see the
+// size check in finalPublish(). Used wherever an existing comic is loaded
+// back into the editor.
+async function resolveFramesFromRow(row) {
+    if (row.data) return row.data;
+    if (row.storage_path) {
+        try {
+            const { data: blob, error } = await _supabase.storage.from(_DRAFT_BUCKET).download(row.storage_path);
+            if (error) throw error;
+            return JSON.parse(await blob.text());
+        } catch (e) {
+            console.error('Failed to load out-of-line frame data from Storage:', e);
+            return null;
+        }
+    }
+    return row.frames || null;
 }
 
 async function saveOffline(silent = false) {
@@ -5610,17 +5636,49 @@ async function finalPublish() {
         if (ensureLayerImagesUploaded._lastFailCount > 0) {
             showToast('⚠ ' + ensureLayerImagesUploaded._lastFailCount + ' sprite(s) failed to upload — re-save once your connection is stable');
         }
-        const payload = { data: finalFrames, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
+
+        // ── Large-comic safety net (same pattern saveOffline() already uses for drafts) ──
+        // A publish used to always inline the whole `data` array into one INSERT/UPDATE —
+        // one Postgres statement carrying every frame's full layer data. Even at 100
+        // frames that JSONB payload is big enough to blow past Supabase's statement_timeout
+        // ("canceling statement due to statement timeout"); at 10,000 frames it has no
+        // chance at all, and a bigger timeout wouldn't fix it since the payload only keeps
+        // growing. Once the serialized frames cross _INLINE_LIMIT, ship them to Storage as
+        // a plain file instead — that's a binary upload, not a SQL statement, so it isn't
+        // bound by statement_timeout — and store only the pointer (storage_path) in the row.
+        const newComicId = editingComicId || crypto.randomUUID();
+        const framesJson = JSON.stringify(finalFrames);
+        let dataField = finalFrames, storagePathField = null;
+        if (framesJson.length > _INLINE_LIMIT) {
+            btn.innerText = 'Uploading frames…';
+            const path = `${_PUBLISH_PREFIX}${newComicId}.json`;
+            const { error: upErr } = await _supabase.storage
+                .from(_DRAFT_BUCKET)
+                .upload(path, new Blob([framesJson], { type: 'application/json' }), { upsert: true });
+            if (upErr) throw upErr;
+            dataField = null;
+            storagePathField = path;
+            btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
+        }
+
+        const payload = { data: dataField, storage_path: storagePathField, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: canvasRatio };
         let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
             publishedId = editingComicId;
         } else {
-            const res = await _supabase.from('comics').insert([{ ...payload, owner_name: pubHandle, owner_handle: pubHandle }]).select('id').single();
+            const res = await _supabase.from('comics').insert([{ id: newComicId, ...payload, owner_name: pubHandle, owner_handle: pubHandle }]).select('id').single();
             error = res.error;
             publishedId = res.data?.id;
         }
         if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return; }
+        // Clean up a stale out-of-line blob left over from a previous save of this same
+        // comic once it's been superseded — e.g. edited back down under the inline limit,
+        // or replaced by the fresh blob written just above at (possibly) a new path.
+        if (loadedComicStoragePath && loadedComicStoragePath !== storagePathField) {
+            await _supabase.storage.from(_DRAFT_BUCKET).remove([loadedComicStoragePath]).catch(() => {});
+        }
+        loadedComicStoragePath = storagePathField;
         // Clean up draft after publish
         if (activeDraftId) {
             const storagePath = localStorage.getItem('active_draft_storage_path');
@@ -5657,7 +5715,21 @@ async function _generateFrameSnapshots(comicId) {
         ? canvasRatio.w / canvasRatio.h : 1;
     const snapW = ar >= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE * ar);
     const snapH = ar <= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE / ar);
-    const upsertRows = [];
+    let upsertRows = [];
+
+    // Flush every _SNAPSHOT_CHUNK rows instead of collecting all 10,000 and upserting
+    // once at the end — a single upsert with thousands of VALUES rows is exactly the
+    // kind of oversized statement that trips Supabase's statement_timeout, same as the
+    // comics.data payload above. Chunking also means a huge comic never has to hold
+    // every row in memory at once.
+    async function flushSnapshotRows() {
+        if (!upsertRows.length) return;
+        const rows = upsertRows;
+        upsertRows = [];
+        // BUGFIX: .upsert() returns a PostgrestBuilder (thenable-only, no .catch method)
+        await Promise.resolve(_supabase.from('frame_snapshots')
+            .upsert(rows, { onConflict: 'comic_id,frame_idx' })).catch((e) => console.warn('Snapshot batch upsert failed:', e));
+    }
 
     for (let i = 0; i < frames.length; i++) {
         try {
@@ -5674,13 +5746,10 @@ async function _generateFrameSnapshots(comicId) {
                 upsertRows.push({ comic_id: comicId, frame_idx: i, url: urlData.publicUrl + '?t=' + Date.now() });
             }
         } catch(e) { console.warn('Frame snapshot ' + i + ' threw — falling back to DOM render for this frame:', e); }
+        if (upsertRows.length >= _SNAPSHOT_CHUNK) await flushSnapshotRows();
     }
 
-    if (upsertRows.length) {
-        // BUGFIX: .upsert() returns a PostgrestBuilder (thenable-only, no .catch method)
-        await Promise.resolve(_supabase.from('frame_snapshots')
-            .upsert(upsertRows, { onConflict: 'comic_id,frame_idx' })).catch(() => {});
-    }
+    await flushSnapshotRows();
 }
 // ── END FRAME SNAPSHOTS ─────────────────────────────────────────────────────
 
@@ -6058,9 +6127,12 @@ window.onload = async function() {
         localStorage.removeItem('edit_comic_id'); editingComicId = editComicId;
         document.getElementById('publish-btn').innerText = 'UPDATE';
         maybeShowCollabBtn();
-        _supabase.from('comics').select('*').eq('id', editComicId).single().then(({data,error}) => {
+        _supabase.from('comics').select('*').eq('id', editComicId).single().then(async ({data,error}) => {
             if (error||!data) { alert('Could not load comic.'); return; }
-            frames = data.data || data.frames || [];
+            loadedComicStoragePath = data.storage_path || null;
+            const resolved = await resolveFramesFromRow(data);
+            if (!resolved || !resolved.length) { alert('Could not load comic frames.'); return; }
+            frames = resolved;
             const r = data.canvas_ratio || {w:1,h:1}; setRatio(r.w,r.h);
             document.getElementById('pub-title').value = data.title || '';
             document.getElementById('pub-tags').value = (data.tags||[]).join(', ');
@@ -6117,8 +6189,9 @@ window.onload = async function() {
         editingComicId = editSourceId;
         document.getElementById('publish-btn').innerText = 'REPUBLISH';
         maybeShowCollabBtn();
-        _supabase.from('comics').select('title,tags,description,cover').eq('id', editSourceId).single().then(({ data }) => {
+        _supabase.from('comics').select('title,tags,description,cover,storage_path').eq('id', editSourceId).single().then(({ data }) => {
             if (!data) return;
+            loadedComicStoragePath = data.storage_path || null;
             document.getElementById('pub-title').value = data.title || '';
             document.getElementById('pub-tags').value = (data.tags||[]).join(', ');
             document.getElementById('pub-desc').value = data.description || '';
