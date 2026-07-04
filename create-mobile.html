@@ -2690,7 +2690,7 @@ function closeFramePillMenu() {
     const menu = document.getElementById('frame-pill-menu');
     if (menu) menu.style.display = 'none';
 }
-function goToFrame(i) { if (i >= 0 && i < frames.length) { currentIdx = i; activeLayer = null; render(); renderMobFrames(); updateFrameCounter(); closeSheet('frames'); } }
+function goToFrame(i) { if (i >= 0 && i < frames.length) { currentIdx = i; activeLayer = null; render(); updateActiveFrameThumb(); updateFrameCounter(); closeSheet('frames'); } }
 function copyCurrentFrame() { frameClipboard = JSON.parse(JSON.stringify(frames[currentIdx])); }
 function pasteCurrentFrame() { if (!frameClipboard) return; saveState(); const copy = JSON.parse(JSON.stringify(frameClipboard)); copy.layers = copy.layers.map(l => ({...l, id: Date.now() + Math.random()})); frames.splice(currentIdx + 1, 0, copy); currentIdx++; render(); renderMobFrames(); updateFrameCounter(); }
 
@@ -2702,6 +2702,20 @@ function toggleFrameStrip() {
     const bot = document.getElementById('bottom-toolbar') || document.getElementById('bot-bar');
     if (wrap) wrap.style.display = _frameStripVisible ? '' : 'none';
     if (arrow) arrow.innerText = _frameStripVisible ? '▼' : '▲';
+}
+
+// Toggle just the active-frame highlight instead of rebuilding every thumbnail —
+// renderMobFrames() wipes and recreates all N DOM nodes on every call, which is
+// fine at a handful of frames but gets visibly janky once a comic has hundreds.
+// Plain navigation (no frame added/removed/reordered) only ever needs to move
+// which thumbnail is highlighted, so it can skip the rebuild entirely.
+function updateActiveFrameThumb() {
+    const scroll = document.getElementById('mob-frame-scroll');
+    if (!scroll || scroll.children.length !== frames.length) return renderMobFrames(); // out of sync — fall back to a full rebuild
+    for (let i = 0; i < scroll.children.length; i++) {
+        scroll.children[i].classList.toggle('active', i === currentIdx);
+    }
+    if (document.getElementById('mob-frame-label')) document.getElementById('mob-frame-label').innerText = (currentIdx + 1) + ' / ' + frames.length;
 }
 
 function renderMobFrames() {
@@ -5300,10 +5314,26 @@ async function ensureLayerImagesUploaded(frameList) {
                 layers[i] = { ...l, ...patch };
             }
         }
-        out.push(layers === srcLayers ? f : { ...f, layers });
+        // Safety net for frame BACKGROUNDS too — bulk multi-import uploads these
+        // to Storage right after import (see uploadImportedBackgrounds()), but if
+        // Publish is hit before those finish, this is the last line of defense
+        // before a raw base64 image — often far bigger than any sprite — reaches
+        // Supabase and reinflates the exact oversized payload this whole safety
+        // net exists to prevent.
+        let bgPatch = null;
+        if (f.background && f.background.startsWith('data:')) {
+            let url = await uploadBgToStorage(f.background);
+            if (!url) url = await uploadBgToStorage(f.background);
+            if (url) bgPatch = url; else failCount++;
+        }
+        if (layers !== srcLayers || bgPatch) {
+            out.push({ ...f, ...(layers !== srcLayers ? { layers } : {}), ...(bgPatch ? { background: bgPatch } : {}) });
+        } else {
+            out.push(f);
+        }
     }
     if (failCount > 0) {
-        console.warn(failCount + ' sprite image(s) failed to upload after retry — they will publish as embedded data and may not render until re-saved with a working connection.');
+        console.warn(failCount + ' image(s) failed to upload after retry — they will publish as embedded data and may not render until re-saved with a working connection.');
     }
     ensureLayerImagesUploaded._lastFailCount = failCount;
     return out;
@@ -5634,7 +5664,7 @@ async function finalPublish() {
         if (hasUnuploadedLayer) btn.innerText = 'Uploading artwork…';
         const finalFrames = await ensureLayerImagesUploaded(stamped);
         if (ensureLayerImagesUploaded._lastFailCount > 0) {
-            showToast('⚠ ' + ensureLayerImagesUploaded._lastFailCount + ' sprite(s) failed to upload — re-save once your connection is stable');
+            showToast('⚠ ' + ensureLayerImagesUploaded._lastFailCount + ' image(s) failed to upload — re-save once your connection is stable');
         }
 
         // ── Large-comic safety net (same pattern saveOffline() already uses for drafts) ──
@@ -5691,15 +5721,31 @@ async function finalPublish() {
         }
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
-        alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
         // BUGFIX: this used to fire _generateFrameSnapshots() without awaiting it, then
         // immediately navigate — location.href unloads the page almost instantly, aborting
         // the in-flight canvas→blob→Storage-upload work before it finishes. Snapshots
         // essentially never completed. Awaiting it here means they actually land.
-        if (publishedId) await _generateFrameSnapshots(publishedId).catch(() => {});
+        //
+        // The success alert used to fire BEFORE this wait, which looked broken at scale —
+        // "✓ Published!" followed by what looks like a frozen app for a couple of minutes
+        // on a few-hundred-frame comic. Now the alert (and navigation) waits until the
+        // work is actually done, and a small corner widget — cover thumbnail + progress
+        // ring + ETA, à la TikTok/YouTube's upload indicator — shows real progress in the
+        // meantime instead of the page just sitting there.
+        if (publishedId) {
+            const showWidget = frames.length > 20;
+            const startTime = Date.now();
+            if (showWidget) { showPublishProgressWidget(finalCoverBase64); btn.innerText = 'Finishing up…'; }
+            await _generateFrameSnapshots(publishedId, (done, total) => {
+                if (showWidget) updatePublishProgressWidget(done, total, startTime);
+            }).catch(() => {});
+            if (showWidget) hidePublishProgressWidget();
+        }
+        alert(editingComicId ? '✓ Comic updated!' : '✓ Published to Discover!');
         location.href = 'discover.html';
     } catch (err) {
         console.error('finalPublish error:', err);
+        hidePublishProgressWidget();
         alert('Publish failed: ' + (err.message || 'Unknown error'));
         btn.disabled = false;
         btn.innerText = editingComicId ? 'UPDATE' : 'POST NOW';
@@ -5709,19 +5755,23 @@ async function finalPublish() {
 // ── FRAME SNAPSHOT GENERATION (mobile) ────────────────────────────────────
 // Renders each frame to canvas → uploads as JPEG → saves URL in frame_snapshots.
 // reader.html uses these instead of rebuilding DOM layers — instant frame flips.
-async function _generateFrameSnapshots(comicId) {
+async function _generateFrameSnapshots(comicId, onProgress) {
     const SNAP_SIZE = 1200;
     const ar = (canvasRatio && canvasRatio.w && canvasRatio.h)
         ? canvasRatio.w / canvasRatio.h : 1;
     const snapW = ar >= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE * ar);
     const snapH = ar <= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE / ar);
     let upsertRows = [];
+    let completed = 0;
 
     // Flush every _SNAPSHOT_CHUNK rows instead of collecting all 10,000 and upserting
     // once at the end — a single upsert with thousands of VALUES rows is exactly the
     // kind of oversized statement that trips Supabase's statement_timeout, same as the
     // comics.data payload above. Chunking also means a huge comic never has to hold
-    // every row in memory at once.
+    // every row in memory at once. Safe to call concurrently: the synchronous
+    // grab-and-clear of upsertRows can't interleave with itself in JS's single-
+    // threaded event loop, so no row is ever double-flushed or dropped even if two
+    // in-flight frames both trip the size check before the first flush's await resolves.
     async function flushSnapshotRows() {
         if (!upsertRows.length) return;
         const rows = upsertRows;
@@ -5731,22 +5781,36 @@ async function _generateFrameSnapshots(comicId) {
             .upsert(rows, { onConflict: 'comic_id,frame_idx' })).catch((e) => console.warn('Snapshot batch upsert failed:', e));
     }
 
-    for (let i = 0; i < frames.length; i++) {
+    // Render+upload frames CONCURRENT_LIMIT at a time instead of one at a time.
+    // Each frame's work is mostly I/O (canvas→blob, then a Storage upload), so a
+    // small batch in flight together cuts wall-clock time substantially — fully
+    // sequential, a several-hundred-frame comic could leave the user staring at
+    // an apparently-frozen app for minutes after the "Published!" alert.
+    const CONCURRENT_LIMIT = 6;
+    async function processFrame(i) {
         try {
             const offscreen = await renderFrameToCanvas(frames[i], snapW, snapH);
             const blob = await new Promise(res => offscreen.toBlob(res, 'image/jpeg', 0.88));
-            if (!blob) { console.warn('Frame snapshot ' + i + ': toBlob() returned null'); continue; }
+            if (!blob) { console.warn('Frame snapshot ' + i + ': toBlob() returned null'); return; }
             const path = `snapshots/${comicId}/${i}.jpg`;
             const { error: upErr } = await _supabase.storage
                 .from('comiccore-assets')
                 .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-            if (upErr) { console.warn('Frame snapshot ' + i + ' upload failed:', upErr); continue; }
+            if (upErr) { console.warn('Frame snapshot ' + i + ' upload failed:', upErr); return; }
             const { data: urlData } = _supabase.storage.from('comiccore-assets').getPublicUrl(path);
             if (urlData?.publicUrl) {
                 upsertRows.push({ comic_id: comicId, frame_idx: i, url: urlData.publicUrl + '?t=' + Date.now() });
             }
         } catch(e) { console.warn('Frame snapshot ' + i + ' threw — falling back to DOM render for this frame:', e); }
+        completed++;
+        if (onProgress) onProgress(completed, frames.length);
         if (upsertRows.length >= _SNAPSHOT_CHUNK) await flushSnapshotRows();
+    }
+
+    for (let start = 0; start < frames.length; start += CONCURRENT_LIMIT) {
+        const batch = [];
+        for (let i = start; i < Math.min(start + CONCURRENT_LIMIT, frames.length); i++) batch.push(processFrame(i));
+        await Promise.all(batch);
     }
 
     await flushSnapshotRows();
@@ -6587,8 +6651,8 @@ function vpZoomReset() {
         const dx = e.changedTouches[0].clientX - swipeStartX;
         const dy = e.changedTouches[0].clientY - swipeStartY;
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
-            if (dx < 0 && currentIdx < frames.length - 1) { currentIdx++; render(); renderMobFrames(); }
-            else if (dx > 0 && currentIdx > 0) { currentIdx--; render(); renderMobFrames(); }
+            if (dx < 0 && currentIdx < frames.length - 1) { currentIdx++; render(); updateActiveFrameThumb(); }
+            else if (dx > 0 && currentIdx > 0) { currentIdx--; render(); updateActiveFrameThumb(); }
         }
         swipeStartX = null;
     }, { passive: true });
@@ -7255,6 +7319,54 @@ function showToast(msg) {
     el.innerText = msg; el.style.opacity = '1';
     clearTimeout(el._t);
     el._t = setTimeout(() => el.style.opacity = '0', 2400);
+}
+
+// ── PUBLISH PROGRESS WIDGET (corner square + ring + ETA, TikTok/YouTube-style) ──
+// Shown while _generateFrameSnapshots() churns through a large comic. Navigation
+// out of the editor is intentionally held until this finishes (see finalPublish),
+// so this exists purely so the wait reads as "working" instead of "frozen" —
+// square cover thumbnail, a radial progress ring around it, and a live ETA.
+const _PPW_RADIUS = 28;
+const _PPW_CIRC = 2 * Math.PI * _PPW_RADIUS;
+function showPublishProgressWidget(coverUrl) {
+    let el = document.getElementById('publish-progress-widget');
+    if (el) el.remove();
+    el = document.createElement('div');
+    el.id = 'publish-progress-widget';
+    el.style.cssText = 'position:fixed;bottom:96px;right:18px;width:64px;height:78px;z-index:10000;font-family:inherit;';
+    el.innerHTML = `
+        <svg viewBox="0 0 64 64" style="position:absolute;top:0;left:0;width:64px;height:64px;transform:rotate(-90deg);">
+            <circle cx="32" cy="32" r="${_PPW_RADIUS}" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="4"></circle>
+            <circle id="ppw-ring" cx="32" cy="32" r="${_PPW_RADIUS}" fill="none" stroke="var(--accent)" stroke-width="4"
+                stroke-dasharray="${_PPW_CIRC}" stroke-dashoffset="${_PPW_CIRC}" stroke-linecap="round"
+                style="transition:stroke-dashoffset 0.25s linear;"></circle>
+        </svg>
+        <div style="position:absolute;top:5px;left:5px;width:54px;height:54px;border-radius:11px;overflow:hidden;background:#111;box-shadow:0 4px 14px rgba(0,0,0,0.4);">
+            ${coverUrl ? `<img src="${coverUrl}" style="width:100%;height:100%;object-fit:cover;display:block;">` : ''}
+        </div>
+        <div id="ppw-label" style="position:absolute;bottom:0;left:0;width:100%;text-align:center;font-size:10px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,0.8);"></div>`;
+    document.body.appendChild(el);
+}
+function updatePublishProgressWidget(done, total, startTime) {
+    const ring = document.getElementById('ppw-ring');
+    const label = document.getElementById('ppw-label');
+    if (!ring || !label) return;
+    const pct = total > 0 ? Math.min(1, done / total) : 0;
+    ring.setAttribute('stroke-dashoffset', String(_PPW_CIRC * (1 - pct)));
+    const elapsedSec = (Date.now() - startTime) / 1000;
+    const rate = elapsedSec > 0 ? done / elapsedSec : 0; // frames/sec
+    const remaining = rate > 0 ? Math.max(0, (total - done) / rate) : null;
+    label.innerText = remaining == null ? Math.round(pct * 100) + '%' : '~' + _formatETA(remaining) + ' left';
+}
+function hidePublishProgressWidget() {
+    const el = document.getElementById('publish-progress-widget');
+    if (el) el.remove();
+}
+function _formatETA(seconds) {
+    seconds = Math.round(seconds);
+    if (seconds < 60) return seconds + 's';
+    const m = Math.floor(seconds / 60), s = seconds % 60;
+    return m + 'm' + (s ? ' ' + s + 's' : '');
 }
 let mySpritesData = null;
 const MYS_CACHE_KEY = 'cc_user_sprites_meta_v1';
