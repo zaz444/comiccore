@@ -961,7 +961,7 @@
             <h2 style="margin:0;font-size:16px;color:var(--teal);">Multi-Frame Import</h2>
             <span onclick="closeMultiImport()" style="cursor:pointer;font-size:22px;">✕</span>
         </div>
-        <p style="color:#555;font-size:11px;margin:0 0 10px;">Each image becomes one frame. Match your canvas ratio (<span id="multi-ratio-hint" style="color:var(--accent);font-weight:800;">1:1</span>).</p>
+        <p style="color:#555;font-size:11px;margin:0 0 10px;">Each image becomes one frame, sized to that image's own aspect ratio.</p>
         <div class="multi-drop-zone" id="multi-drop-zone" onclick="document.getElementById('multi-file-input').click()">
             <div style="font-size:28px;margin-bottom:8px;">🗂️</div>
             <div style="font-weight:700;color:#aaa;font-size:13px;">Tap to choose images</div>
@@ -5465,33 +5465,31 @@ function openMultiImport() {
     document.getElementById('multi-preview-grid').innerHTML = '';
     document.getElementById('multi-confirm-btn').disabled = true;
     document.getElementById('multi-ratio-warning').style.display = 'none';
-    if (canvasRatio) document.getElementById('multi-ratio-hint').innerText = canvasRatio.w + ':' + canvasRatio.h;
     document.getElementById('multi-import-modal').style.display = 'flex';
 }
 function closeMultiImport() { document.getElementById('multi-import-modal').style.display = 'none'; }
+// Reduces a pixel ratio to its simplest whole-number form (e.g. 4032x3024 -> 4:3)
+// purely for a cleaner label in the per-frame ratio picker — the unreduced
+// value would scale identically, this just keeps the UI readable.
+function simplifyRatio(w, h) {
+    function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+    const g = gcd(Math.round(w), Math.round(h)) || 1;
+    return { w: Math.round(w / g), h: Math.round(h / g) };
+}
 document.getElementById('multi-file-input').addEventListener('change', (e) => {
     const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
     if (!files.length) return;
     multiFiles = [];
     const grid = document.getElementById('multi-preview-grid');
     grid.innerHTML = '';
-    let ratioWarning = false;
     files.forEach((file) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
             const dataUrl = ev.target.result;
-            const img = new Image();
-            img.onload = () => {
-                const imgR = img.naturalWidth / img.naturalHeight;
-                const canvR = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
-                if (Math.abs(imgR - canvR) > 0.05) {
-                    ratioWarning = true;
-                    document.getElementById('multi-ratio-warning').style.display = 'block';
-                    document.getElementById('multi-ratio-warning').innerText = '⚠️ Some images have a different aspect ratio and will be cropped to fit.';
-                }
-            };
-            img.src = dataUrl;
-            multiFiles.push({ dataUrl, name: file.name });
+            // ratioW/H start null and get filled in once the image finishes loading below —
+            // confirmMultiImport() falls back to canvasRatio if an image never reports back.
+            const entry = { dataUrl, name: file.name, ratioW: null, ratioH: null };
+            multiFiles.push(entry);
             multiFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
             // Re-render preview
             grid.innerHTML = '';
@@ -5506,6 +5504,17 @@ document.getElementById('multi-file-input').addEventListener('change', (e) => {
                 grid.appendChild(div);
             });
             document.getElementById('multi-confirm-btn').disabled = false;
+            // Read the image's natural size so its frame can be created at that
+            // exact aspect ratio instead of being cropped to the canvas ratio.
+            // Mutates the same `entry` object already sitting in multiFiles (not
+            // an index), so this stays correct even after the array is re-sorted.
+            const img = new Image();
+            img.onload = () => {
+                const r = simplifyRatio(img.naturalWidth, img.naturalHeight);
+                entry.ratioW = r.w;
+                entry.ratioH = r.h;
+            };
+            img.src = dataUrl;
         };
         reader.readAsDataURL(file);
     });
@@ -5517,7 +5526,11 @@ function confirmMultiImport() {
     const mode = document.getElementById('multi-insert-mode').value;
     const newFrames = multiFiles.map(f => ({
         layers: [], background: f.dataUrl,
-        bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' }
+        bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' },
+        // Give each imported frame its own ratio (from the source image) so it
+        // renders at that image's natural shape with no cover-crop. Falls back
+        // to the current canvasRatio for the rare case the image never loaded.
+        ratio: (f.ratioW && f.ratioH) ? { w: f.ratioW, h: f.ratioH } : { w: canvasRatio.w, h: canvasRatio.h }
     }));
     if (mode === 'replace') { frames = newFrames; currentIdx = 0; }
     else if (mode === 'append') { frames.splice(currentIdx + 1, 0, ...newFrames); currentIdx++; }
@@ -5525,7 +5538,10 @@ function confirmMultiImport() {
     multiFiles = [];
     activeLayer = null;
     closeMultiImport();
-    render();
+    // activateFrame (not render) so the canvas is resized to match the newly
+    // active imported frame's own ratio right away, rather than staying at
+    // whatever ratio was on screen before the import.
+    activateFrame(currentIdx);
     renderMobFrames();
     updateFrameCounter();
 }
