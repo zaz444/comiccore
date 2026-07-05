@@ -5366,6 +5366,7 @@ document.getElementById('img-input').addEventListener('change', (e) => {
         }
         else { saveState(); const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300; const nl={type:'img',src:ev.target.result,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()}; frames[currentIdx].layers.push(nl); activeLayer=nl; render(); }
     };
+    reader.onerror = () => showToast('⚠️ Failed to read ' + file.name);
     reader.readAsDataURL(file);
     e.target.value = '';
 });
@@ -5373,6 +5374,7 @@ function handleCoverInput(e) {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => { currentImportType='cover'; const t=document.getElementById('crop-target'); t.src=ev.target.result; document.getElementById('crop-modal').style.display='flex'; if(cropper)cropper.destroy(); cropper=new Cropper(t,{aspectRatio:1,viewMode:1}); };
+    reader.onerror = () => showToast('⚠️ Failed to read ' + file.name);
     reader.readAsDataURL(file);
     e.target.value = '';
 }
@@ -5490,6 +5492,7 @@ document.getElementById('multi-file-input').addEventListener('change', (e) => {
                     document.getElementById('multi-ratio-warning').innerText = '⚠️ Some images have a different aspect ratio and will be cropped to fit.';
                 }
             };
+            img.onerror = () => showToast('⚠️ Could not load ' + file.name);
             img.src = dataUrl;
             multiFiles.push({ dataUrl, name: file.name });
             multiFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -5507,6 +5510,7 @@ document.getElementById('multi-file-input').addEventListener('change', (e) => {
             });
             document.getElementById('multi-confirm-btn').disabled = false;
         };
+        reader.onerror = () => showToast('⚠️ Failed to read ' + file.name);
         reader.readAsDataURL(file);
     });
     e.target.value = '';
