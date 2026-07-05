@@ -961,14 +961,13 @@
             <h2 style="margin:0;font-size:16px;color:var(--teal);">Multi-Frame Import</h2>
             <span onclick="closeMultiImport()" style="cursor:pointer;font-size:22px;">✕</span>
         </div>
-        <p style="color:#555;font-size:11px;margin:0 0 10px;">Each image becomes one frame. Match your canvas ratio (<span id="multi-ratio-hint" style="color:var(--accent);font-weight:800;">1:1</span>).</p>
+        <p style="color:#555;font-size:11px;margin:0 0 10px;">Each image becomes one frame.</p>
         <div class="multi-drop-zone" id="multi-drop-zone" onclick="document.getElementById('multi-file-input').click()">
             <div style="font-size:28px;margin-bottom:8px;">🗂️</div>
             <div style="font-weight:700;color:#aaa;font-size:13px;">Tap to choose images</div>
             <p>Each image = one frame</p>
         </div>
         <div id="multi-preview-grid"></div>
-        <div id="multi-ratio-warning" class="multi-ratio-warning" style="display:none;font-size:11px;color:var(--danger);text-align:center;margin-top:6px;"></div>
         <div style="display:flex;gap:10px;margin-top:14px;">
             <select id="multi-insert-mode" style="flex:1;padding:10px;background:#111;border:1px solid #333;color:white;border-radius:10px;font-size:12px;font-weight:700;">
                 <option value="replace">Replace all frames</option>
@@ -5466,8 +5465,6 @@ function openMultiImport() {
     multiFiles = [];
     document.getElementById('multi-preview-grid').innerHTML = '';
     document.getElementById('multi-confirm-btn').disabled = true;
-    document.getElementById('multi-ratio-warning').style.display = 'none';
-    if (canvasRatio) document.getElementById('multi-ratio-hint').innerText = canvasRatio.w + ':' + canvasRatio.h;
     document.getElementById('multi-import-modal').style.display = 'flex';
 }
 function closeMultiImport() { document.getElementById('multi-import-modal').style.display = 'none'; }
@@ -5477,38 +5474,30 @@ document.getElementById('multi-file-input').addEventListener('change', (e) => {
     multiFiles = [];
     const grid = document.getElementById('multi-preview-grid');
     grid.innerHTML = '';
-    let ratioWarning = false;
     files.forEach((file) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
             const dataUrl = ev.target.result;
             const img = new Image();
             img.onload = () => {
-                const imgR = img.naturalWidth / img.naturalHeight;
-                const canvR = canvasRatio ? (canvasRatio.w / canvasRatio.h) : 1;
-                if (Math.abs(imgR - canvR) > 0.05) {
-                    ratioWarning = true;
-                    document.getElementById('multi-ratio-warning').style.display = 'block';
-                    document.getElementById('multi-ratio-warning').innerText = '⚠️ Some images have a different aspect ratio and will be cropped to fit.';
-                }
+                multiFiles.push({ dataUrl, name: file.name, w: img.naturalWidth, h: img.naturalHeight });
+                multiFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                // Re-render preview
+                grid.innerHTML = '';
+                multiFiles.forEach((f, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'multi-thumb';
+                    div.style.backgroundImage = 'url(' + f.dataUrl + ')';
+                    const badge = document.createElement('div');
+                    badge.className = 'order-badge';
+                    badge.innerText = i + 1;
+                    div.appendChild(badge);
+                    grid.appendChild(div);
+                });
+                document.getElementById('multi-confirm-btn').disabled = false;
             };
             img.onerror = () => showToast('⚠️ Could not load ' + file.name);
             img.src = dataUrl;
-            multiFiles.push({ dataUrl, name: file.name });
-            multiFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-            // Re-render preview
-            grid.innerHTML = '';
-            multiFiles.forEach((f, i) => {
-                const div = document.createElement('div');
-                div.className = 'multi-thumb';
-                div.style.backgroundImage = 'url(' + f.dataUrl + ')';
-                const badge = document.createElement('div');
-                badge.className = 'order-badge';
-                badge.innerText = i + 1;
-                div.appendChild(badge);
-                grid.appendChild(div);
-            });
-            document.getElementById('multi-confirm-btn').disabled = false;
         };
         reader.onerror = () => showToast('⚠️ Failed to read ' + file.name);
         reader.readAsDataURL(file);
@@ -5521,7 +5510,8 @@ function confirmMultiImport() {
     const mode = document.getElementById('multi-insert-mode').value;
     const newFrames = multiFiles.map(f => ({
         layers: [], background: f.dataUrl,
-        bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' }
+        bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' },
+        ratio: (f.w && f.h) ? { w: f.w, h: f.h } : undefined
     }));
     if (mode === 'replace') {
         // BUGFIX: saveState() alone only protects an accidental "Replace all frames"
@@ -5543,7 +5533,10 @@ function confirmMultiImport() {
     multiFiles = [];
     activeLayer = null;
     closeMultiImport();
-    render();
+    const activeF = frames[currentIdx];
+    const activeR = getFrameRatio(activeF);
+    if (activeR.w !== canvasRatio.w || activeR.h !== canvasRatio.h) setRatio(activeR.w, activeR.h);
+    else render();
     renderMobFrames();
     updateFrameCounter();
 }
