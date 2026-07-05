@@ -198,6 +198,58 @@
         .grid-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .grid-empty { grid-column: span 4; text-align: center; color: var(--dim); font-size: 13px; padding: 30px 0; font-weight: 600; }
 
+        /* ── Playlists round-rect nav button ── */
+        .section-nav-row { width: 100%; padding: 4px 14px 14px; }
+        .section-nav-btn {
+            display: flex; align-items: center; justify-content: space-between;
+            width: 100%; padding: 14px 16px; border-radius: 16px;
+            background: var(--card); border: 1px solid var(--border);
+            cursor: pointer; transition: .12s;
+        }
+        .section-nav-btn:active { transform: scale(.98); background: rgba(255,122,0,0.06); }
+        .section-nav-label { font-weight: 800; font-size: 14px; color: var(--text); }
+        .section-nav-sub { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+        .section-nav-arrow { color: var(--muted); font-size: 16px; }
+
+        /* ── Playlist cards (grid inside the Playlists modal) ── */
+        .playlist-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 4px; }
+        .playlist-card { border-radius: 14px; overflow: hidden; background: var(--card); border: 1px solid var(--border); cursor: pointer; transition: .12s; }
+        .playlist-card:active { transform: scale(.97); }
+        .playlist-cover { aspect-ratio: 4/3; background: #111; display: grid; grid-template-columns: repeat(2,1fr); gap: 1px; overflow: hidden; }
+        .playlist-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .playlist-cover-empty { grid-column: span 2; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 12px; font-weight: 700; }
+        .playlist-card-body { padding: 9px 10px; }
+        .playlist-card-title { font-size: 12.5px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .playlist-card-count { font-size: 10.5px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+        .playlist-new-card {
+            aspect-ratio: unset; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 6px; border: 1.5px dashed var(--border); background: transparent; color: var(--muted); font-weight: 800; font-size: 12.5px; padding: 20px 10px;
+        }
+        .playlist-new-card:active { background: rgba(255,122,0,0.06); }
+
+        /* ── Playlist detail view (comics inside a playlist) ── */
+        .playlist-comic-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .playlist-comic-row:last-child { border-bottom: none; }
+        .playlist-comic-cover { width: 44px; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; background: #111; flex-shrink: 0; }
+        .playlist-comic-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .playlist-comic-title { font-size: 13.5px; font-weight: 800; color: var(--text); }
+        .playlist-comic-byline { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+        .playlist-comic-remove { color: var(--muted); font-size: 12px; font-weight: 700; padding: 6px 8px; cursor: pointer; flex-shrink: 0; }
+
+        /* ── Playlist edit form ── */
+        .pl-title-input { width: 100%; background: #111; border: 1.5px solid var(--border); color: var(--text); padding: 12px 14px; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 14px; outline: none; margin-bottom: 12px; }
+        .pl-title-input:focus { border-color: rgba(255,122,0,0.5); }
+        .pl-search-input { width: 100%; background: #111; border: 1.5px solid var(--border); color: var(--text); padding: 11px 14px; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 13px; outline: none; margin-bottom: 8px; }
+        .pl-search-results { max-height: 160px; overflow-y: auto; margin-bottom: 10px; }
+        .pl-search-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; cursor: pointer; }
+        .pl-search-row:active { background: rgba(255,122,0,0.06); }
+        .pl-search-cover { width: 32px; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; background: #111; flex-shrink: 0; }
+        .pl-search-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pl-search-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+        .pl-search-owner { font-size: 10.5px; color: var(--muted); }
+        .pl-add-btn { margin-left: auto; font-size: 11px; font-weight: 800; color: var(--accent); }
+        .pl-section-label { font-size: 10.5px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 6px; }
+
         /* ─────────────────────────────
            EDIT VIEW
         ───────────────────────────── */
@@ -1146,6 +1198,16 @@
             <div id="social-links" class="social-grid"></div>
         </div>
 
+        <div class="section-nav-row">
+            <div class="section-nav-btn" onclick="openPlaylistsModal()">
+                <div>
+                    <div class="section-nav-label">Playlists</div>
+                    <div class="section-nav-sub" id="playlists-count-sub">Loading…</div>
+                </div>
+                <div class="section-nav-arrow">›</div>
+            </div>
+        </div>
+
         <div id="milestone-banner" style="display:none;width:100%;padding:0 14px;margin-bottom:12px;">
             <div id="milestone-banner-inner"></div>
         </div>
@@ -1426,6 +1488,51 @@
             <div style="display:flex;gap:8px;margin-top:16px;">
                 <button class="sheet-cancel-btn" onclick="closePinnedComicsModal()" style="flex:1;">Cancel</button>
                 <button onclick="savePinnedComics()" style="flex:1;padding:12px;border-radius:12px;border:none;background:#ff7a00;color:#000;font-weight:800;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlists Grid Modal -->
+    <div class="modal-overlay" id="playlists-overlay" onclick="if(event.target===this)closePlaylistsModal()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="modal-title">
+                <span>Playlists</span>
+                <span class="modal-close" onclick="closePlaylistsModal()">✕</span>
+            </div>
+            <div id="playlists-modal-grid" class="playlist-grid"></div>
+        </div>
+    </div>
+
+    <!-- Playlist Detail Modal (viewing one playlist's comics) -->
+    <div class="modal-overlay" id="playlist-detail-overlay" onclick="if(event.target===this)closePlaylistDetail()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="modal-title">
+                <span id="playlist-detail-title">Playlist</span>
+                <span class="modal-close" onclick="closePlaylistDetail()">✕</span>
+            </div>
+            <div id="playlist-detail-owner-actions" style="display:flex;gap:8px;margin-bottom:14px;"></div>
+            <div id="playlist-detail-list"></div>
+        </div>
+    </div>
+
+    <!-- Playlist Create/Edit Modal -->
+    <div class="modal-overlay" id="playlist-edit-overlay" onclick="if(event.target===this)closePlaylistEdit()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="modal-title">
+                <span id="playlist-edit-heading">New Playlist</span>
+                <span class="modal-close" onclick="closePlaylistEdit()">✕</span>
+            </div>
+            <input class="pl-title-input" id="pl-edit-title" placeholder="Playlist title" maxlength="60">
+            <input class="pl-search-input" id="pl-comic-search" placeholder="Search comics to add…" oninput="searchComicsForPlaylist()">
+            <div class="pl-search-results" id="pl-search-results"></div>
+            <div class="pl-section-label">In This Playlist (<span id="pl-selected-count">0</span>)</div>
+            <div id="pl-selected-list" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
+            <div style="display:flex;gap:8px;">
+                <button class="sheet-cancel-btn" onclick="closePlaylistEdit()" style="flex:1;">Cancel</button>
+                <button onclick="savePlaylist()" style="flex:1;padding:12px;border-radius:12px;border:none;background:#ff7a00;color:#000;font-weight:800;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;">Save</button>
             </div>
         </div>
     </div>
@@ -1800,6 +1907,7 @@
             loadFollowCounts(handle);
             loadUserComics(handle);
             loadCollabComics(handle);
+            loadPlaylistsCount(handle);
             renderMilestoneBanner(profile, handle);
 
             const folPrivacy = localStorage.getItem('cc-privacy-followers');
@@ -2219,6 +2327,233 @@
             closePinnedComicsModal();
             showToast('Pinned comics saved!');
             markDirty();
+        }
+
+        // ══════════════════════════════════════════════════════
+        // PLAYLISTS
+        // A playlist is an ordered, named collection of comics that can
+        // include comics from ANY creator, not just the profile owner's own —
+        // that's what makes the "By @handle" attribution line meaningful.
+        // ══════════════════════════════════════════════════════
+        let playlistsData = [];              // playlists belonging to whichever profile is currently open
+        let plComicCache  = {};               // comic_id -> { title, cover, owner_handle }
+        let plEditDraft   = { id: null, title: '', comic_ids: [] };
+
+        function escHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+        // Lightweight count shown on the round-rect nav button — called from loadPublicProfile/init
+        async function loadPlaylistsCount(handle) {
+            const sub = document.getElementById('playlists-count-sub');
+            if (!sub) return;
+            const { data, error } = await _supabase.from('playlists').select('id').eq('owner_handle', handle);
+            if (error) { sub.innerText = '0 playlists'; return; }
+            const n = (data || []).length;
+            sub.innerText = `${n} playlist${n !== 1 ? 's' : ''}`;
+        }
+
+        async function openPlaylistsModal() {
+            const handle = currentViewedHandle || myProfile.handle;
+            if (!handle) return;
+            const grid = document.getElementById('playlists-modal-grid');
+            grid.innerHTML = '<div style="grid-column:span 2;text-align:center;color:#555;padding:20px;">Loading…</div>';
+            document.getElementById('playlists-overlay').classList.add('open');
+
+            const { data, error } = await _supabase.from('playlists').select('*').eq('owner_handle', handle).order('created_at', { ascending: false });
+            playlistsData = error ? [] : (data || []);
+
+            // Resolve cover thumbnails — pull the first up-to-4 comics' covers per playlist
+            const allIds = [...new Set(playlistsData.flatMap(p => (p.comic_ids || []).slice(0, 4)))];
+            if (allIds.length) {
+                const { data: comics } = await _supabase.from('comics').select('id,title,cover,owner_handle').in('id', allIds);
+                (comics || []).forEach(c => { plComicCache[c.id] = c; });
+            }
+            renderPlaylistsGrid();
+        }
+        function closePlaylistsModal() { document.getElementById('playlists-overlay').classList.remove('open'); }
+
+        function renderPlaylistsGrid() {
+            const grid = document.getElementById('playlists-modal-grid');
+            const isOwn = (currentViewedHandle || myProfile.handle) === myProfile.handle;
+            let html = '';
+            if (isOwn) {
+                html += `<div class="playlist-card playlist-new-card" onclick="openPlaylistEdit(null)">+ New Playlist</div>`;
+            }
+            if (!playlistsData.length) {
+                html += `<div style="grid-column:span 2;text-align:center;color:#555;font-size:12.5px;padding:20px 10px;">${isOwn ? 'Create a playlist to feature comics you love — yours or anyone else\'s.' : 'No playlists yet.'}</div>`;
+            } else {
+                html += playlistsData.map(p => {
+                    const ids = (p.comic_ids || []).slice(0, 4);
+                    const covers = ids.map(id => plComicCache[id]?.cover).filter(Boolean);
+                    const coverHtml = covers.length
+                        ? covers.map(c => `<img src="${escHtml(c)}" loading="lazy">`).join('')
+                        : `<div class="playlist-cover-empty">No covers</div>`;
+                    const count = (p.comic_ids || []).length;
+                    return `<div class="playlist-card" onclick="openPlaylistDetail('${p.id}')">
+                        <div class="playlist-cover">${coverHtml}</div>
+                        <div class="playlist-card-body">
+                            <div class="playlist-card-title">${escHtml(p.title || 'Untitled')}</div>
+                            <div class="playlist-card-count">${count} comic${count !== 1 ? 's' : ''}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+            grid.innerHTML = html;
+        }
+
+        // ── Playlist detail (viewing one playlist's comics, with attribution) ──
+        async function openPlaylistDetail(playlistId) {
+            const playlist = playlistsData.find(p => p.id === playlistId);
+            if (!playlist) return;
+            document.getElementById('playlist-detail-title').innerText = playlist.title || 'Untitled';
+            const list = document.getElementById('playlist-detail-list');
+            list.innerHTML = '<div style="text-align:center;color:#555;padding:20px;">Loading…</div>';
+            document.getElementById('playlist-detail-overlay').classList.add('open');
+
+            const isOwn = playlist.owner_handle === myProfile.handle;
+            const ownerActions = document.getElementById('playlist-detail-owner-actions');
+            ownerActions.innerHTML = isOwn ? `
+                <button class="sheet-cancel-btn" style="flex:1;" onclick="closePlaylistDetail();openPlaylistEdit('${playlist.id}')">Edit</button>
+                <button style="flex:1;padding:12px;border-radius:12px;border:none;background:rgba(255,59,48,0.12);color:#ff3b30;font-weight:800;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;" onclick="deletePlaylist('${playlist.id}')">Delete</button>
+            ` : '';
+
+            const ids = playlist.comic_ids || [];
+            if (!ids.length) { list.innerHTML = '<div style="text-align:center;color:#555;padding:20px;">No comics in this playlist yet.</div>'; return; }
+
+            const { data: comics } = await _supabase.from('comics').select('id,title,cover,owner_handle').in('id', ids);
+            const comicMap = {}; (comics || []).forEach(c => { comicMap[c.id] = c; plComicCache[c.id] = c; });
+
+            // Team/collab comics show attribution even when the owner matches this
+            // playlist — a comic made with others is never purely "yours" alone.
+            const { data: collabs } = await _supabase.from('comic_collaborators').select('comic_id,invitee_handle').in('comic_id', ids).eq('status', 'accepted');
+            const collabMap = {};
+            (collabs || []).forEach(c => { (collabMap[c.comic_id] = collabMap[c.comic_id] || []).push(c.invitee_handle); });
+
+            list.innerHTML = ids.map(id => {
+                const c = comicMap[id];
+                if (!c) return '';
+                const collaborators = collabMap[id] || [];
+                let byline = '';
+                if (collaborators.length) {
+                    byline = `By @${escHtml(c.owner_handle)}, ${collaborators.map(h => '@' + escHtml(h)).join(', ')}`;
+                } else if (c.owner_handle !== playlist.owner_handle) {
+                    byline = `By @${escHtml(c.owner_handle)}`;
+                }
+                const removeBtn = isOwn ? `<div class="playlist-comic-remove" onclick="event.stopPropagation();removeComicFromLivePlaylist('${playlist.id}','${id}')">Remove</div>` : '';
+                return `<div class="playlist-comic-row" onclick="location.href='reader.html?id=${id}'">
+                    <div class="playlist-comic-cover">${c.cover ? `<img src="${escHtml(c.cover)}" loading="lazy">` : ''}</div>
+                    <div style="flex:1;">
+                        <div class="playlist-comic-title">${escHtml(c.title || 'Untitled')}</div>
+                        ${byline ? `<div class="playlist-comic-byline">${byline}</div>` : ''}
+                    </div>
+                    ${removeBtn}
+                </div>`;
+            }).join('');
+        }
+        function closePlaylistDetail() { document.getElementById('playlist-detail-overlay').classList.remove('open'); }
+
+        async function removeComicFromLivePlaylist(playlistId, comicId) {
+            const playlist = playlistsData.find(p => p.id === playlistId);
+            if (!playlist) return;
+            playlist.comic_ids = (playlist.comic_ids || []).filter(id => id !== comicId);
+            await _supabase.from('playlists').update({ comic_ids: playlist.comic_ids }).eq('id', playlistId);
+            openPlaylistDetail(playlistId);
+            renderPlaylistsGrid();
+        }
+
+        // ── Playlist create/edit ──
+        function openPlaylistEdit(playlistId) {
+            const existing = playlistId ? playlistsData.find(p => p.id === playlistId) : null;
+            plEditDraft = existing
+                ? { id: existing.id, title: existing.title || '', comic_ids: [...(existing.comic_ids || [])] }
+                : { id: null, title: '', comic_ids: [] };
+            document.getElementById('playlist-edit-heading').innerText = existing ? 'Edit Playlist' : 'New Playlist';
+            document.getElementById('pl-edit-title').value = plEditDraft.title;
+            document.getElementById('pl-comic-search').value = '';
+            document.getElementById('pl-search-results').innerHTML = '';
+            renderPlEditSelectedList();
+            document.getElementById('playlist-edit-overlay').classList.add('open');
+        }
+        function closePlaylistEdit() { document.getElementById('playlist-edit-overlay').classList.remove('open'); }
+
+        let _plSearchTimer = null;
+        function searchComicsForPlaylist() {
+            clearTimeout(_plSearchTimer);
+            const q = document.getElementById('pl-comic-search').value.trim();
+            const results = document.getElementById('pl-search-results');
+            if (!q) { results.innerHTML = ''; return; }
+            _plSearchTimer = setTimeout(async () => {
+                const { data } = await _supabase.from('comics').select('id,title,cover,owner_handle')
+                    .or(`title.ilike.%${q}%,owner_handle.ilike.%${q}%`).limit(15);
+                const filtered = (data || []).filter(c => !plEditDraft.comic_ids.includes(c.id));
+                if (!filtered.length) { results.innerHTML = '<div style="text-align:center;color:#555;font-size:12px;padding:10px;">No matches</div>'; return; }
+                results.innerHTML = filtered.map(c => {
+                    plComicCache[c.id] = c;
+                    return `<div class="pl-search-row" onclick='addComicToPlaylistDraft(${JSON.stringify(c.id)})'>
+                        <div class="pl-search-cover">${c.cover ? `<img src="${escHtml(c.cover)}" loading="lazy">` : ''}</div>
+                        <div>
+                            <div class="pl-search-title">${escHtml(c.title || 'Untitled')}</div>
+                            <div class="pl-search-owner">@${escHtml(c.owner_handle)}</div>
+                        </div>
+                        <div class="pl-add-btn">+ Add</div>
+                    </div>`;
+                }).join('');
+            }, 250);
+        }
+
+        function addComicToPlaylistDraft(comicId) {
+            if (plEditDraft.comic_ids.includes(comicId)) return;
+            plEditDraft.comic_ids.push(comicId);
+            document.getElementById('pl-comic-search').value = '';
+            document.getElementById('pl-search-results').innerHTML = '';
+            renderPlEditSelectedList();
+        }
+        function removeComicFromPlaylistDraft(comicId) {
+            plEditDraft.comic_ids = plEditDraft.comic_ids.filter(id => id !== comicId);
+            renderPlEditSelectedList();
+        }
+        function renderPlEditSelectedList() {
+            document.getElementById('pl-selected-count').innerText = plEditDraft.comic_ids.length;
+            const list = document.getElementById('pl-selected-list');
+            if (!plEditDraft.comic_ids.length) {
+                list.innerHTML = '<div style="text-align:center;color:#555;font-size:12px;padding:14px;">Search above to add comics.</div>';
+                return;
+            }
+            list.innerHTML = plEditDraft.comic_ids.map(id => {
+                const c = plComicCache[id];
+                return `<div class="pl-search-row">
+                    <div class="pl-search-cover">${c?.cover ? `<img src="${escHtml(c.cover)}" loading="lazy">` : ''}</div>
+                    <div>
+                        <div class="pl-search-title">${escHtml(c?.title || 'Untitled')}</div>
+                        <div class="pl-search-owner">@${escHtml(c?.owner_handle || '')}</div>
+                    </div>
+                    <div class="pl-add-btn" style="color:#ff3b30;" onclick="removeComicFromPlaylistDraft('${id}')">Remove</div>
+                </div>`;
+            }).join('');
+        }
+
+        async function savePlaylist() {
+            const title = document.getElementById('pl-edit-title').value.trim();
+            if (!title) { showToast('Give your playlist a title first'); return; }
+            if (!plEditDraft.comic_ids.length) { showToast('Add at least one comic'); return; }
+
+            if (plEditDraft.id) {
+                await _supabase.from('playlists').update({ title, comic_ids: plEditDraft.comic_ids }).eq('id', plEditDraft.id);
+            } else {
+                await _supabase.from('playlists').insert([{ owner_handle: myProfile.handle, title, comic_ids: plEditDraft.comic_ids, created_at: new Date().toISOString() }]);
+            }
+            closePlaylistEdit();
+            showToast('Playlist saved!');
+            openPlaylistsModal();
+            loadPlaylistsCount(myProfile.handle);
+        }
+
+        async function deletePlaylist(id) {
+            if (!confirm('Delete this playlist? This cannot be undone.')) return;
+            await _supabase.from('playlists').delete().eq('id', id);
+            closePlaylistDetail();
+            showToast('Playlist deleted');
+            openPlaylistsModal();
+            loadPlaylistsCount(myProfile.handle);
         }
 
         async function saveProfile() {
