@@ -2581,7 +2581,12 @@
             const newStatus = selectedStatusEl?.dataset.status || 'online';
             const msEnabled = document.getElementById('st-milestones-enabled').checked;
             const msMessage = document.getElementById('milestone-message-input').value.trim();
-            const existingSettings = myProfile.settings || {};
+            // Pull the latest settings from the DB instead of trusting the local cache —
+            // the local copy can be stale (e.g. if a role was granted server-side since
+            // this browser last synced), and blindly spreading it here would silently
+            // overwrite/erase fields like `role` that the client doesn't manage.
+            const { data: freshRow } = await _supabase.from('profiles').select('settings').eq('handle', myProfile.handle).maybeSingle();
+            const existingSettings = freshRow?.settings || myProfile.settings || {};
             const updatedSettings = {
                 ...existingSettings,
                 status: newStatus,
