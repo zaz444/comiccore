@@ -198,18 +198,13 @@
         .grid-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .grid-empty { grid-column: span 4; text-align: center; color: var(--dim); font-size: 13px; padding: 30px 0; font-weight: 600; }
 
-        /* ── Playlists round-rect nav button ── */
-        .section-nav-row { width: 100%; padding: 4px 14px 14px; }
-        .section-nav-btn {
-            display: flex; align-items: center; justify-content: space-between;
-            width: 100%; padding: 14px 16px; border-radius: 16px;
-            background: var(--card); border: 1px solid var(--border);
-            cursor: pointer; transition: .12s;
+        /* ── Playlists icon button (top nav, next to Edit Profile) ── */
+        .playlists-nav-btn { position: relative; }
+        .playlists-nav-badge {
+            position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px;
+            border-radius: 8px; background: var(--accent); color: #000; font-size: 9px; font-weight: 900;
+            display: flex; align-items: center; justify-content: center; line-height: 1;
         }
-        .section-nav-btn:active { transform: scale(.98); background: rgba(255,122,0,0.06); }
-        .section-nav-label { font-weight: 800; font-size: 14px; color: var(--text); }
-        .section-nav-sub { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
-        .section-nav-arrow { color: var(--muted); font-size: 16px; }
 
         /* ── Playlist cards (grid inside the Playlists modal) ── */
         .playlist-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 4px; }
@@ -1157,6 +1152,10 @@
                 </button>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <button id="share-profile-btn" class="glass-pill" onclick="openShareModal()" style="display:none;">↗ Share</button>
+                    <button id="playlists-nav-btn" class="glass-btn playlists-nav-btn" onclick="openPlaylistsModal()" title="Playlists">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="3" y="7" width="14" height="10" rx="2" transform="rotate(-6 10 12)"/><rect x="7" y="4" width="14" height="10" rx="2"/></svg>
+                        <span class="playlists-nav-badge" id="playlists-nav-badge" style="display:none;">0</span>
+                    </button>
                     <button id="edit-own-btn" onclick="openEditor()" style="display:none;" class="glass-pill">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12" style="flex-shrink:0;opacity:.85;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         Edit Profile
@@ -1196,16 +1195,6 @@
             <div id="secondary-action-row" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;justify-content:center;"></div>
             <div id="view-bio" class="profile-bio"></div>
             <div id="social-links" class="social-grid"></div>
-        </div>
-
-        <div class="section-nav-row">
-            <div class="section-nav-btn" onclick="openPlaylistsModal()">
-                <div>
-                    <div class="section-nav-label">Playlists</div>
-                    <div class="section-nav-sub" id="playlists-count-sub">Loading…</div>
-                </div>
-                <div class="section-nav-arrow">›</div>
-            </div>
         </div>
 
         <div id="milestone-banner" style="display:none;width:100%;padding:0 14px;margin-bottom:12px;">
@@ -2341,14 +2330,14 @@
 
         function escHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-        // Lightweight count shown on the round-rect nav button — called from loadPublicProfile/init
+        // Small count badge on the icon button — called from loadPublicProfile/init
         async function loadPlaylistsCount(handle) {
-            const sub = document.getElementById('playlists-count-sub');
-            if (!sub) return;
+            const badge = document.getElementById('playlists-nav-badge');
+            if (!badge) return;
             const { data, error } = await _supabase.from('playlists').select('id').eq('owner_handle', handle);
-            if (error) { sub.innerText = '0 playlists'; return; }
-            const n = (data || []).length;
-            sub.innerText = `${n} playlist${n !== 1 ? 's' : ''}`;
+            const n = error ? 0 : (data || []).length;
+            if (n > 0) { badge.innerText = n > 9 ? '9+' : n; badge.style.display = 'flex'; }
+            else { badge.style.display = 'none'; }
         }
 
         async function openPlaylistsModal() {
