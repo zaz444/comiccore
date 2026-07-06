@@ -1125,7 +1125,22 @@ async function boot() {
 
   // ── It's a COMIC ─ original flow ────────────────────────
   comic = data;
-  frames = data.data || data.frames || [];
+  if (!data.data && data.storage_path) {
+    // Large comics spill their frame data to Storage (see create-mobile.html's
+    // "Large-comic safety net") — `data.data` is null and only a pointer is
+    // stored on the row. Missing this fallback makes any spilled comic render
+    // as completely empty, which looks like the comic was deleted.
+    try {
+      const { data: blob, error: dlErr } = await _sb.storage.from('comiccore-assets').download(data.storage_path);
+      if (dlErr) throw dlErr;
+      frames = JSON.parse(await blob.text());
+    } catch (e) {
+      console.error('Failed to load out-of-line comic frames:', e);
+      frames = data.frames || [];
+    }
+  } else {
+    frames = data.data || data.frames || [];
+  }
 
   // Build snapshot lookup — keyed by frame index for O(1) access in renderFrame
   snapshotMap = {};

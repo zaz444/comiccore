@@ -411,7 +411,7 @@ async function loadPublished() {
   let data, error;
   try {
     ({ data, error } = await _sb.from('comics')
-      .select('id,title,description,cover,tags,stars,data,canvas_ratio,created_at,owner_handle')
+      .select('id,title,description,cover,tags,stars,data,storage_path,canvas_ratio,created_at,owner_handle')
       .eq('owner_handle', myHandle)
       .order('id', { ascending: false }));
   } catch (e) {
@@ -747,7 +747,12 @@ async function editPublished(id) {
   toast('⏳ Pulling into draft…');
   try {
     const draftId = crypto.randomUUID();
-    await saveDraft(draftId, (comic.title || 'Untitled') + ' (edit)', comic.data || [], comic.canvas_ratio || { w:1, h:1 });
+    // BUGFIX: `comic.data` is null whenever this comic's frames were spilled
+    // to Storage for size (see loadDraftData). Falling back straight to `[]`
+    // silently created an empty draft, and republishing it then overwrote the
+    // real published comic with nothing — this is what was wiping people's comics.
+    const framesData = await loadDraftData(comic);
+    await saveDraft(draftId, (comic.title || 'Untitled') + ' (edit)', framesData || [], comic.canvas_ratio || { w:1, h:1 });
     localStorage.setItem('edit_source_comic_id', String(id));
     localStorage.setItem('active_draft_id', draftId);
     localStorage.removeItem('active_draft_storage_path');
