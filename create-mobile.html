@@ -1840,6 +1840,12 @@ let currentImportType = null;
 let hasUnsavedChanges = false;
 let activeDraftId = null;
 let draftRowExists = false; // true once a 'drafts' row is known to exist for activeDraftId
+// SAFETY NET: true while an existing draft/comic is being fetched from Supabase on load.
+// While this is true, `frames` may still be the default blank placeholder declared above —
+// autosave/exit-save must never be allowed to run in that window, or a slow/failed network
+// request can result in the blank placeholder silently overwriting the real saved draft.
+// This is exactly what was wiping people's drafts — see the resume-draft loader below.
+let _draftLoadPending = false;
 let myHandle = null; // BUGFIX: was referenced in saveOffline() but never declared at this scope
 let editingComicId = null;
 // Tracks the out-of-line frame-data blob path (comics.storage_path) for the
@@ -5703,7 +5709,66 @@ async function resolveFramesFromRow(row) {
     return row.frames || null;
 }
 
+// ── Local backup, independent of Supabase entirely ──────────────────────────
+// A copy of the current frames lives in this browser's localStorage, separate
+// from whatever happens on the network. If the cloud save fails outright, if
+// the tab/app is killed before an autosave fires, or if some future bug ever
+// produces a bad write, this is a second, independent copy to recover from —
+// it never depends on the same round-trip that a network failure just broke.
+const _LOCAL_BACKUP_PREFIX = 'cc-local-backup-';
+function localBackupSave() {
+    if (!activeDraftId) return;
+    try {
+        lsSet(_LOCAL_BACKUP_PREFIX + activeDraftId, JSON.stringify({ frames, ratio: canvasRatio, ts: Date.now() }));
+    } catch(e) { /* best effort — never let a backup failure block the real save */ }
+}
+function localBackupLoad(draftId) {
+    try {
+        const raw = localStorage.getItem(_LOCAL_BACKUP_PREFIX + draftId);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.frames || !parsed.frames.length) return null;
+        return parsed;
+    } catch(e) { return null; }
+}
+
+// ── Refuses to treat a near-empty canvas as equivalent to real content ──────
+// Used purely as a tripwire before an autosave/exit-save would overwrite a
+// draft row that's already known to exist — if the in-memory frames look like
+// the untouched default canvas, that's a strong signal something upstream
+// went wrong (a failed load, a race, a future bug) rather than the person
+// genuinely deleting all their work. Manual explicit saves still go through,
+// with a confirmation, since a person is allowed to blank out their own comic
+// on purpose — only *silent* saves are blocked outright.
+function looksBlank(frameArr) {
+    if (!frameArr || !frameArr.length) return true;
+    if (frameArr.length > 1) return false;
+    const f = frameArr[0];
+    return (!f.layers || f.layers.length === 0) && (!f.background || f.background === '#ffffff');
+}
+
 async function saveOffline(silent = false) {
+    // CRITICAL SAFETY NET: never save while an existing draft is still being
+    // fetched — see _draftLoadPending's declaration for why this matters.
+    if (_draftLoadPending) {
+        if (!silent) showMobSaveBadge('Still loading — try again in a moment', true);
+        return;
+    }
+    // CRITICAL SAFETY NET: refuse to let a silent (autosave/exit) save quietly
+    // replace an already-existing draft's content with what looks like a blank,
+    // untouched canvas. A manual, explicit save still goes through after the
+    // person confirms — this only stops the *invisible* wipe.
+    if (draftRowExists && looksBlank(frames)) {
+        if (silent) {
+            console.warn('Autosave blocked: canvas looks blank but draft "' + activeDraftId + '" already has saved content — refusing to silently overwrite it.');
+            return;
+        }
+        if (!confirm('This looks like a blank canvas, but a saved draft already exists here. Saving now will replace it with an empty comic. Continue?')) return;
+    }
+    // Local backup happens before anything touches the network, so it's captured
+    // even if the request below fails or times out.
+    localBackupSave();
+
     // Top-level ratio is frame 1's — same reasoning as the publish payload, this
     // is only the back-compat/cover ratio, not a per-frame source of truth.
     const ratio  = getFrameRatio(frames[0]) || { w:1, h:1 };
@@ -5766,7 +5831,9 @@ async function saveOffline(silent = false) {
         if (!silent) showMobSaveBadge('✓ Saved', false);
     } catch(e) {
         console.warn('Draft save failed:', e);
-        if (!silent) showMobSaveBadge('✗ Save failed: ' + (e.message || 'error'), true);
+        // The cloud write didn't land, but localBackupSave() above already ran, so this
+        // browser still has a copy of the current frames independent of Supabase.
+        if (!silent) showMobSaveBadge('✗ Save failed (backed up on this device): ' + (e.message || 'error'), true);
     }
 }
 
@@ -5780,6 +5847,49 @@ function showMobSaveBadge(msg, isErr) {
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2000);
 }
+// ── Draft load failure — blocking recovery UI ────────────────────────────────
+// Shown instead of silently starting a blank canvas whenever an existing draft
+// fails to load (network hiccup, timeout, empty response, etc). Offers a real
+// retry, a restore from this device's independent local backup if one exists,
+// or a safe exit that does NOT save anything — so a temporary connection issue
+// can never turn into a permanent, silent wipe of the real draft.
+function showDraftLoadError() {
+    const existing = document.getElementById('_draft-load-error-modal');
+    if (existing) existing.remove();
+    const backup = activeDraftId ? localBackupLoad(activeDraftId) : null;
+    const wrap = document.createElement('div');
+    wrap.id = '_draft-load-error-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(10,10,12,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;';
+    wrap.innerHTML = `
+      <div style="background:#18181b;border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:24px 20px;max-width:340px;width:100%;text-align:center;">
+        <div style="font-size:34px;margin-bottom:10px;">⚠️</div>
+        <div style="font-size:15px;font-weight:900;color:#f4f4f6;margin-bottom:8px;">Couldn't load your draft</div>
+        <div style="font-size:13px;color:#aaa;line-height:1.5;margin-bottom:18px;">
+          Your saved draft didn't come back correctly — this is usually a connection issue.
+          Nothing has been changed or deleted. Please retry rather than starting fresh, so your work isn't overwritten.
+        </div>
+        <button onclick="retryDraftLoad()" style="width:100%;padding:13px;background:#ff7a00;color:#000;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;margin-bottom:10px;">RETRY</button>
+        ${backup ? `<button onclick="restoreLocalBackupAndContinue()" style="width:100%;padding:13px;background:#26262c;color:#00c9b1;border:1px solid rgba(0,201,177,0.3);border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:10px;">Restore backup saved on this device</button>` : ''}
+        <button onclick="location.href='my-comics.html'" style="width:100%;padding:12px;background:none;color:#888896;border:none;font-size:12px;font-weight:700;cursor:pointer;">Back to My Comics (nothing will be saved)</button>
+      </div>`;
+    document.body.appendChild(wrap);
+}
+function retryDraftLoad() { location.reload(); }
+function restoreLocalBackupAndContinue() {
+    const backup = localBackupLoad(activeDraftId);
+    if (!backup) return;
+    frames = backup.frames;
+    draftRowExists = true;
+    const modal = document.getElementById('_draft-load-error-modal');
+    if (modal) modal.remove();
+    const r = backup.ratio || { w:1, h:1 };
+    setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
+    // This came from a local backup, not from Supabase, so it's genuinely unsaved —
+    // let the next save (auto or manual) push it back to the cloud normally.
+    hasUnsavedChanges = true;
+    showMobSaveBadge('Restored from device backup — save to sync', false);
+}
+
 function goToDrafts() { saveOffline(true); location.href = 'my-comics.html'; }
 let _exitDestination = 'index.html';
 function handleExit() {
@@ -6499,6 +6609,17 @@ async function saveSpriteToPersonal() {
 
 // ── AUTO SAVE ──
 setInterval(() => { if (hasUnsavedChanges) saveOffline(true); }, 60000);
+// Local-only backup runs far more often than the cloud autosave above, since it's just a
+// localStorage write (cheap, no network round trip). This shrinks the "lost work" window
+// for anything the cloud autosave hasn't gotten to yet — e.g. the tab/app is killed
+// outright — down to a few seconds instead of up to a minute.
+setInterval(() => { if (hasUnsavedChanges && !_draftLoadPending) localBackupSave(); }, 8000);
+// Mobile OSes frequently kill a backgrounded tab/webview outright with no warning and no
+// time for a network request to finish — 'visibilitychange' fires reliably right before
+// that happens, so it's the best last chance to at least get a local backup written.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && hasUnsavedChanges && !_draftLoadPending) localBackupSave();
+});
 // Give the draft/comic-load branches above time to settle activeDraftId before checking.
 setTimeout(checkReplaceBackup, 600);
 
@@ -6580,18 +6701,28 @@ window.onload = async function() {
     if (resumeId) {
         activeDraftId = resumeId;
         draftRowExists = true; // row already exists in Supabase — don't reset title on next save
+        // CRITICAL SAFETY NET: block autosave/exit-save for the entire duration of this
+        // fetch. `frames` still holds the default blank placeholder at this point — if a
+        // slow connection let the 60s autosave timer or an exit-save fire before this
+        // resolved, that placeholder would get upserted straight over the real draft,
+        // wiping it. This is the exact bug that was destroying people's unpublished drafts.
+        _draftLoadPending = true;
+        let loaded = false;
         const storagePath = localStorage.getItem('active_draft_storage_path');
         if (storagePath) {
             try {
                 const { data: blob, error: dlErr } = await _supabase.storage.from('comiccore-assets').download(storagePath);
                 if (dlErr) throw dlErr;
-                frames = JSON.parse(await blob.text());
+                const parsedFrames = JSON.parse(await blob.text());
+                if (!parsedFrames || !parsedFrames.length) throw new Error('Draft file downloaded but contained no frames');
+                frames = parsedFrames;
                 // BUGFIX: .single() returns a PostgrestBuilder (thenable-only) — .catch() chained
                 // directly on it throws "catch is not a function" instead of falling back.
                 const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio').eq('id', resumeId).single()).catch(() => ({ data: null }));
                 const r = row?.canvas_ratio || { w:1, h:1 };
                 setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
-                applyPendingBg(pendingBg, pendingBgId); return;
+                applyPendingBg(pendingBg, pendingBgId);
+                loaded = true;
             } catch(e) { console.error('Bucket draft load failed:', e); }
         } else {
             // BUGFIX: same PostgrestBuilder .catch() issue — wrap in Promise.resolve() first
@@ -6605,14 +6736,32 @@ window.onload = async function() {
                         draftFrames = JSON.parse(await blob.text());
                     } catch(e) { console.error('Bucket fallback failed:', e); }
                 }
-                if (draftFrames) {
+                if (draftFrames && draftFrames.length) {
                     frames = draftFrames;
                     const r = sbDraft.canvas_ratio || { w:1, h:1 };
                     setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
-                    applyPendingBg(pendingBg, pendingBgId); return;
+                    applyPendingBg(pendingBg, pendingBgId);
+                    loaded = true;
                 }
             }
         }
+        _draftLoadPending = false;
+        if (loaded) {
+            // activateFrame() above triggers a render, which unconditionally sets
+            // hasUnsavedChanges = true — just opening a draft shouldn't count as an edit.
+            hasUnsavedChanges = false;
+            return;
+        }
+        // BUGFIX: this used to fall through into the "fresh comic" init below, which
+        // re-renders the default blank frame. That blank render also set
+        // hasUnsavedChanges = true, and the next autosave (or an exit-save) would then
+        // silently push that blank canvas over the real draft in Supabase — permanently
+        // deleting it with no error ever shown to the person. Now a failed/empty load
+        // stops here, leaves the draft row untouched, and tells the person plainly so
+        // they can retry instead of unknowingly starting a fresh blank comic under the
+        // same draft id.
+        showDraftLoadError();
+        return;
     }
 
     // Edit-published-via-draft flow from my-comics-mobile

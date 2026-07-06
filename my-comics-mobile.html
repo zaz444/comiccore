@@ -752,7 +752,15 @@ async function editPublished(id) {
     // silently created an empty draft, and republishing it then overwrote the
     // real published comic with nothing — this is what was wiping people's comics.
     const framesData = await loadDraftData(comic);
-    await saveDraft(draftId, (comic.title || 'Untitled') + ' (edit)', framesData || [], comic.canvas_ratio || { w:1, h:1 });
+    // SAFETY NET: loadDraftData() throws on an actual fetch/download error, but a
+    // corrupted or unexpectedly-empty row wouldn't throw — it would just come back
+    // empty, and the old `|| []` fallback would then quietly save a blank draft.
+    // Treat "loaded successfully but empty" the same as a failure: stop and tell the
+    // person, rather than letting them start editing a comic that looks wiped.
+    if (!framesData || !framesData.length) {
+      throw new Error("This comic's saved data came back empty — refusing to open a blank draft. Nothing has been changed.");
+    }
+    await saveDraft(draftId, (comic.title || 'Untitled') + ' (edit)', framesData, comic.canvas_ratio || { w:1, h:1 });
     localStorage.setItem('edit_source_comic_id', String(id));
     localStorage.setItem('active_draft_id', draftId);
     localStorage.removeItem('active_draft_storage_path');
