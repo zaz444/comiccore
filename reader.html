@@ -1559,21 +1559,40 @@ function getSpriteFilterCSS(layer) {
 // sprite and background before the reader reaches that frame.
 function preloadAllFrameImages(frames) {
   const seen = new Set();
-  frames.forEach(f => {
+  const queue = [];
+  frames.forEach((f, i) => {
+    // Frames with a snapshot render from that single baked PNG and never
+    // touch these raw sprite/background images — warming them was wasted
+    // bandwidth, and it was firing at boot alongside startBackgroundPreload()'s
+    // snapshot walk, saturating the connection pool and slowing down the
+    // very first frame the reader is waiting on.
+    const origIdx = f._readerOrigIdx != null ? f._readerOrigIdx : i;
+    if (snapshotMap[origIdx]) return;
+
     // Background
     const bg = f.background || '';
     if ((bg.startsWith('http') || bg.startsWith('data:image')) && !seen.has(bg)) {
       seen.add(bg);
-      const im = new Image(); im.src = bg;
+      queue.push(bg);
     }
     // Layers
     (f.layers || []).forEach(l => {
       if (l.type === 'img' && l.src && !seen.has(l.src)) {
         seen.add(l.src);
-        const im = new Image(); im.src = l.src;
+        queue.push(l.src);
       }
     });
   });
+
+  // Whatever's left (frames with no snapshot yet) gets warmed one at a
+  // time instead of all at once — same spirit as _bgPreloadStep below.
+  let i = 0;
+  (function step() {
+    if (i >= queue.length) return;
+    const im = new Image();
+    im.onload = im.onerror = () => setTimeout(step, 80);
+    im.src = queue[i++];
+  })();
 }
 
 // ── BACKGROUND SNAPSHOT PRE-LOADING ────────────────────────────────────────
@@ -1780,8 +1799,18 @@ function _renderFrameDOM(f, next, cw, ch) {
   const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
   const isBgAnimated = isBgImage && isAnimatedBg(bg);
 
-  // Remove previous bg-layer and legacy r-bg-div elements
-  next.querySelectorAll('.r-bg-div, #r-bg-layer').forEach(e => e.remove());
+  // Full wipe, not a targeted one. This buffer may currently be showing a
+  // baked .r-snapshot <img> from the OTHER render path (renderFrame()'s
+  // snapshot branch) — that element isn't a .r-bg-div/.r-layer, so the old
+  // targeted querySelectorAll cleanup below missed it entirely. Since it's
+  // a plain (non-positioned) child, it painted *behind* the new absolutely-
+  // positioned sprites but *in front of* the frame's own background,
+  // showing through as a ghost of the previous frame — most visible right
+  // at the boundary between a snapshotted frame and a not-yet-snapshotted
+  // one, which is exactly the "flickers to someone else" symptom. Nothing
+  // else is expected to live in this buffer between renders, so a full
+  // clear is safe.
+  next.innerHTML = '';
 
   // Reset canvas-level bg props
   next.style.filter          = '';
@@ -1844,11 +1873,9 @@ function _renderFrameDOM(f, next, cw, ch) {
     next.style.backgroundColor = bg;
   }
 
-  next.insertBefore(bgLayer, next.firstChild);
+  next.appendChild(bgLayer);
 
-  // 4. Remove old layers from next buffer, add new ones
-  next.querySelectorAll('.r-layer').forEach(e => e.remove());
-
+  // 4. Add this frame's layers (buffer was already fully cleared above)
   const rfLayerOvr = getTsLayerOverrides(idx);
   f.layers.forEach((l, layerIdx) => {
     const el = document.createElement('div');
