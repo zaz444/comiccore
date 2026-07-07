@@ -4,6 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ComicCore - Mobile Creator</title>
+    <script>
+        // ── FIX: Android TWA cold-load viewport height race ──
+        // On a fresh cold load inside the TWA WebView, the system UI insets
+        // (status bar / gesture nav) haven't always settled by the time the
+        // first layout pass runs, so `100dvh` can get measured too tall once
+        // and never re-checked. That pushes the bottom toolbar below the
+        // visible fold — still in the DOM, just invisible under `overflow:
+        // hidden`. (Exiting and re-entering "fixes" it only because the OS
+        // insets are already settled by then.)
+        //
+        // Fix: compute the real height ourselves via JS instead of trusting
+        // dvh on first paint, and keep re-measuring for a moment after load
+        // since the insets can settle asynchronously.
+        (function () {
+            function setAppHeight() {
+                var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+                document.documentElement.style.setProperty('--app-vh', h + 'px');
+            }
+            setAppHeight();
+            // Re-measure repeatedly for ~1s after load to catch late-settling
+            // insets without waiting on the user to background/foreground the app.
+            [0, 50, 150, 300, 600, 1000].forEach(function (t) { setTimeout(setAppHeight, t); });
+            window.addEventListener('resize', setAppHeight);
+            window.addEventListener('orientationchange', setAppHeight);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', setAppHeight);
+            }
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') setAppHeight();
+            });
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
@@ -22,7 +54,8 @@
         margin: 0; font-family: 'Inter', sans-serif;
         background: var(--bg); color: var(--text);
         overflow: hidden; display: flex; flex-direction: column;
-        height: 100vh; height: 100dvh; /* dynamic viewport for mobile */
+        height: 100vh; height: 100dvh; /* fallback until JS measures the real height */
+        height: var(--app-vh, 100dvh); /* set in <head> script — fixes TWA cold-load inset race */
     }
 
     /* ── TOP BAR ── */
@@ -485,6 +518,15 @@
         background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
     }
     #ts-preview-content { transform-origin: center center; max-width: 100%; }
+    #fx-preview-box {
+        height: 110px; margin-top: 16px; border-radius: 12px;
+        border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+        overflow: hidden; position: relative;
+        background-color: #2a2a2c;
+        background-image: linear-gradient(45deg, #232325 25%, transparent 25%), linear-gradient(-45deg, #232325 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #232325 75%), linear-gradient(-45deg, transparent 75%, #232325 75%);
+        background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+    #fx-preview-content { transform-origin: center center; max-width: 100%; }
     .ts-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
     .ts-act-btn {
         padding: 10px 4px; background: #222; border: 1.5px solid #333;
@@ -1494,6 +1536,10 @@
             <button onclick="clearFxFromSelected()" style="flex:1;padding:10px;background:#1e1e20;color:#888;border:1px solid #333;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Clear FX</button>
             <button onclick="closeSheet('fx')" style="flex:1;padding:10px;background:var(--teal);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;">Done</button>
         </div>
+
+        <!-- PREVIEW (scroll down to see the layer with current FX applied) -->
+        <div style="font-size:9px;font-weight:900;color:#555;letter-spacing:1px;text-transform:uppercase;margin:16px 0 6px;text-align:center;">Preview</div>
+        <div id="fx-preview-box"><div id="fx-preview-content"></div></div>
         </div><!-- /fx-controls-body -->
     </div>
 </div>
@@ -3639,14 +3685,9 @@ function applyTransform() {
 // sliders was invisible until you closed the sheet. This renders a live,
 // scaled-to-fit copy of the selected layer right inside the sheet, kept in
 // sync with every control that can change its appearance.
-function renderTransformPreview() {
-    const wrap = document.getElementById('ts-preview-box');
-    const box  = document.getElementById('ts-preview-content');
-    if (!wrap || !box || !activeLayer) { if (wrap) wrap.style.display = 'none'; return; }
-
-    const layer = activeLayer;
-    box.style.transform = 'none';
-    box.innerHTML = '';
+// ── Shared: build a standalone preview DOM element for a layer ──
+// Used by both the Transform preview and the FX preview so they stay in sync.
+function buildLayerPreviewElement(layer) {
     let el = null;
 
     if (layer.type === 'bubble' || layer.type === 'thinking') {
@@ -3696,13 +3737,11 @@ function renderTransformPreview() {
         el.style.cssText = `width:${layer.w||120}px;height:${h};display:block;object-fit:contain;transform:scaleX(${layer.flipped ? -1 : 1});`;
     }
 
-    if (!el) { wrap.style.display = 'none'; return; }
-    wrap.style.display = 'flex';
-    el.style.transform = (el.style.transform ? el.style.transform + ' ' : '') + `rotate(${layer.rotation||0}deg)`;
-    box.appendChild(el);
+    return el;
+}
 
-    // Scale the whole thing down (never up) so it always fits inside the
-    // preview box, no matter how large the layer's width/font-size is set.
+// Fit `box` inside `wrap` by scaling down (never up), used by both previews.
+function _fitPreviewBox(wrap, box) {
     requestAnimationFrame(() => {
         if (!wrap.isConnected) return;
         const availW = wrap.clientWidth - 20;
@@ -3713,6 +3752,82 @@ function renderTransformPreview() {
             box.style.transform = `scale(${scale})`;
         }
     });
+}
+
+function renderTransformPreview() {
+    const wrap = document.getElementById('ts-preview-box');
+    const box  = document.getElementById('ts-preview-content');
+    if (!wrap || !box || !activeLayer) { if (wrap) wrap.style.display = 'none'; return; }
+
+    const layer = activeLayer;
+    box.style.transform = 'none';
+    box.innerHTML = '';
+
+    const el = buildLayerPreviewElement(layer);
+    if (!el) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+    el.style.transform = (el.style.transform ? el.style.transform + ' ' : '') + `rotate(${layer.rotation||0}deg)`;
+    box.appendChild(el);
+
+    // Scale the whole thing down (never up) so it always fits inside the
+    // preview box, no matter how large the layer's width/font-size is set.
+    _fitPreviewBox(wrap, box);
+}
+
+// ── FX preview (mirrors the Transform preview, but shows blur/filter/opacity/lighting) ──
+function renderFxPreview() {
+    const wrap = document.getElementById('fx-preview-box');
+    const box  = document.getElementById('fx-preview-content');
+    if (!wrap || !box) return;
+    if (!activeLayer) { wrap.style.display = 'none'; return; }
+
+    const layer = activeLayer;
+    box.style.transform = 'none';
+    box.innerHTML = '';
+
+    const el = buildLayerPreviewElement(layer);
+    if (!el) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+    el.style.transform = (el.style.transform ? el.style.transform + ' ' : '') + `rotate(${layer.rotation||0}deg)`;
+
+    if (layer.type === 'img') {
+        const hasFxSrc  = !!layer._fxSrc;
+        const bStrength = (layer.blurStrength != null) ? layer.blurStrength : 100;
+        const lfCSS     = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
+        const holder = document.createElement('div');
+        holder.style.cssText = `position:relative;display:inline-block;width:${layer.w||120}px;`;
+
+        if (hasFxSrc && bStrength < 100) {
+            // Blend mode: clean base + fx overlay at blurStrength opacity (matches main canvas)
+            const base = document.createElement('img');
+            base.src = layer.src; base.draggable = false;
+            base.style.cssText = 'width:100%;display:block;object-fit:contain;';
+            if (layer.fxOpacity !== undefined) base.style.opacity = layer.fxOpacity / 100;
+            el.style.position = 'absolute';
+            el.style.top = '0';
+            el.style.left = '0';
+            el.style.width = '100%';
+            el.style.height = '100%';
+            el.style.opacity = bStrength / 100;
+            holder.appendChild(base);
+            holder.appendChild(el);
+        } else {
+            if (!hasFxSrc) {
+                const blurCSS = getSpriteFilterCSS(layer);
+                const combined = [blurCSS, lfCSS].filter(Boolean).join(' ');
+                if (combined) el.style.filter = combined;
+            }
+            if (layer.fxOpacity !== undefined) el.style.opacity = layer.fxOpacity / 100;
+            holder.appendChild(el);
+        }
+        applyLightingToDOM(holder, layer);
+        box.appendChild(holder);
+    } else {
+        if (layer.fxOpacity !== undefined) el.style.opacity = layer.fxOpacity / 100;
+        box.appendChild(el);
+    }
+
+    _fitPreviewBox(wrap, box);
 }
 
 // ── SPRITE MOD PANEL (jeffyplays only) ──────────────────────────────────
@@ -5227,6 +5342,7 @@ function syncFxPanel() {
     if (!activeLayer) {
         if (hint) { hint.style.display = 'block'; }
         if (body) { body.style.display = 'none'; }
+        renderFxPreview();
         return;
     }
 
@@ -5283,6 +5399,7 @@ function syncFxPanel() {
     if (strVal) strVal.innerText = bStr + '%';
     if (strRow) strRow.style.display = (resolvedType !== 'none') ? 'block' : 'none';
     syncLightingUI(activeLayer);
+    renderFxPreview();
 }
 
 function setFxBlur(type) {
@@ -5330,10 +5447,11 @@ function applyFxToSelected() {
     const needsRecompute = _fxCanvas_TYPES.includes(activeLayer.blurType);
     if (needsRecompute) {
         activeLayer._fxSrc = null;
-        computeLayerFx(activeLayer).then(() => render());
+        computeLayerFx(activeLayer).then(() => { render(); renderFxPreview(); });
     } else {
         activeLayer._fxSrc = null;
         render();
+        renderFxPreview();
     }
 }
 
@@ -5351,6 +5469,7 @@ function clearFxFromSelected() {
     activeLayer.lighting     = { enabled: false };
     syncFxPanel();
     render();
+    renderFxPreview();
 }
 // stubs for PC compat
 function toggleFxPanel() { openSheet('fx'); }
@@ -8159,6 +8278,15 @@ function onLightEnableChange() {
     applyFxToSelected();
 }
 
+// Keep the joystick dot's own color in sync with the chosen light color
+// (it defaults to orange in the markup, but should reflect any color picked).
+function updateLightDotColor(rgbStr) {
+    const dot = document.getElementById('fx-light-dot');
+    if (!dot) return;
+    dot.style.background  = `rgb(${rgbStr})`;
+    dot.style.boxShadow   = `0 0 8px rgb(${rgbStr}), 0 0 18px rgba(${rgbStr},0.4)`;
+}
+
 function setLightColor(btn) {
     document.querySelectorAll('.fx-light-color-btn').forEach(b => {
         b.style.border = '2px solid #444';
@@ -8167,6 +8295,7 @@ function setLightColor(btn) {
     btn.style.border = '2px solid #ffcc00';
     btn.classList.add('active');
     _lightColor = btn.dataset.color;
+    updateLightDotColor(_lightColor);
     applyFxToSelected();
 }
 
@@ -8260,6 +8389,7 @@ function syncLightingUI(layer) {
         b.style.border = match ? '2px solid #ffcc00' : '2px solid #444';
         b.classList.toggle('active', match);
     });
+    updateLightDotColor(savedColor);
 }
 
 // ── Apply lighting overlay div on a DOM layer element (live preview) ──
