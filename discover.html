@@ -1125,9 +1125,9 @@ function ratingBadgeHtml(c) {
   const meta  = ratingMeta(c.age_rating);
   const color = meta ? meta.color : '#888';
   const label = meta ? meta.label : 'Rate';
-  const lock  = c.age_rating_locked ? '\ud83d\udd12 ' : '';
+  const check = c.age_rating_locked ? ' ✓' : '';
   const click = canEdit ? ` onclick="event.stopPropagation(); openRatingPicker('${esc(c.id)}')"` : '';
-  return `<div class="tile-age-rating${canEdit ? ' editable' : ''}" style="--rating-color:${color}"${click}>${lock}${esc(label)}</div>`;
+  return `<div class="tile-age-rating${canEdit ? ' editable' : ''}" style="--rating-color:${color}"${click}>${esc(label)}${check}</div>`;
 }
 
 let allComics       = [];
@@ -1810,10 +1810,10 @@ async function openPopup(id) {
     globalRatings.filter(r => r.receiver_hand === c.id)
       .reduce((sum, r) => sum + (parseInt(r.content) || 0), 0) / starCount : 0;
   document.getElementById('popup-meta').innerHTML = `
-    <span class="popup-meta-chip" id="popup-frame-chip">🎞 ${frameCount > 0 ? frameCount + ' frame' + (frameCount !== 1 ? 's' : '') : '…'}</span>
+    <span class="popup-meta-chip" id="popup-frame-chip">${frameCount > 0 ? frameCount + ' frame' + (frameCount !== 1 ? 's' : '') : '…'}</span>
     <span class="popup-meta-chip">⭐ ${starCount}</span>
     ${c.swipe_dir ? `<span class="popup-meta-chip">${c.swipe_dir==='vertical'?'↕ Vertical':'↔ Horizontal'}</span>` : ''}
-    <span class="popup-meta-chip">📅 ${exactDate(c.created_at).split(',')[0]}</span>
+    <span class="popup-meta-chip">${exactDate(c.created_at).split(',')[0]}</span>
     ${(() => {
       const canEdit = canEditRating(c);
       if (!c.age_rating && !canEdit) return '';
@@ -1821,8 +1821,8 @@ async function openPopup(id) {
       const cls   = 'popup-meta-chip' + (canEdit ? ' clickable' : '');
       const style = meta ? ` style="color:${meta.color};"` : '';
       const attrs = canEdit ? ` onclick="openRatingPicker('${esc(c.id)}')"` : '';
-      const lock  = c.age_rating_locked ? '🔒 ' : '';
-      return `<span class="${cls}"${style}${attrs}>${lock}${esc(c.age_rating || 'Rate')}</span>`;
+      const check = c.age_rating_locked ? ' <span title="Verified by admin" style="color:#32d74b;">✓</span>' : '';
+      return `<span class="${cls}"${style}${attrs}>${esc(c.age_rating || 'Rate')}${check}</span>`;
     })()}`;
 
   // Description
@@ -1857,7 +1857,7 @@ async function openPopup(id) {
       if (!count || count === frameCount) return; // no change
       frameCount = count;
       const chip = document.getElementById('popup-frame-chip');
-      if (chip) chip.textContent = `🎞 ${count} frame${count !== 1 ? 's' : ''}`;
+      if (chip) chip.textContent = `${count} frame${count !== 1 ? 's' : ''}`;
       prog = applyProgressUI(count);
       // Also update Continue button state
       const readBtn = document.getElementById('popup-read-btn');
