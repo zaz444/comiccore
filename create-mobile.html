@@ -594,6 +594,21 @@
     }
     .pub-input:focus { border-color: var(--accent); }
 
+    #pub-rating-label {
+        font-size: 11px; font-weight: 800; color: #666; margin-bottom: 6px;
+        text-transform: uppercase; letter-spacing: .5px;
+    }
+    #pub-rating-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+    .pub-rating-pill {
+        padding: 7px 12px; border-radius: 20px; font-size: 12px; font-weight: 900;
+        font-family: inherit; border: 1.5px solid #333; background: #161616; color: #888;
+        transition: .15s;
+    }
+    #pub-rating-lock-note {
+        display: none; font-size: 10px; color: #ff9f0a; font-weight: 700;
+        margin: 4px 0 10px;
+    }
+
     /* Bubble picker */
     #bubble-style-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
     .bubble-preview-btn {
@@ -842,6 +857,9 @@
         <input type="text" id="pub-title" class="pub-input" placeholder="Comic Title">
         <input type="text" id="pub-tags" class="pub-input" placeholder="Tags (e.g. action, comedy)">
         <textarea id="pub-desc" class="pub-input" placeholder="Brief description..." style="height:70px;resize:none;"></textarea>
+        <div id="pub-rating-label">Age Rating (optional)</div>
+        <div id="pub-rating-row"></div>
+        <div id="pub-rating-lock-note"></div>
         <div style="display:flex;gap:10px;">
             <button onclick="closePublish()" style="flex:1;padding:13px;background:#333;color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;">Cancel</button>
             <button id="publish-btn" onclick="finalPublish()" style="flex:1;padding:13px;background:var(--accent);color:white;border:none;border-radius:12px;font-weight:900;cursor:pointer;">POST NOW</button>
@@ -1900,6 +1918,49 @@ let editingComicId = null;
 // replaced by a fresh blob at a new path). See finalPublish().
 let loadedComicStoragePath = null;
 let finalCoverBase64 = null;
+// ── Age rating (publish-time picker) ────────────────────────────────
+const PUB_AGE_RATINGS = [
+    { code: null,    label: 'Not Rated', color: '#666' },
+    { code: 'G',     label: 'G',         color: '#32d74b' },
+    { code: 'PG',    label: 'PG',        color: '#64d2ff' },
+    { code: 'PG-13', label: 'PG-13',     color: '#ffd60a' },
+    { code: 'R',     label: 'R',         color: '#ff9f0a' },
+    { code: 'TV-MA', label: 'TV-MA',     color: '#ff453a' },
+];
+let pubSelectedRating = null;
+let pubRatingLocked   = false;
+const pubIsAdmin = JSON.parse(localStorage.getItem('user_profile') || '{}').handle === 'jeffyplays';
+
+function renderPubRatingPicker() {
+    const row  = document.getElementById('pub-rating-row');
+    const note = document.getElementById('pub-rating-lock-note');
+    if (!row) return;
+    const canEdit = pubIsAdmin || !pubRatingLocked;
+
+    row.innerHTML = PUB_AGE_RATINGS.map(r => {
+        const active = pubSelectedRating === r.code;
+        const border = active ? r.color : '#333';
+        const bg     = active ? r.color + '22' : '#161616';
+        const color  = active ? r.color : '#888';
+        const codeArg = r.code ? `'${r.code}'` : 'null';
+        return `<button type="button" class="pub-rating-pill" ` +
+            `style="border-color:${border};background:${bg};color:${color};${canEdit ? 'cursor:pointer;' : 'opacity:.5;'}" ` +
+            `${canEdit ? `onclick="selectPubRating(${codeArg})"` : 'disabled'}>${r.label}</button>`;
+    }).join('');
+
+    if (pubRatingLocked && !pubIsAdmin) {
+        note.style.display = 'block';
+        note.innerText = '🔒 An admin locked this rating — only they can change it.';
+    } else {
+        note.style.display = 'none';
+    }
+}
+
+function selectPubRating(code) {
+    if (pubRatingLocked && !pubIsAdmin) return;
+    pubSelectedRating = code;
+    renderPubRatingPicker();
+}
 let frameClipboard = null;
 let canvasRatio = { w: 1, h: 1 };
 let sidebarSprites = null;
@@ -6034,7 +6095,7 @@ function exitCancelLeave() {
 }
 
 // ── PUBLISH ──
-function openPublishModal() { document.getElementById('publish-modal').style.display='flex'; }
+function openPublishModal() { document.getElementById('publish-modal').style.display='flex'; renderPubRatingPicker(); }
 function closePublish() { document.getElementById('publish-modal').style.display='none'; }
 
 // ── COLLAB CO-CREATE (mobile) ────────────────────────────────────────────────
@@ -6271,7 +6332,7 @@ async function finalPublish() {
         // thumbnails and as the reader's last-resort fallback) — it should always be
         // frame 1's ratio, not whatever frame the editor happens to be sitting on when
         // Publish is tapped (which could be any frame, at any of its own ratios now).
-        const payload = { data: dataField, storage_path: storagePathField, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: getFrameRatio(frames[0]) };
+        const payload = { data: dataField, storage_path: storagePathField, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: getFrameRatio(frames[0]), age_rating: pubSelectedRating };
         let error, publishedId;
         if (editingComicId) {
             ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
@@ -6809,6 +6870,8 @@ window.onload = async function() {
             document.getElementById('pub-title').value = data.title || '';
             document.getElementById('pub-tags').value = (data.tags||[]).join(', ');
             document.getElementById('pub-desc').value = data.description || '';
+            pubSelectedRating = data.age_rating || null;
+            pubRatingLocked   = !!data.age_rating_locked;
             if (data.cover) { finalCoverBase64=data.cover; const img=document.getElementById('final-cover-img'); img.src=data.cover; img.style.display='block'; document.getElementById('cover-label').style.display='none'; }
             applyPendingBg(pendingBg,pendingBgId);
         });
@@ -6889,12 +6952,14 @@ window.onload = async function() {
         editingComicId = editSourceId;
         document.getElementById('publish-btn').innerText = 'REPUBLISH';
         maybeShowCollabBtn();
-        _supabase.from('comics').select('title,tags,description,cover,storage_path').eq('id', editSourceId).single().then(({ data }) => {
+        _supabase.from('comics').select('title,tags,description,cover,storage_path,age_rating,age_rating_locked').eq('id', editSourceId).single().then(({ data }) => {
             if (!data) return;
             loadedComicStoragePath = data.storage_path || null;
             document.getElementById('pub-title').value = data.title || '';
             document.getElementById('pub-tags').value = (data.tags||[]).join(', ');
             document.getElementById('pub-desc').value = data.description || '';
+            pubSelectedRating = data.age_rating || null;
+            pubRatingLocked   = !!data.age_rating_locked;
             if (data.cover) { finalCoverBase64=data.cover; const img=document.getElementById('final-cover-img'); if(img){ img.src=data.cover; img.style.display='block'; } }
         });
     }

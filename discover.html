@@ -310,9 +310,22 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
   background: rgba(0,0,0,.78); color: #ffd700;
   font-size: 9px; font-weight: 900; padding: 3px 7px; border-radius: 8px;
   backdrop-filter: blur(4px); cursor: pointer; transition: .15s;
-  user-select: none;
+  user-select: none; display: flex; align-items: center; gap: 4px;
 }
 .comic-card .tile-stars:hover { background: rgba(0,0,0,.92); }
+
+/* Single star icon with the numeric rating centered inside it */
+.star-num-icon {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; flex-shrink: 0; line-height: 1;
+}
+.star-num-icon svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.star-num-icon .star-num-text {
+  position: relative; font-size: 6.5px; font-weight: 900; color: #3a2900;
+  transform: translateY(1px); white-space: nowrap;
+}
+.star-num-icon-lg { width: 64px; height: 64px; }
+.star-num-icon-lg .star-num-text { font-size: 17px; transform: translateY(4px); }
 
 /* Expanded star rating popover on tile */
 .tile-star-expanded {
@@ -323,9 +336,6 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
   animation: fadeInStar .15s ease;
 }
 @keyframes fadeInStar { from { opacity:0; } to { opacity:1; } }
-.tile-star-expanded .star-expanded-rating { display: flex; align-items: center; gap: 2px; }
-.tile-star-expanded .star-expanded-rating .star { width: 16px; height: 16px; }
-.tile-star-expanded .star-expanded-rating .star svg { width: 16px; height: 16px; }
 .tile-star-expanded .star-expanded-count { font-size: 11px; font-weight: 900; color: #ffd700; margin-top: 2px; }
 .tile-star-expanded .star-expanded-close { font-size: 9px; color: rgba(255,255,255,.4); font-weight: 700; margin-top: 2px; }
 .comic-card .tile-mine {
@@ -338,6 +348,56 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
   background: rgba(50,215,75,.9); color: #000;
   font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 8px;
 }
+.comic-card .tile-age-rating {
+  position: absolute; bottom: 6px; left: 6px;
+  background: rgba(0,0,0,.78); color: var(--rating-color, #999);
+  border: 1px solid var(--rating-color, #444);
+  font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 8px;
+  letter-spacing: .3px; user-select: none;
+}
+.comic-card .tile-age-rating.editable { cursor: pointer; }
+.comic-card .tile-age-rating.editable:hover { background: rgba(0,0,0,.92); }
+
+/* ── Age rating picker sheet ── */
+.rating-picker-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 3000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fadeInStar .15s ease;
+}
+.rating-picker-sheet {
+  background: #1c1c1e; width: 100%; max-width: 340px;
+  border-radius: 18px; padding: 18px; border: 1px solid #2c2c2e;
+}
+.rating-picker-title { font-size: 14px; font-weight: 900; margin-bottom: 2px; }
+.rating-picker-sub { font-size: 11px; color: #777; margin-bottom: 14px; font-weight: 700; }
+.rating-picker-options { display: flex; flex-direction: column; gap: 8px; }
+.rating-picker-opt {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-radius: 12px; border: 1.5px solid #2c2c2e;
+  background: #111; cursor: pointer; transition: .15s;
+}
+.rating-picker-opt:hover { border-color: var(--opt-color, #ff7a00); }
+.rating-picker-opt.active { border-color: var(--opt-color, #ff7a00); background: rgba(255,122,0,.08); }
+.rating-picker-opt-label { font-weight: 900; font-size: 13px; color: var(--opt-color, #fff); }
+.rating-picker-opt-desc { font-size: 10px; color: #666; font-weight: 600; margin-top: 1px; }
+.rating-picker-opt-check { color: var(--opt-color, #ff7a00); font-weight: 900; }
+.rating-picker-clear, .rating-picker-lock-toggle {
+  margin-top: 10px; text-align: center; font-size: 11px; color: #888;
+  font-weight: 800; cursor: pointer; padding: 4px;
+}
+.rating-picker-clear:hover, .rating-picker-lock-toggle:hover { color: #ccc; }
+.rating-picker-locked-note {
+  font-size: 10px; color: #ff9f0a; margin-top: 10px; text-align: center; font-weight: 700;
+  line-height: 1.4;
+}
+.rating-picker-cancel {
+  margin-top: 14px; text-align: center; font-size: 12px; color: #555;
+  font-weight: 800; cursor: pointer; padding: 8px; border-top: 1px solid #2c2c2e;
+}
+.rating-picker-cancel:hover { color: #888; }
+.popup-meta-chip.clickable { cursor: pointer; }
+.popup-meta-chip.clickable:hover { background: #26262a; }
+
 .comic-card .tile-progress {
   position: absolute; bottom: 0; left: 0; right: 0;
   height: 3px; background: rgba(255,255,255,.1); border-radius: 0 0 14px 14px;
@@ -355,17 +415,12 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
 
 /* ── Star Rating ── */
 .star-rating {
-  display: flex; align-items: center; gap: 1px;
+  display: flex; align-items: center; gap: 5px;
   margin: 1px 0 0; line-height: 1;
 }
-.star-rating .star {
-  position: relative; display: inline-block;
-  width: 10px; height: 10px; flex-shrink: 0;
-}
-.star svg { width: 10px; height: 10px; display: block; }
 .star-rating .star-count {
   font-size: 9px; font-weight: 800; color: #555;
-  margin-left: 2px; white-space: nowrap;
+  white-space: nowrap;
 }
 
 .comic-card-info {
@@ -1045,6 +1100,35 @@ const _sb = supabase.createClient(
   { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
 );
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
+const isAdmin   = myProfile.handle === 'jeffyplays';
+
+// ── Age ratings ───────────────────────────────────────────
+// Creators can set/change the rating on their own comic. Once an admin sets or
+// changes it, the comic is locked and only an admin can change it from then on.
+const AGE_RATINGS = [
+  { code: 'G',     label: 'G',     desc: 'General audiences',          color: '#32d74b' },
+  { code: 'PG',    label: 'PG',    desc: 'Parental guidance',          color: '#64d2ff' },
+  { code: 'PG-13', label: 'PG-13', desc: 'Parents strongly cautioned', color: '#ffd60a' },
+  { code: 'R',     label: 'R',     desc: 'Restricted',                 color: '#ff9f0a' },
+  { code: 'TV-MA', label: 'TV-MA', desc: 'Mature audiences only',      color: '#ff453a' },
+];
+function ratingMeta(code) { return AGE_RATINGS.find(r => r.code === code) || null; }
+function canEditRating(c) {
+  const isMine = c.owner_handle === myProfile.handle;
+  return isAdmin || (isMine && !c.age_rating_locked);
+}
+// Small pill for comic-card tiles: shows the rating if set, or a "Rate" prompt
+// to whoever is allowed to set one. Hidden entirely for everyone else if unrated.
+function ratingBadgeHtml(c) {
+  const canEdit = canEditRating(c);
+  if (!c.age_rating && !canEdit) return '';
+  const meta  = ratingMeta(c.age_rating);
+  const color = meta ? meta.color : '#888';
+  const label = meta ? meta.label : 'Rate';
+  const lock  = c.age_rating_locked ? '\ud83d\udd12 ' : '';
+  const click = canEdit ? ` onclick="event.stopPropagation(); openRatingPicker('${esc(c.id)}')"` : '';
+  return `<div class="tile-age-rating${canEdit ? ' editable' : ''}" style="--rating-color:${color}"${click}>${lock}${esc(label)}</div>`;
+}
 
 let allComics       = [];
 let collabMap       = {}; // comicId -> [accepted invitee handles]
@@ -1444,7 +1528,7 @@ async function loadFeeds() {
   // ── 3. Fetch only what's needed — no full data blobs ────
   const [{ data: comics }, { data: ratings }] = await Promise.all([
     _sb.from('comics')
-      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked')
       .order('created_at', { ascending: false })
       .limit(80),
     _sb.from('messages').select('receiver_hand,content').eq('reaction','rating').limit(2000),
@@ -1553,7 +1637,8 @@ function renderComics(comics, stars) {
     const tsHtml = c.toonscroll_status && c.toonscroll_status !== 'none'
       ? `<div class="tile-ts" title="ToonScroll available" style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#00d2ff;font-size:9px;font-weight:800;padding:2px 6px;letter-spacing:.4px;">📜 SCROLL</div>`
       : '';
-    const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">⭐ ${avgRating.toFixed(1)} (${starCount})</div>` : '';
+    const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">${starNumIcon(avgRating)}<span>(${starCount})</span></div>` : '';
+    const ratingHtml = ratingBadgeHtml(c);
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const coAuthors   = collabMap[c.id] || [];
     const allAuthors  = [c.owner_handle, ...coAuthors].filter(Boolean);
@@ -1566,7 +1651,7 @@ function renderComics(comics, stars) {
     return `<div class="comic-card" data-id="${esc(c.id)}">
       <div class="comic-card-cover">
         <div style="width:100%;height:100%;border-radius:14px;overflow:hidden;position:relative;">
-          ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}${tsHtml}
+          ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}${tsHtml}${ratingHtml}
         </div>
       </div>
       <div class="comic-card-info">
@@ -1732,7 +1817,17 @@ async function openPopup(id) {
     <span class="popup-meta-chip" id="popup-frame-chip">🎞 ${frameCount > 0 ? frameCount + ' frame' + (frameCount !== 1 ? 's' : '') : '…'}</span>
     <span class="popup-meta-chip">⭐ ${starCount}</span>
     ${c.swipe_dir ? `<span class="popup-meta-chip">${c.swipe_dir==='vertical'?'↕ Vertical':'↔ Horizontal'}</span>` : ''}
-    <span class="popup-meta-chip">📅 ${exactDate(c.created_at).split(',')[0]}</span>`;
+    <span class="popup-meta-chip">📅 ${exactDate(c.created_at).split(',')[0]}</span>
+    ${(() => {
+      const canEdit = canEditRating(c);
+      if (!c.age_rating && !canEdit) return '';
+      const meta  = ratingMeta(c.age_rating);
+      const cls   = 'popup-meta-chip' + (canEdit ? ' clickable' : '');
+      const style = meta ? ` style="color:${meta.color};"` : '';
+      const attrs = canEdit ? ` onclick="openRatingPicker('${esc(c.id)}')"` : '';
+      const lock  = c.age_rating_locked ? '🔒 ' : '';
+      return `<span class="${cls}"${style}${attrs}>${lock}${esc(c.age_rating || 'Rate')}</span>`;
+    })()}`;
 
   // Description
   const descEl = document.getElementById('popup-desc');
@@ -2714,26 +2809,21 @@ function starCountToRating(count) {
   return 0;
 }
 
+// Single gold star icon with the numeric rating centered inside it.
+// size 'lg' is used for the big expanded panel; default is the small tile/popup size.
+function starNumIcon(rating, size) {
+  const GOLD = '#ffd700';
+  const cls = size === 'lg' ? 'star-num-icon star-num-icon-lg' : 'star-num-icon';
+  const label = (Math.round(rating * 10) / 10).toFixed(1).replace(/\.0$/, '');
+  return `<span class="${cls}">
+    <svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${GOLD}" stroke="${GOLD}" stroke-width="1" stroke-linejoin="round"/></svg>
+    <span class="star-num-text">${esc(label)}</span>
+  </span>`;
+}
+
 function renderStarRating(avgRating, count) {
   if (avgRating <= 0) return '';
-  const GOLD = '#ffd700';
-  const EMPTY = '#2a2a2c';
-  let starsHtml = '';
-  for (let i = 1; i <= 5; i++) {
-    const fill = Math.min(1, Math.max(0, avgRating - (i - 1)));
-    if (fill >= 1) {
-      // Full star
-      starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${GOLD}" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
-    } else if (fill >= 0.5) {
-      // Half star
-      const id = 'hg_' + i + '_' + Math.random().toString(36).slice(2,6);
-      starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><defs><linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="50%" stop-color="${GOLD}"/><stop offset="50%" stop-color="${EMPTY}"/></linearGradient></defs><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="url(#${id})" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
-    } else {
-      // Empty star
-      starsHtml += `<span class="star"><svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${EMPTY}" stroke="#444" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
-    }
-  }
-  return `<div class="star-rating">${starsHtml}<span class="star-count">${avgRating.toFixed(1)} (${count})</span></div>`;
+  return `<div class="star-rating">${starNumIcon(avgRating)}<span class="star-count">${count} rating${count !== 1 ? 's' : ''}</span></div>`;
 }
 
 // ── Favorites Section ─────────────────────────────────────
@@ -2770,7 +2860,7 @@ async function loadFavoritesSection() {
   if (missing.length) {
     const { data: extras } = await _sb
       .from('comics')
-      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked')
       .in('id', missing);
     if (extras) favoriteComics = [...favoriteComics, ...extras.filter(c => c.title && c.owner_handle)];
   }
@@ -2802,6 +2892,7 @@ function renderFavoritesPage() {
       ? `<img src="${esc(c.cover)}" loading="lazy" decoding="async" class="cover-loading" onload="this.classList.remove('cover-loading')" onerror="this.parentNode.innerHTML='<div class=no-cover>\ud83d\udcd6</div>'">`
       : '<div class="no-cover">\ud83d\udcd6</div>';
     const progressHtml = prog ? `<div class="tile-progress"><div class="tile-progress-fill" style="width:${prog.pct}%"></div></div>` : '';
+    const ratingHtml = ratingBadgeHtml(c);
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const favCollabs  = collabMap[c.id] || [];
     const favAllAuthors = [c.owner_handle, ...favCollabs].filter(Boolean);
@@ -2816,7 +2907,7 @@ function renderFavoritesPage() {
         <div style="width:100%;height:100%;border-radius:14px;overflow:hidden;position:relative;">
           ${coverHtml}
           <div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount || 0})">⭐ FAV</div>
-          ${progressHtml}
+          ${progressHtml}${ratingHtml}
         </div>
       </div>
       <div class="comic-card-info">
@@ -2861,28 +2952,83 @@ function toggleStarExpand(badge, starCount, avgRating) {
   if (existing) { existing.remove(); return; }
 
   const rating = parseFloat(avgRating);
-  const GOLD = '#ffd700'; const EMPTY = '#2a2a2c';
-  let starsHtml = '';
-  for (let i = 1; i <= 5; i++) {
-    const fill = Math.min(1, Math.max(0, rating - (i - 1)));
-    if (fill >= 1) {
-      starsHtml += `<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${GOLD}" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
-    } else if (fill >= 0.5) {
-      const id = 'hg_' + i + '_' + Math.random().toString(36).slice(2,6);
-      starsHtml += `<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><defs><linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="50%" stop-color="${GOLD}"/><stop offset="50%" stop-color="${EMPTY}"/></linearGradient></defs><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="url(#${id})" stroke="${GOLD}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
-    } else {
-      starsHtml += `<span class="star"><svg viewBox="0 0 24 24" width="16" height="16"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${EMPTY}" stroke="#444" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`;
-    }
-  }
-
   const panel = document.createElement('div');
   panel.className = 'tile-star-expanded';
   panel.onclick = (e) => { e.stopPropagation(); panel.remove(); };
   panel.innerHTML = `
-    <div class="star-expanded-rating">${starsHtml}</div>
+    ${starNumIcon(rating, 'lg')}
     <div class="star-expanded-count">${starCount} rating${starCount !== 1 ? 's' : ''} · ${rating.toFixed(1)} / 5 avg</div>
     <div class="star-expanded-close">tap to close</div>`;
   coverInner.appendChild(panel);
+}
+
+// ── Age rating picker ────────────────────────────────────
+function openRatingPicker(comicId) {
+  const c = allComics.find(x => x.id === comicId) || favoriteComics.find(x => x.id === comicId);
+  if (!c) return;
+  if (!canEditRating(c)) { showToast('Only the creator or an admin can change this.'); return; }
+
+  document.querySelector('.rating-picker-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'rating-picker-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  const locked = !!c.age_rating_locked;
+  const optionsHtml = AGE_RATINGS.map(r => `
+    <div class="rating-picker-opt${c.age_rating === r.code ? ' active' : ''}" style="--opt-color:${r.color}"
+      onclick="setComicRating('${esc(c.id)}', '${r.code}')">
+      <div><div class="rating-picker-opt-label">${esc(r.label)}</div><div class="rating-picker-opt-desc">${esc(r.desc)}</div></div>
+      ${c.age_rating === r.code ? '<span class="rating-picker-opt-check">✓</span>' : ''}
+    </div>`).join('');
+
+  overlay.innerHTML = `
+    <div class="rating-picker-sheet" onclick="event.stopPropagation()">
+      <div class="rating-picker-title">Age rating</div>
+      <div class="rating-picker-sub">${esc(c.title || 'This comic')}</div>
+      <div class="rating-picker-options">${optionsHtml}</div>
+      ${c.age_rating ? `<div class="rating-picker-clear" onclick="setComicRating('${esc(c.id)}', null)">Clear rating</div>` : ''}
+      ${isAdmin ? `<div class="rating-picker-lock-toggle" onclick="setRatingLock('${esc(c.id)}', ${!locked})">${locked ? '🔓 Unlock — let the creator manage this' : '🔒 Lock — only an admin can change it'}</div>` : ''}
+      ${locked && !isAdmin ? `<div class="rating-picker-locked-note">An admin set this rating. You can't change it until they unlock it.</div>` : ''}
+      <div class="rating-picker-cancel" onclick="this.closest('.rating-picker-overlay').remove()">Cancel</div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function setComicRating(comicId, code) {
+  const update = { age_rating: code };
+  // A creator setting/changing their own rating leaves it unlocked and editable later.
+  // An admin acting on any comic — including clearing it — locks it going forward.
+  if (isAdmin) update.age_rating_locked = true;
+
+  const { error } = await _sb.from('comics').update(update).eq('id', comicId);
+  document.querySelector('.rating-picker-overlay')?.remove();
+  if (error) { showToast('Error saving rating: ' + error.message); return; }
+
+  [allComics, favoriteComics].forEach(list => {
+    const c = list.find(x => x.id === comicId);
+    if (c) { c.age_rating = code; if (isAdmin) c.age_rating_locked = true; }
+  });
+
+  if (document.getElementById('favoritesFeed')?.offsetParent) renderFavoritesPage();
+  else renderComics(allComics, globalRatings);
+  if (activePopupComic?.id === comicId) openPopup(comicId);
+  showToast(code ? `Rating set to ${code}` : 'Rating cleared');
+}
+
+async function setRatingLock(comicId, locked) {
+  const { error } = await _sb.from('comics').update({ age_rating_locked: locked }).eq('id', comicId);
+  if (error) { showToast('Error: ' + error.message); return; }
+
+  [allComics, favoriteComics].forEach(list => {
+    const c = list.find(x => x.id === comicId);
+    if (c) c.age_rating_locked = locked;
+  });
+
+  document.querySelector('.rating-picker-overlay')?.remove();
+  if (document.getElementById('favoritesFeed')?.offsetParent) renderFavoritesPage();
+  else renderComics(allComics, globalRatings);
+  showToast(locked ? 'Locked — only an admin can change it now' : 'Unlocked — the creator can manage it again');
 }
 
 window.onload = init;
