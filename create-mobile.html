@@ -5927,6 +5927,30 @@ function looksBlank(frameArr) {
     return (!f.layers || f.layers.length === 0) && (!f.background || f.background === '#ffffff');
 }
 
+// ── Auto-retry cloud sync once connectivity returns ─────────────────────────
+// A network failure (offline, dropped connection, "Failed to fetch") already
+// leaves a full local backup via localBackupSave() below — but historically
+// the cloud copy just stayed out of sync until the person noticed the red
+// badge and manually hit save again. This listens for the browser's 'online'
+// event and silently retries the cloud save once connectivity is back, so a
+// dropped connection (e.g. cellular mid-upload on a 100+ frame draft)
+// resolves itself instead of requiring a manual retry.
+let _pendingCloudSync = false;
+let _onlineRetryRegistered = false;
+function _scheduleCloudSyncRetry() {
+    _pendingCloudSync = true;
+    if (_onlineRetryRegistered) return;
+    _onlineRetryRegistered = true;
+    window.addEventListener('online', function _onlineHandler() {
+        window.removeEventListener('online', _onlineHandler);
+        _onlineRetryRegistered = false;
+        if (_pendingCloudSync) {
+            _pendingCloudSync = false;
+            saveOffline(true); // silent — a background retry succeeding doesn't need a popup
+        }
+    });
+}
+
 async function saveOffline(silent = false) {
     // CRITICAL SAFETY NET: never save while an existing draft is still being
     // fetched — see _draftLoadPending's declaration for why this matters.
@@ -5948,6 +5972,16 @@ async function saveOffline(silent = false) {
     // Local backup happens before anything touches the network, so it's captured
     // even if the request below fails or times out.
     localBackupSave();
+
+    // Don't even attempt the round-trip if the device already knows it's
+    // offline — go straight to the calmer "saved locally, will sync" message
+    // instead of a scary fetch-failure error, and queue an automatic retry
+    // for whenever connectivity returns.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        _scheduleCloudSyncRetry();
+        if (!silent) showMobSaveBadge('Saved on this device — will sync when back online', false);
+        return;
+    }
 
     // Top-level ratio is frame 1's — same reasoning as the publish payload, this
     // is only the back-compat/cover ratio, not a per-frame source of truth.
@@ -6024,7 +6058,19 @@ async function saveOffline(silent = false) {
         console.warn('Draft save failed:', e);
         // The cloud write didn't land, but localBackupSave() above already ran, so this
         // browser still has a copy of the current frames independent of Supabase.
-        if (!silent) showMobSaveBadge('✗ Save failed (backed up on this device): ' + (e.message || 'error'), true);
+        const msg = (e && e.message) || '';
+        // "Failed to fetch" / NetworkError means the request never got a response at
+        // all — a dropped connection, not a rejection from Supabase (bad payload, auth,
+        // quota, etc). Those are recoverable on their own once the connection is back,
+        // so queue a silent retry instead of treating it like a real failure.
+        const looksLikeConnectivity = /failed to fetch|networkerror|network request failed/i.test(msg)
+            || (typeof navigator !== 'undefined' && navigator.onLine === false);
+        if (looksLikeConnectivity) {
+            _scheduleCloudSyncRetry();
+            if (!silent) showMobSaveBadge('Saved on this device — will sync when back online', false);
+        } else {
+            if (!silent) showMobSaveBadge('✗ Save failed (backed up on this device): ' + msg, true);
+        }
     }
 }
 
