@@ -5972,7 +5972,18 @@ async function saveOffline(silent = false) {
 
         // Stamp actual canvas pixel dimensions so the reader can scale correctly —
         // getStampedFrames() returns a fresh array, never touching the live `frames`.
-        const stamped = getStampedFrames();
+        // BUGFIX: draft saves used to skip the base64-stripping safety net that
+        // finalPublish() already relied on, so a leftover raw base64 image/FX
+        // layer (e.g. layer._fxSrc from an FX re-render) could ride straight
+        // into the draft payload. Once that pushed the payload past
+        // _INLINE_LIMIT it was uploaded to Storage as a blob — and with
+        // embedded base64 images that blob could exceed the bucket's max file
+        // size, producing "The object exceeded the maximum allowed size".
+        const stampedRaw = getStampedFrames();
+        const stamped = await ensureLayerImagesUploaded(stampedRaw);
+        if (ensureLayerImagesUploaded._lastFailCount > 0) {
+            console.warn(ensureLayerImagesUploaded._lastFailCount + ' image(s) could not be uploaded during draft save — they remain embedded as base64 for now.');
+        }
         const payload = JSON.stringify(stamped);
         let rowPatch;
 
