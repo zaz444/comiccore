@@ -1107,10 +1107,14 @@ const _sb = supabase.createClient(
 );
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 const isAdmin   = myProfile.handle === 'jeffyplays';
+const isMod     = myProfile.settings?.role === 'mod';
+// Mods have the same moderation powers as the admin (delete any comic, manage
+// age ratings on any comic), just not the "Owner" tag itself.
+const isModOrAdmin = isAdmin || isMod;
 
 // ── Age ratings ───────────────────────────────────────────
-// Creators can set/change the rating on their own comic. Once an admin sets or
-// changes it, the comic is locked and only an admin can change it from then on.
+// Creators can set/change the rating on their own comic. Once an admin/mod sets or
+// changes it, the comic is locked and only an admin/mod can change it from then on.
 const AGE_RATINGS = [
   { code: 'G',     label: 'G',     desc: 'General audiences',          color: '#32d74b' },
   { code: 'PG',    label: 'PG',    desc: 'Parental guidance',          color: '#64d2ff' },
@@ -1121,7 +1125,7 @@ const AGE_RATINGS = [
 function ratingMeta(code) { return AGE_RATINGS.find(r => r.code === code) || null; }
 function canEditRating(c) {
   const isMine = c.owner_handle === myProfile.handle;
-  return isAdmin || (isMine && !c.age_rating_locked);
+  return isModOrAdmin || (isMine && !c.age_rating_locked);
 }
 // Small pill for comic-card tiles: shows the rating if set, or a "Rate" prompt
 // to whoever is allowed to set one. Hidden entirely for everyone else if unrated.
@@ -1944,12 +1948,16 @@ async function openPopup(id) {
     episodeBtn.title = 'Add Episode';
     episodeBtn.onclick = () => openAddEpisodeModal(c.id);
     btns.appendChild(episodeBtn);
+  }
 
+  // Delete: the creator can always delete their own comic; mods/admin can
+  // delete any comic as a moderation action.
+  if (isMine || isModOrAdmin) {
     const delBtn = document.createElement('button');
     delBtn.className = 'popup-delete-btn';
     delBtn.innerHTML = '🗑';
-    delBtn.title     = 'Delete comic';
-    delBtn.onclick   = () => deleteComic(c.id, c.title);
+    delBtn.title     = isMine ? 'Delete comic' : 'Delete comic (moderator action)';
+    delBtn.onclick   = () => deleteComic(c.id, c.title, isMine);
     btns.appendChild(delBtn);
   }
 
@@ -2087,12 +2095,17 @@ function openRatingModal(comicId) {
   location.href = 'reader.html?id=' + encodeURIComponent(comicId);
 }
 
-async function deleteComic(id, title) {
-  if (!confirm(`Delete "${title}"? This removes it from Discover permanently.`)) return;
+async function deleteComic(id, title, isMine = true) {
+  const msg = isMine
+    ? `Delete "${title}"? This removes it from Discover permanently.`
+    : `Remove "${title}" as a moderator? This deletes it from Discover permanently for its creator.`;
+  if (!confirm(msg)) return;
   closePopup();
-  await _sb.from('comics').delete().eq('id', id);
+  const { error } = await _sb.from('comics').delete().eq('id', id);
+  if (error) { showToast('Error deleting comic: ' + error.message); return; }
   allComics = allComics.filter(c => c.id !== id);
   renderComics(allComics, globalStars);
+  showToast(isMine ? 'Comic deleted' : 'Comic removed');
 }
 
 // ── Comments ──────────────────────────────────────────────
@@ -2989,8 +3002,8 @@ function openRatingPicker(comicId) {
       <div class="rating-picker-sub">${esc(c.title || 'This comic')}</div>
       <div class="rating-picker-options">${optionsHtml}</div>
       ${c.age_rating ? `<div class="rating-picker-clear" onclick="setComicRating('${esc(c.id)}', null)">Clear rating</div>` : ''}
-      ${isAdmin ? `<div class="rating-picker-lock-toggle" onclick="setRatingLock('${esc(c.id)}', ${!locked})">${locked ? '🔓 Unlock — let the creator manage this' : '🔒 Lock — only an admin can change it'}</div>` : ''}
-      ${locked && !isAdmin ? `<div class="rating-picker-locked-note">An admin set this rating. You can't change it until they unlock it.</div>` : ''}
+      ${isModOrAdmin ? `<div class="rating-picker-lock-toggle" onclick="setRatingLock('${esc(c.id)}', ${!locked})">${locked ? '🔓 Unlock — let the creator manage this' : '🔒 Lock — only an admin/mod can change it'}</div>` : ''}
+      ${locked && !isModOrAdmin ? `<div class="rating-picker-locked-note">An admin/mod set this rating. You can't change it until they unlock it.</div>` : ''}
       <div class="rating-picker-cancel" onclick="this.closest('.rating-picker-overlay').remove()">Cancel</div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2999,8 +3012,8 @@ function openRatingPicker(comicId) {
 async function setComicRating(comicId, code) {
   const update = { age_rating: code };
   // A creator setting/changing their own rating leaves it unlocked and editable later.
-  // An admin acting on any comic — including clearing it — locks it going forward.
-  if (isAdmin) update.age_rating_locked = true;
+  // An admin/mod acting on any comic — including clearing it — locks it going forward.
+  if (isModOrAdmin) update.age_rating_locked = true;
 
   const { error } = await _sb.from('comics').update(update).eq('id', comicId);
   document.querySelector('.rating-picker-overlay')?.remove();
@@ -3008,7 +3021,7 @@ async function setComicRating(comicId, code) {
 
   [allComics, favoriteComics].forEach(list => {
     const c = list.find(x => x.id === comicId);
-    if (c) { c.age_rating = code; if (isAdmin) c.age_rating_locked = true; }
+    if (c) { c.age_rating = code; if (isModOrAdmin) c.age_rating_locked = true; }
   });
 
   if (document.getElementById('favoritesFeed')?.offsetParent) renderFavoritesPage();
