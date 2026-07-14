@@ -108,6 +108,31 @@
         position: absolute; inset: 0; pointer-events: none; z-index: 5;
         display: none; width: 100%; height: 100%;
     }
+    /* ── SPRITE QUICK-ACTIONS BAR ── */
+    /* Floats above the comic frame whenever an image layer is selected, so
+       common actions (pose swap, duplicate, front, delete) are one tap away
+       instead of requiring the full transform sheet. */
+    #sprite-quick-actions {
+        position: absolute; left: 50%; top: -46px; transform: translateX(-50%);
+        display: none; align-items: center; gap: 5px;
+        background: rgba(28,28,30,0.96); border: 1px solid var(--border);
+        border-radius: 22px; padding: 6px 7px; z-index: 250;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+        -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+        white-space: nowrap;
+    }
+    #sprite-quick-actions.show { display: flex; }
+    .sqa-btn {
+        background: rgba(255,255,255,0.07); border: none; color: var(--text);
+        width: 34px; height: 34px; border-radius: 17px; font-size: 15px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; flex-shrink: 0; padding: 0;
+    }
+    .sqa-btn:active { opacity: 0.6; }
+    .sqa-btn.sqa-accent { background: var(--teal); color: #000; }
+    .sqa-btn.sqa-danger { color: var(--danger); }
+    .sqa-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+
     #global-frame-indicator {
         position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
         background: rgba(0,0,0,0.65); color: var(--accent);
@@ -202,6 +227,75 @@
     .bot-btn:active .bot-custom-icon { filter: brightness(1) sepia(1) saturate(10) hue-rotate(0deg); }
     .bot-btn.onion-on { color: var(--teal); }
     .bot-btn.onion-on .bico { filter: drop-shadow(0 0 4px var(--teal)); }
+
+    /* ── FRAME SWIPE ZONE ── */
+    /* Dedicated strip pinned to the bottom of the viewport (not the canvas itself),
+       so navigating frames while editing never fights with dragging/resizing a
+       sprite. Lives outside canvas-container so it doesn't pan/zoom with the frame. */
+    #frame-swipe-zone {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
+        z-index: 150; display: flex; align-items: center; justify-content: center;
+        gap: 6px; touch-action: none; -webkit-tap-highlight-color: transparent;
+        background: linear-gradient(to top, rgba(0,0,0,0.4), rgba(0,0,0,0));
+    }
+    .fsz-dot {
+        width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+        background: rgba(255,255,255,0.32); transition: background 0.15s, transform 0.15s;
+    }
+    .fsz-dot.active { background: var(--accent); transform: scale(1.4); }
+    .fsz-hint {
+        font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.55);
+        letter-spacing: 0.5px; pointer-events: none; white-space: nowrap;
+    }
+
+    /* ── FLOATING CANVAS FRAME BAR (eye / duplicate / frame nav / options) ── */
+    #canvas-frame-bar-wrap {
+        position: absolute; left: 0; right: 0; bottom: 50px; z-index: 160;
+        display: flex; justify-content: center; pointer-events: none;
+    }
+    #canvas-frame-bar {
+        display: flex; align-items: center; gap: 1px; pointer-events: auto;
+        background: rgba(20,20,22,0.92); border: 1px solid var(--border);
+        border-radius: 22px; padding: 3px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+        transform-origin: center center;
+        transition: transform 0.32s cubic-bezier(.4,0,.2,1), opacity 0.28s ease;
+    }
+    #canvas-frame-bar.cfb-hidden { transform: translateX(-100vw); opacity: 0; pointer-events: none; }
+    .cfb-btn {
+        background: none; border: none; color: var(--text);
+        width: 32px; height: 32px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 15px; cursor: pointer; padding: 0; flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .cfb-btn:active { background: rgba(255,255,255,0.1); }
+    .cfb-btn.cfb-label {
+        width: auto; border-radius: 8px; padding: 0 4px;
+        font-size: 11px; font-weight: 900; color: var(--accent);
+        font-family: inherit; letter-spacing: 0.3px; min-width: 34px;
+    }
+    .cfb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+    .cfb-arrow {
+        background: rgba(255,122,0,0.18); border: none; border-left: 1px solid rgba(255,122,0,0.35);
+        color: var(--accent); font-size: 14px; font-weight: 900;
+        width: 30px; height: 32px; border-radius: 0 19px 19px 0;
+        cursor: pointer; flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+    }
+    .cfb-arrow:active { background: rgba(255,122,0,0.32); }
+    #cfb-tab {
+        position: absolute; left: 50%; bottom: 50px; z-index: 160;
+        transform: translate(-50%, 0);
+        width: 40px; height: 22px;
+        background: rgba(255,122,0,0.22); border: 1px solid rgba(255,122,0,0.4);
+        border-radius: 999px;
+        color: var(--accent); font-size: 13px; font-weight: 900;
+        align-items: center; justify-content: center;
+        cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent;
+        animation: cfbTabIn 0.32s cubic-bezier(.4,0,.2,1);
+    }
+    #cfb-tab:active { background: rgba(255,122,0,0.36); }
+    @keyframes cfbTabIn { from { transform: translate(-50%, 8px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 
     /* ── ZOOM / PAN OVERLAY ── */
     #zoom-controls {
@@ -633,6 +727,8 @@
     .export-tab-row { display: flex; gap: 8px; margin-bottom: 16px; }
     .export-tab { flex: 1; padding: 10px; background: #222; border: 1.5px solid #333; color: #888; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer; font-family: inherit; transition: 0.15s; }
     .export-tab.active { background: var(--teal); border-color: var(--teal); color: #000; }
+    .fx-target-tab { flex: 1; padding: 9px; background: #1a1a1a; border: 1.5px solid #333; color: #888; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer; font-family: inherit; transition: 0.15s; }
+    .fx-target-tab.active { background: var(--teal); border-color: var(--teal); color: #000; }
     .export-section { display: none; }
     .export-section.active { display: block; }
     #gif-progress-bar { height: 4px; background: #222; border-radius: 4px; margin-bottom: 10px; display: none; }
@@ -643,8 +739,18 @@
     #crop-modal { z-index: 700; }
 
     /* ── Unsaved indicator ── */
-    #unsaved-dot { width:7px;height:7px;border-radius:50%;background:#ff7a00;display:none;margin-left:4px;flex-shrink:0;animation:pulse-dot 1.5s infinite; }
-    @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.7)} }
+    .tb-icon-btn {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 2px; background: none; border: none; color: #888;
+        font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+        padding: 2px 8px; cursor: pointer; font-family: inherit; flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .tb-icon-btn img { width: 20px; height: 20px; object-fit: contain; filter: brightness(0.75); display: block; }
+    .tb-icon-btn .bico { font-size: 19px; line-height: 1; }
+    .tb-icon-btn:active { opacity: 0.7; }
+    .tb-icon-btn.onion-on { color: var(--teal); }
+    .tb-icon-btn.onion-on .bico { filter: drop-shadow(0 0 4px var(--teal)); }
 
     /* ── FX Panel as sheet ── */
     .fx-sheet-section { margin-bottom: 14px; }
@@ -694,6 +800,7 @@
 
     /* BG import choice */
     #bg-import-choice-modal { z-index: 600; }
+    #save-choice-modal { z-index: 600; }
 
     /* Modal close spans - make them tap-friendly */
     .modal-content [onclick*="close"], .overlay-full [onclick*="close"] {
@@ -926,6 +1033,26 @@
     </div>
 </div>
 
+<!-- Save options choice (triggered by top-bar 💾 icon) -->
+<div id="save-choice-modal" class="overlay-full" style="display:none;" onclick="if(event.target===this) closeSaveChoiceModal()">
+    <div style="background:var(--card);border-radius:20px;padding:22px;width:92%;max-width:380px;border:1px solid var(--border);display:flex;flex-direction:column;gap:14px;cursor:default;" onclick="event.stopPropagation()">
+        <div style="font-size:13px;font-weight:900;color:var(--accent);text-align:center;letter-spacing:2px;text-transform:uppercase;">Save Comic</div>
+        <button onclick="saveChoicePublish()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
+            <span style="font-size:22px;">📢</span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--accent);">Publish</div><div style="font-size:11px;color:#666;margin-top:2px;">Post it to Discover for others to read</div></div>
+        </button>
+        <button onclick="saveChoiceSaveToMyComics()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
+            <span style="font-size:22px;">💾</span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--teal);">Save to My Comics</div><div style="font-size:11px;color:#666;margin-top:2px;">Keep it as a private draft</div></div>
+        </button>
+        <button onclick="saveChoiceExport()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
+            <span style="font-size:22px;">⬆</span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;">Export</div><div style="font-size:11px;color:#666;margin-top:2px;">Download frames as images or GIF</div></div>
+        </button>
+        <button onclick="closeSaveChoiceModal()" style="padding:11px;background:#111;color:#555;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+    </div>
+</div>
+
 <!-- Bubble Picker -->
 <div id="bubble-picker-modal" class="overlay-full">
     <div class="modal-content">
@@ -1058,8 +1185,9 @@
         </div>
         <div class="add-section-label">Media</div>
         <div class="add-grid">
-            <button class="add-btn" onclick="closeSheet('add');openSheet('sprites')"><span class="add-ico">📚</span>Sprite Library</button>
-            <button class="add-btn" onclick="closeSheet('add');openSheet('gallery')"><span class="add-ico">🖼</span>Sprite Gallery</button>
+            <button class="add-btn" onclick="closeSheet('add');openSheet('sprites')"><span class="add-ico"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite library" style="width:24px;height:24px;"></span>Sprite Library</button>
+            <button class="add-btn" onclick="closeSheet('add');openSheet('gallery')"><span class="add-ico" style="position:relative;display:inline-block;"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite gallery" style="width:24px;height:24px;filter:hue-rotate(90deg) saturate(2);"><span style="position:absolute;top:-3px;right:-3px;background:#a855f7;color:#fff;font-size:7px;font-weight:900;border-radius:50%;width:10px;height:10px;display:flex;align-items:center;justify-content:center;line-height:1;">🖼</span></span>Sprite Gallery</button>
+            <button class="add-btn" onclick="closeSheet('add');openSheet('favorites')"><span class="add-ico">⭐</span>Favorites</button>
             <button class="add-btn" onclick="triggerImport('object');closeSheet('add')"><span class="add-ico">📦</span>Upload Image</button>
             <button class="add-btn" onclick="openMultiImport();closeSheet('add')"><span class="add-ico">🗂</span>Multi-Frame</button>
             <button class="add-btn" onclick="closeSheet('add');openSheet('audio')"><span class="add-ico">🔊</span>Audio</button>
@@ -1195,16 +1323,38 @@
 
         <!-- IMAGES pane -->
         <div id="mob-bg-pane-images" style="display:flex;flex-direction:column;gap:6px;">
-            <input class="pub-input" id="mob-bg-search" placeholder="Search backgrounds..." oninput="filterMobBgs()" style="margin-bottom:2px;">
             <div style="display:flex;gap:4px;margin-bottom:6px;">
                 <button id="mob-bg-tab-official" onclick="setMobBgTab('official')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #ff7a00;background:rgba(255,122,0,.12);color:#ff7a00;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Official</button>
                 <button id="mob-bg-tab-mine" onclick="setMobBgTab('mine')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Mine</button>
+                <button id="mob-bg-tab-edit" onclick="setMobBgTab('edit')" style="flex:1;padding:7px;border-radius:10px;border:1px solid #222;background:#111;color:#555;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Edit</button>
             </div>
-            <div id="mob-bg-grid">
-                <div style="color:#555;font-size:12px;padding:16px;text-align:center;">Tap to load...</div>
+
+            <!-- Official/Mine library content -->
+            <div id="mob-bg-library-content" style="display:flex;flex-direction:column;gap:6px;">
+                <input class="pub-input" id="mob-bg-search" placeholder="Search backgrounds..." oninput="filterMobBgs()" style="margin-bottom:2px;">
+                <div id="mob-bg-grid">
+                    <div style="color:#555;font-size:12px;padding:16px;text-align:center;">Tap to load...</div>
+                </div>
             </div>
-            <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:18px;">📷</span>Upload (Auto-fit)</button>
-            <button class="bg-action-btn" onclick="closeSheet('bg');triggerBgCropImport()"><span style="font-size:18px;">✂️</span>Upload & Crop</button>
+
+            <!-- Upload buttons — Mine and Edit only, not Official -->
+            <div id="mob-bg-upload-buttons" style="display:none;flex-direction:column;gap:6px;">
+                <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:18px;">📷</span>Upload (Auto-fit)</button>
+                <button class="bg-action-btn" onclick="closeSheet('bg');triggerBgCropImport()"><span style="font-size:18px;">✂️</span>Upload & Crop</button>
+            </div>
+
+            <!-- Edit content — all background editing controls live here now -->
+            <div id="mob-bg-edit-pane" style="display:none;flex-direction:column;gap:6px;">
+                <div id="mob-bg-edit-preview" style="margin-bottom:4px;"></div>
+                <div id="mob-bg-filter-section" style="display:none;">
+                    <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:2px 0 8px;">Filter</div>
+                    <div class="filter-row" id="mob-bg-filter-row"></div>
+                </div>
+                <button onclick="resetBgSettings()" style="width:100%;padding:11px;background:#222;border:1px solid #333;color:#aaa;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:2px;">Reset Background</button>
+                <button onclick="closeSheet('bg'); setFxTarget('bg'); openSheet('fx');" style="width:100%;padding:11px;background:rgba(0,210,255,0.08);border:1.5px solid rgba(0,210,255,0.35);color:var(--teal);border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:12px;">Background FX (Blur / Lighting / More)</button>
+                <button onclick="closeSheet('bg'); openBgAdjustBar();" style="width:100%;padding:13px;background:rgba(255,122,0,0.1);border:1.5px solid rgba(255,122,0,0.45);color:var(--accent);border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:13px;letter-spacing:0.5px;">🎚 Adjust (Scale / Position)</button>
+                <button id="mob-bg-drag-btn" onclick="closeSheet('bg'); toggleMobBgDrag();" style="width:100%;padding:11px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:12px;">✋ Drag Canvas to Pan</button>
+            </div>
         </div>
 
         <!-- COLORS pane -->
@@ -1237,14 +1387,6 @@
             <div id="mob-grad-preview" style="width:100%;height:36px;border-radius:8px;border:1px solid #222;"></div>
             <button onclick="applyMobCustomGradient()" style="width:100%;padding:10px;background:#ff7a00;color:#000;border:none;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit;">Apply Gradient</button>
         </div>
-
-        <div id="mob-bg-filter-section" style="display:none;">
-            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 8px;">Filter</div>
-            <div class="filter-row" id="mob-bg-filter-row"></div>
-        </div>
-        <button onclick="resetBgSettings()" style="width:100%;padding:11px;background:#222;border:1px solid #333;color:#aaa;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;">Reset Background</button>
-        <button onclick="closeSheet('bg'); openBgAdjustBar();" style="width:100%;padding:13px;background:rgba(255,122,0,0.1);border:1.5px solid rgba(255,122,0,0.45);color:var(--accent);border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:13px;letter-spacing:0.5px;">🎚 Adjust (Scale / Position)</button>
-        <button id="mob-bg-drag-btn" onclick="closeSheet('bg'); toggleMobBgDrag();" style="width:100%;padding:11px;background:#111;border:1.5px solid rgba(0,180,255,0.3);color:#00b4ff;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;margin-top:6px;font-size:12px;">✋ Drag Canvas to Pan</button>
     </div>
 </div>
 
@@ -1404,6 +1546,10 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">🎨 FX <button class="sheet-close" onclick="closeSheet('fx')">✕</button></div>
     <div class="sheet-body">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="fx-target-tab active" id="fx-target-layer" onclick="setFxTarget('layer')">Sprite</button>
+            <button class="fx-target-tab" id="fx-target-bg" onclick="setFxTarget('bg')">Background</button>
+        </div>
         <div style="font-size:11px;color:#555;font-weight:700;margin-bottom:10px;text-align:center;padding:8px 0;display:none;" id="fx-selected-hint">⚠️ Select a layer first to apply effects</div>
 
         <div id="fx-controls-body" style="display:none;">
@@ -1659,24 +1805,18 @@
 <div id="top-bar">
     <button class="tb-btn" onclick="handleExit()">← Exit</button>
     <button class="tb-btn" onclick="undo()" title="Undo">↩</button>
-    <button class="tb-btn" onclick="topBarDuplicate()" title="Duplicate">⧉</button>
     <button class="tb-btn" onclick="redo()" title="Redo">↪</button>
     <div class="tb-spacer"></div>
-    <!-- ── Frame Navigation Pill ── -->
-    <div id="frame-nav-pill" style="display:flex;align-items:center;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:20px;overflow:visible;position:relative;flex-shrink:0;">
-        <button onclick="prevFrame()" style="background:none;border:none;color:var(--text);font-size:15px;font-weight:900;padding:6px 10px;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent;" title="Prev Frame">◀</button>
-        <button id="frame-pill-label" onclick="toggleFramePillMenu(event)" style="background:none;border:none;color:var(--accent);font-size:11px;font-weight:900;padding:4px 2px;cursor:pointer;font-family:inherit;letter-spacing:0.3px;white-space:nowrap;min-width:38px;text-align:center;-webkit-tap-highlight-color:transparent;">1/1</button>
-        <button onclick="nextFrame()" style="background:none;border:none;color:var(--text);font-size:15px;font-weight:900;padding:6px 10px;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent;" title="Next Frame">▶</button>
-        <!-- Dropdown arrow — clearly visible chevron button -->
-        <button onclick="toggleFramePillMenu(event)" style="background:rgba(255,122,0,0.18);border:none;border-left:1px solid rgba(255,122,0,0.35);color:var(--accent);font-size:14px;font-weight:900;padding:6px 9px;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent;border-radius:0 20px 20px 0;" title="Frame options">⌄</button>
-    </div>
-    <button id="frame-audio-badge" onclick="openSheet('audio')" style="display:none;background:rgba(0,210,255,0.15);border:1px solid rgba(0,210,255,0.4);color:var(--teal);font-size:12px;border-radius:14px;padding:6px 9px;margin-left:6px;cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1;" title="Frame has audio">🔊</button>
-    <div id="unsaved-dot"></div>
+    <button class="tb-icon-btn" onclick="openSheet('fx')">
+        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/fx.webp" alt="fx">FX
+    </button>
+    <button class="tb-icon-btn" id="onion-bot-btn" onclick="toggleOnionMobile()">
+        <span class="bico">🧅</span>Onion
+    </button>
     <div class="tb-spacer"></div>
-    <button class="tb-btn" onclick="saveOffline(false)">💾</button>
+    <button id="frame-audio-badge" onclick="openSheet('audio')" style="display:none;background:rgba(0,210,255,0.15);border:1px solid rgba(0,210,255,0.4);color:var(--teal);font-size:12px;border-radius:14px;padding:6px 9px;margin-left:6px;cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1;" title="Frame has audio">🔊</button>
+    <button class="tb-btn" onclick="openSaveChoiceModal()">💾</button>
     <button class="tb-btn" onclick="openDraftsModal()" title="Drafts">📂</button>
-    <button class="tb-btn" onclick="toggleHideUI()" title="Hide UI">👁</button>
-    <button class="tb-btn accent" onclick="openPublishModal()">Publish</button>
     <button class="tb-btn" id="collab-invite-btn" onclick="openCollabPanel()" title="Co-create" style="display:none;">👥</button>
 </div>
 <!-- Tap-to-show bar when UI is hidden -->
@@ -1694,11 +1834,30 @@
                 <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.72);color:#00b4ff;font-size:11px;font-weight:900;padding:5px 14px;border-radius:20px;pointer-events:none;white-space:nowrap;">✋ Drag to pan</div>
             </div>
         </div>
+        <div id="sprite-quick-actions"></div>
         <div id="global-frame-indicator"></div>
         <div id="frame-counter" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); color:#fff; font-size:12px; font-weight:700; padding:4px 8px; border-radius:6px; pointer-events:none;">
             <span id="total-frames">1/1</span>
         </div>
     </div>
+    <!-- Swipe strip lives here (sibling of canvas-container, not inside it) so it
+         stays put at the bottom of the viewport regardless of zoom/pan, and never
+         steals touches meant for editing the frame above it. -->
+    <div id="frame-swipe-zone"></div>
+
+    <!-- ── Floating canvas frame bar (eye / duplicate / frame nav / options) ── -->
+    <div id="canvas-frame-bar-wrap">
+        <div id="canvas-frame-bar">
+            <button class="cfb-btn" onclick="toggleHideUI()" title="Hide UI">👁</button>
+            <button class="cfb-btn" onclick="topBarDuplicate()" title="Duplicate">⧉</button>
+            <div class="cfb-sep"></div>
+            <button class="cfb-btn" onclick="prevFrame()" title="Prev Frame">◀</button>
+            <button id="frame-pill-label" class="cfb-btn cfb-label" onclick="toggleFramePillMenu(event)">1/1</button>
+            <button class="cfb-btn" onclick="nextFrame()" title="Next Frame">▶</button>
+            <button class="cfb-arrow" onclick="toggleFramePillMenu(event)" title="Frame options">⌄</button>
+        </div>
+    </div>
+    <button id="cfb-tab" onclick="expandCanvasFrameBar()" title="Show frame bar" style="display:none;"><span style="display:inline-block;line-height:1;transform:rotate(180deg);">⌄</span></button>
 </div>
 
 <!-- FAVORITES SHEET -->
@@ -1734,18 +1893,6 @@
     <button class="bot-btn" onclick="openSheet('add')">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/add.webp" class="bot-custom-icon" alt="add">Add
     </button>
-    <button class="bot-btn" onclick="openSheet('sprites')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite library">Library
-    </button>
-    <button class="bot-btn" onclick="openSheet('gallery')" style="position:relative;">
-        <span style="position:relative;display:inline-block;">
-            <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite gallery" style="filter:hue-rotate(90deg) saturate(2);">
-            <span style="position:absolute;top:-3px;right:-3px;background:#a855f7;color:#fff;font-size:7px;font-weight:900;border-radius:50%;width:10px;height:10px;display:flex;align-items:center;justify-content:center;line-height:1;">🖼</span>
-        </span>Gallery
-    </button>
-    <button class="bot-btn" onclick="openSheet('favorites')">
-        <span class="bico">⭐</span>Favs
-    </button>
     <button class="bot-btn" onclick="openSheet('effects'); if(!mobSidebarEffects) loadMobEffects()">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/effects.webp" class="bot-custom-icon" alt="effects">Effects
     </button>
@@ -1760,15 +1907,6 @@
     </button>
     <button class="bot-btn" onclick="sbEditAction()">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/edit.webp" class="bot-custom-icon" alt="edit">Edit
-    </button>
-    <button class="bot-btn" onclick="openSheet('fx')">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/fx.webp" class="bot-custom-icon" alt="fx">FX
-    </button>
-    <button class="bot-btn" id="onion-bot-btn" onclick="toggleOnionMobile()">
-        <span class="bico">🧅</span>Onion
-    </button>
-    <button class="bot-btn" onclick="openExportModal()">
-        <span class="bico">⬆</span>Export
     </button>
 </div>
 
@@ -1895,6 +2033,8 @@ function lsSet(key, value) {
 
 // ── STATE ──
 let frames = [{ layers: [], background: '#ffffff' }];
+// Whether the FX sheet is currently targeting the frame background instead of a sprite layer
+let fxEditingBg = false;
 let currentIdx = 0;
 let history = [], redoStack = [];
 let activeLayer = null;
@@ -2175,8 +2315,14 @@ function closeTransformSheet() {
 }
 function syncTransformSheet() {
     if (!activeLayer) return;
-    document.getElementById('size-slider').value = activeLayer.w || 200;
-    document.getElementById('size-num').value = activeLayer.w || 200;
+    // Sprites get a frame-relative size ceiling so the slider can't push a
+    // character way past the visible frame; text/bubbles keep the old range.
+    const sizeMax = activeLayer.type === 'img' ? getMaxSpriteSize() : 1000;
+    const sizeSlider = document.getElementById('size-slider');
+    const sizeNum = document.getElementById('size-num');
+    sizeSlider.max = sizeMax; sizeNum.max = sizeMax;
+    sizeSlider.value = activeLayer.w || 200;
+    sizeNum.value = activeLayer.w || 200;
     document.getElementById('rotate-slider').value = activeLayer.rotation || 0;
     document.getElementById('rotate-num').value = activeLayer.rotation || 0;
 
@@ -2332,6 +2478,76 @@ function openTextEdit(layer) {
 
 // ── Debounced render — prevents excessive redraws during touch ──
 let _renderRaf = null;
+// Builds the 4 orange corner resize handles for a sprite layer and wires up
+// their touch-drag-to-resize behavior. Used both during a full render() and
+// for instant tap-select (see touchstart handler below) so handles don't
+// require a full re-render (or a double-tap) to appear.
+function attachResizeHandles(el, layer) {
+    el.querySelectorAll('.resize-handle').forEach(h => h.remove());
+    ['tl','tr','bl','br'].forEach(corner => {
+        const h = document.createElement('div');
+        h.className = 'resize-handle ' + corner;
+        h.textContent = corner === 'br' ? '⤡' : corner === 'tl' ? '⤡' : '';
+        h.addEventListener('touchstart', (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            saveState();
+            const t0 = ev.touches[0];
+            const origW = layer.w, origH = (layer.h != null ? layer.h : layer.w), origX = layer.x, origY = layer.y;
+            const startClientX = t0.clientX;
+            const startClientY = t0.clientY;
+            const isLeft = (corner === 'tl' || corner === 'bl');
+            const isTop  = (corner === 'tl' || corner === 'tr');
+            // Use getBoundingClientRect scale for accuracy on Android TWA
+            const _cRect = canvas.getBoundingClientRect();
+            const _cScale = _cRect.width / (canvas.offsetWidth || 1);
+            const _maxSpriteW = getMaxSpriteSize();
+            const onMove = (mv) => {
+                if (mv.touches.length > 1) return;
+                mv.preventDefault();
+                mv.stopPropagation();
+                const rawDx = (mv.touches[0].clientX - startClientX) / _cScale;
+                const rawDy = (mv.touches[0].clientY - startClientY) / _cScale;
+                const dx = isLeft ? -rawDx : rawDx;
+                const dy = isTop  ? -rawDy : rawDy;
+                const delta = (dx + dy) / 2;
+                const newW = Math.max(20, Math.min(_maxSpriteW, Math.round(origW + delta)));
+                const newH = (origW ? Math.round(origH * newW / origW) : newW);
+                layer.h = newH;
+                layer.w = newW;
+                // Anchor the edges that AREN'T being dragged so the sprite
+                // resizes in place instead of drifting — mirrors isLeft/x
+                // below, but was previously missing for the top handles,
+                // which made resizing from tl/tr look like the sprite moved.
+                if (isLeft) layer.x = origX + (origW - newW);
+                if (isTop)  layer.y = origY + (origH - newH);
+                // Direct DOM update — instant feedback without full re-render
+                if (el) {
+                    el.style.width = newW + 'px';
+                    el.style.height = newH + 'px';
+                    // Also resize the img inside so it visually matches the handle drag
+                    const imgEl = el.querySelector('img');
+                    if (imgEl) imgEl.style.width = newW + 'px';
+                    if (isLeft) el.style.left = layer.x + 'px';
+                    if (isTop)  el.style.top  = layer.y + 'px';
+                }
+                // sync slider if transform sheet is open
+                const sl = document.getElementById('size-slider');
+                if (sl) { sl.value = newW; const sn = document.getElementById('size-num'); if (sn) sn.value = newW; }
+            };
+            const onUp = () => {
+                // CRITICAL: remove from h, same element we added to
+                h.removeEventListener('touchmove', onMove);
+                h.removeEventListener('touchend', onUp);
+                render(); // full re-render on finger lift
+            };
+            // CRITICAL: attach to h (the handle element), NOT document
+            h.addEventListener('touchmove', onMove, { passive: false });
+            h.addEventListener('touchend', onUp, { once: true });
+        }, { passive: false });
+        el.appendChild(h);
+    });
+}
+
 function render() {
     if (_renderRaf) return; // already queued
     _renderRaf = requestAnimationFrame(() => {
@@ -2375,16 +2591,25 @@ function _renderNow() {
     const scale = s.scale ?? 1, rotate = s.rotate ?? 0, xOff = s.x ?? 0, yOff = s.y ?? 0, filter = s.filter || 'none';
     const filterCSS = filter === 'none' ? '' : filter;
 
+    // ── Background FX (blur/filter chip/opacity/lighting) — mirrors sprite layer FX ──
+    const bgFx = f.bgFx || {};
+    const bgFxCSS = getSpriteFilterCSS(bgFx);
+    const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
+    const combinedBgFilter = [filterCSS, bgFxCSS, bgFxChipCSS].filter(Boolean).join(' ');
+    const bgHasFxSrc = !!bgFx._fxSrc;
+    const bgFxStrength = (bgFx.blurStrength != null) ? bgFx.blurStrength : 100;
+
     // Build dedicated bg-layer div
     const bgLayer = document.createElement('div');
     bgLayer.id = 'cc-bg-layer';
     bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
-    if (filterCSS) bgLayer.style.filter = filterCSS;
+    if (combinedBgFilter) bgLayer.style.filter = combinedBgFilter;
+    if (bgFx.fxOpacity !== undefined) bgLayer.style.opacity = bgFx.fxOpacity / 100;
 
     if (isImg) {
         canvas.style.backgroundColor = 'transparent';
         if (isAnimated) {
-            // Animated GIF/WebP — use <img> so animation plays
+            // Animated GIF/WebP — use <img> so animation plays (canvas-based bg FX doesn't apply to animated bgs)
             const wrapper = document.createElement('div');
             wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
             const img = document.createElement('img');
@@ -2401,15 +2626,26 @@ function _renderNow() {
         } else {
             // Static image — object-fit:cover fills frame; scale(sv) zooms outward from center.
             // Pan via translateX/Y so X/Y works correctly at all zoom levels.
-            const imgEl = document.createElement('img');
-            imgEl.src = bg;
             const sv  = Math.max(1, typeof scale === 'number' ? scale : 1);
             const txPct = sv > 1 ? (xOff / 100) * (sv - 1) * 50 : 0;
             const tyPct = sv > 1 ? (yOff / 100) * (sv - 1) * 50 : 0;
-            imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-                + 'transform:scale(' + sv + ') rotate(' + rotate + 'deg) translate(' + txPct + '%, ' + tyPct + '%);'
-                + 'transform-origin:center center;pointer-events:none;';
-            bgLayer.appendChild(imgEl);
+            const transformCSS = 'transform:scale(' + sv + ') rotate(' + rotate + 'deg) translate(' + txPct + '%, ' + tyPct + '%);transform-origin:center center;';
+            if (bgHasFxSrc && bgFxStrength < 100) {
+                // Blend mode: clean base + fx overlay at blurStrength opacity (matches sprite layer FX)
+                const baseImg = document.createElement('img');
+                baseImg.src = bg;
+                baseImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;' + transformCSS;
+                const overlayImg = document.createElement('img');
+                overlayImg.src = bgFx._fxSrc;
+                overlayImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;opacity:' + (bgFxStrength / 100) + ';' + transformCSS;
+                bgLayer.appendChild(baseImg);
+                bgLayer.appendChild(overlayImg);
+            } else {
+                const imgEl = document.createElement('img');
+                imgEl.src = bgHasFxSrc ? bgFx._fxSrc : bg;
+                imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;' + transformCSS;
+                bgLayer.appendChild(imgEl);
+            }
         }
     } else if (isGrad) {
         canvas.style.backgroundColor = 'transparent';
@@ -2419,6 +2655,9 @@ function _renderNow() {
     } else {
         canvas.style.backgroundColor = bg;
     }
+
+    // ── Background lighting overlay ──
+    applyLightingToDOM(bgLayer, bgFx);
 
     // Re-insert preserved elements in correct z-order
     canvas.appendChild(bgLayer);
@@ -2627,6 +2866,11 @@ function _renderNow() {
             e.stopPropagation();
             if (layer.locked) return; // locked layers cannot be moved or selected
             selectLayerLight(layer);
+            // Show resize handles immediately on tap-select, without waiting for
+            // a full re-render (previously they only appeared via double-tap
+            // or some other action that happened to trigger render()).
+            canvas.querySelectorAll('.resize-handle').forEach(h => h.remove());
+            if (layer.type === 'img') attachResizeHandles(el, layer);
             startTouchDrag(e, layer);
         }, { passive: false });
         el.addEventListener('mousedown', (e) => { e.preventDefault(); if (!layer.locked) { selectLayer(layer); startDrag(e, layer); } });
@@ -2652,61 +2896,8 @@ function _renderNow() {
         }, { passive: false });
 
         // Resize handles on active sprite layer
-        if (layer === activeLayer && layer.type === 'img') {
-            ['tl','tr','bl','br'].forEach(corner => {
-                const h = document.createElement('div');
-                h.className = 'resize-handle ' + corner;
-                h.textContent = corner === 'br' ? '⤡' : corner === 'tl' ? '⤡' : '';
-                h.addEventListener('touchstart', (ev) => {
-                    ev.preventDefault(); ev.stopPropagation();
-                    saveState();
-                    const t0 = ev.touches[0];
-                    const origW = layer.w, origX = layer.x, origY = layer.y;
-                    const startClientX = t0.clientX;
-                    const startClientY = t0.clientY;
-                    const isLeft = (corner === 'tl' || corner === 'bl');
-                    const isTop  = (corner === 'tl' || corner === 'tr');
-                    // Use getBoundingClientRect scale for accuracy on Android TWA
-                    const _cRect = canvas.getBoundingClientRect();
-                    const _cScale = _cRect.width / (canvas.offsetWidth || 1);
-                    const onMove = (mv) => {
-                        if (mv.touches.length > 1) return;
-                        mv.preventDefault();
-                        mv.stopPropagation();
-                        const rawDx = (mv.touches[0].clientX - startClientX) / _cScale;
-                        const rawDy = (mv.touches[0].clientY - startClientY) / _cScale;
-                        const dx = isLeft ? -rawDx : rawDx;
-                        const dy = isTop  ? -rawDy : rawDy;
-                        const delta = (dx + dy) / 2;
-                        const newW = Math.max(20, Math.round(origW + delta));
-                        if (layer.h != null && layer.w) layer.h = Math.round(layer.h * newW / layer.w);
-                        layer.w = newW;
-                        if (isLeft) layer.x = origX + (origW - newW);
-                        // Direct DOM update — instant feedback without full re-render
-                        if (el) {
-                            el.style.width = newW + 'px';
-                            if (layer.h != null) el.style.height = layer.h + 'px';
-                            // Also resize the img inside so it visually matches the handle drag
-                            const imgEl = el.querySelector('img');
-                            if (imgEl) imgEl.style.width = newW + 'px';
-                            if (isLeft) el.style.left = layer.x + 'px';
-                        }
-                        // sync slider if transform sheet is open
-                        const sl = document.getElementById('size-slider');
-                        if (sl) { sl.value = newW; const sn = document.getElementById('size-num'); if (sn) sn.value = newW; }
-                    };
-                    const onUp = () => {
-                        // CRITICAL: remove from h, same element we added to
-                        h.removeEventListener('touchmove', onMove);
-                        h.removeEventListener('touchend', onUp);
-                        render(); // full re-render on finger lift
-                    };
-                    // CRITICAL: attach to h (the handle element), NOT document
-                    h.addEventListener('touchmove', onMove, { passive: false });
-                    h.addEventListener('touchend', onUp, { once: true });
-                }, { passive: false });
-                el.appendChild(h);
-            });
+        if (layer === activeLayer && layer.type === 'img' && !layer.locked) {
+            attachResizeHandles(el, layer);
         }
 
         canvas.appendChild(el);
@@ -2734,20 +2925,49 @@ function _renderNow() {
     hasUnsavedChanges = true;
     const dot = document.getElementById('unsaved-dot');
     if (dot) dot.style.display = 'block';
+    updateSpriteQuickBar(activeLayer);
 }
 
 function selectLayer(layer) {
     activeLayer = layer;
     selectedLayers = [layer];
+    fxEditingBg = false;
     render();
+    updateSpriteQuickBar(layer);
 }
 
 function selectLayerLight(layer) {
     activeLayer = layer;
     selectedLayers = [layer];
+    fxEditingBg = false;
     document.querySelectorAll('.layer').forEach(function(el) {
         el.classList.toggle('active', el.dataset.layerId == layer.id);
     });
+    updateSpriteQuickBar(layer);
+}
+
+// ── SPRITE QUICK-ACTIONS BAR ──
+// Shows a small pill of icon buttons above the frame whenever an image layer
+// is selected, so pose-swap / duplicate / front / delete don't require
+// opening the full transform sheet first.
+function updateSpriteQuickBar(layer) {
+    const bar = document.getElementById('sprite-quick-actions');
+    if (!bar) return;
+    if (!layer || layer.type !== 'img' || layer.locked) {
+        bar.classList.remove('show');
+        bar.innerHTML = '';
+        return;
+    }
+    const hasActions = !!layer.packData;
+    bar.innerHTML = `
+        ${hasActions ? `<button class="sqa-btn sqa-accent" onclick="event.stopPropagation();editCurrentSpriteAction()" title="Actions">🔄</button><div class="sqa-sep"></div>` : ''}
+        <button class="sqa-btn" onclick="event.stopPropagation();topBarDuplicate()" title="Duplicate">⧉</button>
+        <button class="sqa-btn" onclick="event.stopPropagation();moveLayerToFront()" title="Bring to front">⬆️</button>
+        <button class="sqa-btn" onclick="event.stopPropagation();openTransformSheet()" title="Transform">↔️</button>
+        <div class="sqa-sep"></div>
+        <button class="sqa-btn sqa-danger" onclick="event.stopPropagation();deleteLayer()" title="Delete">🗑</button>
+    `;
+    bar.classList.add('show');
 }
 
 // ── TOUCH DRAG ──
@@ -2802,12 +3022,25 @@ function startTouchDrag(e, layer) {
 }
 
 // ── TOUCH PINCH RESIZE (2-finger spread/pinch on active sprite) ──
+// ── Cap how large a sprite can be scaled relative to the current frame ──
+// Previously any sprite could be dragged/pinched up to a flat 1000px, which
+// on a typical ~300-400px frame meant it was trivial to size a character
+// well past the frame edge. Cap it relative to the frame instead so "as big
+// as possible" still keeps most of the sprite reachable/visible.
+function getMaxSpriteSize() {
+    const cw = (canvas && canvas.offsetWidth) || 300;
+    const ch = (canvas && canvas.offsetHeight) || 300;
+    return Math.round(Math.max(cw, ch) * 1.5);
+}
+
 function startTouchPinchResize(e, layer) {
     saveState();
     const t0 = e.touches[0], t1 = e.touches[1];
     const startDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
     if (startDist < 5) return;
     const origW = layer.w;
+    const origH = (layer.h != null ? layer.h : layer.w);
+    const origX = layer.x, origY = layer.y;
     // Attach to the element that received the touchstart, not document
     const el = e.currentTarget;
 
@@ -2818,9 +3051,14 @@ function startTouchPinchResize(e, layer) {
         const a = mv.touches[0], b = mv.touches[1];
         const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
         const scale = dist / startDist;
-        const newPinchW = Math.max(30, Math.round(origW * scale));
-        if (layer.h != null && layer.w) layer.h = Math.round(layer.h * newPinchW / layer.w);
+        const newPinchW = Math.max(30, Math.min(getMaxSpriteSize(), Math.round(origW * scale)));
+        const newPinchH = origW ? Math.round(origH * newPinchW / origW) : newPinchW;
+        // Keep the sprite's center fixed while it grows/shrinks, so it scales
+        // in place instead of drifting toward the bottom-right corner.
+        layer.x = origX - (newPinchW - origW) / 2;
+        layer.y = origY - (newPinchH - origH) / 2;
         layer.w = newPinchW;
+        layer.h = newPinchH;
         // Sync transform sheet slider if open
         const sl = document.getElementById('size-slider');
         if (sl) { sl.value = layer.w; const sn = document.getElementById('size-num'); if (sn) sn.value = layer.w; }
@@ -2955,6 +3193,26 @@ function updateFrameCounter() {
     if (audioBadge) audioBadge.style.display = (frames[currentIdx] && frames[currentIdx].audio_url) ? 'inline-block' : 'none';
     // Keep the audio sheet's own UI in sync if it happens to be open
     if (document.getElementById('sheet-audio')?.classList.contains('open')) renderMobAudioSheet();
+    // Keep the bottom swipe-strip's dots/hint in sync
+    renderFrameSwipeDots();
+}
+
+// ── Page-dot / hint indicator inside the bottom swipe strip ──
+// Defined right beside updateFrameCounter() (rather than down near the touch-handling
+// code) since updateFrameCounter() is called very early during init — keeping the two
+// together avoids a "not defined" error from call-before-declaration ordering.
+function renderFrameSwipeDots() {
+    const zone = document.getElementById('frame-swipe-zone');
+    if (!zone) return;
+    const total = frames.length;
+    if (total <= 1) { zone.innerHTML = ''; return; }
+    if (total <= 14) {
+        zone.innerHTML = frames.map((_, i) =>
+            `<span class="fsz-dot${i === currentIdx ? ' active' : ''}" onclick="goToFrame(${i})"></span>`
+        ).join('');
+    } else {
+        zone.innerHTML = `<span class="fsz-hint">‹ swipe · frame ${currentIdx + 1}/${total} ›</span>`;
+    }
 }
 
 // ── Frame Pill Dropdown ──
@@ -2963,12 +3221,15 @@ function toggleFramePillMenu(e) {
     if (!menu) return;
     const isOpen = menu.style.display !== 'none';
     if (isOpen) { closeFramePillMenu(); return; }
-    // Position the fixed dropdown below the pill button that was tapped
-    const pill = document.getElementById('frame-nav-pill');
+    // Position the fixed dropdown above the floating frame bar that was tapped
+    // (the bar now lives near the bottom of the viewport, so the menu opens
+    // upward instead of dropping below it off-screen).
+    const pill = document.getElementById('canvas-frame-bar');
     if (pill) {
         const rect = pill.getBoundingClientRect();
-        menu.style.top  = (rect.bottom + 6) + 'px';
-        menu.style.left = Math.max(4, rect.left) + 'px';
+        menu.style.top    = 'auto';
+        menu.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+        menu.style.left   = Math.max(4, rect.left) + 'px';
     }
     menu.style.display = 'block';
     // Close on any outside tap/click
@@ -2984,6 +3245,25 @@ function _fpillOutside(e) {
 function closeFramePillMenu() {
     const menu = document.getElementById('frame-pill-menu');
     if (menu) menu.style.display = 'none';
+}
+
+// ── Floating canvas frame bar: collapse to a small edge tab / expand back out ──
+function collapseCanvasFrameBar() {
+    closeFramePillMenu();
+    const bar = document.getElementById('canvas-frame-bar');
+    const tab = document.getElementById('cfb-tab');
+    if (!bar || !tab) return;
+    bar.classList.add('cfb-hidden');
+    // Wait for the bar's slide-out to finish before popping the tab in, so the
+    // two don't visually overlap mid-animation.
+    setTimeout(() => { tab.style.display = 'flex'; }, 180);
+}
+function expandCanvasFrameBar() {
+    const bar = document.getElementById('canvas-frame-bar');
+    const tab = document.getElementById('cfb-tab');
+    if (!bar || !tab) return;
+    tab.style.display = 'none';
+    bar.classList.remove('cfb-hidden');
 }
 function goToFrame(i) { if (i >= 0 && i < frames.length) { activateFrame(i); updateActiveFrameThumb(); updateFrameCounter(); closeSheet('frames'); } }
 function copyCurrentFrame() { frameClipboard = JSON.parse(JSON.stringify(frames[currentIdx])); }
@@ -3571,7 +3851,7 @@ function renderMobLayers() {
         item.addEventListener('touchmove', () => { tapMoved = true; }, { passive: true });
         item.addEventListener('touchend', () => {
             if (!tapMoved && Date.now() - tapStartTime < 400 && !layer.locked) {
-                activeLayer = layer; render(); renderMobLayers();
+                activeLayer = layer; fxEditingBg = false; render(); renderMobLayers();
             }
         });
         item.ondblclick = () => openTransformSheet();
@@ -3731,7 +4011,8 @@ function clearNameTag() { if (activeLayer) { activeLayer.nameTag = ''; document.
 // ── APPLY TRANSFORM ──
 function applyTransform() {
     if (!activeLayer) return;
-    const w = parseInt(document.getElementById('size-slider').value);
+    const sizeMax = activeLayer.type === 'img' ? getMaxSpriteSize() : 1000;
+    const w = Math.min(sizeMax, parseInt(document.getElementById('size-slider').value));
     const r = parseInt(document.getElementById('rotate-slider').value);
     if (activeLayer.h != null && activeLayer.w && activeLayer.w !== w) {
         activeLayer.h = Math.round(activeLayer.h * w / activeLayer.w);
@@ -3840,6 +4121,7 @@ function renderFxPreview() {
     const wrap = document.getElementById('fx-preview-box');
     const box  = document.getElementById('fx-preview-content');
     if (!wrap || !box) return;
+    if (fxEditingBg) { renderBgFxPreview(wrap, box); return; }
     if (!activeLayer) { wrap.style.display = 'none'; return; }
 
     const layer = activeLayer;
@@ -3888,6 +4170,58 @@ function renderFxPreview() {
         box.appendChild(el);
     }
 
+    _fitPreviewBox(wrap, box);
+}
+
+// ── Background FX preview (mirrors renderFxPreview, but for the frame background) ──
+function renderBgFxPreview(wrap, box) {
+    const f = frames[currentIdx];
+    const bgFx = (f && f.bgFx) || {};
+    box.style.transform = 'none';
+    box.innerHTML = '';
+    const bg = (f && f.background) || '#ffffff';
+    const isImg  = bg.startsWith('http') || bg.startsWith('data:image');
+    const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
+
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:relative;display:inline-block;width:140px;height:140px;overflow:hidden;border-radius:8px;';
+
+    const hasFxSrc  = !!bgFx._fxSrc;
+    const bStrength = (bgFx.blurStrength != null) ? bgFx.blurStrength : 100;
+    const lfCSS     = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
+    const blurCSS   = getSpriteFilterCSS(bgFx);
+    const combined  = [blurCSS, lfCSS].filter(Boolean).join(' ');
+
+    if (isImg && hasFxSrc && bStrength < 100) {
+        // Blend mode: clean base + fx overlay at blurStrength opacity (matches main canvas)
+        const base = document.createElement('img');
+        base.src = bg; base.draggable = false;
+        base.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+        if (bgFx.fxOpacity !== undefined) base.style.opacity = bgFx.fxOpacity / 100;
+        const overlay = document.createElement('img');
+        overlay.src = bgFx._fxSrc; overlay.draggable = false;
+        overlay.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${bStrength/100};`;
+        holder.appendChild(base);
+        holder.appendChild(overlay);
+    } else if (isImg) {
+        const imgEl = document.createElement('img');
+        imgEl.src = hasFxSrc ? bgFx._fxSrc : bg; imgEl.draggable = false;
+        imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+        if (!hasFxSrc && combined) imgEl.style.filter = combined;
+        if (bgFx.fxOpacity !== undefined) imgEl.style.opacity = bgFx.fxOpacity / 100;
+        holder.appendChild(imgEl);
+    } else {
+        // Gradient or solid color — canvas blur types don't apply, only CSS filter/opacity/lighting
+        const swatch = document.createElement('div');
+        swatch.style.cssText = `position:absolute;inset:0;background:${isGrad ? bg : bg};`;
+        if (combined) swatch.style.filter = combined;
+        if (bgFx.fxOpacity !== undefined) swatch.style.opacity = bgFx.fxOpacity / 100;
+        holder.appendChild(swatch);
+    }
+
+    applyLightingToDOM(holder, bgFx);
+    box.appendChild(holder);
+    wrap.style.display = 'flex';
     _fitPreviewBox(wrap, box);
 }
 
@@ -4750,8 +5084,24 @@ function setMobBgTab(tab) {
     mobBgTab = tab;
     const offBtn  = document.getElementById('mob-bg-tab-official');
     const mineBtn = document.getElementById('mob-bg-tab-mine');
-    if (offBtn)  { offBtn.style.borderColor  = tab==='official'?'#ff7a00':'#222'; offBtn.style.background  = tab==='official'?'rgba(255,122,0,.12)':'#111'; offBtn.style.color  = tab==='official'?'#ff7a00':'#555'; }
-    if (mineBtn) { mineBtn.style.borderColor = tab==='mine'?'#ff7a00':'#222'; mineBtn.style.background = tab==='mine'?'rgba(255,122,0,.12)':'#111'; mineBtn.style.color = tab==='mine'?'#ff7a00':'#555'; }
+    const editBtn = document.getElementById('mob-bg-tab-edit');
+    const setBtn = (btn, active) => { if (!btn) return; btn.style.borderColor = active?'#ff7a00':'#222'; btn.style.background = active?'rgba(255,122,0,.12)':'#111'; btn.style.color = active?'#ff7a00':'#555'; };
+    setBtn(offBtn,  tab === 'official');
+    setBtn(mineBtn, tab === 'mine');
+    setBtn(editBtn, tab === 'edit');
+
+    const libraryContent = document.getElementById('mob-bg-library-content');
+    const uploadButtons   = document.getElementById('mob-bg-upload-buttons');
+    const editPane        = document.getElementById('mob-bg-edit-pane');
+    const isEdit = tab === 'edit';
+    // Library grid: Official + Mine only
+    if (libraryContent) libraryContent.style.display = isEdit ? 'none' : 'flex';
+    // Upload buttons: Mine + Edit only, never Official
+    if (uploadButtons)  uploadButtons.style.display   = (tab === 'official') ? 'none' : 'flex';
+    // Filter/reset/FX/adjust/drag: Edit only
+    if (editPane)        editPane.style.display        = isEdit ? 'flex' : 'none';
+
+    if (isEdit) { syncBgSliders(); return; }
     renderMobBgGrid();
 }
 
@@ -5266,10 +5616,11 @@ function syncBgSliders() {
         const chip = document.createElement('button');
         chip.className = 'filter-chip' + (s.filter === f || (i === 0 && !s.filter) ? ' active' : '');
         chip.innerText = filterLabels[i];
-        chip.onclick = () => { filterRow.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); chip.classList.add('active'); frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, filter: f }; render(); };
+        chip.onclick = () => { filterRow.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); chip.classList.add('active'); frames[currentIdx].bgSettings = { ...frames[currentIdx].bgSettings, filter: f }; render(); renderBgEditPreview(); };
         filterRow.appendChild(chip);
     });
     if (filterSec) filterSec.style.display = filterRow.children.length ? 'block' : 'none';
+    renderBgEditPreview();
 }
 function resetBgSettings() {
     saveState();
@@ -5278,6 +5629,59 @@ function resetBgSettings() {
     syncBgSliders();
     document.querySelectorAll('#mob-bg-filter-row .filter-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     render();
+    renderBgEditPreview();
+}
+
+// Live "what it looks like" preview for the Background sheet's Edit tab —
+// mirrors the actual canvas compositing (bgSettings.filter + bgFx blur/filter chip/opacity/lighting).
+function renderBgEditPreview() {
+    const box = document.getElementById('mob-bg-edit-preview');
+    if (!box) return;
+    box.innerHTML = '';
+    const f = frames[currentIdx];
+    if (!f) return;
+    const bg    = f.background || '#ffffff';
+    const s     = f.bgSettings || {};
+    const bgFx  = f.bgFx || {};
+    const isImg = bg.startsWith('http') || bg.startsWith('data:image');
+
+    const filterCSS  = (s.filter && s.filter !== 'none') ? s.filter : '';
+    const bgFxCSS     = getSpriteFilterCSS(bgFx);
+    const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
+    const combined     = [filterCSS, bgFxCSS, bgFxChipCSS].filter(Boolean).join(' ');
+    const hasFxSrc    = !!bgFx._fxSrc;
+    const strength    = (bgFx.blurStrength != null) ? bgFx.blurStrength : 100;
+
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:relative;width:100%;aspect-ratio:1/1;max-height:150px;overflow:hidden;border-radius:10px;border:1px solid #222;background:#0a0a0a;';
+
+    if (isImg && hasFxSrc && strength < 100) {
+        const base = document.createElement('img');
+        base.src = bg; base.draggable = false;
+        base.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+        if (bgFx.fxOpacity !== undefined) base.style.opacity = bgFx.fxOpacity / 100;
+        const overlay = document.createElement('img');
+        overlay.src = bgFx._fxSrc; overlay.draggable = false;
+        overlay.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${strength/100};`;
+        holder.appendChild(base);
+        holder.appendChild(overlay);
+    } else if (isImg) {
+        const imgEl = document.createElement('img');
+        imgEl.src = hasFxSrc ? bgFx._fxSrc : bg; imgEl.draggable = false;
+        imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+        if (!hasFxSrc && combined) imgEl.style.filter = combined;
+        if (bgFx.fxOpacity !== undefined) imgEl.style.opacity = bgFx.fxOpacity / 100;
+        holder.appendChild(imgEl);
+    } else {
+        // Gradient or solid color
+        const swatch = document.createElement('div');
+        swatch.style.cssText = `position:absolute;inset:0;background:${bg};`;
+        if (combined) swatch.style.filter = combined;
+        if (bgFx.fxOpacity !== undefined) swatch.style.opacity = bgFx.fxOpacity / 100;
+        holder.appendChild(swatch);
+    }
+    applyLightingToDOM(holder, bgFx);
+    box.appendChild(holder);
 }
 
 // ── BG DRAG-TO-PAN (mobile) ──
@@ -5395,31 +5799,60 @@ async function bgChoiceFixed() {
 // ── FX ──
 const FX_FILTERS = ['none','grayscale(100%)','sepia(100%)','contrast(1.5)','brightness(1.4)','hue-rotate(90deg)','saturate(2)','invert(100%)'];
 const FX_FILTER_LABELS = ['None','B&W','Sepia','Contrast','Bright','Shift','Vivid','Invert'];
-function syncFxPanel() {
-    const hint    = document.getElementById('fx-selected-hint');
-    const body    = document.getElementById('fx-controls-body');
-    const fxSec   = document.getElementById('fx-filter-section');
+const MOB_FX_BLUR_TYPES = ['none','gaussian','motion','lens','frosted','zoom','radial','pixel'];
 
-    if (!activeLayer) {
-        if (hint) { hint.style.display = 'block'; }
+// ── FX target: sprite layer vs frame background ──
+// The FX sheet can edit either the selected sprite layer (default) or the
+// current frame's background, mirroring the full blur/filter/opacity/lighting
+// toolkit that sprites already have. `fxEditingBg` tracks which is active.
+function setFxTarget(target) {
+    fxEditingBg = (target === 'bg');
+    syncFxPanel();
+}
+// Resolves the object FX controls should read/write. Pass create=true when
+// about to write, so a fresh bgFx object is created on the current frame if
+// one doesn't exist yet.
+function getFxTarget(create) {
+    if (fxEditingBg) {
+        const f = frames[currentIdx];
+        if (!f) return null;
+        if (!f.bgFx && create) f.bgFx = {};
+        return f.bgFx || null;
+    }
+    return activeLayer || null;
+}
+
+function syncFxPanel() {
+    const hint     = document.getElementById('fx-selected-hint');
+    const body     = document.getElementById('fx-controls-body');
+    const fxSec    = document.getElementById('fx-filter-section');
+    const layerTab = document.getElementById('fx-target-layer');
+    const bgTab    = document.getElementById('fx-target-bg');
+    if (layerTab) layerTab.classList.toggle('active', !fxEditingBg);
+    if (bgTab)    bgTab.classList.toggle('active', fxEditingBg);
+
+    const target = getFxTarget(false);
+
+    if (!target) {
+        if (hint) { hint.style.display = 'block'; hint.innerText = fxEditingBg ? '⚠️ No background on this frame yet' : '⚠️ Select a layer first to apply effects'; }
         if (body) { body.style.display = 'none'; }
         renderFxPreview();
         return;
     }
 
-    // Has a layer — hide hint, show controls
+    // Has a target — hide hint, show controls
     if (hint) hint.style.display = 'none';
     if (body) body.style.display = 'block';
 
     // Sync blur cards
-    const bType = activeLayer.blurType || 'none';
+    const bType = target.blurType || 'none';
     const resolvedType = bType === 'soft' ? 'gaussian' : bType;
     MOB_FX_BLUR_TYPES.forEach(t => {
         const el = document.getElementById('fx-blur-' + t);
         if (el) el.classList.toggle('active', t === resolvedType);
     });
-    const bAmt = activeLayer.blurAmt || activeLayer.blurAmount || 4;
-    const bAngle = activeLayer.blurAngle || 0;
+    const bAmt = target.blurAmt || target.blurAmount || 4;
+    const bAngle = target.blurAngle || 0;
     const amtEl = document.getElementById('fx-blur-amt');
     const amtRow = document.getElementById('fx-blur-amt-row');
     const motRow = document.getElementById('fx-motion-dir-row');
@@ -5437,9 +5870,17 @@ function syncFxPanel() {
     fr.innerHTML = '';
     FX_FILTERS.forEach((f, i) => {
         const chip = document.createElement('button');
-        chip.className = 'fx-chip' + (activeLayer.fxFilter === f || (i===0&&!activeLayer.fxFilter) ? ' active' : '');
+        chip.className = 'fx-chip' + (target.fxFilter === f || (i===0&&!target.fxFilter) ? ' active' : '');
         chip.innerText = FX_FILTER_LABELS[i];
-        chip.onclick = () => { if(!activeLayer) return; saveState(); activeLayer.fxFilter = f; fr.querySelectorAll('.fx-chip').forEach(c=>c.classList.remove('active')); chip.classList.add('active'); applyFxToSelected(); };
+        chip.onclick = () => {
+            const t2 = getFxTarget(true);
+            if (!t2) return;
+            saveState();
+            t2.fxFilter = f;
+            fr.querySelectorAll('.fx-chip').forEach(c=>c.classList.remove('active'));
+            chip.classList.add('active');
+            applyFxToSelected();
+        };
         fr.appendChild(chip);
     });
     if (fxSec) fxSec.style.display = fr.children.length ? 'block' : 'none';
@@ -5447,26 +5888,27 @@ function syncFxPanel() {
     // Sync opacity
     const opEl = document.getElementById('fx-opacity');
     const opVal = document.getElementById('fx-opacity-val');
-    const op = activeLayer.fxOpacity !== undefined ? activeLayer.fxOpacity : 100;
+    const op = target.fxOpacity !== undefined ? target.fxOpacity : 100;
     if (opEl) opEl.value = op;
     if (opVal) opVal.innerText = op + '%';
 
     // Sync blur strength
-    const bStr    = activeLayer.blurStrength != null ? activeLayer.blurStrength : 100;
+    const bStr    = target.blurStrength != null ? target.blurStrength : 100;
     const strEl   = document.getElementById('fx-blur-strength');
     const strVal  = document.getElementById('fx-blur-strength-val');
     const strRow  = document.getElementById('fx-strength-row');
     if (strEl)  strEl.value = bStr;
     if (strVal) strVal.innerText = bStr + '%';
     if (strRow) strRow.style.display = (resolvedType !== 'none') ? 'block' : 'none';
-    syncLightingUI(activeLayer);
+    syncLightingUI(target);
     renderFxPreview();
 }
 
 function setFxBlur(type) {
-    if (!activeLayer) return;
+    const target = getFxTarget(true);
+    if (!target) return;
     saveState();
-    activeLayer.blurType = type;
+    target.blurType = type;
     MOB_FX_BLUR_TYPES.forEach(t => {
         const el = document.getElementById('fx-blur-' + t);
         if (el) el.classList.toggle('active', t === type);
@@ -5479,7 +5921,9 @@ function setFxBlur(type) {
 }
 
 function applyFxToSelected() {
-    if (!activeLayer) return;
+    const target = getFxTarget(true);
+    if (!target) return;
+    const isBg = fxEditingBg;
     const amt          = parseInt(document.getElementById('fx-blur-amt').value) || 4;
     const angle        = parseInt(document.getElementById('fx-motion-angle')?.value || 0);
     const op           = parseInt(document.getElementById('fx-opacity').value);
@@ -5489,15 +5933,15 @@ function applyFxToSelected() {
     const strEl  = document.getElementById('fx-blur-strength-val');
     const strRow = document.getElementById('fx-strength-row');
     if (strEl)  strEl.innerText = blurStrength + '%';
-    if (strRow) strRow.style.display = (activeLayer.blurType && activeLayer.blurType !== 'none') ? 'block' : 'none';
-    activeLayer.blurAmt      = amt;
-    activeLayer.blurAmount   = amt;
-    activeLayer.blurAngle    = angle;
-    activeLayer.fxOpacity    = op;
-    activeLayer.blurStrength = blurStrength;
+    if (strRow) strRow.style.display = (target.blurType && target.blurType !== 'none') ? 'block' : 'none';
+    target.blurAmt      = amt;
+    target.blurAmount   = amt;
+    target.blurAngle    = angle;
+    target.fxOpacity    = op;
+    target.blurStrength = blurStrength;
     // ── Lighting ──
     const lightEnabled = document.getElementById('fx-light-enable')?.checked || false;
-    activeLayer.lighting = lightEnabled ? {
+    target.lighting = lightEnabled ? {
         enabled:    true,
         brightness: parseInt(document.getElementById('fx-light-brightness')?.value || 130),
         radius:     parseInt(document.getElementById('fx-light-radius')?.value || 70),
@@ -5505,29 +5949,31 @@ function applyFxToSelected() {
         y:          _lightY,
         color:      _lightColor
     } : { enabled: false };
-    const needsRecompute = _fxCanvas_TYPES.includes(activeLayer.blurType);
+    const needsRecompute = _fxCanvas_TYPES.includes(target.blurType);
     if (needsRecompute) {
-        activeLayer._fxSrc = null;
-        computeLayerFx(activeLayer).then(() => { render(); renderFxPreview(); });
+        target._fxSrc = null;
+        const computePromise = isBg ? computeBgFx() : computeLayerFx(target);
+        computePromise.then(() => { render(); renderFxPreview(); });
     } else {
-        activeLayer._fxSrc = null;
+        target._fxSrc = null;
         render();
         renderFxPreview();
     }
 }
 
 function clearFxFromSelected() {
-    if (!activeLayer) return;
+    const target = getFxTarget(true);
+    if (!target) return;
     saveState();
-    delete activeLayer.fxFilter;
-    delete activeLayer.fxOpacity;
-    activeLayer.blurType     = 'none';
-    activeLayer.blurAmt      = 4;
-    activeLayer.blurAmount   = 4;
-    activeLayer.blurAngle    = 0;
-    activeLayer.blurStrength = 100;
-    activeLayer._fxSrc       = null;
-    activeLayer.lighting     = { enabled: false };
+    delete target.fxFilter;
+    delete target.fxOpacity;
+    target.blurType     = 'none';
+    target.blurAmt      = 4;
+    target.blurAmount   = 4;
+    target.blurAngle    = 0;
+    target.blurStrength = 100;
+    target._fxSrc       = null;
+    target.lighting     = { enabled: false };
     syncFxPanel();
     render();
     renderFxPreview();
@@ -5549,7 +5995,29 @@ document.getElementById('img-input').addEventListener('change', (e) => {
         } else if (currentImportType === 'bg') {
             showBgImportChoice(ev.target.result);
         }
-        else { saveState(); const cw=canvas.offsetWidth||300, ch=canvas.offsetHeight||300; const nl={type:'img',src:ev.target.result,w:Math.round(cw*0.5),x:Math.round(cw*0.25),y:Math.round(ch*0.25),rotation:0,flipped:false,id:Date.now()}; frames[currentIdx].layers.push(nl); activeLayer=nl; render(); }
+        else {
+            saveState();
+            const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
+            const initW = Math.round(cw * 0.5);
+            const nl = { type: 'img', src: ev.target.result, w: initW, x: Math.round(cw * 0.25), y: Math.round(ch * 0.25), rotation: 0, flipped: false, id: Date.now() };
+            frames[currentIdx].layers.push(nl);
+            activeLayer = nl;
+            render();
+            // Trim any transparent padding around the imported sprite — custom
+            // uploads (unlike library sprites) skipped this before, so PNGs
+            // with baked-in whitespace threw off sizing/placement.
+            const probe = new Image();
+            probe.onload = () => {
+                if (!probe.naturalWidth || !probe.naturalHeight) return;
+                const cropped = cropSpriteToContent(probe);
+                const scale = initW / cropped.w;
+                nl.src = cropped.src;
+                nl.w = Math.min(getMaxSpriteSize(), Math.round(cropped.w * scale));
+                nl.h = Math.round(cropped.h * scale);
+                render();
+            };
+            probe.src = ev.target.result;
+        }
     };
     reader.onerror = () => showToast('⚠️ Failed to read ' + file.name);
     reader.readAsDataURL(file);
@@ -6152,6 +6620,13 @@ function exitCancelLeave() {
 }
 
 // ── PUBLISH ──
+// ── Save-choice modal (💾 icon in top bar) ──
+function openSaveChoiceModal() { document.getElementById('save-choice-modal').style.display = 'flex'; }
+function closeSaveChoiceModal() { document.getElementById('save-choice-modal').style.display = 'none'; }
+function saveChoicePublish() { closeSaveChoiceModal(); openPublishModal(); }
+function saveChoiceSaveToMyComics() { closeSaveChoiceModal(); saveOffline(false); }
+function saveChoiceExport() { closeSaveChoiceModal(); openExportModal(); }
+
 function openPublishModal() { document.getElementById('publish-modal').style.display='flex'; renderPubRatingPicker(); }
 function closePublish() { document.getElementById('publish-modal').style.display='none'; }
 
@@ -6567,36 +7042,64 @@ async function renderFrameToCanvas(frame, cw, ch) {
     const scaleY = ch / (_src.ch || ch);
 
     // ── Background ──
+    // bgFx mirrors sprite-layer FX (blur type/amount, filter chip, opacity, lighting).
+    // Combined with the simpler bgSettings.filter chip from the Background sheet.
+    const bgFx = frame.bgFx || {};
+    const bgFxCSS = getSpriteFilterCSS(bgFx);
+    const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
+    const combinedBgFilter = [(s.filter && s.filter !== 'none') ? s.filter : '', bgFxCSS, bgFxChipCSS].filter(Boolean).join(' ');
+    const bgAlpha = (bgFx.fxOpacity != null) ? bgFx.fxOpacity / 100 : 1;
+    const bgHasFxSrc = !!bgFx._fxSrc;
+    const bgFxStrength = (bgFx.blurStrength != null) ? bgFx.blurStrength : 100;
+
     await new Promise(res => {
         if (isImg) {
-            const img = new Image(); img.crossOrigin = 'anonymous';
-            img.onload = () => {
-                const imgAR = img.naturalWidth / img.naturalHeight;
-                let drawW, drawH, posX, posY;
-                if (scale <= 1) {
-                    // Cover: fill canvas, maintain AR
-                    const canvasAR = cw / ch;
-                    if (imgAR > canvasAR) { drawH = ch; drawW = drawH * imgAR; }
-                    else { drawW = cw; drawH = drawW / imgAR; }
-                    posX = (cw - drawW) / 2;
-                    posY = (ch - drawH) / 2;
+            const drawBgImage = (src, alpha, applyFilter) => new Promise(res2 => {
+                const img = new Image(); img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    const imgAR = img.naturalWidth / img.naturalHeight;
+                    let drawW, drawH, posX, posY;
+                    if (scale <= 1) {
+                        // Cover: fill canvas, maintain AR
+                        const canvasAR = cw / ch;
+                        if (imgAR > canvasAR) { drawH = ch; drawW = drawH * imgAR; }
+                        else { drawW = cw; drawH = drawW / imgAR; }
+                        posX = (cw - drawW) / 2;
+                        posY = (ch - drawH) / 2;
+                    } else {
+                        drawW = cw * scale;
+                        drawH = drawW / imgAR;
+                        const posXfrac = (50 + xOff) / 100;
+                        const posYfrac = (50 + yOff) / 100;
+                        posX = (cw - drawW) * posXfrac;
+                        posY = (ch - drawH) * posYfrac;
+                    }
+                    ctx.save();
+                    if (applyFilter && combinedBgFilter) ctx.filter = combinedBgFilter;
+                    ctx.globalAlpha = alpha;
+                    ctx.translate(cw / 2, ch / 2);
+                    ctx.rotate(rot * Math.PI / 180);
+                    ctx.translate(-cw / 2, -ch / 2);
+                    ctx.drawImage(img, posX, posY, drawW, drawH);
+                    ctx.restore();
+                    ctx.filter = 'none'; ctx.globalAlpha = 1;
+                    res2();
+                };
+                img.onerror = () => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch); res2(); };
+                img.src = src;
+            });
+            (async () => {
+                if (bgHasFxSrc && bgFxStrength < 100) {
+                    // Blend mode: clean base + fx overlay at blurStrength opacity (matches sprite layer FX)
+                    await drawBgImage(bg, bgAlpha, false);
+                    await drawBgImage(bgFx._fxSrc, bgAlpha * bgFxStrength / 100, false);
+                } else if (bgHasFxSrc) {
+                    await drawBgImage(bgFx._fxSrc, bgAlpha, false);
                 } else {
-                    drawW = cw * scale;
-                    drawH = drawW / imgAR;
-                    const posXfrac = (50 + xOff) / 100;
-                    const posYfrac = (50 + yOff) / 100;
-                    posX = (cw - drawW) * posXfrac;
-                    posY = (ch - drawH) * posYfrac;
+                    await drawBgImage(bg, bgAlpha, true);
                 }
-                ctx.save();
-                ctx.translate(cw / 2, ch / 2);
-                ctx.rotate(rot * Math.PI / 180);
-                ctx.translate(-cw / 2, -ch / 2);
-                ctx.drawImage(img, posX, posY, drawW, drawH);
-                ctx.restore(); res();
-            };
-            img.onerror = () => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch); res(); };
-            img.src = bg;
+                res();
+            })();
         } else if (isGrad) {
             // Render CSS gradient via SVG foreignObject
             const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${cw}" height="${ch}">
@@ -6608,13 +7111,32 @@ async function renderFrameToCanvas(frame, cw, ch) {
             const blob = new Blob([svgStr], { type: 'image/svg+xml' });
             const url  = URL.createObjectURL(blob);
             const img  = new Image();
-            img.onload = () => { ctx.drawImage(img, 0, 0, cw, ch); URL.revokeObjectURL(url); res(); };
+            img.onload = () => {
+                ctx.save();
+                if (combinedBgFilter) ctx.filter = combinedBgFilter;
+                ctx.globalAlpha = bgAlpha;
+                ctx.drawImage(img, 0, 0, cw, ch);
+                ctx.restore();
+                ctx.filter = 'none'; ctx.globalAlpha = 1;
+                URL.revokeObjectURL(url); res();
+            };
             img.onerror = () => { ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, cw, ch); URL.revokeObjectURL(url); res(); };
             img.src = url;
         } else {
-            ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch); res();
+            ctx.save();
+            if (combinedBgFilter) ctx.filter = combinedBgFilter;
+            ctx.globalAlpha = bgAlpha;
+            ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch);
+            ctx.restore();
+            ctx.filter = 'none'; ctx.globalAlpha = 1;
+            res();
         }
     });
+
+    // ── Background lighting export overlay ──
+    if (bgFx.lighting && bgFx.lighting.enabled) {
+        renderLightingOnCanvas(ctx, bgFx, 0, 0, cw, ch);
+    }
 
     // ── Layers ──
     for (const layer of frame.layers) {
@@ -7326,6 +7848,36 @@ async function computeLayerFx(layer) {
     layer._fxSrc = c.toDataURL('image/png');
 }
 
+// Same canvas-blur pipeline as computeLayerFx, but sourced from the current
+// frame's background image and written to frame.bgFx._fxSrc. Only applies
+// when the background is an image — gradients/solid colors skip canvas
+// computation entirely and rely on CSS-level filter/opacity/lighting only.
+async function computeBgFx() {
+    const f = frames[currentIdx];
+    const bgFx = f && f.bgFx;
+    if (!bgFx || !bgFx.blurType || bgFx.blurType === 'none' || !_fxCanvas_TYPES.includes(bgFx.blurType)) {
+        if (bgFx) bgFx._fxSrc = null;
+        return;
+    }
+    const bg = f.background || '';
+    const isImg = bg.startsWith('http') || bg.startsWith('data:image');
+    if (!isImg) { bgFx._fxSrc = null; return; }
+    const img = await _fxLoadImage(bg);
+    if (!img) { bgFx._fxSrc = null; return; }
+    const w = img.naturalWidth || 400, h = img.naturalHeight || 400;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    const amt = bgFx.blurAmt || bgFx.blurAmount || 4;
+    switch (bgFx.blurType) {
+        case 'motion':  _fxApplyMotion(ctx, img, w, h, amt, bgFx.blurAngle || 0); break;
+        case 'zoom':    _fxApplyZoom(ctx, img, w, h, amt); break;
+        case 'radial':  _fxApplyRadial(ctx, img, w, h, amt); break;
+        case 'frosted': _fxApplyFrosted(ctx, img, w, h, amt); break;
+        case 'pixel':   _fxApplyMosaic(ctx, img, w, h, amt); break;
+    }
+    bgFx._fxSrc = c.toDataURL('image/png');
+}
+
 function toggleSelectedLayerLock() {
     if (!activeLayer) return;
     saveState();
@@ -7394,27 +7946,42 @@ function vpZoomReset() {
     _showZoomIndicator();
 }
 
-// ── Swipe left/right on CANVAS to switch frames ──
+// ── Swipe on the dedicated strip below the canvas to switch frames ──
+// Lives entirely outside #comic-frame, so it can never be confused with dragging,
+// resizing, or repositioning a sprite/layer while editing — swiping to move
+// between frames and editing the current one use completely separate touch targets.
 (function() {
-    let swipeStartX = null, swipeStartY = null;
-    const cvs = document.getElementById('canvas-wrap') || document.getElementById('canvas');
-    if (!cvs) return;
-    cvs.addEventListener('touchstart', e => {
-        if (e.touches.length !== 1) return;
-        swipeStartX = e.touches[0].clientX;
-        swipeStartY = e.touches[0].clientY;
-    }, { passive: true });
-    cvs.addEventListener('touchend', e => {
-        if (swipeStartX === null || activeLayer) return;
-        const dx = e.changedTouches[0].clientX - swipeStartX;
-        const dy = e.changedTouches[0].clientY - swipeStartY;
-        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
-            if (dx < 0 && currentIdx < frames.length - 1) { activateFrame(currentIdx + 1); updateActiveFrameThumb(); }
-            else if (dx > 0 && currentIdx > 0) { activateFrame(currentIdx - 1); updateActiveFrameThumb(); }
+    const zone = document.getElementById('frame-swipe-zone');
+    if (!zone) return;
+    const THRESHOLD = 40, MAX_TIME = 600;
+    let startX = null, startY = null, startT = 0, dragging = false;
+
+    function begin(x, y) { startX = x; startY = y; startT = Date.now(); dragging = true; }
+    function finish(x, y) {
+        if (!dragging) return;
+        dragging = false;
+        const dx = x - startX, dy = y - startY, dt = Date.now() - startT;
+        if (dt > MAX_TIME) return;
+        if (Math.abs(dx) > THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            if (dx < 0) nextFrame(); else prevFrame();
         }
-        swipeStartX = null;
+    }
+
+    zone.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) return;
+        begin(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true });
+    zone.addEventListener('touchend', e => {
+        finish(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    }, { passive: true });
+    zone.addEventListener('touchcancel', () => { dragging = false; }, { passive: true });
+
+    // Mouse support so this is testable on desktop too
+    zone.addEventListener('mousedown', e => begin(e.clientX, e.clientY));
+    window.addEventListener('mouseup', e => { if (dragging) finish(e.clientX, e.clientY); });
 })();
+
+
 
 // ── Touch: pinch-zoom + 2-finger pan ──
 let _vpTouches = [];
@@ -8374,10 +8941,11 @@ document.getElementById('new-frame-popup').addEventListener('click', function(e)
 <!-- ── Frame Pill Dropdown (fixed outside top-bar to escape overflow:hidden) ── -->
 <div id="frame-pill-menu" style="display:none;position:fixed;top:58px;left:0;min-width:168px;background:#1c1c1e;border:1px solid #333;border-radius:16px;padding:6px;z-index:9999;box-shadow:0 10px 32px rgba(0,0,0,.9);">
     <div class="fpill-item" onclick="addFrame();closeFramePillMenu()">➕ Add Frame</div>
-    <div class="fpill-item" onclick="duplicateFrame();closeFramePillMenu()">⧉ Duplicate Frame</div>
     <div class="fpill-item fpill-teal" onclick="openSheet('frames');closeFramePillMenu()">🎞 Manage Frames</div>
     <div class="fpill-divider"></div>
     <div class="fpill-item fpill-danger" onclick="deleteFrameIfSafe();closeFramePillMenu()">🗑 Delete Frame</div>
+    <div class="fpill-divider"></div>
+    <div class="fpill-item" onclick="collapseCanvasFrameBar()">⌄ Hide</div>
 </div>
 <style>
 .fpill-item { padding:12px 14px;font-size:13px;font-weight:700;color:var(--text);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:9px;-webkit-tap-highlight-color:transparent; }
