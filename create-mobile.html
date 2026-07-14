@@ -204,7 +204,7 @@
     #bottom-bar {
         height: calc(62px + env(safe-area-inset-bottom, 0px));
         background: var(--card); border-top: 1px solid var(--border);
-        display: flex; align-items: center;
+        display: flex; align-items: center; justify-content: center;
         z-index: 200; flex-shrink: 0;
         padding: 0 4px env(safe-area-inset-bottom, 0px) 4px;
         overflow-x: auto; overflow-y: hidden;
@@ -257,11 +257,10 @@
         display: flex; align-items: center; gap: 1px; pointer-events: auto;
         background: rgba(20,20,22,0.92); border: 1px solid var(--border);
         border-radius: 22px; padding: 3px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.5);
         transform-origin: center center;
-        transition: transform 0.32s cubic-bezier(.4,0,.2,1), opacity 0.28s ease;
+        transition: transform 0.24s cubic-bezier(.4,0,.2,1), opacity 0.24s ease;
     }
-    #canvas-frame-bar.cfb-hidden { transform: translateX(-100vw); opacity: 0; pointer-events: none; }
+    #canvas-frame-bar.cfb-hidden { transform: scale(0.82); opacity: 0; pointer-events: none; }
     .cfb-btn {
         background: none; border: none; color: var(--text);
         width: 32px; height: 32px; border-radius: 50%;
@@ -292,10 +291,10 @@
         color: var(--accent); font-size: 13px; font-weight: 900;
         align-items: center; justify-content: center;
         cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent;
-        animation: cfbTabIn 0.32s cubic-bezier(.4,0,.2,1);
+        animation: cfbTabIn 0.24s cubic-bezier(.4,0,.2,1);
     }
     #cfb-tab:active { background: rgba(255,122,0,0.36); }
-    @keyframes cfbTabIn { from { transform: translate(-50%, 8px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+    @keyframes cfbTabIn { from { transform: translate(-50%, 4px) scale(0.85); opacity: 0; } to { transform: translate(-50%, 0) scale(1); opacity: 1; } }
 
     /* ── ZOOM / PAN OVERLAY ── */
     #zoom-controls {
@@ -3247,16 +3246,16 @@ function closeFramePillMenu() {
     if (menu) menu.style.display = 'none';
 }
 
-// ── Floating canvas frame bar: collapse to a small edge tab / expand back out ──
+// ── Floating canvas frame bar: hide in place to a small tab / bring it back ──
 function collapseCanvasFrameBar() {
     closeFramePillMenu();
     const bar = document.getElementById('canvas-frame-bar');
     const tab = document.getElementById('cfb-tab');
     if (!bar || !tab) return;
     bar.classList.add('cfb-hidden');
-    // Wait for the bar's slide-out to finish before popping the tab in, so the
-    // two don't visually overlap mid-animation.
-    setTimeout(() => { tab.style.display = 'flex'; }, 180);
+    // Let the bar finish fading/shrinking away in place before popping the tab
+    // in, so the two never visually overlap mid-animation.
+    setTimeout(() => { tab.style.display = 'flex'; }, 140);
 }
 function expandCanvasFrameBar() {
     const bar = document.getElementById('canvas-frame-bar');
@@ -5815,9 +5814,13 @@ function setFxTarget(target) {
 function getFxTarget(create) {
     if (fxEditingBg) {
         const f = frames[currentIdx];
-        if (!f) return null;
+        // Whether a background exists is about `f.background` (the actual image/color),
+        // not `f.bgFx` (the FX settings applied to it) — those are separate. Checking
+        // bgFx here was wrongly reporting "no background" on frames that clearly had one,
+        // just because no effect had been applied to it yet.
+        if (!f || !f.background) return null;
         if (!f.bgFx && create) f.bgFx = {};
-        return f.bgFx || null;
+        return f.bgFx || {};
     }
     return activeLayer || null;
 }
