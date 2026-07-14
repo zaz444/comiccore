@@ -2523,25 +2523,43 @@ async function toggleReplies(commentId) {
 async function toggleReaction(commentId, type) {
   if (!myProfile.handle || myProfile.handle === 'guest') { showToast('Log in to react!'); return; }
 
-  const current = myReactionsMap[commentId];
-  const target  = findCommentById(commentId);
+  const prevState = myReactionsMap[commentId]; // undefined | 'like' | 'dislike'
+  const target = findCommentById(commentId);
 
-  if (current === type) {
-    await _sb.from('comment_reactions').delete().eq('comment_id', commentId).eq('user_handle', myProfile.handle);
+  // optimistic UI
+  if (prevState === type) {
     delete myReactionsMap[commentId];
     if (target) target[type + '_count'] = Math.max(0, (target[type + '_count'] || 0) - 1);
   } else {
-    await _sb.from('comment_reactions').upsert(
-      { comment_id: commentId, user_handle: myProfile.handle, reaction_type: type },
-      { onConflict: 'comment_id,user_handle' }
-    );
     if (target) {
-      if (current) target[current + '_count'] = Math.max(0, (target[current + '_count'] || 0) - 1);
+      if (prevState) target[prevState + '_count'] = Math.max(0, (target[prevState + '_count'] || 0) - 1);
       target[type + '_count'] = (target[type + '_count'] || 0) + 1;
     }
     myReactionsMap[commentId] = type;
   }
   renderCommentList();
+
+  const { error } = prevState === type
+    ? await _sb.from('comment_reactions').delete().eq('comment_id', commentId).eq('user_handle', myProfile.handle)
+    : await _sb.from('comment_reactions').upsert(
+        { comment_id: commentId, user_handle: myProfile.handle, reaction_type: type },
+        { onConflict: 'comment_id,user_handle' }
+      );
+
+  if (error) {
+    // roll back — the write didn't actually happen
+    if (prevState) myReactionsMap[commentId] = prevState; else delete myReactionsMap[commentId];
+    if (target) {
+      if (prevState === type) {
+        target[type + '_count'] = (target[type + '_count'] || 0) + 1;
+      } else {
+        target[type + '_count'] = Math.max(0, (target[type + '_count'] || 0) - 1);
+        if (prevState) target[prevState + '_count'] = (target[prevState + '_count'] || 0) + 1;
+      }
+    }
+    renderCommentList();
+    showToast('Error saving reaction');
+  }
 }
 
 async function togglePin(commentId) {
@@ -2550,15 +2568,18 @@ async function togglePin(commentId) {
   if (!target) return;
 
   if (target.is_pinned) {
-    await _sb.from('comments').update({ is_pinned: false }).eq('id', commentId);
+    const { error } = await _sb.from('comments').update({ is_pinned: false }).eq('id', commentId);
+    if (error) { showToast('Error unpinning comment'); return; }
     target.is_pinned = false;
   } else {
     const prevPinned = commentsCache.find(c => c.is_pinned);
     if (prevPinned) {
-      await _sb.from('comments').update({ is_pinned: false }).eq('id', prevPinned.id);
+      const { error: unpinErr } = await _sb.from('comments').update({ is_pinned: false }).eq('id', prevPinned.id);
+      if (unpinErr) { showToast('Error updating pin'); return; }
       prevPinned.is_pinned = false;
     }
-    await _sb.from('comments').update({ is_pinned: true }).eq('id', commentId);
+    const { error } = await _sb.from('comments').update({ is_pinned: true }).eq('id', commentId);
+    if (error) { showToast('Error pinning comment'); return; }
     target.is_pinned = true;
   }
   renderCommentList();
@@ -2569,7 +2590,8 @@ async function toggleHeart(commentId) {
   const target = findCommentById(commentId);
   if (!target) return;
   const next = !target.is_hearted;
-  await _sb.from('comments').update({ is_hearted: next }).eq('id', commentId);
+  const { error } = await _sb.from('comments').update({ is_hearted: next }).eq('id', commentId);
+  if (error) { showToast('Error updating heart'); return; }
   target.is_hearted = next;
   renderCommentList();
 }
