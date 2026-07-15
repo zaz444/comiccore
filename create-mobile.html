@@ -39,7 +39,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Shadows+Into+Light&family=Caveat:wght@700&family=Pacifico&family=Bebas+Neue&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Kalam:wght@700&family=Permanent+Marker&family=Creepster&family=Luckiest+Guy&family=Orbitron:wght@900&family=Rock+Salt&family=Special+Elite&family=Fredoka+One&family=Boogaloo&family=Anton&family=Chewy&family=Gloria+Hallelujah&family=Shadows+Into+Light&family=Caveat:wght@700&family=Pacifico&family=Bebas+Neue&family=Bungee&family=Titan+One&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
 
 <style>
     :root {
@@ -122,6 +122,33 @@
         white-space: nowrap;
     }
     #sprite-quick-actions.show { display: flex; }
+    /* ── COMPACT POPOVER ── */
+    /* Small in-place panel for color/font, opened from the quick-actions bar —
+       same idea as iOS Markup's floating text toolbar, just dark-themed to
+       match the rest of the editor instead of white. */
+    #sqa-popover {
+        position: absolute; left: 50%; top: 4px; transform: translateX(-50%);
+        display: none; flex-direction: column; gap: 7px;
+        background: rgba(20,20,22,0.98); border: 1px solid var(--border);
+        border-radius: 14px; padding: 8px; z-index: 260;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+        -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+        width: 240px; max-width: 86vw;
+    }
+    #sqa-popover.show { display: flex; }
+    /* ── CORNER EDIT TOGGLE ── */
+    /* Small badge pinned to the top-right corner of a selected text/bubble
+       layer's bounding box (same spot a resize handle would sit) — reuses
+       the bottom bar's Edit icon. Tapping it toggles the font/style popover
+       directly, without needing to go through the quick-actions pill first. */
+    .sqa-corner-toggle {
+        position: absolute; top: -14px; right: -14px; width: 28px; height: 28px;
+        z-index: 210; padding: 0; margin: 0; touch-action: none;
+        border-radius: 50%; background: #1c1c1e; border: 2px solid var(--accent);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    .sqa-corner-toggle img { width: 14px; height: 14px; object-fit: contain; pointer-events: none; display: block; }
     .sqa-btn {
         background: rgba(255,255,255,0.07); border: none; color: var(--text);
         width: 34px; height: 34px; border-radius: 17px; font-size: 15px;
@@ -158,16 +185,52 @@
     .resize-handle.bl { bottom: -13px; left: -13px; cursor: nesw-resize; }
     .resize-handle.br { bottom: -13px; right: -13px; }
 
+    /* ── ROTATE HANDLE ── */
+    /* Dial that floats above the bounding box, centered between the two top
+       resize handles, with a thin stem connecting it down to the top edge —
+       drag it to rotate the sprite without opening the transform sheet. */
+    .rotate-handle {
+        position: absolute; top: -46px; left: 50%; transform: translateX(-50%);
+        width: 26px; height: 26px; z-index: 200;
+        background: #1c1c1e; border: 2px solid var(--accent); border-radius: 50%;
+        touch-action: none; cursor: grab;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 14px; line-height: 1; color: var(--accent);
+    }
+    .rotate-handle:active { cursor: grabbing; background: var(--accent); color: #000; }
+    .rotate-handle-stem {
+        position: absolute; top: -20px; left: 50%; width: 2px; height: 20px;
+        background: var(--accent); transform: translateX(-50%);
+        z-index: 199; pointer-events: none;
+    }
+
+    /* ── TAIL SCROLLER ── */
+    /* Track + drag handle below a selected bubble — drag left/right along
+       the bottom edge to reposition the tail directly, instead of picking
+       Left/Right from a menu. */
+    .tail-scroller-track {
+        position: absolute; left: 6px; right: 6px; bottom: -46px; height: 4px;
+        background: rgba(255,255,255,0.15); border-radius: 2px;
+        z-index: 199; pointer-events: none;
+    }
+    .tail-scroller-handle {
+        position: absolute; bottom: -55px; width: 22px; height: 22px;
+        transform: translateX(-50%); z-index: 200;
+        background: #1c1c1e; border: 2px solid var(--accent); border-radius: 50%;
+        touch-action: none; cursor: grab;
+    }
+    .tail-scroller-handle:active { cursor: grabbing; background: var(--accent); }
+
     /* ── BUBBLE STYLES (same as PC) ── */
     .speech-bubble { padding: 12px 16px; background: #fff; color: #000; font-weight: 800; text-align: center; min-width: 50px; position: relative; word-wrap: break-word; line-height: 1.35; }
     .bubble-style-round { border: 3.5px solid var(--bubble-border, #000); border-radius: 999px; box-shadow: 3px 3px 0 var(--bubble-border, #000); }
-    .bubble-style-round .bubble-tail { position: absolute; bottom: -20px; left: 28px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 4px solid transparent; border-top: 20px solid var(--bubble-border, #000); }
+    .bubble-style-round .bubble-tail { position: absolute; bottom: -20px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 4px solid transparent; border-top: 20px solid var(--bubble-border, #000); }
     .bubble-style-round .bubble-tail::after { content: ''; position: absolute; top: -19px; left: -9px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 2px solid transparent; border-top: 16px solid var(--bubble-bg, #fff); }
     .bubble-style-chat { border: 3px solid var(--bubble-border, #000); border-radius: 18px; box-shadow: 3px 3px 0 var(--bubble-border, #000); }
-    .bubble-style-chat .bubble-tail { position: absolute; bottom: -18px; right: 24px; width: 0; height: 0; border-left: 14px solid transparent; border-top: 18px solid var(--bubble-border, #000); }
+    .bubble-style-chat .bubble-tail { position: absolute; bottom: -18px; width: 0; height: 0; border-left: 14px solid transparent; border-top: 18px solid var(--bubble-border, #000); }
     .bubble-style-chat .bubble-tail::after { content: ''; position: absolute; top: -17px; left: -11px; width: 0; height: 0; border-left: 10px solid transparent; border-top: 14px solid var(--bubble-bg, #fff); }
     .bubble-style-rect { border: 3px solid var(--bubble-border, #000); border-radius: 4px; box-shadow: 4px 4px 0 var(--bubble-border, #000); }
-    .bubble-style-rect .bubble-tail { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 18px solid var(--bubble-border, #000); }
+    .bubble-style-rect .bubble-tail { position: absolute; bottom: -18px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 18px solid var(--bubble-border, #000); }
     .bubble-style-rect .bubble-tail::after { content: ''; position: absolute; top: -17px; left: -9px; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 14px solid var(--bubble-bg, #fff); }
     .bubble-style-spiky { border: 3px solid var(--bubble-border, #000); clip-path: polygon(50% 0%, 61% 6%, 74% 2%, 79% 13%, 93% 12%, 91% 25%, 100% 33%, 90% 41%, 98% 52%, 86% 56%, 90% 70%, 76% 70%, 75% 84%, 62% 79%, 54% 92%, 43% 83%, 30% 88%, 28% 74%, 15% 76%, 17% 61%, 4% 56%, 13% 45%, 3% 35%, 14% 27%, 8% 14%, 22% 14%, 25% 2%, 38% 7%); padding: 22px 28px; }
     .bubble-style-spiky .bubble-tail { display: none; }
@@ -193,7 +256,7 @@
     .bubble-style-shout { background: var(--bubble-bg, #ffeb3b); border: 3.5px solid var(--bubble-border, #000); clip-path: polygon(5% 10%, 20% 0%, 35% 10%, 50% 0%, 65% 10%, 80% 0%, 95% 10%, 100% 30%, 95% 50%, 100% 70%, 95% 90%, 80% 100%, 65% 90%, 50% 100%, 35% 90%, 20% 100%, 5% 90%, 0% 70%, 5% 50%, 0% 30%); padding: 20px 24px; }
     .bubble-style-shout .bubble-tail { display: none; }
     .bubble-style-whisper { border: 3px dashed var(--bubble-border, #000); border-radius: 999px; background: rgba(255,255,255,0.92); font-style: italic; }
-    .bubble-style-whisper .bubble-tail { position: absolute; bottom: -16px; left: 36px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid var(--bubble-border, #000); }
+    .bubble-style-whisper .bubble-tail { position: absolute; bottom: -16px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 16px solid var(--bubble-border, #000); }
     .bubble-style-narrator { border: 3px solid var(--bubble-border, #000); border-radius: 6px; background: var(--bubble-bg, #fffde7); box-shadow: 5px 5px 0 var(--bubble-border, #000); border-left: 6px solid var(--bubble-border, #000); }
     .bubble-style-narrator .bubble-tail { display: none; }
     .bubble-style-electric { border: 3px solid var(--bubble-border, #000); background: var(--bubble-bg, #e8f4ff); border-radius: 4px; position: relative; }
@@ -275,6 +338,14 @@
         font-family: inherit; letter-spacing: 0.3px; min-width: 34px;
     }
     .cfb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+    /* Color + delete slide in next to Duplicate when a text/bubble layer is
+       selected, so there's one duplicate button instead of two. */
+    .cfb-extras {
+        display: flex; align-items: center; gap: 1px; overflow: hidden;
+        max-width: 0; opacity: 0;
+        transition: max-width 0.22s cubic-bezier(.4,0,.2,1), opacity 0.16s ease;
+    }
+    .cfb-extras.show { max-width: 110px; opacity: 1; }
     .cfb-arrow {
         background: rgba(255,122,0,0.18); border: none; border-left: 1px solid rgba(255,122,0,0.35);
         color: var(--accent); font-size: 14px; font-weight: 900;
@@ -1737,14 +1808,24 @@
                 <option value="'Inter', sans-serif">Standard</option>
                 <option value="'Bangers', cursive">Bangers (Comic)</option>
                 <option value="'Comic Neue', cursive">Comic Neue</option>
+                <option value="'Luckiest Guy', cursive">Luckiest Guy</option>
+                <option value="'Fredoka One', cursive">Fredoka (Bubbly)</option>
+                <option value="'Chewy', cursive">Chewy</option>
+                <option value="'Boogaloo', cursive">Boogaloo</option>
+                <option value="'Bungee', cursive">Bungee (Poster)</option>
+                <option value="'Titan One', cursive">Titan One (Bold)</option>
+                <option value="'Anton', sans-serif">Anton (Condensed)</option>
+                <option value="'Bebas Neue', cursive">Bebas Neue</option>
+                <option value="'Orbitron', sans-serif">Sci-Fi</option>
+                <option value="'Creepster', cursive">Horror</option>
                 <option value="'Kalam', cursive">Kalam (Hand)</option>
                 <option value="'Permanent Marker', cursive">Marker</option>
-                <option value="'Creepster', cursive">Horror</option>
-                <option value="'Luckiest Guy', cursive">Luckiest Guy</option>
-                <option value="'Orbitron', sans-serif">Sci-Fi</option>
                 <option value="'Caveat', cursive">Caveat</option>
+                <option value="'Gloria Hallelujah', cursive">Gloria (Hand)</option>
+                <option value="'Shadows Into Light', cursive">Shadows (Hand)</option>
+                <option value="'Rock Salt', cursive">Rock Salt (Rough)</option>
+                <option value="'Special Elite', cursive">Typewriter</option>
                 <option value="'Pacifico', cursive">Pacifico</option>
-                <option value="'Bebas Neue', cursive">Bebas Neue</option>
             </select>
             <div class="ts-row">
                 <span class="ts-label">Size</span>
@@ -1755,24 +1836,28 @@
                 <button class="ts-fmt-btn" id="fmt-bold" onclick="toggleTextFmt('bold')"><b>B</b></button>
                 <button class="ts-fmt-btn" id="fmt-italic" onclick="toggleTextFmt('italic')"><i>I</i></button>
                 <button class="ts-fmt-btn" id="fmt-underline" onclick="toggleTextFmt('underline')"><u>U</u></button>
-                <button class="ts-fmt-btn" style="flex:none;padding:8px 12px;" onclick="document.getElementById('ts-text-color-input').click()">🎨</button>
-                <input type="color" id="ts-text-color-input" value="#000000" style="display:none;" oninput="if(activeLayer){activeLayer.color=this.value;render();renderTransformPreview();}" onchange="if(activeLayer){activeLayer.color=this.value;render();renderTransformPreview();}">
+                <button class="ts-fmt-btn" style="flex:none;padding:8px 12px;" onclick="event.stopPropagation();mobToggleTextColorSwatches()">🎨</button>
             </div>
+            <div id="mob-text-color-swatches" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;padding:8px;background:#111;border-radius:8px;border:1px solid #2a2a2c;"></div>
             <!-- Bubble style mini grid (shown for bubbles) -->
             <div id="bubble-style-change-row" style="display:none;margin-top:10px;">
                 <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Bubble Style</div>
                 <div id="bubble-style-mini-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
-                <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-                    <span style="font-size:10px;font-weight:900;color:#555;">BG</span>
-                    <input type="color" id="bubble-bg-color" value="#ffffff" oninput="if(activeLayer){activeLayer.bubbleBg=this.value;render();renderTransformPreview();}" onchange="if(activeLayer){activeLayer.bubbleBg=this.value;render();renderTransformPreview();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
-                    <span style="font-size:10px;font-weight:900;color:#555;">BORDER</span>
-                    <input type="color" id="bubble-border-color" value="#000000" oninput="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();renderTransformPreview();}" onchange="if(activeLayer){activeLayer.bubbleBorderColor=this.value;render();renderTransformPreview();}" style="flex:1;height:30px;border-radius:6px;border:1px solid #333;background:none;cursor:pointer;">
+                <div style="margin-top:8px;">
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+                        <span style="font-size:10px;font-weight:900;color:#555;width:44px;flex-shrink:0;">BG</span>
+                        <div id="mob-bubble-bg-swatches" style="display:flex;gap:5px;flex-wrap:wrap;flex:1;"></div>
+                        <input type="text" id="bubble-bg-hex" placeholder="#fff" maxlength="7" oninput="mobApplyBubbleColorHex('bg',this.value)" style="width:56px;background:#111;border:1px solid #333;border-radius:6px;color:var(--text);font-size:10px;padding:5px;text-align:center;font-family:inherit;">
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span style="font-size:10px;font-weight:900;color:#555;width:44px;flex-shrink:0;">BORDER</span>
+                        <div id="mob-bubble-border-swatches" style="display:flex;gap:5px;flex-wrap:wrap;flex:1;"></div>
+                        <input type="text" id="bubble-border-hex" placeholder="#000" maxlength="7" oninput="mobApplyBubbleColorHex('border',this.value)" style="width:56px;background:#111;border:1px solid #333;border-radius:6px;color:var(--text);font-size:10px;padding:5px;text-align:center;font-family:inherit;">
+                    </div>
                 </div>
-                <!-- Tail direction -->
-                <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
-                    <span style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;">Tail</span>
-                    <button id="mob-tail-left-btn"  onclick="mobSetBubbleTailFlip(false)" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.15);color:var(--accent);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">◀ Left</button>
-                    <button id="mob-tail-right-btn" onclick="mobSetBubbleTailFlip(true)"  style="flex:1;padding:7px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
+                <!-- Tail position -->
+                <div style="margin-top:10px;padding:8px 10px;background:#111;border-radius:8px;border:1px dashed #333;">
+                    <span style="font-size:10px;font-weight:700;color:#777;">↕ Drag the dot below the bubble on canvas to move the tail.</span>
                 </div>
             </div>
         </div>
@@ -1834,6 +1919,7 @@
             </div>
         </div>
         <div id="sprite-quick-actions"></div>
+        <div id="sqa-popover"></div>
         <div id="global-frame-indicator"></div>
         <div id="frame-counter" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); color:#fff; font-size:12px; font-weight:700; padding:4px 8px; border-radius:6px; pointer-events:none;">
             <span id="total-frames">1/1</span>
@@ -1849,6 +1935,7 @@
         <div id="canvas-frame-bar">
             <button class="cfb-btn" onclick="toggleHideUI()" title="Hide UI">👁</button>
             <button class="cfb-btn" onclick="topBarDuplicate()" title="Duplicate">⧉</button>
+            <span id="cfb-text-extras" class="cfb-extras"></span>
             <div class="cfb-sep"></div>
             <button class="cfb-btn" onclick="prevFrame()" title="Prev Frame">◀</button>
             <button id="frame-pill-label" class="cfb-btn cfb-label" onclick="toggleFramePillMenu(event)">1/1</button>
@@ -2032,6 +2119,10 @@ function lsSet(key, value) {
 
 // ── STATE ──
 let frames = [{ layers: [], background: '#ffffff' }];
+// Preset swatches for bubble/text color pickers. Some Android WebView/TWA
+// builds render <input type="color"> as a static, non-interactive swatch
+// instead of opening a picker — these plain buttons work everywhere.
+const MOB_COLOR_PRESETS = ['#ffffff', '#000000', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#00c7be', '#007aff', '#5856d6', '#af52de', '#ff2d55', '#8e8e93'];
 // Whether the FX sheet is currently targeting the frame background instead of a sprite layer
 let fxEditingBg = false;
 let currentIdx = 0;
@@ -2311,6 +2402,8 @@ function openTransformSheet() {
 function closeTransformSheet() {
     document.getElementById('transform-sheet').classList.remove('open');
     document.getElementById('transform-sheet-backdrop').classList.remove('open');
+    const sw = document.getElementById('mob-text-color-swatches');
+    if (sw) sw.style.display = 'none';
 }
 function syncTransformSheet() {
     if (!activeLayer) return;
@@ -2342,17 +2435,7 @@ function syncTransformSheet() {
     document.getElementById('bubble-style-change-row').style.display = isBubble ? 'block' : 'none';
     if (isBubble) {
         renderBubbleMiniGrid();
-        // Sync bubble color pickers
-        const bgColor = document.getElementById('bubble-bg-color');
-        const borderColor = document.getElementById('bubble-border-color');
-        if (bgColor) bgColor.value = activeLayer.bubbleBg || '#ffffff';
-        if (borderColor) borderColor.value = activeLayer.bubbleBorderColor || '#000000';
-        // Sync tail flip buttons
-        const tf = !!activeLayer.tailFlip;
-        const lBtn = document.getElementById('mob-tail-left-btn');
-        const rBtn = document.getElementById('mob-tail-right-btn');
-        if (lBtn) { lBtn.style.borderColor=tf?'#333':'var(--accent)'; lBtn.style.background=tf?'#111':'rgba(255,122,0,.15)'; lBtn.style.color=tf?'#666':'var(--accent)'; }
-        if (rBtn) { rBtn.style.borderColor=tf?'var(--accent)':'#333'; rBtn.style.background=tf?'rgba(255,122,0,.15)':'#111'; rBtn.style.color=tf?'var(--accent)':'#666'; }
+        renderBubbleColorSwatches();
     }
 
     // Show Swap button only for sprite layers that have packData (i.e. from the sprite library)
@@ -2481,8 +2564,93 @@ let _renderRaf = null;
 // their touch-drag-to-resize behavior. Used both during a full render() and
 // for instant tap-select (see touchstart handler below) so handles don't
 // require a full re-render (or a double-tap) to appear.
+function mobToggleTextColorSwatches() {
+    const w = document.getElementById('mob-text-color-swatches');
+    if (!w) return;
+    const show = w.style.display !== 'flex';
+    w.style.display = show ? 'flex' : 'none';
+    if (show) renderTextColorSwatches();
+}
+function renderTextColorSwatches() {
+    const w = document.getElementById('mob-text-color-swatches');
+    if (!w || !activeLayer) return;
+    const cur = (activeLayer.color || '#000000').toLowerCase();
+    w.innerHTML = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="event.stopPropagation();mobPickTextColor('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${cur === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
+    ).join('') + `<input type="text" id="text-color-hex" value="${activeLayer.color || '#000000'}" maxlength="7" oninput="event.stopPropagation();mobApplyTextColorHex(this.value)" style="width:56px;background:#000;border:1px solid #333;border-radius:6px;color:var(--text);font-size:10px;padding:5px;text-align:center;font-family:inherit;">`;
+}
+function mobPickTextColor(hex) {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.color = hex;
+    render(); renderTransformPreview(); renderTextColorSwatches();
+}
+function mobApplyTextColorHex(val) {
+    if (!activeLayer) return;
+    let v = (val || '').trim();
+    if (v && v[0] !== '#') v = '#' + v;
+    if (!/^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v)) return; // wait for a full valid hex
+    saveState();
+    activeLayer.color = v;
+    render(); renderTransformPreview();
+}
+
+function renderBubbleColorSwatches() {
+    if (!activeLayer) return;
+    const bgWrap = document.getElementById('mob-bubble-bg-swatches');
+    const borderWrap = document.getElementById('mob-bubble-border-swatches');
+    const curBg = (activeLayer.bubbleBg || '#ffffff').toLowerCase();
+    const curBorder = (activeLayer.bubbleBorderColor || '#000000').toLowerCase();
+    if (bgWrap) bgWrap.innerHTML = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="event.stopPropagation();mobPickBubbleBg('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${curBg === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
+    ).join('');
+    if (borderWrap) borderWrap.innerHTML = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="event.stopPropagation();mobPickBubbleBorder('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${curBorder === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
+    ).join('');
+    const bgHex = document.getElementById('bubble-bg-hex');
+    if (bgHex) bgHex.value = activeLayer.bubbleBg || '#ffffff';
+    const borderHex = document.getElementById('bubble-border-hex');
+    if (borderHex) borderHex.value = activeLayer.bubbleBorderColor || '#000000';
+}
+function mobPickBubbleBg(hex) {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.bubbleBg = hex;
+    renderBubbleColorSwatches();
+    render(); renderTransformPreview();
+}
+function mobPickBubbleBorder(hex) {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.bubbleBorderColor = hex;
+    renderBubbleColorSwatches();
+    render(); renderTransformPreview();
+}
+function mobApplyBubbleColorHex(which, val) {
+    if (!activeLayer) return;
+    let v = (val || '').trim();
+    if (v && v[0] !== '#') v = '#' + v;
+    if (!/^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v)) return; // wait for a full valid hex
+    saveState();
+    if (which === 'bg') activeLayer.bubbleBg = v; else activeLayer.bubbleBorderColor = v;
+    renderBubbleColorSwatches();
+    render(); renderTransformPreview();
+}
+
+// Tail position is stored as a 0-100% point along the bubble's bottom edge
+// (so it can sit anywhere, including dead-center) instead of a left/right
+// toggle. Older saved layers only have `tailFlip` — this derives an
+// equivalent percentage for those so existing bubbles don't jump around.
+const MOB_BUBBLE_TAIL_BASE = { round: 20, chat: 80, rect: 50, whisper: 25 };
+function getBubbleTailPos(layer, bStyle) {
+    if (layer.tailPos != null) return Math.max(4, Math.min(96, layer.tailPos));
+    const base = MOB_BUBBLE_TAIL_BASE[bStyle] ?? 50;
+    return layer.tailFlip ? (100 - base) : base;
+}
+
 function attachResizeHandles(el, layer) {
     el.querySelectorAll('.resize-handle').forEach(h => h.remove());
+    el.querySelectorAll('.rotate-handle, .rotate-handle-stem').forEach(h => h.remove());
     ['tl','tr','bl','br'].forEach(corner => {
         const h = document.createElement('div');
         h.className = 'resize-handle ' + corner;
@@ -2545,6 +2713,115 @@ function attachResizeHandles(el, layer) {
         }, { passive: false });
         el.appendChild(h);
     });
+
+    // ── Rotate handle — dial above the bounding box, connected by a stem.
+    // Drag it around the sprite's center to rotate in place, with a light
+    // magnetic snap to common angles (0/45/90/...) for easy alignment.
+    const stem = document.createElement('div');
+    stem.className = 'rotate-handle-stem';
+    el.appendChild(stem);
+    const rh = document.createElement('div');
+    rh.className = 'rotate-handle';
+    rh.textContent = '↻';
+    rh.addEventListener('touchstart', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        saveState();
+        const onMove = (mv) => {
+            if (mv.touches.length > 1) return;
+            mv.preventDefault(); mv.stopPropagation();
+            const t = mv.touches[0];
+            // Re-measure center each move — angle math is scale-invariant so
+            // this doesn't need the _cScale correction the resize drag uses.
+            const elRect = el.getBoundingClientRect();
+            const cx = elRect.left + elRect.width / 2;
+            const cy = elRect.top + elRect.height / 2;
+            const dx = t.clientX - cx;
+            const dy = t.clientY - cy;
+            let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
+            angle = ((angle % 360) + 360) % 360;
+            for (const sp of [0, 45, 90, 135, 180, 225, 270, 315, 360]) {
+                if (Math.abs(angle - sp) < 4) { angle = sp % 360; break; }
+            }
+            angle = Math.round(angle);
+            layer.rotation = angle;
+            el.style.transform = `rotate(${angle}deg) scaleX(${layer.flipped ? -1 : 1})`;
+            const rs = document.getElementById('rotate-slider');
+            if (rs) { rs.value = angle; const rn = document.getElementById('rotate-num'); if (rn) rn.value = angle; }
+        };
+        const onUp = () => {
+            rh.removeEventListener('touchmove', onMove);
+            rh.removeEventListener('touchend', onUp);
+            render();
+        };
+        rh.addEventListener('touchmove', onMove, { passive: false });
+        rh.addEventListener('touchend', onUp, { once: true });
+    }, { passive: false });
+    el.appendChild(rh);
+}
+
+// Draggable scroller below a selected bubble/thinking layer — track + puck
+// you drag left-right to slide the tail anywhere along the bottom edge,
+// instead of picking from Left/Center/Right buttons in a menu.
+function attachTailHandle(el, layer) {
+    el.querySelectorAll('.tail-scroller-track, .tail-scroller-handle').forEach(h => h.remove());
+    const bStyle = layer.bubbleStyle || 'round';
+    const showTail = !['spiky', 'shout', 'electric', 'narrator', 'cloud'].includes(bStyle);
+    if (!showTail) return;
+
+    const track = document.createElement('div');
+    track.className = 'tail-scroller-track';
+    el.appendChild(track);
+
+    const handle = document.createElement('div');
+    handle.className = 'tail-scroller-handle';
+    handle.style.left = getBubbleTailPos(layer, bStyle) + '%';
+    handle.addEventListener('touchstart', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        saveState();
+        const onMove = (mv) => {
+            if (mv.touches.length > 1) return;
+            mv.preventDefault(); mv.stopPropagation();
+            const t = mv.touches[0];
+            const elRect = el.getBoundingClientRect();
+            let pct = ((t.clientX - elRect.left) / elRect.width) * 100;
+            pct = Math.max(4, Math.min(96, Math.round(pct)));
+            layer.tailPos = pct;
+            handle.style.left = pct + '%';
+            const tailEl = el.querySelector('.bubble-tail');
+            if (tailEl) tailEl.style.left = pct + '%';
+        };
+        const onUp = () => {
+            handle.removeEventListener('touchmove', onMove);
+            handle.removeEventListener('touchend', onUp);
+            delete layer.tailFlip; // superseded by the dragged position
+            render();
+        };
+        handle.addEventListener('touchmove', onMove, { passive: false });
+        handle.addEventListener('touchend', onUp, { once: true });
+    }, { passive: false });
+    el.appendChild(handle);
+}
+
+// ── CORNER EDIT TOGGLE ──
+// Small badge on the top-right corner of a selected text/bubble layer that
+// jumps straight to the font/style popover — same icon as the bottom bar's
+// Edit tab, but scoped to this one layer instead of opening the full sheet.
+function attachSqaEditToggle(el, layer) {
+    el.querySelectorAll('.sqa-corner-toggle').forEach(h => h.remove());
+    const btn = document.createElement('button');
+    btn.className = 'sqa-corner-toggle';
+    btn.type = 'button';
+    btn.title = 'Text options';
+    btn.innerHTML = '<img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/edit.webp" alt="edit">';
+    const open = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        mobToggleSqaPopover('font');
+    };
+    btn.addEventListener('touchstart', (ev) => { ev.stopPropagation(); }, { passive: true });
+    btn.addEventListener('touchend', open, { passive: false });
+    btn.addEventListener('click', open);
+    el.appendChild(btn);
 }
 
 function render() {
@@ -2779,15 +3056,11 @@ function _renderNow() {
             bub.innerText = layer.content || '';
             const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
             if (showTail) {
-                if (layer.tailFlip) {
-                    // Wrap tail in a flipping container
-                    const flipWrap = document.createElement('div');
-                    flipWrap.style.cssText = 'position:absolute;inset:0;transform:scaleX(-1);pointer-events:none;';
-                    const tail = document.createElement('div'); tail.className = 'bubble-tail';
-                    flipWrap.appendChild(tail); bub.appendChild(flipWrap);
-                } else {
-                    const tail = document.createElement('div'); tail.className = 'bubble-tail'; bub.appendChild(tail);
-                }
+                const tail = document.createElement('div');
+                tail.className = 'bubble-tail';
+                tail.style.left = getBubbleTailPos(layer, bStyle) + '%';
+                tail.style.transform = 'translateX(-50%)';
+                bub.appendChild(tail);
             }
             if (layer.type === 'thinking') {
                 [1,2,3].forEach(n => { const dot = document.createElement('div'); dot.className = 'thought-dot-' + n; bub.appendChild(dot); });
@@ -2868,8 +3141,10 @@ function _renderNow() {
             // Show resize handles immediately on tap-select, without waiting for
             // a full re-render (previously they only appeared via double-tap
             // or some other action that happened to trigger render()).
-            canvas.querySelectorAll('.resize-handle').forEach(h => h.remove());
+            canvas.querySelectorAll('.resize-handle, .tail-scroller-track, .tail-scroller-handle, .sqa-corner-toggle').forEach(h => h.remove());
             if (layer.type === 'img') attachResizeHandles(el, layer);
+            if (layer.type === 'bubble' || layer.type === 'thinking') attachTailHandle(el, layer);
+            if (['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type)) attachSqaEditToggle(el, layer);
             startTouchDrag(e, layer);
         }, { passive: false });
         el.addEventListener('mousedown', (e) => { e.preventDefault(); if (!layer.locked) { selectLayer(layer); startDrag(e, layer); } });
@@ -2894,9 +3169,15 @@ function _renderNow() {
             }
         }, { passive: false });
 
-        // Resize handles on active sprite layer
+        // Resize handles on active sprite layer / tail scroller on active bubble
         if (layer === activeLayer && layer.type === 'img' && !layer.locked) {
             attachResizeHandles(el, layer);
+        }
+        if (layer === activeLayer && (layer.type === 'bubble' || layer.type === 'thinking') && !layer.locked) {
+            attachTailHandle(el, layer);
+        }
+        if (layer === activeLayer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type) && !layer.locked) {
+            attachSqaEditToggle(el, layer);
         }
 
         canvas.appendChild(el);
@@ -2949,24 +3230,218 @@ function selectLayerLight(layer) {
 // Shows a small pill of icon buttons above the frame whenever an image layer
 // is selected, so pose-swap / duplicate / front / delete don't require
 // opening the full transform sheet first.
-function updateSpriteQuickBar(layer) {
-    const bar = document.getElementById('sprite-quick-actions');
-    if (!bar) return;
-    if (!layer || layer.type !== 'img' || layer.locked) {
-        bar.classList.remove('show');
-        bar.innerHTML = '';
+// ── Compact popover (color / font) opened from the quick-actions bar ──
+function mobToggleSqaPopover(kind) {
+    const pop = document.getElementById('sqa-popover');
+    if (!pop || !activeLayer) return;
+    const alreadyOpenSame = pop.classList.contains('show') && pop.dataset.kind === kind;
+    if (alreadyOpenSame) {
+        pop.classList.remove('show');
+        pop.dataset.kind = '';
         return;
     }
-    const hasActions = !!layer.packData;
-    bar.innerHTML = `
-        ${hasActions ? `<button class="sqa-btn sqa-accent" onclick="event.stopPropagation();editCurrentSpriteAction()" title="Actions">🔄</button><div class="sqa-sep"></div>` : ''}
-        <button class="sqa-btn" onclick="event.stopPropagation();topBarDuplicate()" title="Duplicate">⧉</button>
-        <button class="sqa-btn" onclick="event.stopPropagation();moveLayerToFront()" title="Bring to front">⬆️</button>
-        <button class="sqa-btn" onclick="event.stopPropagation();openTransformSheet()" title="Transform">↔️</button>
-        <div class="sqa-sep"></div>
-        <button class="sqa-btn sqa-danger" onclick="event.stopPropagation();deleteLayer()" title="Delete">🗑</button>
+    pop.dataset.kind = kind;
+    if (kind === 'font') _sqaStyleRowOpen = false;
+    if (kind === 'color') renderSqaColorPopover();
+    else if (kind === 'font') renderSqaFontPopover();
+    pop.classList.add('show');
+    positionSqaPopover(activeLayer); // re-measure now that it's actually visible
+}
+// Floats the popover right above the selected layer's own bounding box
+// (below it instead, if there isn't room above) rather than pinning it to a
+// fixed spot at the top of the canvas.
+function positionSqaPopover(layer) {
+    const pop = document.getElementById('sqa-popover');
+    if (!pop || !layer) return;
+    const cw = canvas.offsetWidth || 300;
+    const w = layer.w || 160;
+    const h = layer.h || 40;
+    let cx = layer.x + w / 2;
+    cx = Math.max(60, Math.min(cw - 60, cx)); // keep it from hanging off either side
+    pop.style.left = Math.round(cx) + 'px';
+    pop.style.transform = 'translateX(-50%)';
+    const GAP = 10;
+    const estH = pop.offsetHeight || 150;
+    let top = layer.y - estH - GAP;
+    if (top < 4) top = layer.y + h + GAP; // not enough room above — drop it below instead
+    pop.style.top = Math.round(top) + 'px';
+}
+function renderSqaColorPopover() {
+    const pop = document.getElementById('sqa-popover');
+    if (!pop || !activeLayer) return;
+    const isBubble = ['bubble', 'thinking'].includes(activeLayer.type);
+    const cur = (isBubble ? (activeLayer.bubbleBg || '#ffffff') : (activeLayer.color || '#000000')).toLowerCase();
+    const swatches = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="event.stopPropagation();mobSqaPickColor('${hex}')" style="width:26px;height:26px;border-radius:50%;background:${hex};border:2px solid ${cur === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;"></button>`
+    ).join('');
+    pop.innerHTML = `
+        <div style="font-size:9px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">${isBubble ? 'Bubble Color' : 'Text Color'}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">${swatches}</div>
+        <input type="text" id="sqa-color-hex" value="${cur}" maxlength="7" oninput="event.stopPropagation();mobSqaApplyColorHex(this.value)" style="width:100%;background:#000;border:1px solid #333;border-radius:8px;color:var(--text);font-size:12px;padding:8px;text-align:center;font-family:inherit;box-sizing:border-box;">
     `;
-    bar.classList.add('show');
+    positionSqaPopover(activeLayer);
+}
+function mobSqaPickColor(hex) {
+    if (!activeLayer) return;
+    saveState();
+    const isBubble = ['bubble', 'thinking'].includes(activeLayer.type);
+    if (isBubble) activeLayer.bubbleBg = hex; else activeLayer.color = hex;
+    render();
+    renderTransformPreview();
+    renderBubbleColorSwatches();
+    renderSqaColorPopover();
+}
+function mobSqaApplyColorHex(val) {
+    if (!activeLayer) return;
+    let v = (val || '').trim();
+    if (v && v[0] !== '#') v = '#' + v;
+    if (!/^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v)) return; // wait for a full valid hex
+    saveState();
+    const isBubble = ['bubble', 'thinking'].includes(activeLayer.type);
+    if (isBubble) activeLayer.bubbleBg = v; else activeLayer.color = v;
+    render();
+    renderTransformPreview();
+    renderBubbleColorSwatches();
+}
+let _sqaStyleRowOpen = false;
+function mobToggleSqaStyleRow() {
+    _sqaStyleRowOpen = !_sqaStyleRowOpen;
+    renderSqaFontPopover();
+}
+function renderSqaFontPopover() {
+    const pop = document.getElementById('sqa-popover');
+    if (!pop || !activeLayer) return;
+    const l = activeLayer;
+    const isBubble = ['bubble', 'thinking'].includes(l.type);
+    const fontSelectHtml = document.getElementById('font-family-select') ? document.getElementById('font-family-select').innerHTML : '';
+    const anyStyleActive = !!(l.bold || l.italic || l.underline);
+    pop.innerHTML = `
+        <div style="display:flex;gap:6px;align-items:center;">
+            <select onchange="event.stopPropagation();mobSqaSetFont(this.value)" style="flex:1;min-width:0;background:#111;border:1px solid #333;color:var(--text);border-radius:8px;padding:8px;font-size:12px;font-family:inherit;box-sizing:border-box;">
+                ${fontSelectHtml}
+            </select>
+            ${isBubble ? `<button class="sqa-btn" onclick="event.stopPropagation();mobQuickFlipTail();renderSqaFontPopover();" title="Move tail" style="flex-shrink:0;">◀▶</button>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <button onclick="event.stopPropagation();mobSqaBumpSize(-2)" style="width:30px;height:30px;border-radius:8px;border:1px solid #333;background:#111;color:var(--text);font-weight:900;cursor:pointer;">−</button>
+            <span style="flex:1;text-align:center;font-size:12px;font-weight:800;color:#aaa;">${l.fontSize || 24}px</span>
+            <button onclick="event.stopPropagation();mobSqaBumpSize(2)" style="width:30px;height:30px;border-radius:8px;border:1px solid #333;background:#111;color:var(--text);font-weight:900;cursor:pointer;">+</button>
+        </div>
+        <button id="sqa-style-toggle" class="ts-fmt-btn ${anyStyleActive ? 'active' : ''}" onclick="event.stopPropagation();mobToggleSqaStyleRow()" style="flex:none;width:100%;letter-spacing:3px;box-sizing:border-box;">
+            <b>B</b> <i>I</i> <u>U</u>
+        </button>
+        ${_sqaStyleRowOpen ? `
+        <div style="display:flex;gap:6px;">
+            <button id="sqa-fmt-bold" class="ts-fmt-btn ${l.bold ? 'active' : ''}" onclick="event.stopPropagation();toggleTextFmt('bold');renderSqaFontPopover();" style="flex:1;"><b>B</b></button>
+            <button id="sqa-fmt-italic" class="ts-fmt-btn ${l.italic ? 'active' : ''}" onclick="event.stopPropagation();toggleTextFmt('italic');renderSqaFontPopover();" style="flex:1;"><i>I</i></button>
+            <button id="sqa-fmt-underline" class="ts-fmt-btn ${l.underline ? 'active' : ''}" onclick="event.stopPropagation();toggleTextFmt('underline');renderSqaFontPopover();" style="flex:1;"><u>U</u></button>
+        </div>` : ''}
+    `;
+    const sel = pop.querySelector('select');
+    if (sel) sel.value = l.fontFamily || "'Inter', sans-serif";
+    positionSqaPopover(l);
+}
+function mobSqaSetFont(val) {
+    updateTextProp('fontFamily', val);
+}
+function mobSqaBumpSize(delta) {
+    if (!activeLayer) return;
+    saveState();
+    activeLayer.fontSize = Math.max(8, Math.min(160, (activeLayer.fontSize || 24) + delta));
+    render();
+    renderTransformPreview();
+    renderSqaFontPopover();
+}
+
+function updateSpriteQuickBar(layer) {
+    const bar = document.getElementById('sprite-quick-actions');
+    const pop = document.getElementById('sqa-popover');
+    if (!bar) return;
+    const isSprite   = !!layer && layer.type === 'img';
+    const isTextLike = !!layer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type);
+    if (!layer || layer.locked || (!isSprite && !isTextLike)) {
+        bar.classList.remove('show');
+        bar.innerHTML = '';
+        updateCfbExtras(null);
+        if (pop) { pop.classList.remove('show'); pop.dataset.kind = ''; }
+        return;
+    }
+    // Duplicate already lives in the bottom frame bar for every layer type,
+    // so the rest of each type's actions slide in right next to it there
+    // instead of repeating a second pill on the canvas. Only fall back to a
+    // standalone floating pill (full action set, incl. its own Duplicate) if
+    // that bottom bar has been collapsed to its tab.
+    const frameBar = document.getElementById('canvas-frame-bar');
+    const frameBarHidden = !frameBar || frameBar.classList.contains('cfb-hidden');
+    updateCfbExtras(frameBarHidden ? null : layer);
+    if (isSprite) {
+        if (frameBarHidden) {
+            const hasActions = !!layer.packData;
+            bar.innerHTML = `
+                ${hasActions ? `<button class="sqa-btn sqa-accent" onclick="event.stopPropagation();editCurrentSpriteAction()" title="Actions">🔄</button><div class="sqa-sep"></div>` : ''}
+                <button class="sqa-btn" onclick="event.stopPropagation();topBarDuplicate()" title="Duplicate">⧉</button>
+                <button class="sqa-btn" onclick="event.stopPropagation();flipHorizontal()" title="Flip">↔️</button>
+                <div class="sqa-sep"></div>
+                <button class="sqa-btn sqa-danger" onclick="event.stopPropagation();deleteLayer()" title="Delete">🗑</button>
+            `;
+            bar.classList.add('show');
+        } else {
+            bar.classList.remove('show');
+            bar.innerHTML = '';
+        }
+        if (pop) { pop.classList.remove('show'); pop.dataset.kind = ''; }
+    } else {
+        if (frameBarHidden) {
+            const canQuickStyle = ['bubble', 'thinking', 'text'].includes(layer.type);
+            bar.innerHTML = `
+                <button class="sqa-btn" onclick="event.stopPropagation();topBarDuplicate()" title="Duplicate">⧉</button>
+                ${canQuickStyle ? `<button class="sqa-btn" onclick="event.stopPropagation();mobToggleSqaPopover('color')" title="Color"><span style="width:16px;height:16px;border-radius:50%;background:conic-gradient(from 180deg,#ff3b30,#ff9500,#ffcc00,#34c759,#30b0c7,#007aff,#5856d6,#ff2d92,#ff3b30);border:1.5px solid rgba(255,255,255,0.4);display:block;"></span></button>` : ''}
+                <div class="sqa-sep"></div>
+                <button class="sqa-btn sqa-danger" onclick="event.stopPropagation();deleteLayer()" title="Delete">🗑</button>
+            `;
+            bar.classList.add('show');
+        } else {
+            bar.classList.remove('show');
+            bar.innerHTML = '';
+        }
+        // Keep an open popover's content current (e.g. after a color pick)
+        // instead of just closing it out from under the person.
+        if (pop && pop.classList.contains('show')) {
+            if (pop.dataset.kind === 'color') renderSqaColorPopover();
+            else if (pop.dataset.kind === 'font') renderSqaFontPopover();
+        }
+    }
+}
+
+// Slide the rest of a selected layer's quick actions in next to the bottom
+// frame bar's Duplicate button — color+delete for text/bubbles, actions
+// (if any)+flip+delete for sprites. Duplicate itself is never repeated here,
+// since the frame bar already has one. Pass null to clear them.
+function updateCfbExtras(layer) {
+    const extras = document.getElementById('cfb-text-extras');
+    if (!extras) return;
+    const isTextLike = !!layer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type) && !layer.locked;
+    const isSprite   = !!layer && layer.type === 'img' && !layer.locked;
+    if (!isTextLike && !isSprite) {
+        extras.classList.remove('show');
+        extras.innerHTML = '';
+        return;
+    }
+    if (isSprite) {
+        const hasActions = !!layer.packData;
+        extras.innerHTML = `
+            ${hasActions ? `<button class="cfb-btn" style="color:var(--accent);" onclick="event.stopPropagation();editCurrentSpriteAction()" title="Actions">🔄</button>` : ''}
+            <button class="cfb-btn" onclick="event.stopPropagation();flipHorizontal()" title="Flip">↔️</button>
+            <button class="cfb-btn" style="color:#ff453a;" onclick="event.stopPropagation();deleteLayer()" title="Delete">🗑</button>
+        `;
+    } else {
+        const canQuickStyle = ['bubble', 'thinking', 'text'].includes(layer.type);
+        extras.innerHTML = `
+            ${canQuickStyle ? `<button class="cfb-btn" onclick="event.stopPropagation();mobToggleSqaPopover('color')" title="Color"><span style="width:15px;height:15px;border-radius:50%;background:conic-gradient(from 180deg,#ff3b30,#ff9500,#ffcc00,#34c759,#30b0c7,#007aff,#5856d6,#ff2d92,#ff3b30);border:1.5px solid rgba(255,255,255,0.4);display:block;"></span></button>` : ''}
+            <button class="cfb-btn" style="color:#ff453a;" onclick="event.stopPropagation();deleteLayer()" title="Delete">🗑</button>
+        `;
+    }
+    extras.classList.add('show');
 }
 
 // ── TOUCH DRAG ──
@@ -3256,6 +3731,7 @@ function collapseCanvasFrameBar() {
     // Let the bar finish fading/shrinking away in place before popping the tab
     // in, so the two never visually overlap mid-animation.
     setTimeout(() => { tab.style.display = 'flex'; }, 140);
+    if (activeLayer) updateSpriteQuickBar(activeLayer);
 }
 function expandCanvasFrameBar() {
     const bar = document.getElementById('canvas-frame-bar');
@@ -3263,6 +3739,7 @@ function expandCanvasFrameBar() {
     if (!bar || !tab) return;
     tab.style.display = 'none';
     bar.classList.remove('cfb-hidden');
+    if (activeLayer) updateSpriteQuickBar(activeLayer);
 }
 function goToFrame(i) { if (i >= 0 && i < frames.length) { activateFrame(i); updateActiveFrameThumb(); updateFrameCounter(); closeSheet('frames'); } }
 function copyCurrentFrame() { frameClipboard = JSON.parse(JSON.stringify(frames[currentIdx])); }
@@ -4003,7 +4480,16 @@ function moveLayerToBack() {
 
 function sbCopyLayer() { if (activeLayer) { window._layerClipboard = JSON.parse(JSON.stringify(activeLayer)); } }
 function sbPasteLayer() { if (!window._layerClipboard) return; saveState(); const copy = { ...JSON.parse(JSON.stringify(window._layerClipboard)), id: Date.now(), x: (window._layerClipboard.x || 0) + 20, y: (window._layerClipboard.y || 0) + 20 }; frames[currentIdx].layers.push(copy); activeLayer = copy; render(); renderMobLayers(); }
-function updateTextProp(prop, value) { if (activeLayer && ['bubble','thinking','text','subtitle'].includes(activeLayer.type)) { activeLayer[prop] = (prop === 'fontSize') ? parseInt(value) : value; render(); renderTransformPreview(); } }
+function updateTextProp(prop, value) {
+    if (activeLayer && ['bubble','thinking','text','subtitle'].includes(activeLayer.type)) {
+        activeLayer[prop] = (prop === 'fontSize') ? parseInt(value) : value;
+        if (prop === 'fontFamily') { try { localStorage.setItem('cc-last-font', value); } catch(e) {} }
+        render(); renderTransformPreview();
+    }
+}
+function mobLastFont(fallback) {
+    try { return localStorage.getItem('cc-last-font') || fallback; } catch(e) { return fallback; }
+}
 function updateNameTag(val) { if (activeLayer) { activeLayer.nameTag = val; render(); } }
 function clearNameTag() { if (activeLayer) { activeLayer.nameTag = ''; document.getElementById('sprite-nametag-input').value = ''; render(); } }
 
@@ -4048,7 +4534,8 @@ function buildLayerPreviewElement(layer) {
         if (showTail) {
             const tail = document.createElement('div');
             tail.className = 'bubble-tail';
-            if (layer.tailFlip) tail.style.transform = 'scaleX(-1)';
+            tail.style.left = getBubbleTailPos(layer, bStyle) + '%';
+            tail.style.transform = 'translateX(-50%)';
             el.appendChild(tail);
         }
         if (layer.type === 'thinking') [1,2,3].forEach(n => { const d = document.createElement('div'); d.className = 'thought-dot-' + n; el.appendChild(d); });
@@ -5457,10 +5944,10 @@ function addSpriteToCanvas(src, pack) {
 function addText(type) {
     saveState();
     const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
-    const nl = { type: 'text', content: 'Text', fontSize: 24, fontFamily: "'Inter', sans-serif", color: '#000', x: Math.round(cw*0.2), y: Math.round(ch*0.3), w: 160, rotation: 0, id: Date.now() };
+    const nl = { type: 'text', content: 'Text', fontSize: 24, fontFamily: mobLastFont("'Inter', sans-serif"), color: '#000', x: Math.round(cw*0.2), y: Math.round(ch*0.3), w: 160, rotation: 0, id: Date.now() };
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
-    render(); openTransformSheet();
+    render();
 }
 function addSubtitle() {
     saveState();
@@ -5537,7 +6024,7 @@ function confirmBubblePicker() {
     saveState();
     const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
     const bubbleType = selectedBubbleStyle === 'cloud' ? 'thinking' : 'bubble';
-    const nl = { type: bubbleType, content: text, fontSize: 18, fontFamily: "'Bangers', cursive", bubbleStyle: selectedBubbleStyle, tailFlip: mobBubbleTailFlip, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw * _mobBubbleWidthFrac), rotation: 0, id: Date.now() };
+    const nl = { type: bubbleType, content: text, fontSize: 18, fontFamily: mobLastFont("'Bangers', cursive"), bubbleStyle: selectedBubbleStyle, tailFlip: mobBubbleTailFlip, x: Math.round(cw*0.15), y: Math.round(ch*0.1), w: Math.round(cw * _mobBubbleWidthFrac), rotation: 0, id: Date.now() };
     mobBubbleTailFlip = false;
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
@@ -5557,16 +6044,20 @@ function renderBubbleMiniGrid() {
     });
 }
 
-function mobSetBubbleTailFlip(flipped) {
+function mobSetBubbleTailPos(pos) {
     if (!activeLayer) return;
     saveState();
-    activeLayer.tailFlip = flipped;
-    const lBtn = document.getElementById('mob-tail-left-btn');
-    const rBtn = document.getElementById('mob-tail-right-btn');
-    if (lBtn) { lBtn.style.borderColor=flipped?'#333':'var(--accent)'; lBtn.style.background=flipped?'#111':'rgba(255,122,0,.15)'; lBtn.style.color=flipped?'#666':'var(--accent)'; }
-    if (rBtn) { rBtn.style.borderColor=flipped?'var(--accent)':'#333'; rBtn.style.background=flipped?'rgba(255,122,0,.15)':'#111'; rBtn.style.color=flipped?'var(--accent)':'#666'; }
+    activeLayer.tailPos = Math.max(4, Math.min(96, Math.round(+pos)));
+    delete activeLayer.tailFlip; // superseded by the continuous position
     render();
     renderTransformPreview();
+}
+// Quick mirror-flip for the on-canvas quick-actions bar, so there's still a
+// one-tap way to send the tail to the other side without opening the sheet.
+function mobQuickFlipTail() {
+    if (!activeLayer) return;
+    const bStyle = activeLayer.bubbleStyle || 'round';
+    mobSetBubbleTailPos(100 - getBubbleTailPos(activeLayer, bStyle));
 }
 
 // ── BACKGROUND ──
@@ -7213,13 +7704,13 @@ async function renderFrameToCanvas(frame, cw, ch) {
 
                 let tailHtml = '';
                 if (showTail) {
-                    const tailFlipStyle = layer.tailFlip ? 'transform:scaleX(-1);transform-origin:center;' : '';
+                    const tailPos = getBubbleTailPos(layer, bStyle);
                     if (bStyle === 'round' || bStyle === 'whisper') {
-                        tailHtml = `<div style="position:absolute;bottom:-20px;left:28px;width:0;height:0;border-left:12px solid transparent;border-right:4px solid transparent;border-top:20px solid ${bubBorder};${tailFlipStyle}"><div style="position:absolute;top:-19px;left:-9px;width:0;height:0;border-left:8px solid transparent;border-right:2px solid transparent;border-top:16px solid ${bubBg};"></div></div>`;
+                        tailHtml = `<div style="position:absolute;bottom:-20px;left:${tailPos}%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:4px solid transparent;border-top:20px solid ${bubBorder};"><div style="position:absolute;top:-19px;left:-9px;width:0;height:0;border-left:8px solid transparent;border-right:2px solid transparent;border-top:16px solid ${bubBg};"></div></div>`;
                     } else if (bStyle === 'chat') {
-                        tailHtml = `<div style="position:absolute;bottom:-18px;right:24px;width:0;height:0;border-left:14px solid transparent;border-top:18px solid ${bubBorder};${tailFlipStyle}"><div style="position:absolute;top:-17px;left:-11px;width:0;height:0;border-left:10px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
+                        tailHtml = `<div style="position:absolute;bottom:-18px;left:${tailPos}%;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-top:18px solid ${bubBorder};"><div style="position:absolute;top:-17px;left:-11px;width:0;height:0;border-left:10px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
                     } else if (bStyle === 'rect') {
-                        tailHtml = `<div style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:18px solid ${bubBorder};"><div style="position:absolute;top:-17px;left:-9px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
+                        tailHtml = `<div style="position:absolute;bottom:-18px;left:${tailPos}%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:18px solid ${bubBorder};"><div style="position:absolute;top:-17px;left:-9px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
                     }
                 }
 
