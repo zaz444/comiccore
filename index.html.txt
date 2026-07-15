@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta property="og:title" content="ComicCore™ - Create & Read">
+  <meta property="og:description" content="ComicCore™ is a new app that lets you make comics using 2D sprites and arcade characters. No drawing skills needed, just customize the poses, angles, and frames to tell the story you want.">
+  <meta property="og:image" content="https://media.discordapp.net/attachments/1472088820584419450/1475026485256523816/IMG_1777.png?ex=699bfcf6&is=699aab76&hm=4d03c9164ead0826a54cb0d5225719bbab724d2cf9296a72589bcb41db1f815d&=&format=webp&quality=lossless">
+  <meta property="og:url" content="https://zaz444.github.io/comiccore/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComicCore - Home</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #ff7a00;
+      --orange-light: #ff9a3c;
+      --orange-glow: rgba(255,122,0,0.22);
+      --bg: #0f0f11;
+      --bg2: #18181b;
+      --card: #1e1e22;
+      --card2: #26262c;
+      --border: rgba(255,255,255,0.08);
+      --text: #f4f4f6;
+      --text-muted: #888896;
+      --text-dim: #55555f;
+      --teal: #00c9b1;
+      --teal-glow: rgba(0,201,177,0.18);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      min-height: 100dvh;
+      color: var(--text);
+      padding-bottom: 40px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; top: -100px; left: -80px;
+      width: 480px; height: 480px;
+      background: radial-gradient(circle, rgba(255,122,0,0.09) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed; bottom: -80px; right: -60px;
+      width: 380px; height: 380px;
+      background: radial-gradient(circle, rgba(0,201,177,0.06) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .home-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,15,17,0.88);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-brand { display: flex; align-items: center; gap: 10px; }
+    .header-logo {
+      width: 36px; height: 36px; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 4px 12px var(--orange-glow);
+    }
+    .header-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .header-title { font-size: 17px; font-weight: 900; color: var(--text); letter-spacing: -0.3px; }
+    .corner-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      border: 2px solid var(--orange); cursor: pointer; object-fit: cover;
+      background: var(--card2); transition: box-shadow 0.25s, transform 0.25s;
+    }
+    .corner-avatar:hover { transform: scale(1.08); box-shadow: 0 0 0 4px var(--orange-glow); }
+
+    .main {
+      position: relative; z-index: 1;
+      max-width: 440px; margin: 0 auto; padding: 24px 16px 0;
+    }
+
+    .welcome-row { margin-bottom: 22px; }
+    .welcome-label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
+    .welcome-name { font-size: 26px; font-weight: 900; color: var(--text); letter-spacing: -0.5px; line-height: 1.1; }
+    .welcome-name span { color: var(--orange); }
+
+    /* Hero create card */
+    .create-card {
+      width: 100%;
+      background: url('https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/thepapercover.png') center / cover no-repeat;
+      border-radius: 20px; padding: 22px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; border: none; font-family: 'Inter', sans-serif;
+      box-shadow: 0 8px 32px var(--orange-glow), 0 0 0 1px rgba(255,122,0,0.3);
+      transition: all 0.2s ease; margin-bottom: 12px;
+      position: relative; overflow: hidden;
+    }
+    .create-card:hover { transform: translateY(-2px); box-shadow: 0 14px 40px var(--orange-glow); }
+    .create-card:active { transform: scale(0.98); }
+    .create-card-tag { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; color: rgba(0,0,0,0.6); text-transform: uppercase; margin-bottom: 4px; }
+    .create-card-title { font-size: 20px; font-weight: 900; color: #1a1a1a; letter-spacing: -0.3px; }
+    .create-card-sub { font-size: 12px; font-weight: 500; color: rgba(0,0,0,0.65); margin-top: 2px; }
+    .create-card-icon { font-size: 40px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
+
+    /* Card grid */
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+
+    .nav-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px 14px;
+      cursor: pointer; text-align: left; font-family: 'Inter', sans-serif;
+      display: flex; flex-direction: column; gap: 5px;
+      transition: all 0.18s ease;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      position: relative; overflow: hidden;
+    }
+    .nav-card:hover { background: var(--card2); border-color: rgba(255,255,255,0.13); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    .nav-card:active { transform: scale(0.97); }
+    .nav-card.span-2 { grid-column: span 2; flex-direction: row; align-items: center; justify-content: space-between; padding: 16px 18px; }
+    .nav-card.span-2 .card-body { flex: 1; }
+    .nav-card.accent-teal { border-color: rgba(0,201,177,0.2); }
+    .nav-card.accent-teal:hover { border-color: rgba(0,201,177,0.4); box-shadow: 0 8px 24px var(--teal-glow); }
+    .nav-card.accent-teal .card-icon { color: var(--teal); }
+    .nav-card.accent-teal .card-title { color: var(--teal); }
+
+    .nav-card.has-notification { border-color: rgba(255,200,0,0.35); background: rgba(255,200,0,0.06); animation: notif-pulse 2.5s infinite; }
+    @keyframes notif-pulse {
+      0%,100% { box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+      50% { box-shadow: 0 4px 20px rgba(255,200,0,0.25); }
+    }
+    .nav-card.has-notification .card-title { color: #ffd700; }
+
+    .card-icon { font-size: 22px; margin-bottom: 2px; }
+    .card-title { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.2px; }
+    .card-sub { font-size: 11px; font-weight: 500; color: var(--text-muted); line-height: 1.4; }
+    .card-arrow { font-size: 20px; color: var(--text-dim); transition: color 0.15s, transform 0.15s; }
+    .nav-card:hover .card-arrow { color: var(--text-muted); transform: translateX(3px); }
+
+    .signout-btn {
+      width: 100%; margin-top: 14px;
+      background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+      padding: 13px; border-radius: 12px; cursor: pointer;
+      font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
+      transition: all 0.18s ease;
+    }
+    .signout-btn:hover { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.3); color: #f87171; }
+
+    /* Modals */
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+    #ratio-modal {
+      position: fixed; inset: 0; background: rgba(10,10,12,0.88);
+      z-index: 9999; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+      backdrop-filter: blur(20px); padding: 20px; animation: fadeIn 0.25s ease-out;
+    }
+    #ratio-modal h2 { margin: 0; color: var(--orange); font-size: 20px; font-weight: 900; text-align: center; }
+    #ratio-modal p { margin: 0; color: var(--text-muted); font-size: 13px; text-align: center; }
+    .ratio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 400px; width: 100%; }
+    .ratio-btn {
+      background: var(--card); border: 1.5px solid var(--border); color: var(--text);
+      border-radius: 14px; padding: 12px 6px; cursor: pointer; font-weight: 800;
+      font-size: 12px; text-align: center; transition: all 0.2s ease;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; min-height: 75px; font-family: 'Inter', sans-serif;
+    }
+    .ratio-btn:hover { border-color: var(--orange); color: var(--orange); background: var(--card2); transform: translateY(-2px); }
+    .ratio-btn:active { transform: scale(0.95); }
+    .ratio-preview { background: var(--card2); border: 1.5px solid var(--border); border-radius: 3px; transition: 0.2s; }
+    .ratio-btn:hover .ratio-preview { border-color: var(--orange); }
+    .ratio-cancel {
+      background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
+      padding: 12px 32px; border-radius: 50px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; transition: 0.2s;
+    }
+    .ratio-cancel:hover { background: var(--card2); color: var(--text); }
+
+    #mode-modal {
+      position: fixed; inset: 0; background: rgba(10,10,12,0.88);
+      z-index: 10000; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 24px;
+      backdrop-filter: blur(20px); padding: 30px;
+      font-family: 'Inter', sans-serif; animation: fadeIn 0.25s ease-out;
+    }
+    .mode-btn {
+      flex: 1; background: var(--card); border: 1.5px solid var(--border); color: var(--text);
+      border-radius: 20px; padding: 30px 16px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      transition: all 0.25s ease; font-family: 'Inter', sans-serif;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .mode-btn:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(0,0,0,0.5); background: var(--card2); }
+    .mode-btn:active { transform: scale(0.96); }
+
+    #draft-choice-modal {
+      position: fixed; inset: 0; background: rgba(10,10,12,0.88);
+      z-index: 9998; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+      backdrop-filter: blur(20px); padding: 30px;
+      font-family: 'Inter', sans-serif; animation: fadeIn 0.25s ease-out;
+    }
+
+    /* ── INBOX / MAIL BUTTON ── */
+    .inbox-btn {
+      position: relative; width: 38px; height: 38px; border-radius: 50%;
+      background: var(--card2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 18px; transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .inbox-btn:hover { background: #303038; transform: scale(1.06); }
+    .inbox-btn.loading { animation: pulse 1.5s infinite; }
+    .inbox-btn.loading .inbox-badge { animation: bounceIn 0.4s ease-out; }
+    .inbox-badge {
+      position: absolute; top: -3px; right: -3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--orange); border: 2px solid var(--bg);
+      font-size: 9px; font-weight: 900; color: #000;
+      display: none; align-items: center; justify-content: center;
+    }
+    .inbox-badge.show { display: flex; }
+
+    /* ── SLIDE-DOWN PANEL ── */
+    .side-panel {
+      position: fixed; top: 0; right: -340px; width: 320px; max-width: 92vw;
+      height: 100dvh; background: #111115;
+      border-left: 1px solid var(--border);
+      z-index: 8000; display: flex; flex-direction: column;
+      transition: right 0.28s cubic-bezier(.4,0,.2,1);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.6);
+    }
+    .side-panel.open { right: 0; }
+    .panel-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 7999; display: none; backdrop-filter: blur(4px);
+    }
+    .panel-overlay.open { display: block; }
+    .side-panel-header {
+      padding: 18px 16px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .side-panel-title { font-size: 15px; font-weight: 900; }
+    .side-panel-close {
+      width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text-muted); font-size: 16px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .side-panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+    .panel-section-hdr {
+      font-size: 9px; font-weight: 900; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 1.5px;
+      padding: 8px 4px 6px; margin-bottom: 4px;
+    }
+    .inbox-item {
+      display: flex; align-items: flex-start; gap: 10px; padding: 11px 10px;
+      border-radius: 12px; border: 1px solid var(--border); background: var(--card);
+      margin-bottom: 8px; transition: background 0.15s;
+    }
+    .inbox-item:hover { background: var(--card2); }
+    .inbox-item-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+    .inbox-item-body { flex: 1; min-width: 0; }
+    .inbox-item-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
+    .inbox-item-sub { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+    .inbox-item-time { font-size: 10px; color: var(--text-dim); margin-top: 3px; }
+    .inbox-item-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .inbox-accept-btn {
+      padding: 6px 14px; border-radius: 20px; border: none;
+      background: var(--orange); color: #000; font-size: 11px; font-weight: 800;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    .inbox-decline-btn {
+      padding: 6px 12px; border-radius: 20px;
+      border: 1px solid var(--border); background: none; color: var(--text-muted);
+      font-size: 11px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+
+    /* ── REPORTS PANEL (owner only) ── */
+    .reports-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0; background: #0e0e12;
+    }
+    .reports-count-badge {
+      background: rgba(255,59,48,0.15); color: #ff6b5b;
+      border: 1px solid rgba(255,59,48,0.25); border-radius: 20px;
+      font-size: 10px; font-weight: 900; padding: 3px 10px; flex-shrink: 0;
+    }
+    .reports-filter-tabs { display: flex; gap: 4px; flex: 1; }
+    .reports-tab {
+      padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);
+      background: none; color: var(--text-dim); font-size: 10px; font-weight: 800;
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: 0.15s; white-space: nowrap;
+    }
+    .reports-tab.active { background: rgba(255,59,48,0.12); color: #ff6b5b; border-color: rgba(255,59,48,0.3); }
+    .reports-refresh-btn {
+      width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text-muted); font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: 0.15s; font-family: 'Inter', sans-serif;
+    }
+    .reports-refresh-btn:hover { background: #303038; color: var(--text); }
+    .reports-refresh-btn.spinning { animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .report-card {
+      padding: 12px; border-radius: 12px; border: 1px solid rgba(255,59,48,0.18);
+      background: rgba(255,59,48,0.04); margin-bottom: 8px;
+      transition: opacity 0.25s, transform 0.25s, height 0.25s, padding 0.25s, margin 0.25s;
+    }
+    .report-card.dismissed {
+      opacity: 0; transform: translateX(20px); pointer-events: none;
+      overflow: hidden; height: 0 !important; padding-top: 0 !important;
+      padding-bottom: 0 !important; margin-bottom: 0 !important; border: none;
+    }
+    .report-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .report-card-who {
+      font-size: 13px; font-weight: 900; color: var(--text);
+      cursor: pointer; border-bottom: 1px solid transparent; transition: border-color 0.15s;
+    }
+    .report-card-who:hover { border-color: var(--text); }
+    .report-card-reason {
+      font-size: 10px; color: #ff6b5b; font-weight: 800;
+      background: rgba(255,59,48,0.12); border: 1px solid rgba(255,59,48,0.2);
+      border-radius: 20px; padding: 2px 8px; white-space: nowrap;
+    }
+    .report-card-meta { font-size: 10px; color: var(--text-dim); margin-bottom: 8px; }
+    .report-card-note {
+      font-size: 11px; color: var(--text-muted); background: #0e0e12;
+      border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+      margin-bottom: 10px; font-style: italic; line-height: 1.4;
+    }
+    .report-card-actions { display: flex; gap: 6px; }
+    .report-action-btn {
+      padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text-muted);
+      font-size: 10px; font-weight: 800; cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: 0.15s; flex: 1; text-align: center;
+    }
+    .report-action-btn.primary { background: rgba(255,59,48,0.1); color: #ff6b5b; border-color: rgba(255,59,48,0.3); }
+    .report-action-btn.primary:hover { background: rgba(255,59,48,0.2); }
+    .report-action-btn:hover { background: #303038; color: var(--text); }
+    .report-action-btn:disabled { opacity: 0.4; cursor: default; }
+    .empty-panel { text-align: center; padding: 40px 16px; color: var(--text-dim); font-size: 13px; font-weight: 600; }
+    .reports-panel-body-inner { padding: 12px; overflow-y: auto; flex: 1; }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ff7a00">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script src="dexie.min.js"></script>
+  <script src="idb.js"></script>
+  <script src="install-prompt.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => console.error('SW registration failed:', err));
+      });
+    }
+  </script>
+</head>
+<body>
+
+<div class="home-header">
+  <div class="header-brand">
+    <div class="header-logo">
+      <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/logo/IMG_1612%20(2).webp" alt="ComicCore">
+    </div>
+    <div class="header-title">ComicCore</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <!-- Inbox / mail button — shows squad invites & (for owner) reports -->
+    <div class="inbox-btn" id="inbox-btn" onclick="openInboxPanel()" title="Inbox">
+      ✉️
+      <div class="inbox-badge" id="inbox-badge">0</div>
+    </div>
+    <img id="nav-pfp" class="corner-avatar" onclick="goToMyProfile()" title="View Profile">
+  </div>
+</div>
+
+<!-- Panel backdrop -->
+<div class="panel-overlay" id="panel-overlay" onclick="closeInboxPanel()"></div>
+
+<!-- Inbox side panel -->
+<div class="side-panel" id="inbox-panel">
+  <div class="side-panel-header">
+    <div class="side-panel-title">✉️ Inbox</div>
+    <button class="side-panel-close" onclick="closeInboxPanel()">✕</button>
+  </div>
+  <div class="side-panel-body" id="inbox-panel-body">
+    <div class="empty-panel">Loading…</div>
+  </div>
+</div>
+
+<!-- Reports side panel (owner only) -->
+<div class="side-panel" id="reports-panel" style="right:-340px;">
+  <div class="side-panel-header">
+    <div class="side-panel-title">🚨 Reports <span class="reports-count-badge" id="reports-live-count" style="display:none;"></span></div>
+    <button class="side-panel-close" onclick="closeReportsPanel()">✕</button>
+  </div>
+  <div class="reports-toolbar" id="reports-toolbar" style="display:none;">
+    <div class="reports-filter-tabs">
+      <button class="reports-tab active" onclick="setReportsFilter('pending', this)">Pending</button>
+      <button class="reports-tab" onclick="setReportsFilter('dismissed', this)">Dismissed</button>
+    </div>
+    <button class="reports-refresh-btn" id="reports-refresh-btn" onclick="refreshReportsPanel()" title="Refresh">↻</button>
+  </div>
+  <div class="reports-panel-body-inner" id="reports-panel-body">
+    <div class="empty-panel">Loading…</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="welcome-row">
+    <div class="welcome-label">Good to see you,</div>
+    <div class="welcome-name"><span id="user-display">Loading…</span></div>
+  </div>
+
+  <button class="create-card" onclick="openCreateFlow()">
+    <div>
+      <div class="create-card-title">Create a Comic</div>
+      <div class="create-card-sub">Ink a Masterpiece</div>
+    </div>
+    <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/edit.webp" class="create-card-icon" alt="edit" style="width:40px;height:40px;object-fit:contain;">
+  </button>
+
+  <div class="card-grid">
+
+    <button class="nav-card" onclick="location.href='discover.html'">
+      <div class="card-icon">🔍</div>
+      <div class="card-title">Discover</div>
+      <div class="card-sub">Find new comics</div>
+    </button>
+
+    <button class="nav-card" onclick="goToMyComics()">
+      <div class="card-icon">📚</div>
+      <div class="card-title">My Comics</div>
+      <div class="card-sub">Your creations</div>
+    </button>
+
+    <button class="nav-card" onclick="goToMyProfile()">
+      <div class="card-icon">👤</div>
+      <div class="card-title">Profile</div>
+      <div class="card-sub">View your page</div>
+    </button>
+
+    <button class="nav-card" onclick="location.href='favorites.html'">
+      <div class="card-icon">⭐</div>
+      <div class="card-title">Favorites</div>
+      <div class="card-sub">Saved comics</div>
+    </button>
+
+    <button id="teams-btn" class="nav-card span-2" onclick="location.href='squads.html'">
+      <div class="card-body">
+        <div class="card-title">Squads</div>
+        <div class="card-sub">Groups &amp; team chats</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </button>
+
+    <button class="nav-card span-2" onclick="location.href='settings.html'">
+      <div class="card-body">
+        <div class="card-title">Settings</div>
+        <div class="card-sub">Account, display &amp; privacy</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </button>
+
+    <button id="sprite-editor-btn" class="nav-card span-2 accent-teal" onclick="location.href='sprite-editor.html'">
+      <div class="card-body">
+        <div class="card-icon">🎨</div>
+        <div class="card-title">Sprite Editor</div>
+        <div class="card-sub">Create &amp; customize sprites</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </button>
+
+    <!-- Owner-only: reports shortcut card -->
+    <button id="reports-nav-btn" class="nav-card span-2" style="display:none;border-color:rgba(255,59,48,0.25);background:rgba(255,59,48,0.04);" onclick="openReportsPanel()">
+      <div class="card-body">
+        <div class="card-icon">🚨</div>
+        <div class="card-title" style="color:#ff6b5b;">Reports</div>
+        <div class="card-sub" id="reports-nav-sub">View pending user reports</div>
+      </div>
+      <div class="card-arrow" style="color:#ff6b5b;">›</div>
+    </button>
+
+  </div>
+
+  <button class="signout-btn" onclick="logout()">Sign Out</button>
+
+</div>
+
+<!-- Draft Modal -->
+<div id="draft-choice-modal">
+  <div style="text-align:center;">
+    <div style="font-size:40px; margin-bottom:12px;">📝</div>
+    <h2 style="margin:0; color:var(--orange); font-size:22px; font-weight:900;">You have a draft</h2>
+    <p style="margin:10px 0 4px; color:var(--text); font-size:16px; font-weight:700;" id="draft-title-preview">Untitled Draft</p>
+    <p style="margin:0; color:var(--text-muted); font-size:13px;" id="draft-frames-preview">0 frames</p>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:12px; width:100%; max-width:320px;">
+    <button onclick="resumeDraft()" style="padding:18px; background:linear-gradient(135deg,var(--orange),var(--orange-light)); color:white; border:none; border-radius:14px; font-size:16px; font-weight:900; cursor:pointer; font-family:'Inter',sans-serif; box-shadow:0 6px 20px var(--orange-glow);">▶ Resume Draft</button>
+    <button onclick="startNewFromDraftChoice()" style="padding:18px; background:var(--card); color:var(--text-muted); border:1px solid var(--border); border-radius:14px; font-size:15px; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">+ Start New Comic</button>
+    <button onclick="document.getElementById('draft-choice-modal').style.display='none'" style="padding:12px; background:none; color:var(--text-dim); border:none; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">Cancel</button>
+  </div>
+</div>
+
+<!-- Ratio Modal -->
+<div id="ratio-modal">
+  <h2>Choose Canvas Format</h2>
+  <p>Pick the frame shape for your comic. Can't change later.</p>
+  <div class="ratio-grid">
+    <button class="ratio-btn" onclick="pickRatio(1,1)"><div class="ratio-preview" style="width:36px;height:36px;"></div>1:1</button>
+    <button class="ratio-btn" onclick="pickRatio(16,9)"><div class="ratio-preview" style="width:44px;height:25px;"></div>16:9</button>
+    <button class="ratio-btn" onclick="pickRatio(9,16)"><div class="ratio-preview" style="width:25px;height:44px;"></div>9:16</button>
+    <button class="ratio-btn" onclick="pickRatio(5,4)"><div class="ratio-preview" style="width:38px;height:30px;"></div>5:4</button>
+    <button class="ratio-btn" onclick="pickRatio(4,5)"><div class="ratio-preview" style="width:30px;height:38px;"></div>4:5</button>
+    <button class="ratio-btn" onclick="pickRatio(7,5)"><div class="ratio-preview" style="width:40px;height:29px;"></div>7:5</button>
+    <button class="ratio-btn" onclick="pickRatio(5,7)"><div class="ratio-preview" style="width:29px;height:40px;"></div>5:7</button>
+    <button class="ratio-btn" onclick="pickRatio(4,3)"><div class="ratio-preview" style="width:38px;height:29px;"></div>4:3</button>
+    <button class="ratio-btn" onclick="pickRatio(3,4)"><div class="ratio-preview" style="width:29px;height:38px;"></div>3:4</button>
+    <button class="ratio-btn" onclick="pickRatio(5,3)"><div class="ratio-preview" style="width:40px;height:24px;"></div>5:3</button>
+    <button class="ratio-btn" onclick="pickRatio(3,5)"><div class="ratio-preview" style="width:24px;height:40px;"></div>3:5</button>
+    <button class="ratio-btn" onclick="pickRatio(3,2)"><div class="ratio-preview" style="width:40px;height:27px;"></div>3:2</button>
+    <button class="ratio-btn" onclick="pickRatio(2,3)"><div class="ratio-preview" style="width:27px;height:40px;"></div>2:3</button>
+  </div>
+  <button class="ratio-cancel" onclick="document.getElementById('ratio-modal').style.display='none'">Cancel</button>
+</div>
+
+<!-- Mode Modal -->
+<div id="mode-modal">
+  <div style="text-align:center;">
+    <h2 style="margin:0; color:var(--orange); font-size:22px; font-weight:900;">What are you making?</h2>
+    <p style="margin:8px 0 0; color:var(--text-muted); font-size:13px;">Choose your creation type</p>
+  </div>
+  <div style="display:flex; gap:16px; width:100%; max-width:380px;">
+    <button class="mode-btn" onclick="goToMode('comic')" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+      <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/edit.webp" alt="edit" style="width:46px;height:46px;object-fit:contain;">
+      <span style="font-weight:900; font-size:18px; color:var(--orange);">COMIC</span>
+      <span style="font-size:12px; color:var(--text-muted); line-height:1.5; text-align:center;">New Comic</span>
+    </button>
+    <button class="mode-btn" onclick="goToMode('story')" onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='var(--border)'">
+      <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--teal);"><path d="M7 3.5h9a1 1 0 0 1 1 1V17a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V3.5Z"/><path d="M7 3.5H5.5a1 1 0 0 0-1 1V19a1 1 0 0 0 1 1H15"/><path d="M10 8h4"/><path d="M10 11.5h4"/></svg>
+      <span style="font-weight:900; font-size:18px; color:var(--teal);">NOVELS</span>
+      <span style="font-size:12px; color:var(--text-muted); line-height:1.5; text-align:center;">Write your story</span>
+    </button>
+  </div>
+  <button onclick="document.getElementById('mode-modal').style.display='none'; document.getElementById('ratio-modal').style.display='flex';" class="ratio-cancel">← Back to Ratio</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
+  });
+
+  let _myHandle = '';
+  let _isOwner = false;
+
+  async function checkUser() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const user = session?.user ?? null;
+    if (user) {
+      let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+      if (!myProfile.handle) {
+        const { data: freshProfile } = await supabaseClient
+          .from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
+        if (freshProfile) {
+          myProfile = { ...myProfile, ...freshProfile };
+          localStorage.setItem('user_profile', JSON.stringify(myProfile));
+        }
+      }
+      _myHandle = myProfile.handle || '';
+      _isOwner = _myHandle === 'jeffyplays';
+
+      document.getElementById('user-display').innerText = myProfile.name || myProfile.handle || 'Creator';
+      const rawPic = myProfile.pic || '';
+      const navPfp = document.getElementById('nav-pfp');
+      if (rawPic) {
+        navPfp.src = rawPic.startsWith('data:')
+          ? rawPic
+          : (rawPic.startsWith('avatars/')
+              ? supabaseClient.storage.from('avatars').getPublicUrl(rawPic.replace('avatars/', '')).data.publicUrl
+              : rawPic);
+      }
+      if (localStorage.getItem('cc-privacy-team') === 'false')
+        document.getElementById('teams-btn').style.display = 'none';
+
+      // Show reports card for owner
+      if (_isOwner) {
+        document.getElementById('reports-nav-btn').style.display = '';
+        checkPendingReports();
+      }
+
+      checkTeamNotifications(user.id);
+      checkInboxCount();
+    } else {
+      window.location.href = 'login.html';
+    }
+  }
+
+  // ── INBOX COUNT ──────────────────────────────────────────────
+  async function checkInboxCount() {
+    if (!_myHandle) return;
+    const [{ count: invCount }, { count: mentionCount }, { count: collabCount }] = await Promise.all([
+      supabaseClient.from('squad_invites').select('*', { count: 'exact', head: true })
+        .eq('to_handle', _myHandle).eq('status', 'pending'),
+      supabaseClient.from('mentions').select('*', { count: 'exact', head: true })
+        .eq('to_handle', _myHandle).eq('is_read', false),
+      supabaseClient.from('comic_collaborators').select('*', { count: 'exact', head: true })
+        .eq('invitee_handle', _myHandle).eq('status', 'pending')
+    ]);
+    const total = (invCount || 0) + (mentionCount || 0) + (collabCount || 0);
+    const badge = document.getElementById('inbox-badge');
+    badge.textContent = total > 9 ? '9+' : total;
+    badge.classList.toggle('show', total > 0);
+  }
+
+  // ── OPEN / CLOSE PANELS ──────────────────────────────────────
+  function openInboxPanel() {
+    document.getElementById('inbox-panel').classList.add('open');
+    document.getElementById('panel-overlay').classList.add('open');
+    loadInboxPanel();
+  }
+  function closeInboxPanel() {
+    document.getElementById('inbox-panel').classList.remove('open');
+    document.getElementById('panel-overlay').classList.remove('open');
+  }
+  function closeReportsPanel() {
+    document.getElementById('reports-panel').classList.remove('open');
+    document.getElementById('panel-overlay').classList.remove('open');
+  }
+
+  // ── INBOX: squad invites + mentions + co-create ──────────────
+  async function loadInboxPanel() {
+    const body = document.getElementById('inbox-panel-body');
+    body.innerHTML = '<div class="empty-panel">Loading…</div>';
+
+    const [{ data: invites }, { data: mentions }, { data: collabs }] = await Promise.all([
+      supabaseClient.from('squad_invites').select('*')
+        .eq('to_handle', _myHandle).eq('status', 'pending')
+        .order('created_at', { ascending: false }),
+      supabaseClient.from('mentions').select('*')
+        .eq('to_handle', _myHandle).eq('is_read', false)
+        .order('created_at', { ascending: false }),
+      supabaseClient.from('comic_collaborators')
+        .select('id,comic_id,comic_title,inviter_handle,status,created_at')
+        .eq('invitee_handle', _myHandle).eq('status', 'pending')
+        .order('created_at', { ascending: false })
+    ]);
+
+    const hasInvites  = invites  && invites.length;
+    const hasMentions = mentions && mentions.length;
+    const hasCollabs  = collabs  && collabs.length;
+
+    if (!hasInvites && !hasMentions && !hasCollabs) {
+      body.innerHTML = '<div class="empty-panel">📭 No new notifications</div>';
+      return;
+    }
+
+    body.innerHTML = '';
+
+    // ── Co-create Invites ──
+    if (hasCollabs) {
+      const hdr = document.createElement('div');
+      hdr.className = 'panel-section-hdr';
+      hdr.textContent = '🎨 Co-create Invites';
+      body.appendChild(hdr);
+
+      collabs.forEach(inv => {
+        const time = new Date(inv.created_at).toLocaleDateString();
+        const item = document.createElement('div');
+        item.className = 'inbox-item';
+        item.id = `collab-inbox-${inv.id}`;
+        item.innerHTML = `
+          <div class="inbox-item-icon">🎨</div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">📖 ${escHtml(inv.comic_title || 'Untitled Comic')}</div>
+            <div class="inbox-item-sub">@${escHtml(inv.inviter_handle)} invited you to co-create</div>
+            <div class="inbox-item-time">${time}</div>
+            <div class="inbox-item-actions">
+              <button class="inbox-accept-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','accepted',this)">✅ Co-create</button>
+              <button class="inbox-decline-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','declined',this)">Decline</button>
+            </div>
+          </div>`;
+        body.appendChild(item);
+      });
+    }
+
+    // ── Mentions ──
+    if (hasMentions) {
+      const hdr = document.createElement('div');
+      hdr.className = 'panel-section-hdr';
+      hdr.textContent = 'Mentions';
+      body.appendChild(hdr);
+
+      // Mark all as read
+      supabaseClient.from('mentions').update({ is_read: true })
+        .eq('to_handle', _myHandle).eq('is_read', false).then(() => checkInboxCount());
+
+      mentions.forEach(m => {
+        const time = new Date(m.created_at).toLocaleDateString();
+        const item = document.createElement('div');
+        item.className = 'inbox-item';
+        item.style.cursor = 'pointer';
+        item.onclick = () => location.href = `squad_chat.html?id=${encodeURIComponent(m.squad_id)}`;
+        item.innerHTML = `
+          <div class="inbox-item-icon">💬</div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">@${escHtml(m.from_handle)} mentioned you</div>
+            <div class="inbox-item-sub">In <b>${escHtml(m.squad_name || 'a squad')}</b>: ${escHtml((m.message_text || '').slice(0,80))}</div>
+            <div class="inbox-item-time">${time}</div>
+          </div>`;
+        body.appendChild(item);
+      });
+    }
+
+    // ── Squad Invites ──
+    if (hasInvites) {
+      const hdr = document.createElement('div');
+      hdr.className = 'panel-section-hdr';
+      hdr.textContent = 'Squad Invites';
+      body.appendChild(hdr);
+
+      invites.forEach(inv => {
+        const time = new Date(inv.created_at).toLocaleDateString();
+        const item = document.createElement('div');
+        item.className = 'inbox-item';
+        item.innerHTML = `
+          <div class="inbox-item-icon">🎯</div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">${escHtml(inv.squad_name)}</div>
+            <div class="inbox-item-sub">@${escHtml(inv.from_handle)} invited you to join</div>
+            <div class="inbox-item-time">${time}</div>
+            <div class="inbox-item-actions">
+              <button class="inbox-accept-btn" onclick="respondInvite('${inv.id}','accepted',this)">Join</button>
+              <button class="inbox-decline-btn" onclick="respondInvite('${inv.id}','declined',this)">Decline</button>
+            </div>
+          </div>`;
+        body.appendChild(item);
+      });
+    }
+  }
+
+  async function respondInvite(inviteId, status, btn) {
+    btn.disabled = true;
+    const row = btn.closest('.inbox-item');
+    await supabaseClient.from('squad_invites').update({ status }).eq('id', inviteId);
+    if (status === 'accepted') {
+      // Add them to squad_members
+      const { data: inv } = await supabaseClient.from('squad_invites').select('squad_id').eq('id', inviteId).maybeSingle();
+      if (inv?.squad_id) {
+        await supabaseClient.from('squad_members').upsert([{ squad_id: inv.squad_id, handle: _myHandle }]);
+      }
+      row.innerHTML = `<div class="inbox-item-icon">✅</div><div class="inbox-item-body"><div class="inbox-item-title">Joined!</div><div class="inbox-item-sub">Squad invite accepted</div></div>`;
+    } else {
+      row.style.opacity = '0.4';
+      row.style.pointerEvents = 'none';
+    }
+    checkInboxCount();
+  }
+
+  async function respondCollabFromInbox(inviteId, comicId, response, btn) {
+    btn.disabled = true;
+    const row = btn.closest('.inbox-item');
+    await supabaseClient.from('comic_collaborators').update({ status: response }).eq('id', inviteId);
+    if (response === 'accepted') {
+      localStorage.setItem('edit_comic_id', comicId);
+      closeInboxPanel();
+      location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+    } else {
+      row.style.opacity = '0.4';
+      row.style.pointerEvents = 'none';
+      checkInboxCount();
+    }
+  }
+
+  // ── REPORTS PANEL (owner only) ────────────────────────────────
+  let _reportsCache = null;
+  let _reportsFilter = 'pending';
+  let _reportsLoaded = false;
+
+  async function checkPendingReports() {
+    const { count } = await supabaseClient.from('reports')
+      .select('*', { count: 'exact', head: true }).eq('status', 'pending');
+    if (count > 0) {
+      document.getElementById('reports-nav-sub').innerText = `${count} pending report${count !== 1 ? 's' : ''}`;
+      document.getElementById('reports-nav-btn').classList.add('has-notification');
+    }
+  }
+
+  function setReportsFilter(filter, tabEl) {
+    _reportsFilter = filter;
+    document.querySelectorAll('.reports-tab').forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    renderReportsFromCache();
+  }
+
+  async function refreshReportsPanel() {
+    const btn = document.getElementById('reports-refresh-btn');
+    btn.classList.add('spinning');
+    _reportsCache = null;
+    await loadReportsPanel(false);
+    btn.classList.remove('spinning');
+  }
+
+  async function openReportsPanel() {
+    document.getElementById('reports-panel').classList.add('open');
+    document.getElementById('panel-overlay').classList.add('open');
+    if (!_reportsLoaded) await loadReportsPanel(false);
+  }
+
+  async function loadReportsPanel(showLoading = true) {
+    if (!_isOwner) return;
+    const body = document.getElementById('reports-panel-body');
+    if (showLoading || !_reportsCache) {
+      body.innerHTML = '<div class="empty-panel">Loading…</div>';
+    }
+
+    const { data: reports } = await supabaseClient.from('reports')
+      .select('*').order('created_at', { ascending: false });
+
+    _reportsCache = reports || [];
+    _reportsLoaded = true;
+
+    // Show toolbar
+    document.getElementById('reports-toolbar').style.display = 'flex';
+
+    // Update live count badge
+    const pending = _reportsCache.filter(r => r.status === 'pending');
+    const badge = document.getElementById('reports-live-count');
+    if (pending.length) {
+      badge.textContent = pending.length;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    renderReportsFromCache();
+  }
+
+  function renderReportsFromCache() {
+    const body = document.getElementById('reports-panel-body');
+    const filtered = (_reportsCache || []).filter(r => r.status === _reportsFilter);
+
+    if (!filtered.length) {
+      body.innerHTML = `<div class="empty-panel">${_reportsFilter === 'pending' ? '✅ No pending reports' : '📭 No dismissed reports'}</div>`;
+      return;
+    }
+
+    body.innerHTML = '';
+    filtered.forEach(r => {
+      const time = new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const card = document.createElement('div');
+      card.className = 'report-card';
+      card.dataset.id = r.id;
+      card.innerHTML = `
+        <div class="report-card-top">
+          <div class="report-card-who" onclick="viewReportProfile('${escHtml(r.reported_handle)}')">@${escHtml(r.reported_handle)}</div>
+          <div class="report-card-reason">${escHtml(r.reason)}</div>
+        </div>
+        <div class="report-card-meta">reported by @${escHtml(r.reporter_handle)} · ${time}</div>
+        ${r.note ? `<div class="report-card-note">"${escHtml(r.note)}"</div>` : ''}
+        <div class="report-card-actions">
+          <button class="report-action-btn" onclick="viewReportProfile('${escHtml(r.reported_handle)}')">View Profile</button>
+          ${_reportsFilter === 'pending'
+            ? `<button class="report-action-btn primary" onclick="dismissReport('${r.id}', this)">Dismiss</button>`
+            : `<button class="report-action-btn" onclick="restoreReport('${r.id}', this)">Restore</button>`
+          }
+        </div>`;
+      body.appendChild(card);
+    });
+  }
+
+  function viewReportProfile(handle) {
+    closeReportsPanel();
+    location.href = 'profile.html?u=' + handle;
+  }
+
+  async function dismissReport(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '…';
+    await supabaseClient.from('reports').update({ status: 'dismissed' }).eq('id', id);
+    // Update cache instantly — no re-fetch needed
+    const entry = _reportsCache && _reportsCache.find(r => r.id === id);
+    if (entry) entry.status = 'dismissed';
+    // Animate card out, then re-render
+    const card = btn.closest('.report-card');
+    card.classList.add('dismissed');
+    setTimeout(() => renderReportsFromCache(), 300);
+    // Update nav badge
+    checkPendingReports();
+    const badge = document.getElementById('reports-live-count');
+    const pending = (_reportsCache || []).filter(r => r.status === 'pending');
+    badge.textContent = pending.length;
+    if (!pending.length) badge.style.display = 'none';
+  }
+
+  async function restoreReport(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '…';
+    await supabaseClient.from('reports').update({ status: 'pending' }).eq('id', id);
+    const entry = _reportsCache && _reportsCache.find(r => r.id === id);
+    if (entry) entry.status = 'pending';
+    const card = btn.closest('.report-card');
+    card.classList.add('dismissed');
+    setTimeout(() => renderReportsFromCache(), 300);
+    checkPendingReports();
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── TEAM NOTIFICATIONS ───────────────────────────────────────
+  async function checkTeamNotifications(userId) {
+    const teamsBtn = document.getElementById('teams-btn');
+    const { data: myTickets } = await supabaseClient
+      .from('team_tickets').select('id').eq('owner_id', userId);
+    if (myTickets && myTickets.length > 0) {
+      const ticketIds = myTickets.map(t => t.id);
+      const { count: incomingCount } = await supabaseClient
+        .from('team_requests').select('*', { count: 'exact', head: true })
+        .in('ticket_id', ticketIds).eq('status', 'pending');
+      if (incomingCount > 0) {
+        teamsBtn.classList.add('has-notification');
+        teamsBtn.querySelector('.card-title').innerText = 'Squads — Join Request!';
+        return;
+      }
+    }
+    const { count: acceptedCount } = await supabaseClient
+      .from('team_requests').select('*', { count: 'exact', head: true })
+      .eq('sender_id', userId).eq('status', 'accepted');
+    if (acceptedCount > 0) {
+      teamsBtn.classList.add('has-notification');
+      teamsBtn.querySelector('.card-title').innerText = 'Squads — Request Accepted!';
+      return;
+    }
+    // ── Co-create invite pending ──
+    try {
+      const { count: collabCount } = await supabaseClient
+        .from('comic_collaborators').select('*', { count: 'exact', head: true })
+        .eq('invitee_handle', _myHandle).eq('status', 'pending');
+      if (collabCount > 0) {
+        teamsBtn.classList.add('has-notification');
+        teamsBtn.querySelector('.card-title').innerText = `Squads — ${collabCount} Co-create Invite${collabCount > 1 ? 's' : ''}!`;
+      }
+    } catch(e) { /* collab table not yet created */ }
+  }
+
+  // ── Mobile Gestures ──────────────────────────────────────
+  function addSwipeGestures() {
+    const navCards = document.querySelectorAll('.nav-card');
+    navCards.forEach(card => {
+      let startX, startY, isSwiping = false;
+
+      card.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        isSwiping = false;
+      }, { passive: true });
+
+      card.addEventListener('touchmove', (e) => {
+        if (!startX || !startY) return;
+        const deltaX = e.touches[0].clientX - startX;
+        const deltaY = e.touches[0].clientY - startY;
+
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+          isSwiping = true;
+          e.preventDefault(); // Prevent scrolling
+        }
+      }, { passive: false });
+
+      card.addEventListener('touchend', (e) => {
+        if (!isSwiping || !startX) return;
+        const deltaX = e.changedTouches[0].clientX - startX;
+        const deltaY = e.changedTouches[0].clientY - startY;
+
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          // Swipe detected
+          card.style.transform = deltaX > 0 ? 'translateX(8px)' : 'translateX(-8px)';
+          setTimeout(() => {
+            card.style.transform = '';
+            // Trigger haptic feedback if available
+            if (navigator.vibrate) navigator.vibrate(50);
+          }, 150);
+        }
+      });
+    });
+  }
+
+  // Add gestures after DOM loads
+  if ('ontouchstart' in window) {
+    addSwipeGestures();
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'o' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA')
+      location.href = 'connections.html';
+  });
+
+  function goToMyProfile() {
+    const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
+    location.href = myProfile.handle ? `profile.html?u=${myProfile.handle}` : 'profile.html';
+  }
+
+  async function logout() {
+    await supabaseClient.auth.signOut();
+    window.location.href = 'login.html';
+  }
+
+  function openCreateFlow() {
+    const resumeId = localStorage.getItem('active_draft_id');
+    const drafts = JSON.parse(localStorage.getItem('comic_drafts') || '[]');
+    const found = resumeId && drafts.find(d => String(d.id) === String(resumeId));
+    if (found) {
+      document.getElementById('draft-title-preview').innerText = found.title || 'Untitled Draft';
+      const frames = found.data || [];
+      document.getElementById('draft-frames-preview').innerText = frames.length + ' frame' + (frames.length !== 1 ? 's' : '');
+      document.getElementById('draft-choice-modal').style.display = 'flex';
+    } else {
+      document.getElementById('ratio-modal').style.display = 'flex';
+    }
+  }
+
+  function resumeDraft() {
+    document.getElementById('draft-choice-modal').style.display = 'none';
+    const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+    window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
+  }
+
+  function startNewFromDraftChoice() {
+    document.getElementById('draft-choice-modal').style.display = 'none';
+    localStorage.removeItem('active_draft_id');
+    document.getElementById('ratio-modal').style.display = 'flex';
+  }
+
+  function pickRatio(w, h) {
+    localStorage.setItem('cc-new-comic-ratio', JSON.stringify({ w, h }));
+    localStorage.removeItem('active_draft_id');
+    document.getElementById('ratio-modal').style.display = 'none';
+    document.getElementById('mode-modal').style.display = 'flex';
+  }
+
+  function goToMyComics() {
+    const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+    window.location.href = deviceMode === 'mobile' ? 'my-comics-mobile.html' : 'my-comics.html';
+  }
+
+  function goToMode(mode) {
+    const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
+    if (mode === 'comic') window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
+    else window.location.href = deviceMode === 'mobile' ? 'story-mobile.html' : 'story.html';
+  }
+
+  function applyDeviceMode() {
+    const deviceMode = localStorage.getItem('cc-device-mode');
+    const mode = deviceMode || (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc');
+    if (!deviceMode) localStorage.setItem('cc-device-mode', mode);
+    if (mode === 'mobile') {
+      const spriteBtn = document.getElementById('sprite-editor-btn');
+      if (spriteBtn) spriteBtn.style.display = 'none';
+    }
+  }
+
+  applyDeviceMode();
+  checkUser();
+</script>
+
+<footer style="text-align:center; padding:24px 20px 36px; border-top:1px solid var(--border); margin-top:32px;">
+  <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">© 2026 ComicCore™. All rights reserved.</p>
+  <div style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap;">
+    <a href="aboutcc.html"      style="font-size:12px; color:var(--orange); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">About</a>
+    <a href="termscc.html"      style="font-size:12px; color:var(--orange); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Terms of Service</a>
+    <a href="privacycc.html"    style="font-size:12px; color:var(--orange); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Privacy Policy</a>
+    <a href="copyrightcc.html"  style="font-size:12px; color:var(--orange); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Copyright</a>
+    <a href="datacc.html"       style="font-size:12px; color:var(--orange); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Data Usage</a>
+    <a href="guidelinescc.html" style="font-size:12px; color:var(--orange); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Community Guidelines</a>
+    <a href="teamcc.html"       style="font-size:12px; color:var(--orange); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Team</a>
+  </div>
+</footer>
+
+</body>
+</html>
