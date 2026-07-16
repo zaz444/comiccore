@@ -2657,6 +2657,22 @@ async function postComment() {
   const { data, error } = await _sb.from('comments').insert([row]).select().single();
   if (error) { showToast('Error posting comment'); return; }
 
+  // Notify the comic owner (unless they're commenting on their own comic).
+  // Reuses the same `mentions` table the inbox panel already polls, tagged
+  // with type:'comment' so it can be rendered differently there.
+  const ownerHandle = getActiveComicOwner();
+  if (ownerHandle && ownerHandle !== myProfile.handle) {
+    _sb.from('mentions').insert([{
+      to_handle: ownerHandle,
+      from_handle: myProfile.handle,
+      type: 'comment',
+      comic_id: activeComicId,
+      comment_id: data.id,
+      content: text || (row.image_src ? '📎 sent a reaction image' : ''),
+      is_read: false
+    }]).then(({ error: notifErr }) => { if (notifErr) console.warn('Comment notification insert failed:', notifErr); });
+  }
+
   if (!profileCache[myProfile.handle]) profileCache[myProfile.handle] = { pic: myProfile.pic, name: myProfile.name };
 
   input.value = '';
