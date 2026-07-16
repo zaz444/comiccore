@@ -7,6 +7,7 @@
   <meta property="og:url" content="https://zaz444.github.io/comiccore/">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@flaticon/flaticon-uicons@3.3.1/css/solid/straight.css">
   <script src="theme.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ComicCore - Home</title>
@@ -213,11 +214,10 @@
     }
     .inbox-btn:hover { background: #303038; transform: scale(1.06); }
     .inbox-btn.loading { animation: pulse 1.5s infinite; }
-    .inbox-btn.loading .inbox-badge { animation: bounceIn 0.4s ease-out; }
     .inbox-badge {
       position: absolute; top: -3px; right: -3px;
       width: 16px; height: 16px; border-radius: 50%;
-      background: var(--orange); border: 2px solid var(--bg);
+      background: #8EFF00; border: 2px solid var(--bg);
       font-size: 9px; font-weight: 900; color: #000;
       display: none; align-items: center; justify-content: center;
     }
@@ -275,6 +275,16 @@
       padding: 6px 12px; border-radius: 20px;
       border: 1px solid var(--border); background: none; color: var(--text-muted);
       font-size: 11px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    .inbox-read-toggle {
+      display: inline-block; font-size: 10px; font-weight: 800; color: var(--orange);
+      cursor: pointer; margin-top: 3px; letter-spacing: .2px;
+    }
+    .inbox-read-toggle:hover { text-decoration: underline; }
+    .inbox-comment-body {
+      display: none; font-size: 12px; color: var(--text); line-height: 1.4;
+      margin-top: 6px; padding: 8px 10px; background: var(--card2);
+      border-radius: 8px; border: 1px solid var(--border); word-break: break-word;
     }
 
     /* ── REPORTS PANEL (owner only) ── */
@@ -372,7 +382,7 @@
   <div style="display:flex;align-items:center;gap:8px;">
     <!-- Inbox / mail button — shows squad invites & (for owner) reports -->
     <div class="inbox-btn" id="inbox-btn" onclick="openInboxPanel()" title="Inbox">
-      ✉️
+      <i class="fi fi-ss-mailbox-flag-up"></i>
       <div class="inbox-badge" id="inbox-badge">0</div>
     </div>
     <img id="nav-pfp" class="corner-avatar" onclick="goToMyProfile()" title="View Profile">
@@ -385,7 +395,7 @@
 <!-- Inbox side panel -->
 <div class="side-panel" id="inbox-panel">
   <div class="side-panel-header">
-    <div class="side-panel-title">✉️ Inbox</div>
+    <div class="side-panel-title"><i class="fi fi-ss-mailbox-flag-up"></i> Inbox</div>
     <button class="side-panel-close" onclick="closeInboxPanel()">✕</button>
   </div>
   <div class="side-panel-body" id="inbox-panel-body">
@@ -716,15 +726,28 @@
         const time = new Date(m.created_at).toLocaleDateString();
         const item = document.createElement('div');
         item.className = 'inbox-item';
-        item.style.cursor = 'pointer';
-        item.onclick = () => location.href = `squad_chat.html?id=${encodeURIComponent(m.squad_id)}`;
-        item.innerHTML = `
-          <div class="inbox-item-icon">💬</div>
-          <div class="inbox-item-body">
-            <div class="inbox-item-title">@${escHtml(m.from_handle)} mentioned you</div>
-            <div class="inbox-item-sub">In <b>${escHtml(m.squad_name || 'a squad')}</b>: ${escHtml((m.message_text || '').slice(0,80))}</div>
-            <div class="inbox-item-time">${time}</div>
-          </div>`;
+
+        if (m.type === 'comment') {
+          // Plain text, no icon — title, then a tiny "Read Comment" toggle
+          // that reveals what they actually said.
+          item.innerHTML = `
+            <div class="inbox-item-body">
+              <div class="inbox-item-title">@${escHtml(m.from_handle)} commented on your comic</div>
+              <span class="inbox-read-toggle" onclick="toggleCommentReveal(this)">Read Comment</span>
+              <div class="inbox-comment-body">${escHtml(m.content || '')}</div>
+              <div class="inbox-item-time">${time}</div>
+            </div>`;
+        } else {
+          item.style.cursor = 'pointer';
+          item.onclick = () => location.href = `squad_chat.html?id=${encodeURIComponent(m.squad_id)}`;
+          item.innerHTML = `
+            <div class="inbox-item-icon">💬</div>
+            <div class="inbox-item-body">
+              <div class="inbox-item-title">@${escHtml(m.from_handle)} mentioned you</div>
+              <div class="inbox-item-sub">In <b>${escHtml(m.squad_name || 'a squad')}</b>: ${escHtml((m.message_text || '').slice(0,80))}</div>
+              <div class="inbox-item-time">${time}</div>
+            </div>`;
+        }
         body.appendChild(item);
       });
     }
@@ -920,6 +943,14 @@
     card.classList.add('dismissed');
     setTimeout(() => renderReportsFromCache(), 300);
     checkPendingReports();
+  }
+
+  function toggleCommentReveal(el) {
+    const bodyEl = el.nextElementSibling;
+    if (!bodyEl || !bodyEl.classList.contains('inbox-comment-body')) return;
+    const isOpen = bodyEl.style.display === 'block';
+    bodyEl.style.display = isOpen ? 'none' : 'block';
+    el.textContent = isOpen ? 'Read Comment' : 'Hide Comment';
   }
 
   function escHtml(str) {
