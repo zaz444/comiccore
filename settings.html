@@ -43,15 +43,24 @@
         }
 
         /* ══════════════════════════════════════
-           DASHBOARD HOME SCREEN
+           TWO-PANEL SETTINGS LAYOUT (matches profile settings)
         ══════════════════════════════════════ */
-        #settings-home {
-            display: flex; flex-direction: column;
-            height: 100%; overflow-y: auto; padding: 0 0 20px;
+        .settings-panel-wrapper {
+            display: flex; width: 100%; height: 100%;
         }
-        .home-header {
-            padding: 28px 24px 20px;
-            display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+
+        .settings-sidebar {
+            width: 220px; min-width: 220px;
+            background: rgba(16, 16, 22, 0.6);
+            border-right: 1px solid var(--border);
+            overflow-y: auto; overflow-x: hidden;
+            display: flex; flex-direction: column;
+            position: relative;
+        }
+
+        .sidebar-top-header {
+            padding: 22px 18px 8px;
+            display: flex; align-items: center; gap: 12px; flex-shrink: 0;
         }
         .home-back-btn {
             width: 34px; height: 34px; border-radius: 10px;
@@ -60,92 +69,66 @@
             cursor: pointer; transition: .15s; flex-shrink: 0; text-decoration: none;
         }
         .home-back-btn:hover { background: rgba(255,255,255,0.12); color: white; }
-        .home-logo { font-size: 22px; font-weight: 900; color: var(--accent); letter-spacing: -0.5px; }
-        .home-logo sup { font-size: 10px; vertical-align: super; opacity: 0.7; }
+        .home-logo { font-size: 18px; font-weight: 900; color: var(--accent); letter-spacing: -0.5px; }
+        .home-logo sup { font-size: 9px; vertical-align: super; opacity: 0.7; }
 
-        .home-body {
-            display: flex; flex: 1; gap: 16px; padding: 0 20px 20px; min-height: 0;
-        }
-        .home-main-grid {
-            flex: 1; display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(2, 1fr);
-            gap: 14px; min-height: 0;
-        }
-        .home-sidebar-col {
-            width: 200px; display: flex; flex-direction: column; gap: 14px;
+        .settings-section-group { padding: 18px 0 0; }
+
+        .settings-group-title {
+            font-size: 9px; font-weight: 900;
+            color: var(--accent); text-transform: uppercase;
+            letter-spacing: 2px; padding: 0 16px 10px;
+            opacity: 0.7;
         }
 
-        /* ── BASE TILE ── */
-        .setting-tile {
-            background: var(--tile-bg);
-            border: 2.5px solid var(--tile-border);
-            border-radius: 20px; padding: 20px 18px;
-            cursor: pointer;
-            transition: border-color .18s, background .18s, transform .15s;
-            display: flex; flex-direction: column; justify-content: space-between;
-            user-select: none; -webkit-tap-highlight-color: transparent;
-            position: relative; overflow: hidden; min-height: 120px;
+        .settings-nav-item {
+            padding: 12px 16px; margin: 2px 8px;
+            background: transparent;
+            border: none; border-radius: 10px;
+            color: var(--muted); cursor: pointer;
+            font-size: 13px; font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            text-align: left; transition: .15s;
+            width: calc(100% - 16px);
         }
-        .setting-tile:hover {
-            background: rgba(28,28,38,0.95);
-            border-color: rgba(255,255,255,0.22);
-            transform: translateY(-2px);
+        .settings-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .settings-nav-item.active {
+            background: rgba(255, 122, 0, 0.15);
+            color: var(--accent);
+            border-left: 3px solid var(--accent);
+            padding-left: 13px;
         }
-        .setting-tile:active { transform: scale(0.97); }
-        .setting-tile.active-tile {
-            border-color: var(--accent);
-            background: rgba(255,122,0,0.06);
-            box-shadow: 0 0 0 1px rgba(255,122,0,0.15), inset 0 0 40px rgba(255,122,0,0.04);
-        }
-        .setting-tile.circle-tile {
-            border-radius: 50%; aspect-ratio: 1;
-            padding: 18px; align-items: center;
-            justify-content: center; text-align: center;
-        }
-        .tile-icon { font-size: 26px; margin-bottom: 10px; line-height: 1; }
-        .tile-title { font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.2; margin-bottom: 5px; }
-        .tile-sub { font-size: 11px; font-weight: 500; color: var(--muted); line-height: 1.4; }
-        .circle-tile .tile-title { font-size: 13px; margin-bottom: 4px; }
-        .circle-tile .tile-sub   { font-size: 10px; }
-
-        /* Sidebar tiles */
-        .home-sidebar-col .setting-tile {
-            flex: 1; justify-content: space-between;
-            padding: 16px; border-radius: 16px;
-        }
-        .home-sidebar-col .tile-icon  { font-size: 20px; margin-bottom: 0; }
-        .home-sidebar-col .tile-title { font-size: 14px; margin-bottom: 3px; }
-        .home-sidebar-col .tile-sub   { font-size: 10px; }
 
         /* ══════════════════════════════════════
-           DETAIL VIEW
+           CONTENT PANEL
         ══════════════════════════════════════ */
-        #settings-detail {
-            display: none; flex-direction: column; height: 100%;
-            position: absolute; inset: 0; z-index: 10;
-            background: var(--bg);
-            animation: slideInDetail .22s cubic-bezier(.4,0,.2,1);
+        .settings-content {
+            flex: 1; overflow: hidden;
+            display: flex; flex-direction: column;
+            position: relative;
         }
-        #settings-detail.visible { display: flex; }
-        @keyframes slideInDetail {
-            from { opacity: 0; transform: translateX(28px); }
-            to   { opacity: 1; transform: translateX(0); }
+
+        .settings-content-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 28px 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            background: rgba(8,8,12,0.9); backdrop-filter: blur(8px);
         }
-        .detail-header {
-            display: flex; align-items: center; gap: 12px;
-            padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
-            flex-shrink: 0; background: rgba(8,8,12,0.9); backdrop-filter: blur(8px);
-        }
-        .detail-back-btn {
+        .settings-content-header-left { display: flex; align-items: center; gap: 12px; }
+        .settings-content-title { font-size: 22px; font-weight: 900; color: var(--text); }
+
+        .settings-close-arrow {
             width: 34px; height: 34px; border-radius: 10px;
             background: rgba(255,255,255,0.07); border: 1px solid var(--tile-border);
             color: var(--muted); display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: .15s; flex-shrink: 0;
+            cursor: pointer; transition: .15s; flex-shrink: 0; text-decoration: none; font-size: 15px;
         }
-        .detail-back-btn:hover { background: rgba(255,255,255,0.12); color: white; }
-        .detail-title { font-size: 22px; font-weight: 900; color: var(--text); }
-        .detail-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px 20px 120px; }
+        .settings-close-arrow:hover { background: rgba(255,255,255,0.12); color: white; }
+
+        .settings-mobile-back-btn { display: none; }
+
+        .settings-content-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px 28px 120px; }
 
         /* Pages */
         .settings-page { display: none; }
@@ -267,7 +250,7 @@
         }
         .settings-danger-btn:hover { background: rgba(255,59,48,0.15); border-color: rgba(255,59,48,0.5); }
 
-        .settings-profile-header { margin: -24px -20px 24px -20px; }
+        .settings-profile-header { margin: -24px -28px 24px -28px; }
         .profile-preview-banner {
             width: 100%; height: 160px;
             background: linear-gradient(135deg,#1a1a2e,#16213e);
@@ -290,8 +273,8 @@
         .profile-preview-pfp:hover { filter: brightness(0.8); }
 
         .settings-footer {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+            position: fixed; bottom: 0; left: 220px; right: 0;
+            padding: 14px 28px calc(14px + env(safe-area-inset-bottom));
             background: linear-gradient(to top, rgba(8,8,12,0.97) 60%, transparent);
             border-top: 1px solid var(--border);
             display: flex; gap: 12px; align-items: center; justify-content: flex-end; z-index: 50;
@@ -300,8 +283,8 @@
 
         #unsaved-banner {
             display: none; position: fixed;
-            bottom: calc(64px + env(safe-area-inset-bottom)); left: 0; right: 0;
-            padding: 8px 20px; z-index: 49; pointer-events: none;
+            bottom: calc(64px + env(safe-area-inset-bottom)); left: 220px; right: 0;
+            padding: 8px 28px; z-index: 49; pointer-events: none;
         }
         #unsaved-banner .unsaved-inner {
             display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -381,20 +364,49 @@
            RESPONSIVE — MOBILE (≤ 600px)
         ══════════════════════════════════════ */
         @media (max-width: 600px) {
-            body { overflow: auto; }
-            .home-body { flex-direction: column; padding: 0 14px; overflow: visible; }
-            .home-main-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: auto; }
-            .setting-tile.circle-tile {
-                border-radius: 18px; aspect-ratio: unset;
-                align-items: flex-start; justify-content: flex-end; text-align: left; padding: 18px;
+            /* Stacked single-column with slide transition, like profile settings */
+            .settings-panel-wrapper { position: relative; overflow: hidden; }
+            .settings-sidebar {
+                width: 100%; min-width: 100%;
+                position: absolute; inset: 0; z-index: 1;
+                transition: transform 0.28s cubic-bezier(.4,0,.2,1), opacity 0.28s ease;
             }
-            .circle-tile .tile-title { font-size: 15px; }
-            .circle-tile .tile-sub   { font-size: 11px; }
-            .home-sidebar-col { width: 100%; flex-direction: row; }
-            .home-sidebar-col .setting-tile { flex: 1; min-width: 0; border-radius: 16px; padding: 14px; }
-            .detail-header { padding: 14px 16px 12px; }
-            .detail-title  { font-size: 19px; }
-            .detail-scroll { padding: 20px 16px 110px; }
+            .settings-content {
+                position: absolute; inset: 0; z-index: 2;
+                transform: translateX(100%);
+                transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+                background: var(--bg);
+            }
+            .settings-panel-wrapper.mobile-content-open .settings-sidebar {
+                transform: translateX(-30%); opacity: 0; pointer-events: none;
+            }
+            .settings-panel-wrapper.mobile-content-open .settings-content {
+                transform: translateX(0);
+            }
+
+            /* Mobile back button inside content header, replaces close-arrow's role */
+            .settings-mobile-back-btn {
+                display: flex; align-items: center; justify-content: center;
+                width: 36px; height: 36px;
+                background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+                border-radius: 10px; color: var(--text); cursor: pointer;
+                transition: .15s; flex-shrink: 0;
+            }
+            .settings-mobile-back-btn:hover { background: rgba(255,255,255,0.1); }
+
+            .settings-content-header { padding: 14px 16px; }
+            .settings-content-title  { font-size: 19px; }
+            .settings-close-arrow    { width: 34px; height: 34px; }
+            .settings-content-scroll { padding: 20px 16px 110px; }
+            .settings-section-group  { padding: 6px 0 0; }
+            .settings-group-title    { padding: 14px 16px 8px; font-size: 9px; }
+            .settings-nav-item {
+                padding: 15px 16px; font-size: 15px; margin: 2px 8px;
+                border-radius: 10px; min-height: 52px;
+                display: flex; align-items: center; width: calc(100% - 16px);
+            }
+            .settings-nav-item.active { padding-left: 13px; }
+
             .settings-profile-header { margin: -20px -16px 20px -16px; }
             .srow:has(.glass-input), .srow:has(.glass-textarea) { flex-direction: column; align-items: stretch; }
             .srow > .glass-input, .srow > .glass-textarea { max-width: 100% !important; width: 100% !important; }
@@ -407,7 +419,8 @@
             .milestone-checkbox-grid { grid-template-columns: repeat(2, 1fr); }
             .social-card { flex-wrap: wrap; }
             .social-card input { width: 100%; flex: none; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; font-size: 14px; }
-            .settings-footer { justify-content: stretch; }
+            .settings-footer { left: 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); justify-content: stretch; }
+            #unsaved-banner { left: 0; padding: 8px 16px; }
             .btn-save { width: 100%; padding: 16px; font-size: 15px; border-radius: 14px; }
             .cc-toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
             .home-header { padding: 20px 16px 14px; }
@@ -478,79 +491,53 @@
 <!-- MAIN SETTINGS VIEW -->
 <div id="settings-view">
 
-    <!-- DASHBOARD HOME -->
-    <div id="settings-home">
-        <div class="home-header">
-            <a href="javascript:history.back()" class="home-back-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
-            </a>
-            <div class="home-logo">ComicCore<sup>™</sup></div>
-        </div>
+    <!-- TWO-PANEL SETTINGS LAYOUT -->
+    <div class="settings-panel-wrapper" id="settings-panel-wrapper">
 
-        <div class="home-body">
-            <!-- Main 3x2 grid -->
-            <div class="home-main-grid">
-                <div class="setting-tile" onclick="openDetail('profile')" data-page="profile">
-                    <div class="tile-icon">👤</div>
-                    <div class="tile-title">Profile</div>
-                    <div class="tile-sub">Profile Info, Status, Profile Picture etc.</div>
-                </div>
-                <div class="setting-tile" onclick="openDetail('connections')" data-page="connections">
-                    <div class="tile-icon">🔗</div>
-                    <div class="tile-title">Connections</div>
-                    <div class="tile-sub">Connect your social accounts to show on your profile.</div>
-                </div>
-                <div class="setting-tile" onclick="openDetail('privacy')" data-page="privacy">
-                    <div class="tile-icon">🔒</div>
-                    <div class="tile-title">Privacy &amp; Data</div>
-                    <div class="tile-sub">Privacy, Interactions, &amp; Data.</div>
-                </div>
-                <div class="setting-tile" onclick="openDetail('account')" data-page="account">
-                    <div class="tile-icon">⚙️</div>
-                    <div class="tile-title">Account</div>
-                    <div class="tile-sub">Accessibility, Sign Out, Delete Account.</div>
-                </div>
-                <div class="setting-tile circle-tile" onclick="openDetail('profile-display')" data-page="profile-display">
-                    <div class="tile-icon">🎨</div>
-                    <div class="tile-title">Profile<br>Display</div>
-                    <div class="tile-sub">What is visible on your profile.</div>
-                </div>
-                <div class="setting-tile active-tile" onclick="openDetail('accent-pronouns')" data-page="accent-pronouns">
-                    <div class="tile-icon">✨</div>
-                    <div class="tile-title">Accent &amp;<br>Pronouns</div>
-                </div>
+        <!-- SIDEBAR NAV -->
+        <div class="settings-sidebar">
+            <div class="sidebar-top-header">
+                <a href="javascript:history.back()" class="home-back-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
+                </a>
+                <div class="home-logo">ComicCore<sup>™</sup></div>
             </div>
 
-            <!-- Right sidebar column -->
-            <div class="home-sidebar-col">
-                <div class="setting-tile" onclick="openDetail('notifications')" data-page="notifications">
-                    <div class="tile-icon">🔔</div>
-                    <div class="tile-title">Notifications</div>
-                    <div class="tile-sub">Activity, System.</div>
-                </div>
-                <div class="setting-tile" onclick="openDetail('milestones')" data-page="milestones">
-                    <div class="tile-icon">🏆</div>
-                    <div class="tile-title">Milestones</div>
-                    <div class="tile-sub">Milestone Banners.</div>
-                </div>
-                <div class="setting-tile" onclick="openDetail('toonscroll')" data-page="toonscroll">
-                    <div class="tile-icon">📜</div>
-                    <div class="tile-title">ToonScroll</div>
-                    <div class="tile-sub">Default Direction &amp; your comics.</div>
-                </div>
+            <div class="settings-section-group">
+                <div class="settings-group-title">MY ACCOUNT</div>
+                <button class="settings-nav-item active" data-page="profile" onclick="switchSettingsPage('profile')">Profile</button>
+                <button class="settings-nav-item" data-page="connections" onclick="switchSettingsPage('connections')">Connections</button>
+                <button class="settings-nav-item" data-page="privacy" onclick="switchSettingsPage('privacy')">Privacy &amp; Data</button>
+                <button class="settings-nav-item" data-page="account" onclick="switchSettingsPage('account')">Account</button>
+            </div>
+            <div class="settings-section-group">
+                <div class="settings-group-title">APPEARANCE</div>
+                <button class="settings-nav-item" data-page="profile-display" onclick="switchSettingsPage('profile-display')">Profile Display</button>
+                <button class="settings-nav-item" data-page="accent-pronouns" onclick="switchSettingsPage('accent-pronouns')">Accent &amp; Pronouns</button>
+            </div>
+            <div class="settings-section-group">
+                <div class="settings-group-title">ACTIVITY</div>
+                <button class="settings-nav-item" data-page="notifications" onclick="switchSettingsPage('notifications')">Notifications</button>
+                <button class="settings-nav-item" data-page="milestones" onclick="switchSettingsPage('milestones')">Milestones</button>
+            </div>
+            <div class="settings-section-group">
+                <div class="settings-group-title">READING</div>
+                <button class="settings-nav-item" data-page="toonscroll" onclick="switchSettingsPage('toonscroll')">ToonScroll</button>
             </div>
         </div>
-    </div>
 
-    <!-- DETAIL VIEW (slides in when tile is tapped) -->
-    <div id="settings-detail">
-        <div class="detail-header">
-            <button class="detail-back-btn" onclick="closeDetail()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <div class="detail-title" id="page-title">Profile</div>
-        </div>
-        <div class="detail-scroll">
+        <!-- CONTENT PANEL -->
+        <div class="settings-content">
+            <div class="settings-content-header">
+                <div class="settings-content-header-left">
+                    <button class="settings-mobile-back-btn" onclick="mobileSettingsBack()" aria-label="Back to menu">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <div class="settings-content-title" id="page-title">Profile</div>
+                </div>
+                <a href="javascript:history.back()" class="settings-close-arrow" aria-label="Close settings">✕</a>
+            </div>
+            <div class="settings-content-scroll">
 
             <!-- PAGE: PROFILE -->
             <div class="settings-page" id="page-profile">
@@ -720,8 +707,9 @@
                 </div>
             </div>
 
-        </div><!-- end detail-scroll -->
-    </div><!-- end settings-detail -->
+            </div><!-- end settings-content-scroll -->
+        </div><!-- end settings-content -->
+    </div><!-- end settings-panel-wrapper -->
 </div><!-- end settings-view -->
 
 <!-- Unsaved banner -->
@@ -733,7 +721,7 @@
 </div>
 
 <!-- Footer (only shown in detail view) -->
-<div class="settings-footer hidden" id="settings-footer">
+<div class="settings-footer" id="settings-footer">
     <button class="btn-save" onclick="saveSettings()">💾 Save Settings</button>
 </div>
 
@@ -829,41 +817,32 @@
         'toonscroll': 'ToonScroll'
     };
 
-    function openDetail(name) {
+    function switchSettingsPage(name) {
         // Activate the right page
         document.querySelectorAll('.settings-page').forEach(p => p.classList.remove('active'));
         const page = document.getElementById('page-' + name);
         if (page) page.classList.add('active');
         document.getElementById('page-title').textContent = PAGE_TITLES[name] || 'Settings';
+        document.querySelector('.settings-content-scroll').scrollTop = 0;
 
-        // Show detail panel, hide home
-        const detail = document.getElementById('settings-detail');
-        detail.classList.remove('visible');
-        void detail.offsetWidth; // force reflow for animation
-        detail.classList.add('visible');
-        detail.querySelector('.detail-scroll').scrollTop = 0;
-
-        // Show save footer
-        document.getElementById('settings-footer').classList.remove('hidden');
-
-        // Highlight active tile
-        document.querySelectorAll('.setting-tile').forEach(t => {
-            t.classList.toggle('active-tile', t.dataset.page === name);
+        // Highlight active nav item
+        document.querySelectorAll('.settings-nav-item').forEach(t => {
+            t.classList.toggle('active', t.dataset.page === name);
         });
+
+        // On mobile, slide the content panel into view
+        document.getElementById('settings-panel-wrapper').classList.add('mobile-content-open');
 
         if (name === 'toonscroll') loadToonScrollSettings();
     }
 
-    function closeDetail() {
-        const detail = document.getElementById('settings-detail');
-        detail.classList.remove('visible');
-        document.getElementById('settings-footer').classList.add('hidden');
-        // Remove unsaved banner when going back
-        document.getElementById('unsaved-banner').style.display = 'none';
+    // Mobile: slide back to the nav list
+    function mobileSettingsBack() {
+        document.getElementById('settings-panel-wrapper').classList.remove('mobile-content-open');
     }
 
     // Keep switchPage as alias for backward-compat (used in unsaved-banner save btn etc.)
-    function switchPage(name) { openDetail(name); }
+    function switchPage(name) { switchSettingsPage(name); }
 
     // ── TOONSCROLL SETTINGS ──
     let _tsDefaultDir = 'horizontal';
@@ -1284,6 +1263,7 @@
         document.getElementById('st-notif-announcements').checked = st.notif_announcements !== false;
         document.getElementById('st-notif-milestones').checked    = st.notif_milestones !== false;
 
+        switchSettingsPage('profile');
         markClean();
         setTimeout(attachDirtyListeners, 50);
     }
