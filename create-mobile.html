@@ -5,26 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ComicCore - Mobile Creator</title>
     <script>
-        // ── FIX: Android TWA cold-load viewport height race ──
-        // On a fresh cold load inside the TWA WebView, the system UI insets
-        // (status bar / gesture nav) haven't always settled by the time the
-        // first layout pass runs, so `100dvh` can get measured too tall once
-        // and never re-checked. That pushes the bottom toolbar below the
-        // visible fold — still in the DOM, just invisible under `overflow:
-        // hidden`. (Exiting and re-entering "fixes" it only because the OS
-        // insets are already settled by then.)
-        //
-        // Fix: compute the real height ourselves via JS instead of trusting
-        // dvh on first paint, and keep re-measuring for a moment after load
-        // since the insets can settle asynchronously.
+        
         (function () {
             function setAppHeight() {
                 var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
                 document.documentElement.style.setProperty('--app-vh', h + 'px');
             }
             setAppHeight();
-            // Re-measure repeatedly for ~1s after load to catch late-settling
-            // insets without waiting on the user to background/foreground the app.
             [0, 50, 150, 300, 600, 1000].forEach(function (t) { setTimeout(setAppHeight, t); });
             window.addEventListener('resize', setAppHeight);
             window.addEventListener('orientationchange', setAppHeight);
