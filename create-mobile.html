@@ -2396,7 +2396,7 @@ function syncTransformSheet() {
     if (!activeLayer) return;
     // Sprites get a frame-relative size ceiling so the slider can't push a
     // character way past the visible frame; text/bubbles keep the old range.
-    const sizeMax = activeLayer.type === 'img' ? getMaxSpriteSize() : 1000;
+    const sizeMax = activeLayer.type === 'img' ? getMaxSpriteSize() : 1600;
     const sizeSlider = document.getElementById('size-slider');
     const sizeNum = document.getElementById('size-num');
     sizeSlider.max = sizeMax; sizeNum.max = sizeMax;
@@ -3491,7 +3491,7 @@ function startTouchDrag(e, layer) {
 function getMaxSpriteSize() {
     const cw = (canvas && canvas.offsetWidth) || 300;
     const ch = (canvas && canvas.offsetHeight) || 300;
-    return Math.round(Math.max(cw, ch) * 1.5);
+    return Math.round(Math.max(cw, ch) * 2.5);
 }
 
 function startTouchPinchResize(e, layer) {
@@ -4483,7 +4483,7 @@ function clearNameTag() { if (activeLayer) { activeLayer.nameTag = ''; document.
 // ── APPLY TRANSFORM ──
 function applyTransform() {
     if (!activeLayer) return;
-    const sizeMax = activeLayer.type === 'img' ? getMaxSpriteSize() : 1000;
+    const sizeMax = activeLayer.type === 'img' ? getMaxSpriteSize() : 1600;
     const w = Math.min(sizeMax, parseInt(document.getElementById('size-slider').value));
     const r = parseInt(document.getElementById('rotate-slider').value);
     if (activeLayer.h != null && activeLayer.w && activeLayer.w !== w) {
@@ -8444,7 +8444,11 @@ function vpZoomReset() {
         const dx = x - startX, dy = y - startY, dt = Date.now() - startT;
         if (dt > MAX_TIME) return;
         if (Math.abs(dx) > THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
-            if (dx < 0) nextFrame(); else prevFrame();
+            // Swipe only ever moves between EXISTING frames — it never triggers
+            // the "add new frame?" flow that nextFrame() shows when you're on
+            // the last frame. That flow is reserved for the explicit ▶ button.
+            if (dx < 0) { if (currentIdx < frames.length - 1) nextFrame(); }
+            else { prevFrame(); }
         }
     }
 
