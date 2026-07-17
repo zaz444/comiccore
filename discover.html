@@ -345,6 +345,12 @@ transition: .15s; letter-spacing: .3px; white-space: nowrap;
   background: rgba(50,215,75,.9); color: #000;
   font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 8px;
 }
+.comic-card .tile-views {
+  position: absolute; bottom: 6px; right: 6px;
+  background: rgba(0,0,0,.78); color: #bbb;
+  font-size: 9px; font-weight: 900; padding: 3px 7px; border-radius: 8px;
+  backdrop-filter: blur(4px); user-select: none; display: flex; align-items: center; gap: 3px;
+}
 .comic-card .tile-age-rating {
   position: absolute; bottom: 6px; left: 6px;
   background: rgba(0,0,0,.78); color: var(--rating-color, #999);
@@ -1327,9 +1333,15 @@ function exactDate(d) {
   return new Date(d).toLocaleString('en-US',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
 }
 
-function isNewComic(d) {
-  if (!d) return false;
-  return (Date.now() - new Date(d)) < 1000 * 60 * 60 * 48;
+function isNewComic(c) {
+  if (!c || !c.created_at) return false;
+  if (localStorage.getItem('cc-seen-' + c.id)) return false; // already opened by this viewer
+  return (Date.now() - new Date(c.created_at)) < 1000 * 60 * 60 * 48;
+}
+
+/** Mark a comic as seen locally so its NEW badge clears immediately (and stays cleared). */
+function markComicSeen(comicId) {
+  try { localStorage.setItem('cc-seen-' + comicId, '1'); } catch (e) {}
 }
 
 function getProgress(comicId, totalFrames) {
@@ -1577,7 +1589,7 @@ async function loadFeeds() {
   // ── 3. Fetch only what's needed — no full data blobs ────
   const [{ data: comics }, { data: ratings }] = await Promise.all([
     _sb.from('comics')
-      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked,views')
       .order('created_at', { ascending: false })
       .limit(80),
     _sb.from('messages').select('receiver_hand,content').eq('reaction','rating').limit(2000),
@@ -1674,7 +1686,7 @@ function renderComics(comics, stars) {
       globalRatings.filter(r => r.receiver_hand === c.id)
         .reduce((sum, r) => sum + (parseInt(r.content) || 0), 0) / starCount : 0;
     const isMine     = c.owner_handle === myProfile.handle;
-    const isNew      = isNewComic(c.created_at) && !isMine;
+    const isNew      = isNewComic(c) && !isMine;
     const prog       = getProgress(c.id, getCachedFrameCount(c.id));
     const coverHtml  = c.cover
       ? `<img src="${esc(c.cover)}" loading="lazy" decoding="async" class="cover-loading" onload="this.classList.remove('cover-loading')" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
@@ -1684,6 +1696,7 @@ function renderComics(comics, stars) {
     const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
     const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">${starNumIcon(avgRating)}<span>(${starCount})</span></div>` : '';
+    const viewsHtml  = c.views > 0 ? `<div class="tile-views">👁 ${c.views}</div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const coAuthors   = collabMap[c.id] || [];
     const allAuthors  = [c.owner_handle, ...coAuthors].filter(Boolean);
@@ -1696,7 +1709,7 @@ function renderComics(comics, stars) {
     return `<div class="comic-card" data-id="${esc(c.id)}">
       <div class="comic-card-cover">
         <div style="width:100%;height:100%;border-radius:14px;overflow:hidden;position:relative;">
-          ${coverHtml}${badgeHtml}${starsHtml}${progressHtml}
+          ${coverHtml}${badgeHtml}${starsHtml}${viewsHtml}${progressHtml}
         </div>
       </div>
       <div class="comic-card-info">
@@ -1835,6 +1848,21 @@ async function openPopup(id) {
   if (!c) return;
   activePopupComic = c;
 
+  // ── Views: count once per viewer per comic (skip the owner's own opens) ──
+  // Also clears this comic's NEW badge for this viewer, permanently.
+  if (c.owner_handle !== myProfile.handle) {
+    const alreadySeen = !!localStorage.getItem('cc-seen-' + c.id);
+    markComicSeen(c.id);
+    if (!alreadySeen) {
+      _sb.rpc('increment_comic_views', { comic_id: c.id }).then(({ data, error }) => {
+        if (error || typeof data !== 'number') return;
+        c.views = data;
+        const chip = document.getElementById('popup-views-chip');
+        if (chip) chip.innerText = `👁 ${data}`;
+      });
+    }
+  }
+
   // Cover
   const coverWrap = document.getElementById('popup-cover-wrap');
   coverWrap.innerHTML = c.cover
@@ -1861,6 +1889,7 @@ async function openPopup(id) {
   document.getElementById('popup-meta').innerHTML = `
     <span class="popup-meta-chip" id="popup-frame-chip">${frameCount > 0 ? frameCount + ' frame' + (frameCount !== 1 ? 's' : '') : '…'}</span>
     <span class="popup-meta-chip">⭐ ${starCount}</span>
+    <span class="popup-meta-chip" id="popup-views-chip">👁 ${c.views || 0}</span>
     ${c.swipe_dir ? `<span class="popup-meta-chip">${c.swipe_dir==='vertical'?'↕ Vertical':'↔ Horizontal'}</span>` : ''}
     <span class="popup-meta-chip">${exactDate(c.created_at).split(',')[0]}</span>
     ${(() => {
@@ -3240,7 +3269,7 @@ async function loadFavoritesSection() {
   if (missing.length) {
     const { data: extras } = await _sb
       .from('comics')
-      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked')
+      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked,views')
       .in('id', missing);
     if (extras) favoriteComics = [...favoriteComics, ...extras.filter(c => c.title && c.owner_handle)];
   }
