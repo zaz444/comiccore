@@ -101,7 +101,7 @@ transition: .15s; white-space: nowrap;
 
 .comics-page-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px; padding: 4px 12px 8px;
 }
 
@@ -1698,7 +1698,7 @@ function renderComics(comics, stars) {
     const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
     const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">${starNumIcon(avgRating)}<span>(${starCount})</span></div>` : '';
-    const viewsHtml  = c.views > 0 ? `<div class="tile-views">${c.views} Views</div>` : '';
+    const viewsHtml  = c.views > 0 ? `<div class="tile-views">${c.views} View${c.views === 1 ? '' : 's'}</div>` : '';
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const coAuthors   = collabMap[c.id] || [];
     const allAuthors  = [c.owner_handle, ...coAuthors].filter(Boolean);
@@ -1860,7 +1860,7 @@ async function openPopup(id) {
         if (error || typeof data !== 'number') return;
         c.views = data;
         const chip = document.getElementById('popup-views-chip');
-        if (chip) chip.innerText = `${data} Views`;
+        if (chip) chip.innerText = `${data} View${data === 1 ? '' : 's'}`;
       });
     }
   }
@@ -1891,7 +1891,7 @@ async function openPopup(id) {
   document.getElementById('popup-meta').innerHTML = `
     <span class="popup-meta-chip" id="popup-frame-chip">${frameCount > 0 ? frameCount + ' frame' + (frameCount !== 1 ? 's' : '') : '…'}</span>
     <span class="popup-meta-chip">⭐ ${starCount}</span>
-    <span class="popup-meta-chip" id="popup-views-chip">${c.views || 0} Views</span>
+    <span class="popup-meta-chip" id="popup-views-chip">${c.views || 0} View${(c.views || 0) === 1 ? '' : 's'}</span>
     ${c.swipe_dir ? `<span class="popup-meta-chip">${c.swipe_dir==='vertical'?'↕ Vertical':'↔ Horizontal'}</span>` : ''}
     <span class="popup-meta-chip">${exactDate(c.created_at).split(',')[0]}</span>
     ${(() => {
