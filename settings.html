@@ -12,6 +12,7 @@
 
         :root {
             --accent: #ff7a00;
+            --accent-rgb: 255,122,0;
             --glass: rgba(0,0,0,0.55);
             --glass-b: rgba(255,255,255,0.07);
             --bg: #08080c;
@@ -93,7 +94,7 @@
         }
         .settings-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
         .settings-nav-item.active {
-            background: rgba(255, 122, 0, 0.15);
+            background: rgba(var(--accent-rgb), 0.15);
             color: var(--accent);
             border-left: 3px solid var(--accent);
             padding-left: 13px;
@@ -175,7 +176,7 @@
             outline: none; transition: border-color .15s, background .15s;
         }
         .glass-input::placeholder, .glass-textarea::placeholder { color: var(--dim); }
-        .glass-input:focus, .glass-textarea:focus { border-color: rgba(255,122,0,0.5); background: rgba(255,255,255,0.09); }
+        .glass-input:focus, .glass-textarea:focus { border-color: rgba(var(--accent-rgb),0.5); background: rgba(255,255,255,0.09); }
         .glass-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 
         .status-picker { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin: 4px 0; }
@@ -195,7 +196,7 @@
             display: flex; align-items: center; gap: 12px; padding: 13px 15px; border-radius: 14px;
             background: rgba(255,255,255,0.05); border: 1px solid var(--border); transition: border-color .15s;
         }
-        .social-card:focus-within { border-color: rgba(255,122,0,0.4); background: rgba(255,255,255,0.08); }
+        .social-card:focus-within { border-color: rgba(var(--accent-rgb),0.4); background: rgba(255,255,255,0.08); }
         .social-card-icon {
             width: 38px; height: 38px; border-radius: 10px;
             background: rgba(255,255,255,0.08); border: 1px solid var(--border);
@@ -223,7 +224,7 @@
             background: rgba(255,255,255,0.05); color: var(--muted);
             font-size: 14px; font-weight: 700; cursor: pointer; transition: .15s;
         }
-        .pronoun-chip.selected { border-color: var(--accent); color: var(--accent); background: rgba(255,122,0,0.1); }
+        .pronoun-chip.selected { border-color: var(--accent); color: var(--accent); background: rgba(var(--accent-rgb),0.1); }
 
         .milestone-checkbox-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
         .milestone-check-item {
@@ -231,7 +232,7 @@
             border: 1.5px solid var(--border); background: rgba(255,255,255,0.04);
             cursor: pointer; transition: .15s; font-size: 12px; font-weight: 700; color: var(--muted); user-select: none;
         }
-        .milestone-check-item.active { border-color: var(--accent); background: rgba(255,122,0,0.1); color: var(--accent); }
+        .milestone-check-item.active { border-color: var(--accent); background: rgba(var(--accent-rgb),0.1); color: var(--accent); }
         .milestone-check-item .rm-x { margin-left:auto; font-size:10px; color:rgba(255,59,48,.7); font-weight:900; display:none; }
         .milestone-check-item.custom .rm-x { display:inline; }
         .milestone-style-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
@@ -240,7 +241,7 @@
             background: rgba(255,255,255,0.04); cursor: pointer; text-align: center;
             font-size: 13px; font-weight: 700; color: var(--muted); transition: .15s;
         }
-        .milestone-style-opt.selected { border-color: var(--accent); color: var(--accent); background: rgba(255,122,0,0.1); }
+        .milestone-style-opt.selected { border-color: var(--accent); color: var(--accent); background: rgba(var(--accent-rgb),0.1); }
 
         .settings-danger-btn {
             width: 100%; padding: 15px; border-radius: 12px;
@@ -353,7 +354,7 @@
         .pfp-gallery-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
         .pfp-gallery-item { aspect-ratio:1; border-radius: 12px; overflow:hidden; border: 2px solid transparent; cursor: pointer; transition: .15s; }
         .pfp-gallery-item:hover { border-color: var(--accent); transform: scale(1.05); }
-        .pfp-gallery-item.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,122,0,.3); }
+        .pfp-gallery-item.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),.3); }
         .pfp-gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .pfp-gallery-confirm { width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px; background: var(--accent); border: none; color: #000; font-size: 14px; font-weight: 900; cursor: pointer; display: none; font-family: 'Inter', sans-serif; }
         .pfp-gallery-confirm.visible { display: block; }
@@ -852,7 +853,7 @@
         document.querySelectorAll('.ts-dir-opt').forEach(o => {
             const isSelected = o.dataset.dir === dir;
             o.style.borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
-            o.style.background = isSelected ? 'rgba(255,122,0,0.1)' : 'rgba(255,255,255,0.03)';
+            o.style.background = isSelected ? 'rgba(var(--accent-rgb),0.1)' : 'rgba(255,255,255,0.03)';
         });
         markDirty();
     }
@@ -920,10 +921,24 @@
         markDirty();
     }
 
+    function hexToRgb(hex) {
+        const clean = hex.replace('#', '');
+        const r = parseInt(clean.slice(0,2), 16);
+        const g = parseInt(clean.slice(2,4), 16);
+        const b = parseInt(clean.slice(4,6), 16);
+        return `${r},${g},${b}`;
+    }
+    function applyAccentColor(hex) {
+        const color = hex || '#ff7a00';
+        document.documentElement.style.setProperty('--accent', color);
+        document.documentElement.style.setProperty('--accent-rgb', hexToRgb(color));
+    }
+
     function selectAccentColor(color, el) {
         _settingsAccentColor = color;
         document.querySelectorAll('.accent-swatch').forEach(s => s.classList.remove('selected'));
         el.classList.add('selected');
+        applyAccentColor(color);
         markDirty();
     }
 
@@ -1243,6 +1258,7 @@
 
         _settingsAccentColor = st.accent_color || '#ff7a00';
         document.querySelectorAll('.accent-swatch').forEach(sw => sw.classList.toggle('selected', sw.dataset.color === _settingsAccentColor));
+        applyAccentColor(_settingsAccentColor);
         _settingsPronoun = st.pronoun || '';
         document.querySelectorAll('.pronoun-chip').forEach(c => c.classList.toggle('selected', c.dataset.val === _settingsPronoun));
 
