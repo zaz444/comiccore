@@ -7,156 +7,152 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sprite Gallery | ComicCore</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@flaticon/flaticon-uicons@3.3.1/css/regular/straight.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+        :root {
+            --orange: #ff7a00;
+            --orange-light: #ff9a3c;
+            --orange-glow: rgba(255,122,0,0.22);
+            --bg: #0f0f11;
+            --bg2: #18181b;
+            --card: #1e1e22;
+            --card2: #26262c;
+            --border: rgba(255,255,255,0.08);
+            --text: #f4f4f6;
+            --text-muted: #888896;
+            --text-dim: #55555f;
+            --teal: #00c9b1;
+            --teal-glow: rgba(0,201,177,0.18);
+            --red: #ff4d4d;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background: var(--bg, #0f0f11);
-            color: var(--text, #f5f5f7);
+            background: var(--bg);
+            color: var(--text);
             min-height: 100dvh;
             display: flex;
             flex-direction: column;
         }
 
+        i.fi { display: inline-flex; align-items: center; justify-content: center; }
+
         /* ── Top Bar ── */
         .top-bar {
             position: sticky; top: 0; z-index: 200;
-            background: rgba(15,15,17,0.94); backdrop-filter: blur(18px);
-            border-bottom: 1px solid var(--border, #2c2c2e);
+            background: rgba(15,15,17,0.9); backdrop-filter: blur(18px);
+            border-bottom: 1px solid var(--border);
             padding: 12px 20px;
             display: flex; align-items: center; gap: 12px;
         }
-        .top-bar-logo { font-size: 15px; font-weight: 900; letter-spacing: -0.5px; }
-        .top-bar-logo span { color: #a855f7; }
+        .icon-btn {
+            width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+            background: var(--card2); border: 1px solid var(--border); color: var(--text-muted);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 15px; transition: all 0.18s; text-decoration: none;
+        }
+        .icon-btn:hover { background: #303038; color: var(--text); transform: translateY(-1px); }
+        .icon-btn.hamburger { display: none; }
+        .top-bar-logo { font-size: 15px; font-weight: 900; letter-spacing: -0.4px; white-space: nowrap; }
+        .top-bar-logo span { color: var(--orange); }
         .top-bar-badge {
             font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
-            background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.3);
-            color: #a855f7; padding: 3px 10px; border-radius: 20px;
-        }
-        .top-bar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-        .top-bar-btn {
-            background: #2c2c2e; border: 1px solid #3a3a3c; color: #ccc;
-            padding: 7px 14px; border-radius: 8px; font-size: 11px; font-weight: 700;
-            cursor: pointer; font-family: inherit; transition: 0.15s; text-decoration: none;
+            background: var(--orange-glow); border: 1px solid rgba(255,122,0,0.35);
+            color: var(--orange-light); padding: 3px 10px; border-radius: 20px;
             display: flex; align-items: center; gap: 5px;
         }
-        .top-bar-btn:hover { background: #3a3a3c; color: white; }
-        .top-bar-btn.purple { background: rgba(168,85,247,0.15); border-color: rgba(168,85,247,0.4); color: #a855f7; }
-        .top-bar-btn.purple:hover { background: rgba(168,85,247,0.25); }
+        .top-bar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+        .icon-btn.upload-cta {
+            width: auto; padding: 0 16px; gap: 8px; background: var(--orange); border-color: var(--orange);
+            color: #1a1a1a; font-weight: 800; font-size: 12px;
+            box-shadow: 0 2px 10px var(--orange-glow);
+        }
+        .icon-btn.upload-cta:hover { background: var(--orange-light); }
+        .icon-btn.admin { color: var(--teal); border-color: rgba(0,201,177,0.35); background: var(--teal-glow); }
+        .icon-btn.admin:hover { background: rgba(0,201,177,0.28); }
+        .icon-btn.admin.spinning i { animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── Layout ── */
         .app-body { display: flex; flex: 1; min-height: 0; }
 
         /* ── Sidebar ── */
         .sidebar {
-            width: 260px; flex-shrink: 0;
-            border-right: 1px solid var(--border, #2c2c2e);
-            background: #111;
+            width: 240px; flex-shrink: 0;
+            border-right: 1px solid var(--border);
+            background: var(--bg2);
             display: flex; flex-direction: column;
-            height: calc(100dvh - 55px);
-            position: sticky; top: 55px;
+            height: calc(100dvh - 61px);
+            position: sticky; top: 61px;
             overflow-y: auto;
         }
         .sidebar::-webkit-scrollbar { width: 3px; }
-        .sidebar::-webkit-scrollbar-thumb { background: #333; }
-        .sidebar-nav { display: flex; flex-direction: column; padding: 12px 10px; gap: 4px; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--card2); }
+        .sidebar-nav { display: flex; flex-direction: column; padding: 14px 10px; gap: 4px; }
         .sb-nav-item {
             display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-            border-radius: 10px; font-size: 12px; font-weight: 700; color: #888;
+            border-radius: 10px; font-size: 13px; font-weight: 700; color: var(--text-muted);
             cursor: pointer; transition: 0.15s; border: none; background: none;
             font-family: inherit; text-align: left; width: 100%;
         }
-        .sb-nav-item:hover { background: rgba(255,255,255,0.05); color: #ccc; }
-        .sb-nav-item.active { background: rgba(168,85,247,0.12); color: #a855f7; }
-        .sb-nav-icon { font-size: 16px; width: 22px; text-align: center; }
-        .sb-divider { height: 1px; background: #1e1e1e; margin: 6px 10px; }
+        .sb-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .sb-nav-item.active { background: var(--orange-glow); color: var(--orange-light); }
+        .sb-nav-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
         .sb-section-label {
-            font-size: 9px; font-weight: 900; color: #333; text-transform: uppercase;
-            letter-spacing: 1.5px; padding: 8px 14px 4px;
+            font-size: 9px; font-weight: 900; color: var(--text-dim); text-transform: uppercase;
+            letter-spacing: 1.5px; padding: 6px 14px 6px;
         }
-
-        /* Upload panel in sidebar */
-        .upload-panel {
-            border-top: 1px solid #1e1e1e; padding: 14px 12px; flex-shrink: 0;
-        }
-        .upload-panel-title {
-            font-size: 10px; font-weight: 900; color: #a855f7; text-transform: uppercase;
-            letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
-        }
-        .up-field { margin-bottom: 8px; }
-        .up-label { font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-        .up-input {
-            width: 100%; padding: 8px 10px; background: #0a0a0a; border: 1px solid #2a2a2a;
-            color: white; border-radius: 7px; font-size: 11px; outline: none; font-family: inherit;
-            transition: border-color 0.15s;
-        }
-        .up-input:focus { border-color: #a855f7; }
-        .up-preview-box {
-            width: 100%; height: 100px; background: #0a0a0a; border: 2px dashed #2a2a2a;
-            border-radius: 8px; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: 0.15s; overflow: hidden; margin-bottom: 8px;
-        }
-        .up-preview-box:hover { border-color: #a855f7; }
-        .up-preview-box img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
-        .up-preview-box .up-hint { font-size: 10px; font-weight: 700; color: #333; text-align: center; line-height: 1.5; }
-        .up-btn {
-            width: 100%; padding: 10px; border-radius: 8px; font-weight: 900; font-size: 11px;
-            cursor: pointer; font-family: inherit; border: none; transition: 0.15s;
-        }
-        .up-btn.primary { background: #a855f7; color: white; }
-        .up-btn.primary:hover { background: #9333ea; }
-        .up-btn.primary:disabled { background: #3a2a4a; color: #666; cursor: not-allowed; }
-        .up-btn.secondary { background: #1a1a1a; color: #888; border: 1px solid #2a2a2a; margin-top: 6px; }
-        .up-btn.secondary:hover { background: #222; color: #ccc; }
-        .actions-preview { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; max-height: 100px; overflow-y: auto; }
-        .action-chip {
-            display: flex; align-items: center; gap: 5px; background: #111; border: 1px solid #222;
-            border-radius: 6px; padding: 3px 7px; font-size: 9px; font-weight: 700; color: #888;
-        }
-        .action-chip img { width: 22px; height: 22px; object-fit: contain; border-radius: 3px; background: #0a0a0a; }
-        .action-chip input { background: none; border: none; color: #aaa; font-size: 9px; font-weight: 700; width: 70px; outline: none; font-family: inherit; }
-        .action-chip span { cursor: pointer; color: #ff4444; font-size: 12px; line-height: 1; }
 
         /* ── Main content ── */
-        .main-content { flex: 1; overflow-y: auto; padding: 20px 24px 60px; min-width: 0; }
+        .main-content { flex: 1; overflow-y: auto; padding: 22px 24px 60px; min-width: 0; }
         .main-content::-webkit-scrollbar { width: 4px; }
-        .main-content::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .main-content::-webkit-scrollbar-thumb { background: var(--card2); border-radius: 4px; }
 
         /* Page header */
-        .page-header { margin-bottom: 20px; }
-        .page-title { font-size: 22px; font-weight: 900; margin-bottom: 4px; }
-        .page-sub { font-size: 12px; color: #666; font-weight: 600; }
+        .page-header { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .page-header-icon {
+            width: 38px; height: 38px; border-radius: 10px; background: var(--orange-glow);
+            color: var(--orange-light); display: flex; align-items: center; justify-content: center;
+            font-size: 17px; flex-shrink: 0;
+        }
+        .page-title { font-size: 20px; font-weight: 900; margin-bottom: 2px; letter-spacing: -0.3px; }
+        .page-sub { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 
         /* Search & filters */
         .search-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; }
         .search-wrap { position: relative; flex: 1; }
+        .search-wrap i.fi {
+            position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+            color: var(--text-dim); font-size: 13px; pointer-events: none;
+        }
         .search-input {
-            width: 100%; padding: 11px 16px; background: #1a1a1a; border: 1px solid #2a2a2a;
-            color: white; border-radius: 10px; font-size: 13px; font-weight: 600; outline: none;
+            width: 100%; padding: 11px 16px 11px 36px; background: var(--card); border: 1px solid var(--border);
+            color: var(--text); border-radius: 10px; font-size: 13px; font-weight: 600; outline: none;
             font-family: inherit; transition: border-color 0.15s;
         }
-        .search-input:focus { border-color: #a855f7; }
+        .search-input:focus { border-color: var(--orange); }
         .sort-select {
-            padding: 10px 12px; background: #1a1a1a; border: 1px solid #2a2a2a; color: #aaa;
+            padding: 10px 12px; background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
             border-radius: 10px; font-size: 11px; font-weight: 700; outline: none; font-family: inherit; cursor: pointer;
         }
         .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
         .tag-chip {
-            padding: 5px 12px; border-radius: 20px; background: #1c1c1e; border: 1px solid #2a2a2a;
-            color: #888; font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.15s;
+            padding: 5px 12px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);
+            color: var(--text-muted); font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.15s;
         }
-        .tag-chip:hover { color: #ccc; border-color: #444; }
-        .tag-chip.active { background: #a855f7; color: white; border-color: #a855f7; }
+        .tag-chip:hover { color: var(--text); border-color: #444; }
+        .tag-chip.active { background: var(--orange); color: #1a1a1a; border-color: var(--orange); }
 
         /* Section label */
         .section-head {
             display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #1e1e1e;
+            margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
         }
-        .section-head-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: #a855f7; }
-        .section-head-count { font-size: 11px; font-weight: 700; color: #444; }
+        .section-head-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--orange-light); }
+        .section-head-count { font-size: 11px; font-weight: 700; color: var(--text-dim); }
 
         /* Sprite grid */
         .sprite-grid {
@@ -165,11 +161,11 @@
             gap: 14px;
         }
         .sprite-card {
-            background: #161618; border: 2px solid #222; border-radius: 14px;
+            background: var(--card); border: 2px solid var(--border); border-radius: 14px;
             cursor: pointer; overflow: hidden; transition: 0.2s; position: relative;
             aspect-ratio: 1;
         }
-        .sprite-card:hover { border-color: #a855f7; transform: translateY(-3px); box-shadow: 0 8px 24px rgba(168,85,247,0.2); }
+        .sprite-card:hover { border-color: var(--orange); transform: translateY(-3px); box-shadow: 0 8px 24px var(--orange-glow); }
         .sprite-card img { width: 100%; height: calc(100% - 44px); object-fit: contain; padding: 10px; opacity: 0; transition: opacity 0.25s; }
         .sprite-card img.loaded { opacity: 1; }
         .sprite-card-footer {
@@ -178,91 +174,89 @@
             display: flex; flex-direction: column; justify-content: center;
         }
         .sprite-card-name { font-size: 10px; font-weight: 800; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sprite-card-uploader { font-size: 9px; font-weight: 700; color: #a855f7; margin-top: 1px; }
+        .sprite-card-uploader { font-size: 9px; font-weight: 700; color: var(--orange-light); margin-top: 1px; }
         .sprite-card-fav {
             position: absolute; top: 7px; right: 7px; background: rgba(0,0,0,0.7);
-            border: 1px solid #333; border-radius: 50%; width: 28px; height: 28px;
+            border: 1px solid var(--border); border-radius: 50%; width: 28px; height: 28px;
             display: flex; align-items: center; justify-content: center; cursor: pointer;
-            font-size: 14px; transition: 0.15s; z-index: 5;
+            font-size: 13px; transition: 0.15s; z-index: 5; color: var(--text-muted);
             opacity: 0;
         }
         .sprite-card:hover .sprite-card-fav { opacity: 1; }
-        .sprite-card-fav.favorited { opacity: 1; color: #ff453a; border-color: rgba(255,69,58,0.4); background: rgba(255,69,58,0.1); }
+        .sprite-card-fav.favorited { opacity: 1; color: var(--red); border-color: rgba(255,77,77,0.4); background: rgba(255,77,77,0.12); }
         .sprite-skeleton {
             width: 100%; height: calc(100% - 44px);
-            background: linear-gradient(90deg, #1a1a1a 25%, #242424 50%, #1a1a1a 75%);
+            background: linear-gradient(90deg, var(--card) 25%, var(--card2) 50%, var(--card) 75%);
             background-size: 200% 100%; animation: shimmer 1.4s infinite;
         }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
         /* Empty state */
-        .empty-state { text-align: center; padding: 60px 20px; color: #444; }
-        .empty-state .empty-icon { font-size: 48px; margin-bottom: 14px; }
-        .empty-state h3 { font-size: 16px; font-weight: 800; color: #555; margin-bottom: 6px; }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); }
+        .empty-state .empty-icon { font-size: 30px; margin-bottom: 14px; color: var(--text-dim); }
+        .empty-state h3 { font-size: 16px; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; }
         .empty-state p { font-size: 12px; font-weight: 600; }
 
         /* ── Preview Overlay (right drawer) ── */
         #preview-overlay {
             position: fixed; top: 0; right: -100%; width: 380px; height: 100%;
-            background: #0a0a0c; border-left: 1px solid #1e1e1e;
+            background: var(--bg2); border-left: 1px solid var(--border);
             z-index: 1000; transition: right 0.38s cubic-bezier(0.4,0,0.2,1);
             padding: 0; overflow-y: auto; box-shadow: -20px 0 50px rgba(0,0,0,0.7);
             display: flex; flex-direction: column;
         }
         #preview-overlay.open { right: 0; }
         .prev-header {
-            padding: 16px 18px; border-bottom: 1px solid #1e1e1e;
+            padding: 16px 18px; border-bottom: 1px solid var(--border);
             display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
         }
+        .prev-header-title { font-size: 13px; font-weight: 900; color: var(--orange-light); }
         .prev-close {
-            background: #1e1e1e; border: 1px solid #2a2a2a; color: #888; width: 30px; height: 30px;
+            background: var(--card2); border: 1px solid var(--border); color: var(--text-muted); width: 30px; height: 30px;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; font-size: 14px; font-weight: 900;
+            cursor: pointer; font-size: 13px;
         }
-        .prev-close:hover { color: white; background: #2a2a2a; }
+        .prev-close:hover { color: var(--text); background: #303038; }
         .prev-body { padding: 16px 18px; flex: 1; }
-        .prev-img {
-            width: 100%; aspect-ratio: 1; background: #111; border-radius: 14px;
-            object-fit: contain; border: 1px solid #1e1e1e; margin-bottom: 14px;
-        }
         .prev-name { font-size: 18px; font-weight: 900; margin-bottom: 4px; }
-        .prev-uploader { font-size: 12px; color: #a855f7; font-weight: 700; margin-bottom: 12px; }
+        .prev-uploader { font-size: 12px; color: var(--orange-light); font-weight: 700; margin-bottom: 12px; }
         .prev-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
         .prev-tag {
-            background: #1a1a1a; border: 1px solid #2a2a2a; color: #888;
+            background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
             font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
         }
-        .prev-actions-title { font-size: 9px; font-weight: 900; color: #444; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .prev-actions-title { font-size: 9px; font-weight: 900; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
         .prev-actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
-        .prev-action-chip { background: #111; border: 1px solid #1e1e1e; border-radius: 8px; padding: 7px 8px; text-align: center; }
+        .prev-action-chip { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; text-align: center; }
         .prev-action-chip img { width: 100%; height: 50px; object-fit: contain; margin-bottom: 4px; }
-        .prev-action-chip span { font-size: 9px; color: #666; font-weight: 700; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prev-action-chip span { font-size: 9px; color: var(--text-muted); font-weight: 700; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .prev-btn {
             width: 100%; padding: 14px; border-radius: 10px; font-weight: 900; font-size: 13px;
             cursor: pointer; font-family: inherit; border: none; margin-bottom: 8px; transition: 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
         }
-        .prev-btn.use { background: #a855f7; color: white; }
-        .prev-btn.use:hover { background: #9333ea; }
-        .prev-btn.fav { background: #1a1a1a; border: 1px solid #2a2a2a; color: #888; }
-        .prev-btn.fav:hover { background: #222; color: white; }
-        .prev-btn.fav.active { background: rgba(255,69,58,0.1); border-color: rgba(255,69,58,0.35); color: #ff453a; }
+        .prev-btn.use { background: var(--orange); color: #1a1a1a; }
+        .prev-btn.use:hover { background: var(--orange-light); }
+        .prev-btn.fav { background: var(--card); border: 1px solid var(--border); color: var(--text-muted); }
+        .prev-btn.fav:hover { background: var(--card2); color: var(--text); }
+        .prev-btn.fav.active { background: rgba(255,77,77,0.1); border-color: rgba(255,77,77,0.35); color: var(--red); }
         .admin-del-btn {
-            width: 100%; padding: 11px; background: #1a0a0a; border: 1px solid #3a1515;
-            color: #ff5555; border-radius: 8px; font-weight: 800; font-size: 10px;
-            cursor: pointer; font-family: inherit; letter-spacing: 1px; text-transform: uppercase; transition: 0.15s;
+            width: 100%; padding: 11px; background: rgba(255,77,77,0.06); border: 1px solid rgba(255,77,77,0.25);
+            color: var(--red); border-radius: 8px; font-weight: 800; font-size: 10px;
+            cursor: pointer; font-family: inherit; letter-spacing: 0.6px; text-transform: uppercase; transition: 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 7px;
         }
-        .admin-del-btn:hover { background: #2a1010; color: white; }
-
-        /* ── Sprite Editor panel (sidebar content) ── */
-        #editor-panel { display: none; }
-        #editor-panel.active { display: flex; flex-direction: column; gap: 8px; }
+        .admin-del-btn:hover { background: rgba(255,77,77,0.15); color: white; }
+        .admin-tool-btn { color: var(--teal); border-color: rgba(0,201,177,0.3); background: var(--teal-glow); }
+        .admin-tool-btn:hover { background: rgba(0,201,177,0.22); }
 
         /* Toast */
         #toast {
             position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
-            background: #1e1e1e; border: 1px solid #3a3a3c; color: white;
+            background: var(--card2); border: 1px solid var(--border); color: white;
             padding: 10px 20px; border-radius: 10px; font-size: 12px; font-weight: 700;
             opacity: 0; transition: all 0.25s; z-index: 9000; pointer-events: none; white-space: nowrap;
+            display: flex; align-items: center; gap: 8px;
         }
         #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -273,104 +267,53 @@
             gap: 16px;
         }
         .pack-card {
-            background: #161618; border: 2px solid #222; border-radius: 16px;
+            background: var(--card); border: 2px solid var(--border); border-radius: 16px;
             cursor: pointer; overflow: hidden; transition: 0.2s; position: relative;
             padding: 16px 16px 14px;
             display: flex; flex-direction: column; gap: 10px;
         }
-        .pack-card:hover { border-color: #a855f7; transform: translateY(-3px); box-shadow: 0 8px 24px rgba(168,85,247,0.2); }
+        .pack-card:hover { border-color: var(--orange); transform: translateY(-3px); box-shadow: 0 8px 24px var(--orange-glow); }
 
-        /* Stacked cascade thumbnail */
-        .pack-thumb {
-            position: relative; height: 90px; margin-bottom: 4px;
-        }
+        .pack-thumb { position: relative; height: 90px; margin-bottom: 4px; }
         .pack-thumb-card {
             position: absolute; width: 68px; height: 68px;
-            border-radius: 10px; border: 2px solid #2a2a2a; overflow: hidden;
-            background: #0f0f11;
+            border-radius: 10px; border: 2px solid var(--border); overflow: hidden;
+            background: var(--bg);
         }
-        .pack-thumb-card img {
-            width: 100%; height: 100%; object-fit: contain; padding: 6px;
-        }
-        .pack-thumb-card.back  { left: 0;   top: 14px; z-index: 1; opacity: 0.5; transform: rotate(-8deg); background: #1a1a1a; border-color: #222; }
-        .pack-thumb-card.mid   { left: 18px; top: 7px;  z-index: 2; opacity: 0.75; transform: rotate(-3deg); background: #1c1c1e; }
-        .pack-thumb-card.front { left: 36px; top: 0;    z-index: 3; opacity: 1; background: #222; border-color: #3a3a3c; }
+        .pack-thumb-card img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+        .pack-thumb-card.back  { left: 0;   top: 14px; z-index: 1; opacity: 0.5; transform: rotate(-8deg); background: var(--card2); }
+        .pack-thumb-card.mid   { left: 18px; top: 7px;  z-index: 2; opacity: 0.75; transform: rotate(-3deg); background: var(--card2); }
+        .pack-thumb-card.front { left: 36px; top: 0;    z-index: 3; opacity: 1; background: var(--card2); border-color: #3a3a3c; }
         .pack-thumb-placeholder {
             width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-            font-size: 32px; color: #333;
+            font-size: 26px; color: var(--text-dim);
         }
 
         .pack-card-info { flex: 1; }
         .pack-card-name { font-size: 13px; font-weight: 800; color: white; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .pack-card-meta { font-size: 10px; font-weight: 700; color: #555; margin-bottom: 6px; }
+        .pack-card-meta { font-size: 10px; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; }
         .pack-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
         .pack-card-tag {
-            background: #1c1c1e; border: 1px solid #2a2a2a; color: #666;
+            background: var(--card2); border: 1px solid var(--border); color: var(--text-muted);
             font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
         }
         .pack-card-footer {
             display: flex; align-items: center; justify-content: space-between;
-            border-top: 1px solid #1e1e1e; padding-top: 10px; margin-top: 4px;
+            border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px;
         }
-        .pack-card-count { font-size: 10px; font-weight: 800; color: #a855f7; }
+        .pack-card-count { font-size: 10px; font-weight: 800; color: var(--orange-light); }
         .pack-card-use {
-            background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.3); color: #a855f7;
+            background: var(--orange-glow); border: 1px solid rgba(255,122,0,0.35); color: var(--orange-light);
             font-size: 10px; font-weight: 800; padding: 5px 12px; border-radius: 20px;
-            cursor: pointer; font-family: inherit; transition: 0.15s; border-width: 1px;
+            cursor: pointer; font-family: inherit; transition: 0.15s;
+            display: flex; align-items: center; gap: 5px;
         }
-        .pack-card-use:hover { background: rgba(168,85,247,0.25); }
-
-        @media (max-width: 768px) {
-            .packs-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .main-content { padding: 14px 14px 80px; }
-            .sprite-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
-            #preview-overlay { width: 100%; }
-        }
-
-        /* Tag row horizontal scroll on mobile */
-        .tag-row {
-            overflow-x: auto;
-            flex-wrap: nowrap;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-            padding-bottom: 4px;
-        }
-        .tag-row::-webkit-scrollbar { display: none; }
-        .tag-row .tag-chip { flex-shrink: 0; }
-
-        /* Preview backdrop */
-        #preview-backdrop {
-            display: none;
-            position: fixed; inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 999;
-        }
-        #preview-backdrop.open { display: block; }
-
-        /* Mobile bottom toolbar for Upload/Editor */
-        .mobile-toolbar {
-            display: none;
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: rgba(15,15,17,0.96); backdrop-filter: blur(18px);
-            border-top: 1px solid #2c2c2e;
-            padding: 10px 16px 14px;
-            z-index: 300;
-            gap: 8px;
-        }
-        @media (max-width: 768px) {
-            .mobile-toolbar { display: flex; }
-            .mobile-toolbar .top-bar-btn { flex: 1; justify-content: center; font-size: 12px; padding: 10px; }
-        }
+        .pack-card-use:hover { background: rgba(255,122,0,0.25); }
 
         /* Preview image loading shimmer */
         .prev-img-wrap {
-            width: 100%; aspect-ratio: 1; background: #111; border-radius: 14px;
-            border: 1px solid #1e1e1e; margin-bottom: 14px; overflow: hidden;
+            width: 100%; aspect-ratio: 1; background: var(--bg); border-radius: 14px;
+            border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden;
             position: relative;
         }
         .prev-img-wrap .prev-img {
@@ -381,30 +324,185 @@
         .prev-img-wrap .prev-img.loaded { opacity: 1; }
         .prev-img-skel {
             position: absolute; inset: 0;
-            background: linear-gradient(90deg, #1a1a1a 25%, #242424 50%, #1a1a1a 75%);
+            background: linear-gradient(90deg, var(--card) 25%, var(--card2) 50%, var(--card) 75%);
             background-size: 200% 100%; animation: shimmer 1.4s infinite;
             border-radius: 14px;
         }
-        /* Mobile sidebar modal */
+
+        /* Preview backdrop */
+        #preview-backdrop {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999;
+        }
+        #preview-backdrop.open { display: block; }
+
+        /* Sidebar backdrop */
+        #sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; }
+        #sidebar-backdrop.open { display: block; }
+
+        /* ══════════ UPLOAD FLOW (full-screen wizard) ══════════ */
+        #upload-flow-overlay {
+            display: none; position: fixed; inset: 0; z-index: 5000;
+            background: rgba(8,8,9,0.92); backdrop-filter: blur(14px);
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        #upload-flow-overlay.open { display: flex; }
+        .uf-modal {
+            width: min(640px, 100%); max-height: 92vh; background: var(--bg2);
+            border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+            display: flex; flex-direction: column; box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+            animation: ufIn 0.25s ease-out;
+        }
+        @keyframes ufIn { from { opacity: 0; transform: scale(0.97) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .uf-header {
+            padding: 16px 18px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+        }
+        .uf-title { font-size: 14px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+        .uf-title i { color: var(--orange-light); }
+        .uf-steps { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+        .uf-step {
+            display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800;
+            color: var(--text-dim); padding: 5px 10px; border-radius: 20px; transition: 0.2s;
+        }
+        .uf-step.active { color: var(--orange-light); background: var(--orange-glow); }
+        .uf-step.done { color: var(--teal); }
+        .uf-step-num {
+            width: 16px; height: 16px; border-radius: 50%; background: var(--card2);
+            display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0;
+        }
+        .uf-step.active .uf-step-num { background: var(--orange); color: #1a1a1a; }
+        .uf-step.done .uf-step-num { background: var(--teal); color: #062420; }
+        .uf-close {
+            width: 30px; height: 30px; border-radius: 50%; background: var(--card2); border: 1px solid var(--border);
+            color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer;
+            font-size: 13px; flex-shrink: 0;
+        }
+        .uf-close:hover { color: var(--text); background: #303038; }
+        .uf-body { padding: 22px 22px 6px; overflow-y: auto; flex: 1; }
+        .uf-panel { display: none; flex-direction: column; gap: 16px; }
+        .uf-panel.active { display: flex; }
+
+        .uf-field-label { font-size: 10px; font-weight: 900; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 7px; display: flex; align-items: center; gap: 6px; }
+        .uf-hint { font-size: 11px; color: var(--text-dim); font-weight: 600; margin-top: 6px; line-height: 1.5; }
+        .uf-input {
+            width: 100%; padding: 12px 14px; background: var(--card); border: 1px solid var(--border);
+            color: white; border-radius: 10px; font-size: 13px; outline: none; font-family: inherit;
+            transition: border-color 0.15s;
+        }
+        .uf-input:focus { border-color: var(--orange); }
+
+        .uf-cover-row { display: flex; gap: 14px; align-items: flex-start; }
+        .uf-cover-box {
+            width: 120px; height: 120px; background: var(--card); border: 2px dashed var(--border);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.15s; overflow: hidden; flex-shrink: 0; position: relative;
+        }
+        .uf-cover-box:hover { border-color: var(--orange); }
+        .uf-cover-box img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
+        .uf-cover-hint { font-size: 9px; font-weight: 800; color: var(--text-dim); text-align: center; line-height: 1.5; padding: 0 8px; }
+        .uf-cover-hint i { font-size: 20px; display: block; margin-bottom: 6px; color: var(--text-dim); }
+        .uf-cover-fields { flex: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+        .uf-actions-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 4px; }
+        .uf-action-chip {
+            display: flex; align-items: center; gap: 7px; background: var(--card); border: 1px solid var(--border);
+            border-radius: 8px; padding: 5px 8px 5px 5px; font-size: 10px; font-weight: 700; color: var(--text-muted);
+        }
+        .uf-action-chip img { width: 26px; height: 26px; object-fit: contain; border-radius: 4px; background: var(--bg); }
+        .uf-action-chip input { background: none; border: none; color: var(--text); font-size: 10px; font-weight: 700; width: 78px; outline: none; font-family: inherit; }
+        .uf-action-chip .uf-chip-del { cursor: pointer; color: var(--red); font-size: 13px; line-height: 1; padding: 2px; }
+        .uf-add-row { display: flex; gap: 8px; }
+        .uf-btn-outline {
+            flex: 1; padding: 10px; border-radius: 9px; font-weight: 800; font-size: 11px;
+            cursor: pointer; font-family: inherit; background: var(--card); border: 1px solid var(--border);
+            color: var(--text-muted); transition: 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .uf-btn-outline:hover { background: var(--card2); color: var(--text); border-color: var(--orange); }
+
+        .uf-depth-meter {
+            display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px 14px;
+        }
+        .uf-depth-icon { color: var(--teal); font-size: 16px; flex-shrink: 0; }
+        .uf-depth-label { font-size: 12px; font-weight: 800; }
+        .uf-depth-sub { font-size: 10px; color: var(--text-dim); font-weight: 600; margin-top: 1px; }
+
+        .uf-review-card {
+            display: flex; gap: 14px; background: var(--card); border: 1px solid var(--border);
+            border-radius: 14px; padding: 14px;
+        }
+        .uf-review-thumb {
+            width: 100px; height: 100px; border-radius: 10px; background: var(--bg);
+            border: 1px solid var(--border); flex-shrink: 0; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .uf-review-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+        .uf-review-thumb i { font-size: 26px; color: var(--text-dim); }
+        .uf-review-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+        .uf-review-name { font-size: 15px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .uf-review-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+        .uf-review-tag { background: var(--card2); border: 1px solid var(--border); color: var(--text-muted); font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+        .uf-review-meta { font-size: 10px; color: var(--text-dim); font-weight: 700; display: flex; align-items: center; gap: 5px; }
+        .uf-cover-note { font-size: 10px; color: var(--teal); font-weight: 700; display: flex; align-items: center; gap: 5px; }
+
+        .uf-footer {
+            padding: 16px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-shrink: 0;
+        }
+        .uf-btn {
+            padding: 12px 20px; border-radius: 10px; font-weight: 900; font-size: 12px;
+            cursor: pointer; font-family: inherit; border: none; transition: 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .uf-btn.secondary { background: var(--card); border: 1px solid var(--border); color: var(--text-muted); }
+        .uf-btn.secondary:hover { background: var(--card2); color: var(--text); }
+        .uf-btn.primary { background: var(--orange); color: #1a1a1a; flex: 1; }
+        .uf-btn.primary:hover { background: var(--orange-light); }
+        .uf-btn.primary:disabled { background: #3a2f22; color: #776b5c; cursor: not-allowed; }
+
+        /* ── Action Mapper (admin) ── */
+        #action-mapper-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 6000; align-items: center; justify-content: center; }
+        .am-modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; width: min(740px,96vw); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+        .am-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+        .am-header-title { font-size: 14px; font-weight: 900; color: var(--teal); display: flex; align-items: center; gap: 7px; }
+        .am-header-sub { font-size: 11px; color: var(--text-dim); font-weight: 700; margin-top: 2px; }
+        .am-body { display: flex; flex: 1; min-height: 0; }
+        .am-col { display: flex; flex-direction: column; }
+        .am-col-left { width: 50%; border-right: 1px solid var(--border); }
+        .am-col-right { width: 50%; }
+        .am-col-head { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 9px; font-weight: 900; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+        .am-path-bar { padding: 8px 14px; background: var(--bg); font-size: 10px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .am-file-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .am-staged { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .am-footer { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+        .am-btn-clear { flex: 1; padding: 10px; background: var(--card); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; font-weight: 800; font-size: 11px; cursor: pointer; font-family: inherit; }
+        .am-btn-save { flex: 2; padding: 10px; background: var(--teal); border: none; color: #052420; border-radius: 8px; font-weight: 900; font-size: 11px; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+        /* Tag row horizontal scroll on mobile */
+        .tag-row { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; }
+        .tag-row::-webkit-scrollbar { display: none; }
+        .tag-row .tag-chip { flex-shrink: 0; }
+
+        /* Responsive */
         @media (max-width: 768px) {
+            .icon-btn.hamburger { display: flex; }
+            .top-bar-badge { display: none; }
             .sidebar {
                 display: flex !important;
-                position: fixed; left: -280px; top: 0; bottom: 0;
-                width: 280px; height: 100dvh;
-                z-index: 1001;
+                position: fixed; left: -260px; top: 0; bottom: 0;
+                width: 260px; height: 100dvh; z-index: 1001;
                 transition: left 0.3s cubic-bezier(0.4,0,0.2,1);
             }
             .sidebar.mobile-open { left: 0; }
+            .main-content { padding: 16px 14px 60px; }
+            .sprite-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+            #preview-overlay { width: 100%; }
+            .uf-cover-row { flex-direction: column; align-items: stretch; }
+            .uf-cover-box { width: 100%; height: 140px; }
+            .uf-steps .uf-step span:not(.uf-step-num) { display: none; }
+            .am-body { flex-direction: column; }
+            .am-col-left, .am-col-right { width: 100%; }
+            .am-col-left { border-right: none; border-bottom: 1px solid var(--border); max-height: 34vh; }
         }
-
-        /* Sidebar backdrop */
-        #sidebar-backdrop {
-            display: none;
-            position: fixed; inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
-        #sidebar-backdrop.open { display: block; }
     </style>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#ff7a00">
@@ -425,13 +523,15 @@
 
 <!-- SIDEBAR BACKDROP (mobile) -->
 <div id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
 <div class="top-bar">
+    <button class="icon-btn hamburger" onclick="openMobileSidebar()" title="Menu"><i class="fi fi-rs-menu-burger"></i></button>
     <div class="top-bar-logo">Comic<span>Core</span></div>
-    <div class="top-bar-badge">🖼 Sprite Gallery</div>
+    <div class="top-bar-badge"><i class="fi fi-rs-picture"></i>Sprite Gallery</div>
     <div class="top-bar-actions">
-        <a class="top-bar-btn" href="create.html">← Back to Create</a>
-        <button class="top-bar-btn" id="admin-sync-btn" onclick="syncAllSpritesFromStorage(this)" style="display:none;color:#4ade80;border-color:rgba(74,222,128,0.35);background:rgba(74,222,128,0.08);">⚡ Sync Storage</button>
-        <button class="top-bar-btn purple" onclick="setSidebarView('upload')">⬆ Upload</button>
+        <a class="icon-btn" href="create.html" title="Back to Create"><i class="fi fi-rs-arrow-left"></i></a>
+        <button class="icon-btn admin" id="admin-sync-btn" onclick="syncAllSpritesFromStorage(this)" style="display:none;" title="Sync from Storage"><i class="fi fi-rs-bolt"></i></button>
+        <button class="icon-btn upload-cta" onclick="openUploadFlow()" title="Upload a sprite"><i class="fi fi-rs-cloud-upload"></i><span>Upload</span></button>
     </div>
 </div>
 
@@ -442,98 +542,14 @@
         <div class="sidebar-nav">
             <div class="sb-section-label">Browse</div>
             <button class="sb-nav-item active" id="nav-all" onclick="setNav('all')">
-                <span class="sb-nav-icon">🖼</span>All Sprites
+                <span class="sb-nav-icon"><i class="fi fi-rs-picture"></i></span>All Sprites
             </button>
             <button class="sb-nav-item" id="nav-favorites" onclick="setNav('favorites')">
-                <span class="sb-nav-icon">❤️</span>Favorites
+                <span class="sb-nav-icon"><i class="fi fi-rs-heart"></i></span>Favorites
             </button>
             <button class="sb-nav-item" id="nav-packs" onclick="setNav('packs')">
-                <span class="sb-nav-icon">📦</span>Sprite Packs
+                <span class="sb-nav-icon"><i class="fi fi-rs-box"></i></span>Sprite Packs
             </button>
-            <div class="sb-divider"></div>
-            <div class="sb-section-label">Tools</div>
-            <button class="sb-nav-item" id="nav-upload" onclick="setSidebarView('upload')">
-                <span class="sb-nav-icon">⬆</span>Upload Sprite
-            </button>
-            <button class="sb-nav-item" id="nav-editor" onclick="setSidebarView('editor')">
-                <span class="sb-nav-icon">🎨</span>Sprite Editor
-            </button>
-        </div>
-
-        <!-- UPLOAD PANEL -->
-        <div class="upload-panel" id="upload-panel" style="display:none;">
-            <div class="upload-panel-title">⬆ Upload to Gallery</div>
-
-            <!-- Main image -->
-            <div class="up-field">
-                <div class="up-label">Main Sprite Image</div>
-                <div class="up-preview-box" id="up-preview-box" onclick="document.getElementById('up-file-input').click()">
-                    <div class="up-hint">Click to upload<br>PNG / GIF / WEBP</div>
-                </div>
-                <input type="file" id="up-file-input" accept="image/*" style="display:none;" onchange="handleUploadMain(this)">
-            </div>
-
-            <!-- Name -->
-            <div class="up-field">
-                <div class="up-label">Character Name</div>
-                <input class="up-input" type="text" id="up-name" placeholder="e.g. Shadow Knight">
-            </div>
-
-            <!-- Tags -->
-            <div class="up-field">
-                <div class="up-label">Tags (comma-separated)</div>
-                <input class="up-input" type="text" id="up-tags" placeholder="warrior, dark, fantasy">
-            </div>
-
-            <!-- Actions -->
-            <div class="up-field">
-                <div class="up-label">Action Frames (optional)</div>
-                <div class="actions-preview" id="up-actions-preview"></div>
-                <div style="display:flex;gap:6px;">
-                    <button class="up-btn secondary" style="margin:0;flex:1;font-size:10px;" onclick="document.getElementById('up-bulk-input').click()">+ Bulk Upload Actions</button>
-                    <button class="up-btn secondary" style="margin:0;flex:1;font-size:10px;" onclick="addActionSlotGallery()">+ Manual</button>
-                </div>
-                <input type="file" id="up-bulk-input" multiple accept="image/*" style="display:none;" onchange="handleBulkGallery(this)">
-            </div>
-
-            <button class="up-btn primary" id="up-submit-btn" onclick="submitGalleryUpload()">Publish to Gallery</button>
-        </div>
-
-        <!-- SPRITE EDITOR PANEL -->
-        <div class="upload-panel" id="editor-panel-wrap" style="display:none;">
-            <div class="upload-panel-title">🎨 Sprite Editor</div>
-            <p style="font-size:11px;color:#555;font-weight:700;line-height:1.6;margin-bottom:10px;">
-                Draw or pixel-edit your character, then upload it directly to the gallery.
-            </p>
-            <div style="width:100%;background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;overflow:hidden;margin-bottom:10px;">
-                <canvas id="sprite-editor-canvas" width="200" height="200" style="width:100%;image-rendering:pixelated;cursor:crosshair;touch-action:none;"></canvas>
-            </div>
-
-            <!-- Editor controls -->
-            <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">
-                <button class="up-btn secondary" id="ed-tool-pen" onclick="setEditorTool('pen')" style="flex:1;margin:0;padding:7px;font-size:10px;background:rgba(168,85,247,0.15);border-color:rgba(168,85,247,0.4);color:#a855f7;">✏️ Pen</button>
-                <button class="up-btn secondary" id="ed-tool-erase" onclick="setEditorTool('erase')" style="flex:1;margin:0;padding:7px;font-size:10px;">⬜ Erase</button>
-                <button class="up-btn secondary" id="ed-tool-fill" onclick="setEditorTool('fill')" style="flex:1;margin:0;padding:7px;font-size:10px;">🪣 Fill</button>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
-                <div class="up-label" style="margin:0;white-space:nowrap;">Color:</div>
-                <input type="color" id="ed-color" value="#ffffff" style="width:36px;height:28px;border:none;background:none;cursor:pointer;padding:0;">
-                <div class="up-label" style="margin:0;white-space:nowrap;">Size:</div>
-                <input type="range" id="ed-brush-size" min="1" max="16" value="2" style="flex:1;accent-color:#a855f7;">
-                <span id="ed-brush-label" style="font-size:10px;font-weight:800;color:#888;min-width:20px;">2</span>
-            </div>
-            <div style="display:flex;gap:5px;margin-bottom:10px;">
-                <button class="up-btn secondary" onclick="editorUndo()" style="flex:1;margin:0;padding:7px;font-size:10px;">↩ Undo</button>
-                <button class="up-btn secondary" onclick="editorClear()" style="flex:1;margin:0;padding:7px;font-size:10px;">🗑 Clear</button>
-                <button class="up-btn secondary" onclick="editorGridToggle()" style="flex:1;margin:0;padding:7px;font-size:10px;" id="ed-grid-btn">🔲 Grid</button>
-            </div>
-
-            <!-- Export as upload -->
-            <div class="up-label" style="margin-bottom:4px;">Name this sprite</div>
-            <input class="up-input" type="text" id="ed-sprite-name" placeholder="My custom sprite" style="margin-bottom:6px;">
-            <div class="up-label" style="margin-bottom:4px;">Tags</div>
-            <input class="up-input" type="text" id="ed-sprite-tags" placeholder="original, custom" style="margin-bottom:10px;">
-            <button class="up-btn primary" onclick="submitEditorSprite()">Upload Drawing to Gallery</button>
         </div>
     </div>
 
@@ -543,12 +559,16 @@
         <!-- All Sprites view -->
         <div id="view-all">
             <div class="page-header">
-                <div class="page-title">🖼 Sprite Gallery</div>
-                <div class="page-sub">Community-uploaded characters — browse, favorite, and use in your comics</div>
+                <div class="page-header-icon"><i class="fi fi-rs-picture"></i></div>
+                <div>
+                    <div class="page-title">Sprite Gallery</div>
+                    <div class="page-sub">Community-uploaded characters — browse, favorite, and use in your comics</div>
+                </div>
             </div>
             <div class="search-row">
                 <div class="search-wrap">
-                    <input class="search-input" id="gallery-search" placeholder="🔍 Search by name or tag..." oninput="filterGalleryDebounced()" autocomplete="off">
+                    <i class="fi fi-rs-search"></i>
+                    <input class="search-input" id="gallery-search" placeholder="Search by name or tag..." oninput="filterGalleryDebounced()" autocomplete="off">
                 </div>
                 <select class="sort-select" id="gallery-sort" onchange="filterGallery()">
                     <option value="newest">Newest</option>
@@ -564,7 +584,7 @@
             </div>
             <div class="sprite-grid" id="gallery-grid">
                 <div class="empty-state" style="grid-column:1/-1;">
-                    <div class="empty-icon">⏳</div>
+                    <div class="empty-icon"><i class="fi fi-rs-time-past"></i></div>
                     <h3>Loading gallery…</h3>
                 </div>
             </div>
@@ -573,8 +593,11 @@
         <!-- Favorites view -->
         <div id="view-favorites" style="display:none;">
             <div class="page-header">
-                <div class="page-title">❤️ Favorites</div>
-                <div class="page-sub">Sprites you've favorited — quick access in your creates</div>
+                <div class="page-header-icon"><i class="fi fi-rs-heart"></i></div>
+                <div>
+                    <div class="page-title">Favorites</div>
+                    <div class="page-sub">Sprites you've favorited — quick access in your creates</div>
+                </div>
             </div>
             <div class="section-head">
                 <span class="section-head-title">Favorited Sprites</span>
@@ -582,9 +605,9 @@
             </div>
             <div class="sprite-grid" id="fav-grid">
                 <div class="empty-state" style="grid-column:1/-1;">
-                    <div class="empty-icon">💔</div>
+                    <div class="empty-icon"><i class="fi fi-rs-heart"></i></div>
                     <h3>No favorites yet</h3>
-                    <p>Tap ❤️ on any sprite to favorite it</p>
+                    <p>Tap the heart on any sprite to favorite it</p>
                 </div>
             </div>
         </div>
@@ -592,12 +615,16 @@
         <!-- Packs view -->
         <div id="view-packs" style="display:none;">
             <div class="page-header">
-                <div class="page-title">📦 Sprite Packs</div>
-                <div class="page-sub">Curated packs of themed sprites — grab a whole collection at once</div>
+                <div class="page-header-icon"><i class="fi fi-rs-box"></i></div>
+                <div>
+                    <div class="page-title">Sprite Packs</div>
+                    <div class="page-sub">Curated packs of themed sprites — grab a whole collection at once</div>
+                </div>
             </div>
             <div class="search-row">
                 <div class="search-wrap">
-                    <input class="search-input" id="packs-search" placeholder="🔍 Search packs..." oninput="filterPacks()" autocomplete="off">
+                    <i class="fi fi-rs-search"></i>
+                    <input class="search-input" id="packs-search" placeholder="Search packs..." oninput="filterPacks()" autocomplete="off">
                 </div>
             </div>
             <div class="tag-row" id="packs-tags"></div>
@@ -607,7 +634,7 @@
             </div>
             <div class="packs-grid" id="packs-grid">
                 <div class="empty-state" style="grid-column:1/-1;">
-                    <div class="empty-icon">⏳</div>
+                    <div class="empty-icon"><i class="fi fi-rs-time-past"></i></div>
                     <h3>Loading packs…</h3>
                 </div>
             </div>
@@ -619,8 +646,8 @@
 <!-- ── PREVIEW OVERLAY ── -->
 <div id="preview-overlay">
     <div class="prev-header">
-        <div style="font-size:13px;font-weight:900;color:#a855f7;">Sprite Preview</div>
-        <div class="prev-close" onclick="closePreview()">✕</div>
+        <div class="prev-header-title">Sprite Preview</div>
+        <div class="prev-close" onclick="closePreview()"><i class="fi fi-rs-cross-small"></i></div>
     </div>
     <div class="prev-body">
         <div class="prev-img-wrap">
@@ -632,8 +659,8 @@
         <div class="prev-tags" id="prev-tags"></div>
         <div class="prev-actions-title">Actions / Poses</div>
         <div class="prev-actions-grid" id="prev-actions"></div>
-        <button class="prev-btn use" onclick="useSprite()">▶ Use in Create</button>
-        <button class="prev-btn fav" id="prev-fav-btn" onclick="toggleFavFromPreview()">❤️ Add to Favorites</button>
+        <button class="prev-btn use" onclick="useSprite()"><i class="fi fi-rs-play"></i>Use in Create</button>
+        <button class="prev-btn fav" id="prev-fav-btn" onclick="toggleFavFromPreview()"><i class="fi fi-rs-heart"></i>Add to Favorites</button>
         <div id="prev-admin"></div>
     </div>
 </div>
@@ -641,43 +668,115 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<!-- ACTION MAPPER MODAL -->
-<div id="action-mapper-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;align-items:center;justify-content:center;">
-    <div style="background:#111;border:1px solid #2a2a2a;border-radius:16px;width:min(740px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
-        <div style="padding:16px 20px;border-bottom:1px solid #1e1e1e;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-            <div>
-                <div style="font-size:14px;font-weight:900;color:#a855f7;">🗂 Map Storage Actions</div>
-                <div id="mapper-sprite-name" style="font-size:11px;color:#555;font-weight:700;margin-top:2px;"></div>
+<!-- ══════════ UPLOAD FLOW ══════════ -->
+<div id="upload-flow-overlay">
+    <div class="uf-modal">
+        <div class="uf-header">
+            <div class="uf-title"><i class="fi fi-rs-cloud-upload"></i>Upload Sprite</div>
+            <div class="uf-steps">
+                <div class="uf-step active" id="uf-step-tab-1"><span class="uf-step-num">1</span><span>Details</span></div>
+                <div class="uf-step" id="uf-step-tab-2"><span class="uf-step-num">2</span><span>Actions</span></div>
+                <div class="uf-step" id="uf-step-tab-3"><span class="uf-step-num">3</span><span>Publish</span></div>
             </div>
-            <button onclick="closeActionMapper()" style="background:#1e1e1e;border:1px solid #2a2a2a;color:#888;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:14px;font-weight:900;">✕</button>
+            <button class="uf-close" onclick="closeUploadFlow()"><i class="fi fi-rs-cross-small"></i></button>
         </div>
-        <div style="display:flex;flex:1;min-height:0;">
-            <div style="width:50%;border-right:1px solid #1e1e1e;display:flex;flex-direction:column;">
-                <div style="padding:12px 14px;border-bottom:1px solid #1e1e1e;font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;">Storage: /sprites</div>
-                <div id="mapper-path-bar" style="padding:8px 14px;background:#0a0a0a;font-size:10px;font-weight:700;color:#666;border-bottom:1px solid #1e1e1e;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
-                <div id="mapper-file-list" style="flex:1;overflow-y:auto;padding:8px;"></div>
+
+        <div class="uf-body">
+            <!-- Step 1: Details -->
+            <div class="uf-panel active" id="uf-panel-1">
+                <div class="uf-cover-row">
+                    <div class="uf-cover-box" id="up-preview-box" onclick="document.getElementById('up-file-input').click()">
+                        <div class="uf-cover-hint"><i class="fi fi-rs-picture"></i>Cover<br>(optional)</div>
+                    </div>
+                    <div class="uf-cover-fields">
+                        <div>
+                            <div class="uf-field-label"><i class="fi fi-rs-text"></i>Title</div>
+                            <input class="uf-input" type="text" id="up-name" placeholder="e.g. Shadow Knight">
+                        </div>
+                        <div>
+                            <div class="uf-field-label"><i class="fi fi-rs-label"></i>Tags</div>
+                            <input class="uf-input" type="text" id="up-tags" placeholder="warrior, dark, fantasy">
+                            <div class="uf-hint">Tags work like a description — they're how people find your sprite when searching or filtering the gallery.</div>
+                        </div>
+                    </div>
+                </div>
+                <input type="file" id="up-file-input" accept="image/*" style="display:none;" onchange="handleUploadMain(this)">
+                <div class="uf-hint" id="up-cover-fallback-note" style="display:none;"><i class="fi fi-rs-info"></i> No cover yet — the most recently added action frame will be used as the cover automatically.</div>
             </div>
-            <div style="width:50%;display:flex;flex-direction:column;">
-                <div style="padding:12px 14px;border-bottom:1px solid #1e1e1e;font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;">Staged — ✓ a folder or click files</div>
-                <div id="mapper-staged" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
-                <div style="padding:12px;border-top:1px solid #1e1e1e;display:flex;gap:8px;">
-                    <button onclick="clearStagedActions()" style="flex:1;padding:10px;background:#1a1a1a;border:1px solid #2a2a2a;color:#888;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit;">Clear</button>
-                    <button onclick="saveActionMap()" style="flex:2;padding:10px;background:#a855f7;border:none;color:white;border-radius:8px;font-weight:900;font-size:11px;cursor:pointer;font-family:inherit;">💾 Save to DB</button>
+
+            <!-- Step 2: Actions -->
+            <div class="uf-panel" id="uf-panel-2">
+                <div>
+                    <div class="uf-field-label"><i class="fi fi-rs-layer-plus"></i>Action Frames</div>
+                    <div class="uf-hint" style="margin-top:0;margin-bottom:10px;">Actions are the poses your character can use in a comic — think of them like the runtime of the sprite. More actions means a richer, more usable character.</div>
+                    <div class="uf-actions-grid" id="up-actions-preview"></div>
+                    <div class="uf-add-row">
+                        <button class="uf-btn-outline" onclick="document.getElementById('up-bulk-input').click()"><i class="fi fi-rs-images"></i>Bulk Upload</button>
+                        <button class="uf-btn-outline" onclick="addActionSlotGallery()"><i class="fi fi-rs-plus"></i>Add Manually</button>
+                    </div>
+                    <input type="file" id="up-bulk-input" multiple accept="image/*" style="display:none;" onchange="handleBulkGallery(this)">
+                </div>
+                <div class="uf-depth-meter">
+                    <i class="fi fi-rs-chart-simple uf-depth-icon"></i>
+                    <div>
+                        <div class="uf-depth-label" id="uf-depth-label">No actions yet</div>
+                        <div class="uf-depth-sub" id="uf-depth-sub">Add frames to make this sprite more useful in comics</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Publish -->
+            <div class="uf-panel" id="uf-panel-3">
+                <div class="uf-review-card">
+                    <div class="uf-review-thumb" id="uf-review-thumb"><i class="fi fi-rs-picture"></i></div>
+                    <div class="uf-review-info">
+                        <div class="uf-review-name" id="uf-review-name">Untitled sprite</div>
+                        <div class="uf-review-tags" id="uf-review-tags"></div>
+                        <div class="uf-review-meta"><i class="fi fi-rs-layer-plus"></i><span id="uf-review-actions">0 actions</span></div>
+                        <div class="uf-cover-note" id="uf-cover-note" style="display:none;"><i class="fi fi-rs-info"></i>Cover taken from most recent action</div>
+                    </div>
+                </div>
+                <div class="uf-hint">This is how your sprite will appear in the gallery. Ready to publish?</div>
+            </div>
+        </div>
+
+        <div class="uf-footer">
+            <button class="uf-btn secondary" id="uf-back-btn" onclick="uploadFlowBack()">Back</button>
+            <button class="uf-btn primary" id="uf-next-btn" onclick="uploadFlowNext()">Continue</button>
+        </div>
+    </div>
+</div>
+
+<!-- ACTION MAPPER MODAL (admin) -->
+<div id="action-mapper-overlay">
+    <div class="am-modal">
+        <div class="am-header">
+            <div>
+                <div class="am-header-title"><i class="fi fi-rs-folder-tree"></i>Map Storage Actions</div>
+                <div class="am-header-sub" id="mapper-sprite-name"></div>
+            </div>
+            <button class="prev-close" onclick="closeActionMapper()"><i class="fi fi-rs-cross-small"></i></button>
+        </div>
+        <div class="am-body">
+            <div class="am-col am-col-left">
+                <div class="am-col-head">Storage: /sprites</div>
+                <div class="am-path-bar" id="mapper-path-bar"></div>
+                <div class="am-file-list" id="mapper-file-list"></div>
+            </div>
+            <div class="am-col am-col-right">
+                <div class="am-col-head">Staged — pick a folder or click files</div>
+                <div class="am-staged" id="mapper-staged"></div>
+                <div class="am-footer">
+                    <button class="am-btn-clear" onclick="clearStagedActions()">Clear</button>
+                    <button class="am-btn-save" onclick="saveActionMap()"><i class="fi fi-rs-disk"></i>Save to DB</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-
 <!-- BACKDROP -->
 <div id="preview-backdrop" onclick="closePreview()"></div>
-
-<!-- MOBILE TOOLBAR -->
-<div class="mobile-toolbar">
-    <button class="top-bar-btn purple" onclick="setSidebarView('upload')">⬆ Upload</button>
-    <button class="top-bar-btn" onclick="setSidebarView('editor')">🎨 Editor</button>
-</div>
 
 <script>
     const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
@@ -772,25 +871,13 @@
 
         if (name === 'favorites') renderFavoritesGrid();
         if (name === 'packs' && !packsFetched) fetchPacks();
+        closeMobileSidebar();
     }
 
-    function setSidebarView(view) {
-        // Deactivate nav items for tools
-        document.querySelectorAll('.sb-nav-item').forEach(b => b.classList.remove('active'));
-        document.getElementById('nav-' + view)?.classList.add('active');
-
-        document.getElementById('upload-panel').style.display = view === 'upload' ? '' : 'none';
-        document.getElementById('editor-panel-wrap').style.display = view === 'editor' ? '' : 'none';
-
-        if (view === 'editor') initSpriteEditor();
-
-        // On mobile, open the sidebar as a modal
-        if (window.innerWidth <= 768) {
-            document.querySelector('.sidebar').classList.add('mobile-open');
-            document.getElementById('sidebar-backdrop').classList.add('open');
-        }
+    function openMobileSidebar() {
+        document.querySelector('.sidebar').classList.add('mobile-open');
+        document.getElementById('sidebar-backdrop').classList.add('open');
     }
-
     function closeMobileSidebar() {
         document.querySelector('.sidebar').classList.remove('mobile-open');
         document.getElementById('sidebar-backdrop').classList.remove('open');
@@ -822,7 +909,7 @@
     // ── Fetch Gallery ──
     function showGridError(msg) {
         const grid = document.getElementById('gallery-grid');
-        if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>Could not load gallery</h3><p>${msg}</p></div>`;
+        if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon"><i class="fi fi-rs-triangle-warning"></i></div><h3>Could not load gallery</h3><p>${msg}</p></div>`;
     }
 
     async function restGetWithRetry(table, params, retries = 4, delay = 3000) {
@@ -834,7 +921,7 @@
                 const isTimeout = msg.includes('timeout') || msg.includes('canceling') || msg.includes('fetch');
                 if (attempt < retries && isTimeout) {
                     const waitSec = Math.round(delay / 1000);
-                    showGridError('⏳ DB busy, retrying in ' + waitSec + 's… (attempt ' + (attempt+1) + ' of ' + retries + ')');
+                    showGridError('DB busy, retrying in ' + waitSec + 's… (attempt ' + (attempt+1) + ' of ' + retries + ')');
                     await new Promise(r => setTimeout(r, delay));
                     delay = Math.min(delay * 1.5, 8000);
                 } else {
@@ -862,7 +949,7 @@
                     'select=id,name,tags,creator,created_at&order=created_at.desc&limit=' + chunkSize + '&offset=' + offset);
             } catch(e) {
                 console.error('[Gallery] fetch error:', e);
-                if (!cached) showGridError('❌ ' + (e?.message || String(e)));
+                if (!cached) showGridError(e?.message || String(e));
                 return;
             }
 
@@ -929,7 +1016,10 @@
 
     // ── Keyboard shortcuts ──
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closePreview();
+        if (e.key === 'Escape') {
+            if (document.getElementById('upload-flow-overlay').classList.contains('open')) closeUploadFlow();
+            else closePreview();
+        }
     });
 
     // Lazy image cache
@@ -1013,7 +1103,7 @@
     function renderGalleryGrid(sprites) {
         const grid = document.getElementById('gallery-grid');
         if (!sprites.length) {
-            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🔍</div><h3>No sprites found</h3><p>Try a different search or tag</p></div>`;
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon"><i class="fi fi-rs-search"></i></div><h3>No sprites found</h3><p>Try a different search or tag</p></div>`;
             return;
         }
         grid.innerHTML = '';
@@ -1030,7 +1120,7 @@
 
             card.innerHTML = `
                 ${imgHtml}
-                <button class="sprite-card-fav ${isFav?'favorited':''}" onclick="toggleFav(event,'${item.id}')">${isFav?'❤️':'🤍'}</button>
+                <button class="sprite-card-fav ${isFav?'favorited':''}" onclick="toggleFav(event,'${item.id}')"><i class="fi fi-rs-heart"></i></button>
                 <div class="sprite-card-footer">
                     <div class="sprite-card-name">${item.name}</div>
                     <div class="sprite-card-uploader">@${item.creator || 'unknown'}</div>
@@ -1047,7 +1137,7 @@
         const favList = allGallerySprites.filter(s => favorites.has(s.id));
         document.getElementById('fav-count').textContent = favList.length + ' sprite' + (favList.length!==1?'s':'');
         if (!favList.length) {
-            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">💔</div><h3>No favorites yet</h3><p>Tap ❤️ on any sprite to favorite it</p></div>`;
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon"><i class="fi fi-rs-heart"></i></div><h3>No favorites yet</h3><p>Tap the heart on any sprite to favorite it</p></div>`;
             return;
         }
         grid.innerHTML = '';
@@ -1061,7 +1151,7 @@
                 : `<div class="sprite-skeleton"></div>`;
             card.innerHTML = `
                 ${imgHtml}
-                <button class="sprite-card-fav favorited" onclick="toggleFav(event,'${item.id}')">❤️</button>
+                <button class="sprite-card-fav favorited" onclick="toggleFav(event,'${item.id}')"><i class="fi fi-rs-heart"></i></button>
                 <div class="sprite-card-footer">
                     <div class="sprite-card-name">${item.name}</div>
                     <div class="sprite-card-uploader">@${item.creator || 'unknown'}</div>
@@ -1082,20 +1172,17 @@
         e.stopPropagation();
         if (favorites.has(id)) {
             favorites.delete(id);
-            showToast('💔 Removed from favorites');
+            showToast('Removed from favorites');
         } else {
             favorites.add(id);
-            showToast('❤️ Added to favorites!');
+            showToast('Added to favorites');
         }
         saveFavorites();
         // Update card button
         const card = document.querySelector(`.sprite-card[data-id="${id}"]`);
         if (card) {
             const btn = card.querySelector('.sprite-card-fav');
-            if (btn) {
-                btn.textContent = favorites.has(id) ? '❤️' : '🤍';
-                btn.classList.toggle('favorited', favorites.has(id));
-            }
+            if (btn) btn.classList.toggle('favorited', favorites.has(id));
         }
         // Update preview button if open
         if (currentPreviewItem?.id === id) updateFavBtn();
@@ -1111,7 +1198,7 @@
         const btn = document.getElementById('prev-fav-btn');
         if (!btn || !currentPreviewItem) return;
         const isFav = favorites.has(currentPreviewItem.id);
-        btn.textContent = isFav ? '❤️ Favorited' : '❤️ Add to Favorites';
+        btn.innerHTML = isFav ? '<i class="fi fi-rs-heart"></i>Favorited' : '<i class="fi fi-rs-heart"></i>Add to Favorites';
         btn.classList.toggle('active', isFav);
     }
 
@@ -1131,7 +1218,7 @@
         document.getElementById('prev-name').textContent = item.name;
         document.getElementById('prev-uploader').textContent = '@' + (item.creator || 'unknown');
         document.getElementById('prev-tags').innerHTML = (item.tags||[]).map(t => `<span class="prev-tag">${t}</span>`).join('');
-        document.getElementById('prev-actions').innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">Loading…</div>';
+        document.getElementById('prev-actions').innerHTML = '<div style="color:var(--text-dim);font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">Loading…</div>';
 
         // Admin / owner controls
         const adminDiv = document.getElementById('prev-admin');
@@ -1145,7 +1232,7 @@
         if (isAdmin || isOwner) {
             const del = document.createElement('button');
             del.className = 'admin-del-btn';
-            del.textContent = isAdmin && !isOwner ? '🗑 DELETE (ADMIN)' : '🗑 DELETE MY SPRITE';
+            del.innerHTML = '<i class="fi fi-rs-trash"></i>' + (isAdmin && !isOwner ? 'Delete (admin)' : 'Delete my sprite');
             del.style.marginTop = '8px';
             del.onclick = () => deleteGallerySprite(item.id);
             adminDiv.appendChild(del);
@@ -1154,22 +1241,16 @@
         // Admin-only tools
         if (isAdmin) {
             const mapBtn = document.createElement('button');
-            mapBtn.className = 'admin-del-btn';
-            mapBtn.textContent = '🗂 MAP STORAGE ACTIONS';
+            mapBtn.className = 'admin-del-btn admin-tool-btn';
+            mapBtn.innerHTML = '<i class="fi fi-rs-folder-tree"></i>Map Storage Actions';
             mapBtn.style.marginTop = '8px';
-            mapBtn.style.color = '#a855f7';
-            mapBtn.style.borderColor = 'rgba(168,85,247,0.3)';
-            mapBtn.style.background = 'rgba(168,85,247,0.08)';
             mapBtn.onclick = () => openActionMapper(item);
             adminDiv.appendChild(mapBtn);
 
             const syncBtn = document.createElement('button');
-            syncBtn.className = 'admin-del-btn';
-            syncBtn.textContent = '⚡ SYNC ALL FROM STORAGE';
+            syncBtn.className = 'admin-del-btn admin-tool-btn';
+            syncBtn.innerHTML = '<i class="fi fi-rs-bolt"></i>Sync All From Storage';
             syncBtn.style.marginTop = '6px';
-            syncBtn.style.color = '#4ade80';
-            syncBtn.style.borderColor = 'rgba(74,222,128,0.3)';
-            syncBtn.style.background = 'rgba(74,222,128,0.06)';
             syncBtn.onclick = () => syncAllSpritesFromStorage(syncBtn);
             adminDiv.appendChild(syncBtn);
         }
@@ -1221,7 +1302,7 @@
                 actGrid.appendChild(chip);
             });
         } else {
-            actGrid.innerHTML = '<div style="color:#333;font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">No actions</div>';
+            actGrid.innerHTML = '<div style="color:var(--text-dim);font-size:11px;font-weight:700;grid-column:1/-1;padding:8px;">No actions</div>';
         }
     }
 
@@ -1242,7 +1323,7 @@
     async function deleteGallerySprite(id) {
         if (!confirm('Delete this sprite from the gallery?')) return;
         const { error } = await _supabase.from(GALLERY_TABLE).delete().eq('id', id);
-        if (error) { showToast('❌ Delete failed: ' + error.message); return; }
+        if (error) { showToast('Delete failed: ' + error.message); return; }
         allGallerySprites = allGallerySprites.filter(s => s.id !== id);
         saveGalleryCache(allGallerySprites);
         imgCache.delete(id);
@@ -1250,10 +1331,108 @@
         saveFavorites();
         closePreview();
         filterGallery();
-        showToast('🗑 Sprite deleted');
+        showToast('Sprite deleted');
     }
 
-    // ── Upload ──
+    // ══════════ UPLOAD FLOW ══════════
+    let uploadStep = 1;
+
+    function resetUploadFlow() {
+        uploadStep = 1;
+        galleryUploadBase64 = '';
+        galleryUploadActions = [];
+        document.getElementById('up-name').value = '';
+        document.getElementById('up-tags').value = '';
+        document.getElementById('up-preview-box').innerHTML = '<div class="uf-cover-hint"><i class="fi fi-rs-picture"></i>Cover<br>(optional)</div>';
+        document.getElementById('up-actions-preview').innerHTML = '';
+        document.getElementById('up-cover-fallback-note').style.display = 'none';
+        renderGalleryActionsPreview();
+        renderUploadDepthMeter();
+        showUploadStep(1);
+    }
+
+    function openUploadFlow() {
+        if (!myHandle) { showToast('Log in to upload sprites'); return; }
+        resetUploadFlow();
+        document.getElementById('upload-flow-overlay').classList.add('open');
+    }
+
+    function closeUploadFlow() {
+        document.getElementById('upload-flow-overlay').classList.remove('open');
+    }
+
+    function showUploadStep(step) {
+        uploadStep = step;
+        [1,2,3].forEach(n => {
+            document.getElementById('uf-panel-' + n).classList.toggle('active', n === step);
+            const tab = document.getElementById('uf-step-tab-' + n);
+            tab.classList.toggle('active', n === step);
+            tab.classList.toggle('done', n < step);
+        });
+        const backBtn = document.getElementById('uf-back-btn');
+        const nextBtn = document.getElementById('uf-next-btn');
+        backBtn.textContent = step === 1 ? 'Cancel' : 'Back';
+        nextBtn.innerHTML = step === 3 ? '<i class="fi fi-rs-cloud-upload"></i>Publish to Gallery' : 'Continue';
+        if (step === 2) renderUploadDepthMeter();
+        if (step === 3) buildUploadReview();
+    }
+
+    function uploadFlowBack() {
+        if (uploadStep === 1) closeUploadFlow();
+        else showUploadStep(uploadStep - 1);
+    }
+
+    function uploadFlowNext() {
+        if (uploadStep === 1) {
+            const name = document.getElementById('up-name').value.trim();
+            if (!name) { showToast('Give your sprite a title first'); return; }
+            document.getElementById('up-cover-fallback-note').style.display = galleryUploadBase64 ? 'none' : 'flex';
+            showUploadStep(2);
+        } else if (uploadStep === 2) {
+            showUploadStep(3);
+        } else {
+            submitGalleryUpload();
+        }
+    }
+
+    function getContentDepthInfo(count) {
+        if (count === 0) return { label: 'No actions yet', sub: 'Add frames to make this sprite more useful in comics' };
+        if (count <= 2) return { label: 'Basic — ' + count + ' action' + (count!==1?'s':''), sub: 'A minimal set of poses' };
+        if (count <= 5) return { label: 'Good — ' + count + ' actions', sub: 'A solid range of poses to work with' };
+        if (count <= 9) return { label: 'Rich — ' + count + ' actions', sub: 'A well-rounded, versatile character' };
+        return { label: 'Complete — ' + count + ' actions', sub: 'A fully-featured character set' };
+    }
+
+    function renderUploadDepthMeter() {
+        const info = getContentDepthInfo(galleryUploadActions.length);
+        document.getElementById('uf-depth-label').textContent = info.label;
+        document.getElementById('uf-depth-sub').textContent = info.sub;
+    }
+
+    function buildUploadReview() {
+        const name = document.getElementById('up-name').value.trim() || 'Untitled sprite';
+        const tags = document.getElementById('up-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+        document.getElementById('uf-review-name').textContent = name;
+        document.getElementById('uf-review-tags').innerHTML = tags.map(t => `<span class="uf-review-tag">${t}</span>`).join('') || '<span class="uf-review-tag">no tags</span>';
+        const info = getContentDepthInfo(galleryUploadActions.length);
+        document.getElementById('uf-review-actions').textContent = info.label;
+
+        const thumb = document.getElementById('uf-review-thumb');
+        const coverNote = document.getElementById('uf-cover-note');
+        let previewSrc = galleryUploadBase64;
+        if (!previewSrc && galleryUploadActions.length) {
+            previewSrc = galleryUploadActions[galleryUploadActions.length - 1].base64;
+        }
+        if (previewSrc) {
+            thumb.innerHTML = `<img src="${previewSrc}">`;
+            coverNote.style.display = galleryUploadBase64 ? 'none' : 'flex';
+        } else {
+            thumb.innerHTML = '<i class="fi fi-rs-picture"></i>';
+            coverNote.style.display = 'none';
+        }
+    }
+
+    // ── Upload field handlers ──
     function handleUploadMain(input) {
         if (!input.files || !input.files[0]) return;
         const reader = new FileReader();
@@ -1261,24 +1440,48 @@
             galleryUploadBase64 = e.target.result;
             const box = document.getElementById('up-preview-box');
             box.innerHTML = `<img src="${galleryUploadBase64}">`;
+            document.getElementById('up-cover-fallback-note').style.display = 'none';
         };
         reader.readAsDataURL(input.files[0]);
     }
 
-    function handleBulkGallery(input) {
-        Array.from(input.files).forEach(file => {
-            const reader = new FileReader();
-            reader.onload = e => addGalleryActionItem(file.name.split('.')[0], e.target.result);
-            reader.readAsDataURL(file);
-        });
+    async function handleBulkGallery(input) {
+        const files = Array.from(input.files);
         input.value = '';
+        if (!files.length) return;
+
+        showToast('Reading ' + files.length + ' file' + (files.length !== 1 ? 's' : '') + '…');
+
+        const reads = await Promise.allSettled(files.map(file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve({ name: file.name.split('.')[0], base64: e.target.result });
+            reader.onerror = () => reject(new Error(file.name));
+            reader.readAsDataURL(file);
+        })));
+
+        let loaded = 0, failed = 0;
+        reads.forEach(r => {
+            if (r.status === 'fulfilled') { addGalleryActionItem(r.value.name, r.value.base64); loaded++; }
+            else failed++;
+        });
+
+        showToast(failed
+            ? `Loaded ${loaded}/${files.length} (${failed} failed to read)`
+            : `Loaded ${loaded} action frame${loaded !== 1 ? 's' : ''}`);
     }
 
     function addActionSlotGallery() { addGalleryActionItem('', ''); }
 
     function addGalleryActionItem(name, base64) {
-        galleryUploadActions.push({ name, base64 });
+        let finalName = (name || 'action').trim() || 'action';
+        if (galleryUploadActions.some(a => a.name === finalName)) {
+            let i = 2;
+            while (galleryUploadActions.some(a => a.name === finalName + '_' + i)) i++;
+            finalName = finalName + '_' + i;
+        }
+        galleryUploadActions.push({ name: finalName, base64 });
         renderGalleryActionsPreview();
+        renderUploadDepthMeter();
     }
 
     function renderGalleryActionsPreview() {
@@ -1286,11 +1489,11 @@
         preview.innerHTML = '';
         galleryUploadActions.forEach((act, i) => {
             const chip = document.createElement('div');
-            chip.className = 'action-chip';
+            chip.className = 'uf-action-chip';
             chip.innerHTML = `
                 ${act.base64 ? `<img src="${act.base64}">` : ''}
                 <input type="text" value="${act.name}" placeholder="Action name" oninput="galleryUploadActions[${i}].name=this.value">
-                <span onclick="galleryUploadActions.splice(${i},1);renderGalleryActionsPreview()">✕</span>
+                <span class="uf-chip-del" onclick="galleryUploadActions.splice(${i},1);renderGalleryActionsPreview();renderUploadDepthMeter()"><i class="fi fi-rs-cross-small"></i></span>
             `;
             preview.appendChild(chip);
         });
@@ -1308,31 +1511,40 @@
         const name = document.getElementById('up-name').value.trim();
         const tagsRaw = document.getElementById('up-tags').value;
         const tags = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-        const btn = document.getElementById('up-submit-btn');
+        const btn = document.getElementById('uf-next-btn');
 
-        if (!name || !galleryUploadBase64) { showToast('⚠️ Name and image required!'); return; }
-        if (!myHandle) { showToast('⚠️ Log in to upload sprites'); return; }
+        if (!name) { showToast('Give your sprite a title first'); showUploadStep(1); return; }
+        if (!myHandle) { showToast('Log in to upload sprites'); return; }
+
+        // YouTube-style fallback: no cover provided → use the most recently added action
+        let coverBase64 = galleryUploadBase64;
+        if (!coverBase64 && galleryUploadActions.length) {
+            coverBase64 = galleryUploadActions[galleryUploadActions.length - 1].base64;
+        }
+        if (!coverBase64) { showToast('Add a cover image or at least one action frame'); showUploadStep(1); return; }
 
         btn.disabled = true;
-        btn.textContent = 'Uploading…';
+        btn.innerHTML = 'Uploading…';
 
         const safeName = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
         const folder = 'gallery/' + safeName + '_' + Date.now();
-        const mainUrl = await uploadToGalleryStorage(folder + '/main.png', galleryUploadBase64);
-        if (!mainUrl) { showToast('❌ Upload failed'); btn.disabled=false; btn.textContent='Publish to Gallery'; return; }
+        const mainUrl = await uploadToGalleryStorage(folder + '/main.png', coverBase64);
+        if (!mainUrl) { showToast('Upload failed'); btn.disabled=false; btn.innerHTML='<i class="fi fi-rs-cloud-upload"></i>Publish to Gallery'; return; }
 
         // Upload actions
         const actionsObj = {};
+        const failedActions = [];
         for (let i = 0; i < galleryUploadActions.length; i++) {
             const act = galleryUploadActions[i];
             if (!act.base64) continue;
-            btn.textContent = 'Uploading actions (' + (i+1) + '/' + galleryUploadActions.length + ')…';
+            btn.innerHTML = 'Uploading actions (' + (i+1) + '/' + galleryUploadActions.length + ')…';
             const safeAct = (act.name||'action').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
             const url = await uploadToGalleryStorage(folder + '/actions/' + safeAct + '.png', act.base64);
             if (url) actionsObj[act.name || 'Action ' + (i+1)] = url;
+            else failedActions.push(act.name || 'Action ' + (i+1));
         }
 
-        btn.textContent = 'Saving…';
+        btn.innerHTML = 'Saving…';
         const { error } = await _supabase.from(GALLERY_TABLE).insert([{
             name,
             image_data: mainUrl,
@@ -1343,20 +1555,16 @@
         }]);
 
         if (error) {
-            showToast('❌ ' + error.message);
+            showToast(error.message);
             btn.disabled = false;
-            btn.textContent = 'Publish to Gallery';
+            btn.innerHTML = '<i class="fi fi-rs-cloud-upload"></i>Publish to Gallery';
         } else {
-            showToast('✅ Sprite published to Gallery!');
-            // Reset form
-            galleryUploadBase64 = '';
-            galleryUploadActions = [];
-            document.getElementById('up-name').value = '';
-            document.getElementById('up-tags').value = '';
-            document.getElementById('up-preview-box').innerHTML = '<div class="up-hint">Click to upload<br>PNG / GIF / WEBP</div>';
-            document.getElementById('up-actions-preview').innerHTML = '';
+            showToast(failedActions.length
+                ? `Published, but ${failedActions.length} action${failedActions.length !== 1 ? 's' : ''} failed to upload`
+                : 'Sprite published to gallery!');
+            closeUploadFlow();
             btn.disabled = false;
-            btn.textContent = 'Publish to Gallery';
+            btn.innerHTML = '<i class="fi fi-rs-cloud-upload"></i>Publish to Gallery';
             localStorage.removeItem(GALLERY_CACHE_KEY);
             await fetchGallery();
         }
@@ -1457,7 +1665,7 @@
     function renderPacksGrid(packs) {
         const grid = document.getElementById('packs-grid');
         if (!packs.length) {
-            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">📦</div><h3>No packs found</h3><p>Try a different search or tag</p></div>`;
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon"><i class="fi fi-rs-box"></i></div><h3>No packs found</h3><p>Try a different search or tag</p></div>`;
             return;
         }
         grid.innerHTML = '';
@@ -1480,7 +1688,7 @@
                     const url = previewUrls[i] || previewUrls[previewUrls.length - 1];
                     return `<div class="pack-thumb-card ${cls}"><img src="${url}" loading="lazy"></div>`;
                   }).join('')
-                : `<div class="pack-thumb-placeholder">📦</div>`;
+                : `<div class="pack-thumb-placeholder"><i class="fi fi-rs-box"></i></div>`;
 
             const card = document.createElement('div');
             card.className = 'pack-card';
@@ -1493,7 +1701,7 @@
                 </div>
                 <div class="pack-card-footer">
                     <span class="pack-card-count">${spriteCount} sprite${spriteCount!==1?'s':''}</span>
-                    <button class="pack-card-use" onclick="usePack(event,'${pack.id}')">▶ Use Pack</button>
+                    <button class="pack-card-use" onclick="usePack(event,'${pack.id}')"><i class="fi fi-rs-play"></i>Use Pack</button>
                 </div>
             `;
             card.addEventListener('click', () => openPackPreview(pack));
@@ -1520,7 +1728,7 @@
     function openPackPreview(pack) {
         // Store pack and redirect to create, mirroring the single-sprite useSprite() flow
         localStorage.setItem('incoming_sprite_pack', JSON.stringify(pack));
-        showToast('📦 Pack "' + pack.name + '" loaded — opening Create…');
+        showToast('Pack "' + pack.name + '" loaded — opening Create…');
         setTimeout(() => window.location.href = 'create.html', 800);
     }
 
@@ -1531,190 +1739,15 @@
         openPackPreview(pack);
     }
 
-    let edCanvas, edCtx, edTool = 'pen', edBrushSize = 2, edColor = '#ffffff';
-    let edDrawing = false, edHistory = [], edGridOn = false;
-
-    function initSpriteEditor() {
-        if (edCanvas) return; // already init
-        edCanvas = document.getElementById('sprite-editor-canvas');
-        edCtx = edCanvas.getContext('2d');
-        edCtx.fillStyle = '#000000';
-        edCtx.fillRect(0, 0, 200, 200);
-        edHistory.push(edCtx.getImageData(0, 0, 200, 200));
-
-        const brushSlider = document.getElementById('ed-brush-size');
-        brushSlider.addEventListener('input', e => {
-            edBrushSize = parseInt(e.target.value);
-            document.getElementById('ed-brush-label').textContent = edBrushSize;
-        });
-        document.getElementById('ed-color').addEventListener('input', e => edColor = e.target.value);
-
-        // Mouse
-        edCanvas.addEventListener('mousedown', e => { edDrawing = true; edDraw(e); });
-        edCanvas.addEventListener('mousemove', e => { if (edDrawing) edDraw(e); });
-        edCanvas.addEventListener('mouseup', () => { if (edDrawing) { edDrawing = false; edSaveHistory(); } });
-        edCanvas.addEventListener('mouseleave', () => { if (edDrawing) { edDrawing = false; edSaveHistory(); } });
-
-        // Touch
-        edCanvas.addEventListener('touchstart', e => { edDrawing = true; edDrawTouch(e); }, { passive: false });
-        edCanvas.addEventListener('touchmove', e => { if (edDrawing) edDrawTouch(e); e.preventDefault(); }, { passive: false });
-        edCanvas.addEventListener('touchend', () => { if (edDrawing) { edDrawing = false; edSaveHistory(); } });
-    }
-
-    function setEditorTool(tool) {
-        edTool = tool;
-        ['pen','erase','fill'].forEach(t => {
-            const btn = document.getElementById('ed-tool-' + t);
-            if (!btn) return;
-            btn.style.background = t === tool ? 'rgba(168,85,247,0.15)' : '';
-            btn.style.borderColor = t === tool ? 'rgba(168,85,247,0.4)' : '';
-            btn.style.color = t === tool ? '#a855f7' : '';
-        });
-    }
-
-    function edGetPos(e) {
-        const rect = edCanvas.getBoundingClientRect();
-        const scaleX = 200 / rect.width;
-        const scaleY = 200 / rect.height;
-        return {
-            x: Math.floor((e.clientX - rect.left) * scaleX),
-            y: Math.floor((e.clientY - rect.top) * scaleY)
-        };
-    }
-    function edGetPosTouch(e) {
-        const touch = e.touches[0];
-        const rect = edCanvas.getBoundingClientRect();
-        const scaleX = 200 / rect.width;
-        const scaleY = 200 / rect.height;
-        return {
-            x: Math.floor((touch.clientX - rect.left) * scaleX),
-            y: Math.floor((touch.clientY - rect.top) * scaleY)
-        };
-    }
-
-    function edDraw(e) {
-        const {x,y} = edGetPos(e);
-        edApply(x, y);
-    }
-    function edDrawTouch(e) {
-        const {x,y} = edGetPosTouch(e);
-        edApply(x, y);
-    }
-
-    function edApply(x, y) {
-        if (edTool === 'fill') { edFloodFill(x, y, edColor); return; }
-        edCtx.globalCompositeOperation = edTool === 'erase' ? 'destination-out' : 'source-over';
-        edCtx.fillStyle = edColor;
-        const half = Math.floor(edBrushSize / 2);
-        edCtx.fillRect(x - half, y - half, edBrushSize, edBrushSize);
-        edCtx.globalCompositeOperation = 'source-over';
-    }
-
-    function edFloodFill(startX, startY, fillColor) {
-        const imgData = edCtx.getImageData(0, 0, 200, 200);
-        const data = imgData.data;
-        const idx = (startY * 200 + startX) * 4;
-        const sr = data[idx], sg = data[idx+1], sb = data[idx+2], sa = data[idx+3];
-        const fc = hexToRgb(fillColor);
-        if (sr===fc.r && sg===fc.g && sb===fc.b && sa===255) return;
-        const stack = [[startX, startY]];
-        while (stack.length) {
-            const [cx, cy] = stack.pop();
-            if (cx<0||cy<0||cx>=200||cy>=200) continue;
-            const ci = (cy*200+cx)*4;
-            if (data[ci]!==sr||data[ci+1]!==sg||data[ci+2]!==sb||data[ci+3]!==sa) continue;
-            data[ci]=fc.r; data[ci+1]=fc.g; data[ci+2]=fc.b; data[ci+3]=255;
-            stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
-        }
-        edCtx.putImageData(imgData, 0, 0);
-        edSaveHistory();
-    }
-
-    function hexToRgb(hex) {
-        const r = parseInt(hex.slice(1,3),16);
-        const g = parseInt(hex.slice(3,5),16);
-        const b = parseInt(hex.slice(5,7),16);
-        return {r,g,b};
-    }
-
-    function edSaveHistory() {
-        edHistory.push(edCtx.getImageData(0, 0, 200, 200));
-        if (edHistory.length > 50) edHistory.shift();
-    }
-
-    function editorUndo() {
-        if (edHistory.length <= 1) return;
-        edHistory.pop();
-        edCtx.putImageData(edHistory[edHistory.length-1], 0, 0);
-    }
-
-    function editorClear() {
-        edCtx.fillStyle = '#000000';
-        edCtx.fillRect(0, 0, 200, 200);
-        edSaveHistory();
-    }
-
-    function editorGridToggle() {
-        edGridOn = !edGridOn;
-        const btn = document.getElementById('ed-grid-btn');
-        btn.style.color = edGridOn ? '#a855f7' : '';
-        // Draw grid overlay via a second canvas or just re-render
-        renderEditorGrid();
-    }
-
-    function renderEditorGrid() {
-        if (!edGridOn) return;
-        edCtx.save();
-        edCtx.globalAlpha = 0.15;
-        edCtx.strokeStyle = '#aaa';
-        edCtx.lineWidth = 0.5;
-        for (let x = 0; x <= 200; x += 8) {
-            edCtx.beginPath(); edCtx.moveTo(x,0); edCtx.lineTo(x,200); edCtx.stroke();
-        }
-        for (let y = 0; y <= 200; y += 8) {
-            edCtx.beginPath(); edCtx.moveTo(0,y); edCtx.lineTo(200,y); edCtx.stroke();
-        }
-        edCtx.restore();
-    }
-
-    async function submitEditorSprite() {
-        const name = document.getElementById('ed-sprite-name').value.trim();
-        const tagsRaw = document.getElementById('ed-sprite-tags').value;
-        const tags = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-
-        if (!name) { showToast('⚠️ Please name your sprite first'); return; }
-        if (!myHandle) { showToast('⚠️ Log in to upload sprites'); return; }
-
-        const base64 = edCanvas.toDataURL('image/png');
-        const safeName = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-        const mainUrl = await uploadToGalleryStorage('gallery/' + safeName + '_' + Date.now() + '/main.png', base64);
-        if (!mainUrl) { showToast('❌ Upload failed'); return; }
-
-        const { error } = await _supabase.from(GALLERY_TABLE).insert([{
-            name, image_data: mainUrl, actions: {},
-            creator: myHandle.replace('@',''), tags,
-            default_scale: 300
-        }]);
-
-        if (error) { showToast('❌ ' + error.message); }
-        else {
-            showToast('✅ Sprite uploaded to Gallery!');
-            document.getElementById('ed-sprite-name').value = '';
-            document.getElementById('ed-sprite-tags').value = '';
-            localStorage.removeItem(GALLERY_CACHE_KEY);
-            await fetchGallery();
-        }
-    }
-
-    // ── Migrate Base64 Actions ──
+    // ── Migrate Base64 Actions (utility, not exposed in UI) ──
     async function migrateGalleryActions() {
         if (!confirm('Migrate all base64 action images to Storage? This may take a while.')) return;
-        showToast('🔄 Starting migration...');
+        showToast('Starting migration...');
 
         let sprites, error;
         try { sprites = await restGet(GALLERY_TABLE, 'select=id,name&limit=500'); }
         catch(e) { error = e; }
-        if (error) { showToast('❌ Fetch error: ' + error.message); return; }
+        if (error) { showToast('Fetch error: ' + error.message); return; }
 
         let migrated = 0;
         for (const sprite of sprites) {
@@ -1746,8 +1779,7 @@
             }
         }
 
-        showToast(`✅ Migrated ${migrated} sprites`);
-        // Clear cache to force refresh
+        showToast(`Migrated ${migrated} sprites`);
         imgCache.clear();
         localStorage.removeItem(GALLERY_CACHE_KEY);
     }
@@ -1793,8 +1825,8 @@
         if (!confirm('Scan every character folder in Storage and replace base64 with Storage URLs?\n\nThis will overwrite actions + cover for any sprite with a matching folder.')) return;
 
         const BASE = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/';
-        if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
-        showToast('⏳ Fetching sprites from DB…', 60000);
+        if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+        showToast('Fetching sprites from DB…', 60000);
 
         // Fetch ALL sprites in chunks (not just 500)
         let sprites = [];
@@ -1809,25 +1841,25 @@
                 offset += 200;
             }
         } catch(e) {
-            showToast('❌ DB fetch failed: ' + e.message);
-            if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
+            showToast('DB fetch failed: ' + e.message);
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
             return;
         }
 
         if (!sprites.length) {
-            showToast('⚠️ No sprites found in DB');
-            if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
+            showToast('No sprites found in DB');
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
             return;
         }
 
         // List the gallery/ subfolder via raw POST
-        showToast('⏳ Listing gallery/ folders…', 60000);
+        showToast('Listing gallery/ folders…', 60000);
         let galleryItems;
         try {
             galleryItems = await storageList('gallery', 1000);
         } catch(e) {
-            showToast('❌ Storage list failed: ' + e.message);
-            if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
+            showToast('Storage list failed: ' + e.message);
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
             return;
         }
 
@@ -1838,8 +1870,8 @@
         );
 
         if (!folders.length) {
-            showToast('⚠️ No folders found inside gallery/ in Storage');
-            if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
+            showToast('No folders found inside gallery/ in Storage');
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
             return;
         }
 
@@ -1865,7 +1897,7 @@
         const BATCH = 5;
         for (let i = 0; i < sprites.length; i += BATCH) {
             const batch = sprites.slice(i, i + BATCH);
-            showToast('⏳ ' + Math.min(i + BATCH, total) + '/' + total + ' processed…', 60000);
+            showToast(Math.min(i + BATCH, total) + '/' + total + ' processed…', 60000);
 
             await Promise.all(batch.map(async sprite => {
                 const folderPath = findFolder(sprite);
@@ -1930,8 +1962,8 @@
 
         imgCache.clear();
         localStorage.removeItem(GALLERY_CACHE_KEY);
-        if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Storage'; }
-        showToast('✅ Synced ' + synced + ' · Skipped ' + skipped + ' · Failed ' + failed);
+        if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+        showToast('Synced ' + synced + ' · Skipped ' + skipped + ' · Failed ' + failed);
         fetchGallery();
     }
 
@@ -1961,18 +1993,18 @@
         const fileList = document.getElementById('mapper-file-list');
         const pathBar  = document.getElementById('mapper-path-bar');
 
-        fileList.innerHTML = '<div style="color:#444;font-size:11px;padding:12px;font-weight:700;">Loading…</div>';
+        fileList.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:12px;font-weight:700;">Loading…</div>';
 
         // Path breadcrumbs
-        let html = `<span onclick="mapperBrowse('')" style="cursor:pointer;color:${path===''?'#a855f7':'#555'};font-weight:800;">sprites</span>`;
+        let html = `<span onclick="mapperBrowse('')" style="cursor:pointer;color:${path===''?'var(--teal)':'var(--text-dim)'};font-weight:800;">sprites</span>`;
         if (path) {
             const parts = path.split('/');
             let built = '';
             parts.forEach((p, i) => {
                 built += (i ? '/' : '') + p;
                 const cap = built;
-                html += '<span style="color:#333;">/</span>';
-                html += `<span onclick="mapperBrowse('${cap}')" style="cursor:pointer;color:${i===parts.length-1?'#a855f7':'#555'};font-weight:800;">${p}</span>`;
+                html += '<span style="color:var(--text-dim);">/</span>';
+                html += `<span onclick="mapperBrowse('${cap}')" style="cursor:pointer;color:${i===parts.length-1?'var(--teal)':'var(--text-dim)'};font-weight:800;">${p}</span>`;
             });
         }
         pathBar.innerHTML = html;
@@ -1981,7 +2013,7 @@
         const { data: rawItems, error } = await _supabase.storage.from('sprites').list(listPath, { limit: 200 });
 
         if (error || !rawItems) {
-            fileList.innerHTML = '<div style="color:#ff4444;font-size:11px;padding:12px;font-weight:700;">Error: ' + (error?.message || 'No data') + '</div>';
+            fileList.innerHTML = '<div style="color:var(--red);font-size:11px;padding:12px;font-weight:700;">Error: ' + (error?.message || 'No data') + '</div>';
             return;
         }
 
@@ -1993,8 +2025,8 @@
         // Back button — not shown at root
         if (path !== '') {
             const back = document.createElement('div');
-            back.style.cssText = 'padding:8px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:800;color:#666;background:#0f0f0f;border:1px solid #1e1e1e;margin-bottom:6px;';
-            back.textContent = '← Back';
+            back.style.cssText = 'padding:8px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:800;color:var(--text-muted);background:var(--bg);border:1px solid var(--border);margin-bottom:6px;display:flex;align-items:center;gap:6px;';
+            back.innerHTML = '<i class="fi fi-rs-arrow-left"></i>Back';
             back.onclick = () => {
                 const up = path.split('/').slice(0, -1).join('/');
                 mapperBrowse(up);
@@ -2003,7 +2035,7 @@
         }
 
         if (!items.length) {
-            fileList.innerHTML += '<div style="color:#333;font-size:11px;padding:12px;font-weight:700;">Empty folder</div>';
+            fileList.innerHTML += '<div style="color:var(--text-dim);font-size:11px;padding:12px;font-weight:700;">Empty folder</div>';
             return;
         }
 
@@ -2011,7 +2043,7 @@
             // Supabase: folders have id === null and no metadata
             const isFolder = item.id === null && !item.metadata;
             const row = document.createElement('div');
-            row.style.cssText = 'padding:8px 10px;border-radius:7px;font-size:11px;font-weight:700;color:#aaa;background:#0f0f0f;border:1px solid #1e1e1e;margin-bottom:5px;display:flex;align-items:center;gap:8px;transition:0.15s;';
+            row.style.cssText = 'padding:8px 10px;border-radius:7px;font-size:11px;font-weight:700;color:var(--text-muted);background:var(--bg);border:1px solid var(--border);margin-bottom:5px;display:flex;align-items:center;gap:8px;transition:0.15s;';
 
             if (isFolder) {
                 const folderPath = path ? path + '/' + item.name : item.name;
@@ -2019,33 +2051,31 @@
                 // Green auto-stage button
                 const autoBtn = document.createElement('button');
                 autoBtn.title = 'Auto-stage cover + all actions from this folder';
-                autoBtn.textContent = '✓';
-                autoBtn.style.cssText = 'background:#14532d;border:1px solid #16a34a;color:#4ade80;border-radius:6px;font-size:13px;font-weight:900;width:26px;height:26px;cursor:pointer;flex-shrink:0;font-family:inherit;display:flex;align-items:center;justify-content:center;padding:0;transition:0.15s;';
-                autoBtn.onmouseenter = () => { autoBtn.style.background = '#166534'; autoBtn.style.borderColor = '#22c55e'; };
-                autoBtn.onmouseleave = () => { autoBtn.style.background = '#14532d'; autoBtn.style.borderColor = '#16a34a'; };
+                autoBtn.innerHTML = '<i class="fi fi-rs-check"></i>';
+                autoBtn.style.cssText = 'background:rgba(0,201,177,0.15);border:1px solid rgba(0,201,177,0.4);color:var(--teal);border-radius:6px;font-size:12px;font-weight:900;width:26px;height:26px;cursor:pointer;flex-shrink:0;font-family:inherit;display:flex;align-items:center;justify-content:center;padding:0;transition:0.15s;';
                 autoBtn.onclick = (e) => { e.stopPropagation(); stageAllFromFolder(folderPath); };
 
-                row.innerHTML = '<span style="font-size:14px;">📁</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.name + '</span>';
+                row.innerHTML = '<i class="fi fi-rs-folder"></i><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.name + '</span>';
                 row.style.cursor = 'pointer';
                 row.appendChild(autoBtn);
                 const arrow = document.createElement('span');
-                arrow.style.cssText = 'color:#444;font-size:10px;flex-shrink:0;';
+                arrow.style.cssText = 'color:var(--text-dim);font-size:10px;flex-shrink:0;';
                 arrow.textContent = 'open →';
                 row.appendChild(arrow);
 
                 row.onmouseenter = () => row.style.borderColor = '#333';
-                row.onmouseleave = () => row.style.borderColor = '#1e1e1e';
+                row.onmouseleave = () => row.style.borderColor = 'var(--border)';
                 row.onclick = () => mapperBrowse(folderPath);
             } else {
                 const publicUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/' + (path ? path + '/' : '') + item.name;
                 const ext = item.name.split('.').pop().toLowerCase();
                 const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
                 row.style.cursor = 'pointer';
-                row.innerHTML = (isImg ? '<img src="' + publicUrl + '" style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:#111;">' : '<span style="font-size:14px;">📄</span>') +
+                row.innerHTML = (isImg ? '<img src="' + publicUrl + '" style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:var(--card2);">' : '<i class="fi fi-rs-document"></i>') +
                     '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.name + '</span>' +
-                    '<span style="color:#a855f7;font-size:10px;font-weight:800;">+ stage</span>';
-                row.onmouseenter = () => { row.style.borderColor = '#a855f7'; row.style.background = 'rgba(168,85,247,0.06)'; };
-                row.onmouseleave = () => { row.style.borderColor = '#1e1e1e'; row.style.background = '#0f0f0f'; };
+                    '<span style="color:var(--teal);font-size:10px;font-weight:800;">+ stage</span>';
+                row.onmouseenter = () => { row.style.borderColor = 'var(--teal)'; row.style.background = 'rgba(0,201,177,0.06)'; };
+                row.onmouseleave = () => { row.style.borderColor = 'var(--border)'; row.style.background = 'var(--bg)'; };
                 row.onclick = () => stageAction(item.name, publicUrl);
             }
             fileList.appendChild(row);
@@ -2056,12 +2086,12 @@
     // main.png → staged as '__cover__' (will be saved as image_url on the sprite)
     // everything else → staged as action keyed by filename-without-extension
     async function stageAllFromFolder(folderPath) {
-        showToast('⏳ Loading folder…');
+        showToast('Loading folder…');
         const { data: rawItems, error } = await _supabase.storage.from('sprites').list(folderPath, { limit: 500 });
-        if (error || !rawItems) { showToast('❌ Could not read folder'); return; }
+        if (error || !rawItems) { showToast('Could not read folder'); return; }
 
         const items = rawItems.filter(f => f.name !== '.emptyFolderPlaceholder' && f.name !== '.gitkeep' && f.id !== null);
-        if (!items.length) { showToast('⚠️ Folder is empty'); return; }
+        if (!items.length) { showToast('Folder is empty'); return; }
 
         const BASE = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/sprites/';
         let coverUrl = null;
@@ -2082,8 +2112,8 @@
 
         renderMapperStaged();
         const msg = coverUrl
-            ? `✅ Staged cover + ${staged} action${staged !== 1 ? 's' : ''}`
-            : `✅ Staged ${staged} action${staged !== 1 ? 's' : ''} (no main.png found)`;
+            ? `Staged cover + ${staged} action${staged !== 1 ? 's' : ''}`
+            : `Staged ${staged} action${staged !== 1 ? 's' : ''} (no main.png found)`;
         showToast(msg);
     }
 
@@ -2091,7 +2121,7 @@
         const actionName = filename.replace(/\.[^.]+$/, '');
         mapperStaged[actionName] = url;
         renderMapperStaged();
-        showToast('✅ Staged: ' + actionName);
+        showToast('Staged: ' + actionName);
     }
 
     function renderMapperStaged() {
@@ -2099,7 +2129,7 @@
         el.innerHTML = '';
         const entries = Object.entries(mapperStaged);
         if (!entries.length) {
-            el.innerHTML = '<div style="color:#333;font-size:11px;padding:12px;font-weight:700;text-align:center;">No actions staged yet.<br>Browse left and click files to add.</div>';
+            el.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:12px;font-weight:700;text-align:center;">No actions staged yet.<br>Browse left and click files to add.</div>';
             return;
         }
 
@@ -2113,30 +2143,30 @@
         sorted.forEach(([name, url]) => {
             const isCover = name === '__cover__';
             const row = document.createElement('div');
-            row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#0f0f0f;border:1px solid ' + (isCover ? '#16a34a' : '#1e1e1e') + ';border-radius:8px;padding:7px 10px;';
+            row.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid ' + (isCover ? 'var(--teal)' : 'var(--border)') + ';border-radius:8px;padding:7px 10px;';
             const ext = url.split('.').pop().toLowerCase();
             const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
 
             if (isImg) {
                 const img = document.createElement('img');
                 img.src = url;
-                img.style.cssText = 'width:32px;height:32px;object-fit:contain;border-radius:4px;background:#111;';
+                img.style.cssText = 'width:32px;height:32px;object-fit:contain;border-radius:4px;background:var(--card2);';
                 row.appendChild(img);
             }
 
             const label = document.createElement('span');
             label.style.cssText = 'flex:1;font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
             if (isCover) {
-                label.innerHTML = '<span style="background:#14532d;color:#4ade80;font-size:9px;padding:2px 6px;border-radius:4px;margin-right:6px;font-weight:900;">COVER</span><span style="color:#4ade80;">main.png</span>';
+                label.innerHTML = '<span style="background:rgba(0,201,177,0.15);color:var(--teal);font-size:9px;padding:2px 6px;border-radius:4px;margin-right:6px;font-weight:900;">COVER</span><span style="color:var(--teal);">main.png</span>';
             } else {
-                label.style.color = '#ccc';
+                label.style.color = 'var(--text-muted)';
                 label.textContent = name;
             }
             row.appendChild(label);
 
             const delBtn = document.createElement('span');
-            delBtn.textContent = '\u2715';
-            delBtn.style.cssText = 'color:#ff4444;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;';
+            delBtn.innerHTML = '<i class="fi fi-rs-cross-small"></i>';
+            delBtn.style.cssText = 'color:var(--red);cursor:pointer;font-size:13px;line-height:1;padding:2px 4px;';
             delBtn.onclick = () => deleteStaged(name);
             row.appendChild(delBtn);
 
@@ -2160,7 +2190,7 @@
         const coverUrl = allStaged['__cover__'] || null;
         delete allStaged['__cover__'];
 
-        if (!Object.keys(allStaged).length && !coverUrl) { showToast('⚠️ Nothing staged'); return; }
+        if (!Object.keys(allStaged).length && !coverUrl) { showToast('Nothing staged'); return; }
 
         // Build payload — save actions AND cover image_data if staged
         const payload = { actions: allStaged };
@@ -2175,13 +2205,13 @@
             .update(payload)
             .eq('id', spriteId);
 
-        if (error) { showToast('❌ Save failed: ' + error.message); return; }
+        if (error) { showToast('Save failed: ' + error.message); return; }
 
         // Bust cache so nothing stale is read back
         imgCache.delete(spriteId);
         localStorage.removeItem(GALLERY_CACHE_KEY);
 
-        showToast('✅ Actions saved to DB!');
+        showToast('Actions saved to DB!');
         closeActionMapper(); // safe now — we already saved spriteId/spriteSnap
 
         // Refresh the card in the grid immediately with the new cover URL
