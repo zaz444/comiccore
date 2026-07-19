@@ -2257,21 +2257,21 @@ function activateFrame(i) {
     activeLayer = null;
     const f = frames[currentIdx];
     const r = getFrameRatio(f);
-    if (r.w !== canvasRatio.w || r.h !== canvasRatio.h) {
-        setRatio(r.w, r.h);
-    } else {
-        // Ratio unchanged from the previous frame, so setRatio() (and its stamp)
-        // won't run — but this frame may never have been stamped live before
-        // (e.g. first time it's activated). Stamp it here too, from the canvas
-        // size that's already on-screen right now, so it's never left to fall
-        // back on a save-time recomputation.
-        if (f && (!f._editorW || !f._editorH)) {
-            const cw = parseInt(canvas.style.width) || undefined;
-            const ch = parseInt(canvas.style.height) || undefined;
-            if (cw && ch) { f._editorW = cw; f._editorH = ch; }
-        }
-        render();
-    }
+    // BUGFIX 4: always resync via setRatio(), even when this frame's ratio
+    // matches the one we're already on — not just when it differs. The old
+    // "else" branch only stamped _editorW/_editorH the FIRST time a frame was
+    // ever activated, on the assumption that nothing changes if the ratio is
+    // the same. But the visualViewport resize listener (Android gesture bar
+    // collapsing, keyboard opening) only re-stamps whichever frame is active
+    // AT THAT MOMENT via setRatio() — so a frame you're not currently on can
+    // sit on a stale, smaller stamp from before the viewport grew. Switch back
+    // to it later, nudge a layer, and that edit is recorded against the new
+    // (bigger) live canvas while the stamp still reflects the old (smaller)
+    // one — the reader then scales every layer up and off-frame using that
+    // stale ratio. Calling setRatio() unconditionally here re-derives the
+    // canvas size fresh from the CURRENT viewport every time a frame becomes
+    // active, so the stamp can never drift out of sync with what's on screen.
+    setRatio(r.w, r.h);
 }
 
 // ── PER-FRAME RATIO CHANGE ──────────────────────────────────────────────
