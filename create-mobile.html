@@ -729,7 +729,7 @@
 
     /* BG adjust sliders */
     .bg-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .bg-slider-row span { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; width: 48px; flex-shrink: 0; }
+    .bg-slider-row span { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; min-width: 48px; flex-shrink: 0; white-space: nowrap; }
     .bg-slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
     .bg-val { font-size: 10px; font-weight: 800; color: var(--teal); min-width: 32px; text-align: right; }
     .filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; }
@@ -1614,7 +1614,7 @@
 <!-- FX SHEET -->
 <div id="sheet-fx" class="bottom-sheet" style="max-height:80vh;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🎨 FX <button class="sheet-close" onclick="closeSheet('fx')">✕</button></div>
+    <div class="sheet-title">FX <button class="sheet-close" onclick="closeSheet('fx')">✕</button></div>
     <div class="sheet-body">
         <div style="display:flex;gap:8px;margin-bottom:12px;">
             <button class="fx-target-tab active" id="fx-target-layer" onclick="setFxTarget('layer')">Sprite</button>
@@ -1651,23 +1651,19 @@
                 </button>
                 <button class="mob-fx-blur-card" id="fx-blur-frosted"  onclick="setFxBlur('frosted')" title="Frosted glass texture">
                     <span class="mob-fx-blur-icon">❄</span>
-                    <span class="mob-fx-blur-name">Frosted Glass</span>
-                    <span class="mob-fx-blur-desc">Icy &amp; grainy</span>
+                    <span class="mob-fx-blur-name">Frosting</span>
                 </button>
                 <button class="mob-fx-blur-card" id="fx-blur-zoom"     onclick="setFxBlur('zoom')" title="Warp-speed zoom burst">
                     <span class="mob-fx-blur-icon">⊛</span>
                     <span class="mob-fx-blur-name">Zoom Burst</span>
-                    <span class="mob-fx-blur-desc">Tunnel warp</span>
                 </button>
                 <button class="mob-fx-blur-card" id="fx-blur-radial"   onclick="setFxBlur('radial')" title="Spinning radial blur">
                     <span class="mob-fx-blur-icon">↻</span>
-                    <span class="mob-fx-blur-name">Radial / Spin</span>
-                    <span class="mob-fx-blur-desc">Spinning wheel</span>
+                    <span class="mob-fx-blur-name">Radial</span>
                 </button>
                 <button class="mob-fx-blur-card" id="fx-blur-pixel"    onclick="setFxBlur('pixel')" title="Mosaic pixelate effect">
                     <span class="mob-fx-blur-icon">⊞</span>
-                    <span class="mob-fx-blur-name">Mosaic</span>
-                    <span class="mob-fx-blur-desc">8-bit pixelate</span>
+                    <span class="mob-fx-blur-name">Pixelate</span>
                 </button>
             </div>
             <!-- Amount slider -->
@@ -1694,13 +1690,12 @@
             <div class="fx-chip-row" id="fx-filter-row"></div>
         </div>
 
-        <!-- BLUR STRENGTH SECTION -->
-        <div class="fx-sheet-section" id="fx-strength-row" style="display:none;">
-            <div class="bg-slider-row">
-                <span>Blur&nbsp;Strength</span>
-                <input type="range" id="fx-blur-strength" min="0" max="100" value="100" oninput="applyFxToSelected()">
-                <span class="bg-val" id="fx-blur-strength-val">100%</span>
+        <!-- BLENDING SECTION -->
+        <div class="fx-sheet-section">
+            <div class="fx-sheet-label" style="display:flex;align-items:center;gap:5px;">
+                <span style="width:3px;height:9px;background:#ff4d6d;border-radius:2px;display:inline-block;"></span>BLENDING
             </div>
+            <div class="fx-chip-row" id="fx-blend-row"></div>
         </div>
 
         <!-- OPACITY SECTION -->
@@ -1712,6 +1707,11 @@
                 <span>Opacity</span>
                 <input type="range" id="fx-opacity" min="10" max="100" value="100" oninput="applyFxToSelected()">
                 <span class="bg-val" id="fx-opacity-val">100%</span>
+            </div>
+            <div class="bg-slider-row" id="fx-strength-row" style="display:none;">
+                <span>Blur Opacity</span>
+                <input type="range" id="fx-blur-strength" min="0" max="100" value="100" oninput="applyFxToSelected()">
+                <span class="bg-val" id="fx-blur-strength-val">100%</span>
             </div>
         </div>
 
@@ -1725,6 +1725,13 @@
                 Enable Light Effect
             </label>
             <div id="fx-light-controls" style="display:none;flex-direction:column;gap:10px;">
+                <!-- Style presets — each just sets brightness/radius/blend, still fine-tunable below -->
+                <div class="fx-chip-row" id="fx-light-style-row">
+                    <button class="fx-chip active" data-style="glow"      onclick="setLightStyle('glow')">Glow</button>
+                    <button class="fx-chip"        data-style="spotlight" onclick="setLightStyle('spotlight')">Spotlight</button>
+                    <button class="fx-chip"        data-style="wash"      onclick="setLightStyle('wash')">Soft Wash</button>
+                    <button class="fx-chip"        data-style="neon"      onclick="setLightStyle('neon')">Neon</button>
+                </div>
                 <!-- Brightness -->
                 <div class="bg-slider-row">
                     <span>Bright</span>
@@ -1980,7 +1987,7 @@
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/add.webp" class="bot-custom-icon" alt="add">Add
     </button>
     <button class="bot-btn" onclick="openSheet('effects'); if(!mobSidebarEffects) loadMobEffects()">
-        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/effects.webp" class="bot-custom-icon" alt="effects">Effects
+        <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/effects.webp" class="bot-custom-icon" alt="effects">Extras
     </button>
     <button class="bot-btn" onclick="openSheet('bg')">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/bg.webp" class="bot-custom-icon" alt="bg">BG
@@ -2224,6 +2231,17 @@ function setRatio(w, h) {
     canvas.style.width = cw + 'px';
     canvas.style.height = ch + 'px';
     onionCanvas.width = cw; onionCanvas.height = ch;
+    // BUGFIX 3: stamp the size the layers are ACTUALLY being positioned against,
+    // right now, live — not a re-derived guess at save time. Mobile browser chrome
+    // (address bar collapsing on scroll, keyboard opening) resizes the viewport
+    // between when a frame was edited and when Publish is hit; if getStampedFrames()
+    // recomputes from computeCanvasSize() using whatever the viewport is AT SAVE TIME,
+    // it can disagree with the size that was live while this frame's layers were
+    // placed, and the reader ends up scaling every layer (and the bg pan/zoom crop)
+    // by the wrong factor. Stamping here, at the moment the canvas is actually this
+    // size, means getStampedFrames() only ever has to carry the number forward.
+    const f = frames[currentIdx];
+    if (f) { f._editorW = cw; f._editorH = ch; }
     render();
 }
 // Ratio to use for a given frame — falls back to the live canvasRatio for
@@ -2239,8 +2257,21 @@ function activateFrame(i) {
     activeLayer = null;
     const f = frames[currentIdx];
     const r = getFrameRatio(f);
-    if (r.w !== canvasRatio.w || r.h !== canvasRatio.h) setRatio(r.w, r.h);
-    else render();
+    if (r.w !== canvasRatio.w || r.h !== canvasRatio.h) {
+        setRatio(r.w, r.h);
+    } else {
+        // Ratio unchanged from the previous frame, so setRatio() (and its stamp)
+        // won't run — but this frame may never have been stamped live before
+        // (e.g. first time it's activated). Stamp it here too, from the canvas
+        // size that's already on-screen right now, so it's never left to fall
+        // back on a save-time recomputation.
+        if (f && (!f._editorW || !f._editorH)) {
+            const cw = parseInt(canvas.style.width) || undefined;
+            const ch = parseInt(canvas.style.height) || undefined;
+            if (cw && ch) { f._editorW = cw; f._editorH = ch; }
+        }
+        render();
+    }
 }
 
 // ── PER-FRAME RATIO CHANGE ──────────────────────────────────────────────
@@ -2882,6 +2913,7 @@ function _renderNow() {
     bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
     if (combinedBgFilter) bgLayer.style.filter = combinedBgFilter;
     if (bgFx.fxOpacity !== undefined) bgLayer.style.opacity = bgFx.fxOpacity / 100;
+    if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = bgFx.fxBlend;
 
     if (isImg) {
         canvas.style.backgroundColor = 'transparent';
@@ -2989,6 +3021,7 @@ function _renderNow() {
         el.className = 'layer' + (layer === activeLayer ? ' active' : '');
         el.style.zIndex = idx + 1; // +1 so layer 0 sits above bgLayer (z-index:0)
         el.dataset.layerId = layer.id;
+        if (layer.fxBlend && layer.fxBlend !== 'normal') el.style.mixBlendMode = layer.fxBlend;
 
         if (layer.type === 'img') {
             const hasFxSrc   = !!layer._fxSrc;
@@ -4626,6 +4659,7 @@ function renderFxPreview() {
         const lfCSS     = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
         const holder = document.createElement('div');
         holder.style.cssText = `position:relative;display:inline-block;width:${layer.w||120}px;`;
+        if (layer.fxBlend && layer.fxBlend !== 'normal') holder.style.mixBlendMode = layer.fxBlend;
 
         if (hasFxSrc && bStrength < 100) {
             // Blend mode: clean base + fx overlay at blurStrength opacity (matches main canvas)
@@ -4654,6 +4688,7 @@ function renderFxPreview() {
         box.appendChild(holder);
     } else {
         if (layer.fxOpacity !== undefined) el.style.opacity = layer.fxOpacity / 100;
+        if (layer.fxBlend && layer.fxBlend !== 'normal') el.style.mixBlendMode = layer.fxBlend;
         box.appendChild(el);
     }
 
@@ -4672,6 +4707,7 @@ function renderBgFxPreview(wrap, box) {
 
     const holder = document.createElement('div');
     holder.style.cssText = 'position:relative;display:inline-block;width:140px;height:140px;overflow:hidden;border-radius:8px;';
+    if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') holder.style.mixBlendMode = bgFx.fxBlend;
 
     const hasFxSrc  = !!bgFx._fxSrc;
     const bStrength = (bgFx.blurStrength != null) ? bgFx.blurStrength : 100;
@@ -6292,6 +6328,12 @@ const FX_FILTERS = ['none','grayscale(100%)','sepia(100%)','contrast(1.5)','brig
 const FX_FILTER_LABELS = ['None','B&W','Sepia','Contrast','Bright','Shift','Vivid','Invert'];
 const MOB_FX_BLUR_TYPES = ['none','gaussian','motion','lens','frosted','zoom','radial','pixel'];
 
+// Layer blend mode — plain CSS mix-blend-mode values, so applying one is just
+// a single style assignment at render time (no pixel math needed). Kept to a
+// short, useful set rather than the full blend-mode list.
+const FX_BLEND_MODES = ['normal','multiply','screen','overlay','difference','color','luminosity'];
+const FX_BLEND_LABELS = ['None','Multiply','Screen','Overlay','Difference','Color','Luminosity'];
+
 // ── FX target: sprite layer vs frame background ──
 // The FX sheet can edit either the selected sprite layer (default) or the
 // current frame's background, mirroring the full blur/filter/opacity/lighting
@@ -6380,6 +6422,25 @@ function syncFxPanel() {
     });
     if (fxSec) fxSec.style.display = fr.children.length ? 'block' : 'none';
 
+    // Sync blend chips
+    const br = document.getElementById('fx-blend-row');
+    br.innerHTML = '';
+    FX_BLEND_MODES.forEach((b, i) => {
+        const chip = document.createElement('button');
+        chip.className = 'fx-chip' + (target.fxBlend === b || (i===0&&!target.fxBlend) ? ' active' : '');
+        chip.innerText = FX_BLEND_LABELS[i];
+        chip.onclick = () => {
+            const t2 = getFxTarget(true);
+            if (!t2) return;
+            saveState();
+            t2.fxBlend = b;
+            br.querySelectorAll('.fx-chip').forEach(c=>c.classList.remove('active'));
+            chip.classList.add('active');
+            applyFxToSelected();
+        };
+        br.appendChild(chip);
+    });
+
     // Sync opacity
     const opEl = document.getElementById('fx-opacity');
     const opVal = document.getElementById('fx-opacity-val');
@@ -6438,6 +6499,7 @@ function applyFxToSelected() {
     const lightEnabled = document.getElementById('fx-light-enable')?.checked || false;
     target.lighting = lightEnabled ? {
         enabled:    true,
+        style:      _lightStyle,
         brightness: parseInt(document.getElementById('fx-light-brightness')?.value || 130),
         radius:     parseInt(document.getElementById('fx-light-radius')?.value || 70),
         x:          _lightX,
@@ -6462,6 +6524,7 @@ function clearFxFromSelected() {
     saveState();
     delete target.fxFilter;
     delete target.fxOpacity;
+    delete target.fxBlend;
     target.blurType     = 'none';
     target.blurAmt      = 4;
     target.blurAmount   = 4;
@@ -6766,7 +6829,16 @@ const _SNAPSHOT_CHUNK = 300; // frame_snapshots upsert batch size — keeps each
 function getStampedFrames() {
     return frames.map(f => {
         const r = getFrameRatio(f);
-        const { cw, ch } = computeCanvasSize(r.w, r.h);
+        // BUGFIX 3: prefer the size that was ACTUALLY live on-screen while this frame's
+        // layers were placed (stamped by setRatio()/activateFrame() as you edit) over
+        // recomputing from computeCanvasSize() here. The viewport can have resized
+        // (mobile address bar collapsing on scroll, keyboard open/close) between when
+        // this frame was last edited and now, so a save-time recomputation can silently
+        // disagree with the pixel space the layer x/y/w values were actually recorded
+        // in — throwing every layer's scale off in the reader. Only fall back to a
+        // fresh computation if this frame was somehow never activated/stamped.
+        let cw = f._editorW, ch = f._editorH;
+        if (!cw || !ch) ({ cw, ch } = computeCanvasSize(r.w, r.h));
         return { ...f, ratio: { w: r.w, h: r.h }, _editorW: cw || 300, _editorH: ch || 300 };
     });
 }
@@ -7571,6 +7643,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     }
                     ctx.save();
                     if (applyFilter && combinedBgFilter) ctx.filter = combinedBgFilter;
+                    if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') ctx.globalCompositeOperation = bgFx.fxBlend;
                     ctx.globalAlpha = alpha;
                     ctx.translate(cw / 2, ch / 2);
                     ctx.rotate(rot * Math.PI / 180);
@@ -7609,6 +7682,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
             img.onload = () => {
                 ctx.save();
                 if (combinedBgFilter) ctx.filter = combinedBgFilter;
+                if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') ctx.globalCompositeOperation = bgFx.fxBlend;
                 ctx.globalAlpha = bgAlpha;
                 ctx.drawImage(img, 0, 0, cw, ch);
                 ctx.restore();
@@ -7620,6 +7694,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
         } else {
             ctx.save();
             if (combinedBgFilter) ctx.filter = combinedBgFilter;
+            if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') ctx.globalCompositeOperation = bgFx.fxBlend;
             ctx.globalAlpha = bgAlpha;
             ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch);
             ctx.restore();
@@ -7652,6 +7727,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     const cx = (layer.x || 0) * scaleX + lw / 2, cy = (layer.y || 0) * scaleY + lh / 2;
                     ctx.save();
                     if (applyCSS && combinedCSS) ctx.filter = combinedCSS;
+                    if (layer.fxBlend && layer.fxBlend !== 'normal') ctx.globalCompositeOperation = layer.fxBlend;
                     ctx.globalAlpha = alpha;
                     ctx.imageSmoothingEnabled = false; // crisp sprites in exported/published frames, matching the live canvas
                     ctx.translate(cx, cy);
@@ -7744,7 +7820,13 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     const blob = new Blob([svgStr], { type: 'image/svg+xml' });
                     const url  = URL.createObjectURL(blob);
                     const img  = new Image();
-                    img.onload = () => { ctx.drawImage(img, bx, by); URL.revokeObjectURL(url); res(); };
+                    img.onload = () => {
+                        ctx.save();
+                        if (layer.fxBlend && layer.fxBlend !== 'normal') ctx.globalCompositeOperation = layer.fxBlend;
+                        ctx.drawImage(img, bx, by);
+                        ctx.restore();
+                        URL.revokeObjectURL(url); res();
+                    };
                     img.onerror = () => {
                         // Plain text fallback
                         ctx.save();
@@ -9459,7 +9541,34 @@ document.getElementById('new-frame-popup').addEventListener('click', function(e)
 // ═══════════════════════════════════════
 // LIGHTING FX — shared state
 // ═══════════════════════════════════════
-let _lightX = 50, _lightY = 30, _lightColor = '255,220,120';
+let _lightX = 50, _lightY = 30, _lightColor = '255,220,120', _lightStyle = 'glow';
+
+// Each preset is just a { blend, brightness, radius } combo fed into the
+// SAME radial-gradient renderer used everywhere else — tapping a style just
+// pre-fills the sliders and picks a CSS/canvas composite mode, so adding a
+// new "look" later is one line here, not new render code.
+const LIGHT_STYLES = {
+    glow:      { blend: 'screen',      brightness: 130, radius: 70  },
+    spotlight: { blend: 'screen',      brightness: 170, radius: 35  },
+    wash:      { blend: 'overlay',     brightness: 115, radius: 100 },
+    neon:      { blend: 'color-dodge', brightness: 150, radius: 55  },
+};
+
+function setLightStyle(key) {
+    const preset = LIGHT_STYLES[key];
+    if (!preset) return;
+    _lightStyle = key;
+    document.querySelectorAll('#fx-light-style-row .fx-chip').forEach(c => c.classList.toggle('active', c.dataset.style === key));
+    const bSlider = document.getElementById('fx-light-brightness');
+    const bVal    = document.getElementById('fx-light-brightness-val');
+    const rSlider = document.getElementById('fx-light-radius');
+    const rVal    = document.getElementById('fx-light-radius-val');
+    if (bSlider) bSlider.value = preset.brightness;
+    if (bVal)    bVal.innerText = preset.brightness + '%';
+    if (rSlider) rSlider.value = preset.radius;
+    if (rVal)    rVal.innerText = preset.radius + '%';
+    applyFxToSelected();
+}
 
 function onLightEnableChange() {
     const checked = document.getElementById('fx-light-enable')?.checked;
@@ -9572,6 +9681,9 @@ function syncLightingUI(layer) {
     if (yVal) yVal.innerText = _lightY + '%';
     if (dot) { dot.style.left = _lightX + '%'; dot.style.top = _lightY + '%'; }
 
+    _lightStyle = L.style || 'glow';
+    document.querySelectorAll('#fx-light-style-row .fx-chip').forEach(c => c.classList.toggle('active', c.dataset.style === _lightStyle));
+
     const savedColor = L.color || '255,220,120';
     _lightColor = savedColor;
     document.querySelectorAll('.fx-light-color-btn').forEach(b => {
@@ -9594,6 +9706,7 @@ function applyLightingToDOM(el, layer) {
     const y = L.y != null ? L.y : 30;
     const r = L.radius || 70;
     const c = L.color || '255,220,120';
+    const blend = (LIGHT_STYLES[L.style] || LIGHT_STYLES.glow).blend;
     const alpha1 = Math.min(0.85, (brightness - 1) * 1.6 + 0.15).toFixed(3);
     const alpha2 = Math.min(0.4,  (brightness - 1) * 0.7).toFixed(3);
 
@@ -9605,7 +9718,7 @@ function applyLightingToDOM(el, layer) {
             rgba(${c},${alpha1}) 0%,
             rgba(${c},${alpha2}) ${r * 0.45}%,
             rgba(${c},0) ${r}%);
-        mix-blend-mode:screen;z-index:999;
+        mix-blend-mode:${blend};z-index:999;
     `;
     el.style.position = 'relative';
     el.style.overflow = 'visible';
@@ -9626,6 +9739,7 @@ function renderLightingOnCanvas(ctx, layer, lx, ly, lw, lh) {
     const radius = r * Math.max(lw, lh);
     const alpha  = Math.min(0.85, (brightness - 1) * 1.6 + 0.15);
     const alpha2 = Math.min(0.4,  (brightness - 1) * 0.7);
+    const blend  = (LIGHT_STYLES[L.style] || LIGHT_STYLES.glow).blend;
 
     const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
     grad.addColorStop(0,    `rgba(${c[0]},${c[1]},${c[2]},${alpha})`);
@@ -9633,7 +9747,7 @@ function renderLightingOnCanvas(ctx, layer, lx, ly, lw, lh) {
     grad.addColorStop(1,    `rgba(${c[0]},${c[1]},${c[2]},0)`);
 
     ctx.save();
-    ctx.globalCompositeOperation = 'screen';
+    ctx.globalCompositeOperation = blend;
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.rect(lx, ly, lw, lh);
