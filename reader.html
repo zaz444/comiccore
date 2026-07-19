@@ -1545,6 +1545,18 @@ function getEditorDimensions(frame) {
   return { ew, eh };
 }
 
+// Tail position is stored as a 0-100% point along the bubble's bottom edge
+// (l.tailPos), set by dragging the tail handle in create.html. Older saves
+// only have the legacy `tailFlip` boolean, so fall back to each style's
+// default base position, mirrored to the right side when flipped. This must
+// stay in sync with getBubbleTailPos() in create-mobile.html.
+const MOB_BUBBLE_TAIL_BASE = { round: 20, chat: 80, rect: 50, whisper: 25 };
+function getBubbleTailPos(layer, bStyle) {
+  if (layer.tailPos != null) return Math.max(4, Math.min(96, layer.tailPos));
+  const base = MOB_BUBBLE_TAIL_BASE[bStyle] ?? 50;
+  return layer.tailFlip ? (100 - base) : base;
+}
+
 function getSpriteFilterCSS(layer) {
   const blurType = layer.blurType || 'none';
   if (blurType === 'none') return '';
@@ -1963,19 +1975,21 @@ function _renderFrameDOM(f, next, cw, ch) {
       // Tail: shown only for styles that use one (same logic as create.html)
       const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
       if (showTail) {
-        if (l.tailFlip) {
-          // Right-side tail: wrap in a horizontal-flip container
-          const flipWrap = document.createElement('div');
-          flipWrap.style.cssText = 'position:absolute;inset:0;transform:scaleX(-1);pointer-events:none;';
-          const tail = document.createElement('div');
-          tail.className = 'bubble-tail';
-          flipWrap.appendChild(tail);
-          bubble.appendChild(flipWrap);
-        } else {
-          const tail = document.createElement('div');
-          tail.className = 'bubble-tail';
-          bubble.appendChild(tail);
-        }
+        const tail = document.createElement('div');
+        tail.className = 'bubble-tail';
+        // Use the continuous drag position saved by the creator (l.tailPos),
+        // falling back to the legacy left/right tailFlip toggle for older
+        // saves that predate the draggable tail (same logic as create.html's
+        // getBubbleTailPos()).
+        const tailPos = getBubbleTailPos(l, bStyle);
+        tail.style.left = tailPos + '%';
+        tail.style.right = 'auto';
+        // Scale the tail triangle itself so it matches the bubble/font scale
+        // (sx), same ratio create.html renders at, instead of staying a fixed
+        // pixel size regardless of canvas scale.
+        tail.style.transform = `translateX(-50%) scale(${sx})`;
+        tail.style.transformOrigin = 'top center';
+        bubble.appendChild(tail);
       }
 
       // Thought dots: shown for cloud/thinking bubbles
