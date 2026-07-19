@@ -176,6 +176,53 @@
         .srow-label { font-size: 15px; font-weight: 700; color: var(--text); }
         .srow-sub { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
 
+        .settings-btn-sm {
+            padding: 6px 14px; border-radius: 8px;
+            background: rgba(var(--accent-rgb),0.15); border: 1px solid rgba(var(--accent-rgb),0.35);
+            color: var(--accent); font-size: 11px; font-weight: 800;
+            cursor: pointer; transition: .15s; font-family: 'Inter', sans-serif;
+        }
+        .settings-btn-sm:hover { background: rgba(var(--accent-rgb),0.25); }
+
+        .pinned-preview { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .pinned-preview-item {
+            width: 60px; height: 80px; border-radius: 8px;
+            overflow: hidden; background: #1a1a1e; border: 2px solid var(--border);
+            position: relative;
+        }
+        .pinned-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .pinned-preview-empty {
+            width: 60px; height: 80px; border-radius: 8px;
+            border: 2px dashed var(--border); background: rgba(255,255,255,0.03);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--muted); font-size: 20px;
+        }
+        .pinned-comics-modal-grid {
+            display: grid; grid-template-columns: repeat(3,1fr); gap: 12px;
+            max-height: 400px; overflow-y: auto; padding: 4px;
+        }
+        .pinned-select-card {
+            border-radius: 10px; overflow: hidden;
+            border: 2px solid var(--border); cursor: pointer; transition: .15s;
+            background: #1a1a1e;
+        }
+        .pinned-select-card:hover { border-color: rgba(var(--accent-rgb),0.4); }
+        .pinned-select-card.selected { border-color: var(--accent); }
+        .pinned-select-card .card-cover { width: 100%; aspect-ratio: 2/3; overflow: hidden; }
+        .pinned-select-card .card-cover img { width: 100%; height: 100%; object-fit: cover; }
+        .pinned-select-card .card-title {
+            padding: 8px; font-size: 11px; font-weight: 700; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .pinned-select-card .card-check {
+            position: absolute; top: 6px; right: 6px;
+            width: 22px; height: 22px; border-radius: 50%;
+            background: var(--accent); color: #000;
+            display: none; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 900;
+        }
+        .pinned-select-card.selected .card-check { display: flex; }
+
         .cc-toggle { position: relative; display: inline-block; width: 48px; height: 28px; flex-shrink: 0; }
         .cc-toggle input { opacity: 0; width: 0; height: 0; }
         .cc-toggle-track {
@@ -453,6 +500,23 @@
     </div>
 </div>
 
+<!-- Pinned Comics Modal -->
+<div class="modal-overlay" id="pinned-comics-overlay" onclick="if(event.target===this)closePinnedComicsModal()">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle"></div>
+        <div class="modal-title">
+            <span>Pinned Comics</span>
+            <span class="modal-close" onclick="closePinnedComicsModal()">✕</span>
+        </div>
+        <p style="font-size:12px;color:#888;margin-bottom:16px;">Select up to 3 comics to feature at the top of your profile</p>
+        <div id="pinned-comics-modal-grid" class="pinned-comics-modal-grid"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+            <button class="sheet-cancel-btn" onclick="closePinnedComicsModal()" style="flex:1;">Cancel</button>
+            <button onclick="savePinnedComics()" style="flex:1;padding:12px;border-radius:12px;border:none;background:var(--accent);color:#000;font-weight:800;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- PFP Crop -->
 <div class="pfp-crop-overlay" id="pfp-crop-overlay">
     <div style="font-size:11px;font-weight:800;color:#aaa;letter-spacing:1px;margin-bottom:16px;">DRAG & ZOOM TO CROP</div>
@@ -661,7 +725,9 @@
                 <div class="settings-section-header">Display Options</div>
                 <div class="srow"><div class="srow-text"><div class="srow-label">Show Social Links</div><div class="srow-sub">Display your connected accounts on your profile</div></div><label class="cc-toggle"><input type="checkbox" id="st-show-socials"><span class="cc-toggle-track"></span></label></div>
                 <div class="srow"><div class="srow-text"><div class="srow-label">Show Creations Grid</div><div class="srow-sub">Display your comics on your public profile</div></div><label class="cc-toggle"><input type="checkbox" id="st-show-grid"><span class="cc-toggle-track"></span></label></div>
-                <div class="srow"><div class="srow-text"><div class="srow-label">Pinned Comic</div><div class="srow-sub">Feature one comic at the top of your profile</div></div><label class="cc-toggle"><input type="checkbox" id="st-pinned-comic"><span class="cc-toggle-track"></span></label></div>
+                <div class="settings-section-header">Pinned Comics</div>
+                <div class="srow"><div class="srow-text"><div class="srow-label">Feature Comics</div><div class="srow-sub">Pin up to 3 comics at the top of your profile</div></div><button class="settings-btn-sm" onclick="openPinnedComicsModal()">Configure</button></div>
+                <div id="pinned-comics-preview" class="pinned-preview"></div>
             </div>
 
             <!-- PAGE: ACCENT & PRONOUNS -->
@@ -840,7 +906,7 @@
         });
         ['st-show-followers','st-public-profile','st-show-status','st-squad-invites',
          'st-allow-dms','st-allow-comments','st-show-discover','st-share-cookies',
-         'st-reduced-motion','st-show-socials','st-show-grid','st-pinned-comic',
+         'st-reduced-motion','st-show-socials','st-show-grid',
          'st-milestones-enabled','st-notif-followers','st-notif-comments','st-notif-likes',
          'st-notif-mentions','st-notif-squads','st-notif-announcements','st-notif-milestones'
         ].forEach(id => {
@@ -890,6 +956,80 @@
             o.style.borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
             o.style.background = isSelected ? 'rgba(var(--accent-rgb),0.1)' : 'rgba(255,255,255,0.03)';
         });
+        markDirty();
+    }
+
+    let _pinnedComicsTemp = [];
+    let _myComicsData = [];
+
+    async function openPinnedComicsModal() {
+        _pinnedComicsTemp = [...(myProfile.settings?.pinned_comics || [])];
+        const { data } = await _supabase.from('comics').select('id, title, cover').eq('owner_handle', myProfile.handle).order('created_at', { ascending: false });
+        _myComicsData = data || [];
+        renderPinnedComicsModal();
+        document.getElementById('pinned-comics-overlay').classList.add('open');
+    }
+
+    function closePinnedComicsModal() {
+        document.getElementById('pinned-comics-overlay').classList.remove('open');
+    }
+
+    function renderPinnedComicsModal() {
+        const grid = document.getElementById('pinned-comics-modal-grid');
+        if (!_myComicsData.length) {
+            grid.innerHTML = '<p style="color:#888;text-align:center;grid-column:span 3;padding:20px;">No comics found</p>';
+            return;
+        }
+        grid.innerHTML = _myComicsData.map(c => {
+            const isSelected = _pinnedComicsTemp.includes(c.id);
+            return `<div class="pinned-select-card ${isSelected ? 'selected' : ''}" onclick="togglePinnedComic('${c.id}', this)">
+                <div class="card-cover" style="position:relative;">
+                    ${c.cover ? `<img src="${c.cover}" loading="lazy">` : '<div style="width:100%;aspect-ratio:2/3;background:#1a1a1e;display:flex;align-items:center;justify-content:center;color:#333;font-size:10px;font-weight:700;">No Cover</div>'}
+                    <div class="card-check">✓</div>
+                </div>
+                <div class="card-title">${c.title || 'Untitled'}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function togglePinnedComic(comicId, el) {
+        const idx = _pinnedComicsTemp.indexOf(comicId);
+        if (idx > -1) {
+            _pinnedComicsTemp.splice(idx, 1);
+            el.classList.remove('selected');
+        } else if (_pinnedComicsTemp.length < 3) {
+            _pinnedComicsTemp.push(comicId);
+            el.classList.add('selected');
+        } else {
+            showToast('Maximum 3 pinned comics allowed');
+            return;
+        }
+        renderPinnedComicsPreview();
+    }
+
+    function renderPinnedComicsPreview() {
+        const preview = document.getElementById('pinned-comics-preview');
+        const slots = [];
+        for (let i = 0; i < 3; i++) {
+            if (_pinnedComicsTemp[i]) {
+                const comic = _myComicsData.find(c => c.id === _pinnedComicsTemp[i]);
+                if (comic) {
+                    slots.push(`<div class="pinned-preview-item"><img src="${comic.cover || ''}" onerror="this.parentNode.innerHTML='<div style=\\'width:100%;height:100%;background:#111;display:flex;align-items:center;justify-content:center;color:#333;font-size:10px;font-weight:700;\\'>No Cover</div>'"></div>`);
+                } else {
+                    slots.push('<div class="pinned-preview-item"><div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#555;">?</div></div>');
+                }
+            } else {
+                slots.push('<div class="pinned-preview-empty">+</div>');
+            }
+        }
+        preview.innerHTML = slots.join('');
+    }
+
+    function savePinnedComics() {
+        if (!myProfile.settings) myProfile.settings = {};
+        myProfile.settings.pinned_comics = _pinnedComicsTemp;
+        closePinnedComicsModal();
+        showToast('Pinned comics saved!');
         markDirty();
     }
 
@@ -1199,8 +1339,15 @@
         const msEnabled = document.getElementById('st-milestones-enabled').checked;
         const msMessage = document.getElementById('milestone-message-input').value.trim();
 
+        // Pull the latest settings from the DB instead of trusting the local cache —
+        // the local copy can be stale (e.g. if a role was granted server-side since
+        // this browser last synced), and blindly spreading it here would silently
+        // overwrite/erase fields like `role` that the client doesn't manage.
+        const { data: freshRow } = await _supabase.from('profiles').select('settings').eq('handle', myProfile.handle).maybeSingle();
+        const existingSettings = freshRow?.settings || myProfile.settings || {};
+
         const updatedSettings = {
-            ...(myProfile.settings||{}),
+            ...existingSettings,
             status: newStatus,
             show_followers:      document.getElementById('st-show-followers').checked,
             public_profile:      document.getElementById('st-public-profile').checked,
@@ -1211,7 +1358,7 @@
             show_discover:       document.getElementById('st-show-discover').checked,
             show_socials:        document.getElementById('st-show-socials').checked,
             show_grid:           document.getElementById('st-show-grid').checked,
-            pinned_comic:        document.getElementById('st-pinned-comic').checked ? (myProfile.settings?.pinned_comic||null) : null,
+            pinned_comics:       myProfile.settings?.pinned_comics || [],
             accent_color:        _settingsAccentColor,
             pronoun:             _settingsPronoun,
             milestones: { enabled:msEnabled, thresholds:_settingsMilestones, style:_settingsMilestoneStyle, message:msMessage||null },
@@ -1290,8 +1437,10 @@
         document.getElementById('st-show-discover').checked   = st.show_discover !== false;
         document.getElementById('st-show-socials').checked    = st.show_socials !== false;
         document.getElementById('st-show-grid').checked       = st.show_grid !== false;
-        document.getElementById('st-pinned-comic').checked    = !!st.pinned_comic;
         document.getElementById('st-reduced-motion').checked  = !!st.reduced_motion;
+        _myComicsData = (await _supabase.from('comics').select('id, title, cover').eq('owner_handle', myProfile.handle).order('created_at', { ascending: false })).data || [];
+        _pinnedComicsTemp = [...(st.pinned_comics || [])];
+        renderPinnedComicsPreview();
 
         _settingsAccentColor = st.accent_color || '#ff7a00';
         document.querySelectorAll('.accent-swatch').forEach(sw => sw.classList.toggle('selected', sw.dataset.color === _settingsAccentColor));
