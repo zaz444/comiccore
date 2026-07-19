@@ -159,6 +159,19 @@
     .layer { position: absolute; cursor: move; user-select: none; transform-origin: center; touch-action: none; z-index: 10; }
     .layer.active { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+    /* ── CRISP SPRITE RENDERING ──
+       Browsers default to smooth (bilinear) upscaling for <img>, which blurs
+       pixel-art sprites whenever they're scaled above their native resolution.
+       Force nearest-neighbor scaling everywhere sprites appear: on the live
+       canvas, and in the sprite library / gallery / favorites / pack thumbnails. */
+    .layer img,
+    .mob-sprite-card img,
+    .action-option img {
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+    }
+
     /* ── RESIZE HANDLES ── */
     .resize-handle {
         position: absolute; width: 26px; height: 26px; z-index: 200;
@@ -2185,6 +2198,7 @@ let sidebarSprites = null;
 const canvas = document.getElementById('comic-frame');
 const onionCanvas = document.getElementById('onion-skin-canvas');
 const onionCtx = onionCanvas.getContext('2d');
+onionCtx.imageSmoothingEnabled = false; // keep onion-skin sprite previews crisp, not blurred
 
 // ── RATIO + CANVAS SIZE ──
 // ── RATIO + CANVAS SIZE ──
@@ -7639,12 +7653,13 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     ctx.save();
                     if (applyCSS && combinedCSS) ctx.filter = combinedCSS;
                     ctx.globalAlpha = alpha;
+                    ctx.imageSmoothingEnabled = false; // crisp sprites in exported/published frames, matching the live canvas
                     ctx.translate(cx, cy);
                     ctx.rotate((layer.rotation || 0) * Math.PI / 180);
                     if (layer.flipped) ctx.scale(-1, 1);
                     ctx.drawImage(img, -lw / 2, -lh / 2, lw, lh);
                     ctx.restore();
-                    ctx.filter = 'none'; ctx.globalAlpha = 1;
+                    ctx.filter = 'none'; ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = true;
                     res();
                 };
                 img.onerror = res; img.src = src;
