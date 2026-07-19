@@ -899,10 +899,20 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     const rotate = s.rotate ?? 0;
     const xOff = s.x ?? 0;
     const yOff = s.y ?? 0;
+    const filterCSS = (s.filter && s.filter !== 'none') ? s.filter : '';
+
+    // Background FX (blur/filter chip/opacity/blend/lighting) — mirrors bgFx handling in create-mobile.html
+    const bgFx = f.bgFx || {};
+    const bgFxCSS = getSpriteFilterCSS(bgFx);
+    const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
+    const combinedBgFilter = [filterCSS, bgFxCSS, bgFxChipCSS].filter(Boolean).join(' ');
 
     const bgLayer = document.createElement('div');
     bgLayer.className = 'r-bg-div';
     bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
+    if (combinedBgFilter) bgLayer.style.filter = combinedBgFilter;
+    if (bgFx.fxOpacity !== undefined) bgLayer.style.opacity = bgFx.fxOpacity / 100;
+    if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = bgFx.fxBlend;
 
     if (isBgImage) {
         if (isBgAnimated) {
@@ -920,16 +930,30 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
             wrapper.appendChild(img);
             bgLayer.appendChild(wrapper);
         } else {
-            const imgEl = document.createElement('img');
-            imgEl.src = bg;
             const sv = Math.max(1, typeof scale === 'number' ? scale : 1);
             const bpx = Math.min(100, Math.max(0, 50 + xOff * 0.5));
             const bpy = Math.min(100, Math.max(0, 50 + yOff * 0.5));
-            imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-                + `object-position:${bpx}% ${bpy}%;`
-                + `transform:scale(${sv}) rotate(${rotate}deg);`
-                + 'transform-origin:center center;pointer-events:none;';
-            bgLayer.appendChild(imgEl);
+            const transformCSS = 'transform:scale(' + sv + ') rotate(' + rotate + 'deg);transform-origin:center center;';
+            const bgHasFxSrc = !!bgFx._fxSrc;
+            const bgFxStrength = (bgFx.blurStrength != null) ? bgFx.blurStrength : 100;
+            if (bgHasFxSrc && bgFxStrength < 100) {
+                const baseImg = document.createElement('img');
+                baseImg.src = bg;
+                baseImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+                    + `object-position:${bpx}% ${bpy}%;pointer-events:none;` + transformCSS;
+                const overlayImg = document.createElement('img');
+                overlayImg.src = bgFx._fxSrc;
+                overlayImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+                    + `object-position:${bpx}% ${bpy}%;pointer-events:none;opacity:${bgFxStrength / 100};` + transformCSS;
+                bgLayer.appendChild(baseImg);
+                bgLayer.appendChild(overlayImg);
+            } else {
+                const imgEl = document.createElement('img');
+                imgEl.src = bgHasFxSrc ? bgFx._fxSrc : bg;
+                imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+                    + `object-position:${bpx}% ${bpy}%;pointer-events:none;` + transformCSS;
+                bgLayer.appendChild(imgEl);
+            }
         }
     } else if (isBgGradient) {
         bgLayer.style.background = bg;
@@ -940,6 +964,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         bgLayer.style.background = bg;
     }
 
+    applyLightingToDOM(bgLayer, bgFx);
     frameEl.appendChild(bgLayer);
 
     // Layers
@@ -956,6 +981,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         el.style.top = ly + 'px';
         el.style.width = lw + 'px';
         el.style.zIndex = 10 + layerIdx;
+        if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = l.fxBlend;
 
         const rot = l.rotation || 0;
         const flip = l.flipped ? -1 : 1;
@@ -973,15 +999,38 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
 
         if (l.type === 'img') {
-            const imgSrc = l._fxSrc || l.src;
-            // Skip base64 blobs — only render real URLs; snapshots handle the rest
-            if (imgSrc && imgSrc.startsWith('http')) {
-                const img = document.createElement('img');
-                img.src = imgSrc;
-                img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
-                if (combinedFilter) img.style.filter = combinedFilter;
-                el.appendChild(img);
+            const hasFxSrc  = !!l._fxSrc;
+            const bStrength = (l.blurStrength != null) ? l.blurStrength : 100;
+            const imgBlurCSS   = hasFxSrc ? '' : blurCSS;
+            const imgFilterCSS = [imgBlurCSS, lfCSS].filter(Boolean).join(' ');
+
+            if (hasFxSrc && bStrength < 100) {
+                if (l.src && l.src.startsWith('http')) {
+                    const base = document.createElement('img');
+                    base.src = l.src;
+                    base.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;';
+                    el.appendChild(base);
+                }
+                if (l._fxSrc.startsWith('http')) {
+                    const overlay = document.createElement('img');
+                    overlay.src = l._fxSrc;
+                    overlay.style.cssText = `width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;opacity:${bStrength / 100};`;
+                    if (lfCSS) overlay.style.filter = lfCSS;
+                    el.appendChild(overlay);
+                }
+                el.style.position = 'relative';
+            } else {
+                const imgSrc = hasFxSrc ? l._fxSrc : l.src;
+                // Skip base64 blobs — only render real URLs; snapshots handle the rest
+                if (imgSrc && imgSrc.startsWith('http')) {
+                    const img = document.createElement('img');
+                    img.src = imgSrc;
+                    img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+                    if (imgFilterCSS) img.style.filter = imgFilterCSS;
+                    el.appendChild(img);
+                }
             }
+            applyLightingToDOM(el, l);
         } else if (l.type === 'bubble' || l.type === 'thinking') {
             const fs = (l.fontSize || 28) * sx;
             const ff = l.fontFamily || "'Inter', sans-serif";
@@ -1575,6 +1624,65 @@ function getSpriteFilterCSS(layer) {
   return '';
 }
 
+// Light style presets — must stay in sync with LIGHT_STYLES in create-mobile.html.
+// Each is just a { blend, brightness, radius } combo fed into the same radial
+// gradient below, picked by the layer's saved `lighting.style` key.
+const LIGHT_STYLES = {
+  glow:      { blend: 'screen',      brightness: 130, radius: 70  },
+  spotlight: { blend: 'screen',      brightness: 170, radius: 35  },
+  wash:      { blend: 'overlay',     brightness: 115, radius: 100 },
+  neon:      { blend: 'color-dodge', brightness: 150, radius: 55  },
+  lensflare: { blend: 'screen',      brightness: 160, radius: 65, flare: true },
+};
+
+// Paints a layer's (or the background's) light effect as a radial-gradient
+// overlay — must stay in sync with applyLightingToDOM() in create-mobile.html.
+function applyLightingToDOM(el, layer) {
+  const old = el.querySelector('.layer-light-overlay');
+  if (old) old.remove();
+  if (!layer || !layer.lighting || !layer.lighting.enabled) return;
+
+  const L = layer.lighting;
+  const brightness = (L.brightness || 130) / 100;
+  const x = L.x != null ? L.x : 50;
+  const y = L.y != null ? L.y : 30;
+  const r = L.radius || 70;
+  const c = L.color || '255,220,120';
+  const style = LIGHT_STYLES[L.style] || LIGHT_STYLES.glow;
+  const blend = style.blend;
+  const alpha1 = Math.min(0.85, (brightness - 1) * 1.6 + 0.15).toFixed(3);
+  const alpha2 = Math.min(0.4,  (brightness - 1) * 0.7).toFixed(3);
+
+  const background = style.flare
+    ? `radial-gradient(circle at ${x}% ${y}%,
+         rgba(255,255,255,${alpha1}) 0%,
+         rgba(${c},${alpha1}) ${r * 0.1}%,
+         rgba(${c},0) ${r * 0.25}%),
+       radial-gradient(circle at ${x}% ${y}%,
+         rgba(${c},0) ${r * 0.35}%,
+         rgba(${c},${alpha2}) ${r * 0.48}%,
+         rgba(${c},0) ${r * 0.6}%),
+       radial-gradient(circle at ${x}% ${y}%,
+         rgba(${c},0) ${r * 0.75}%,
+         rgba(${c},${alpha2 * 0.55}) ${r * 0.85}%,
+         rgba(${c},0) ${r * 0.98}%)`
+    : `radial-gradient(circle at ${x}% ${y}%,
+         rgba(${c},${alpha1}) 0%,
+         rgba(${c},${alpha2}) ${r * 0.45}%,
+         rgba(${c},0) ${r}%)`;
+
+  const ov = document.createElement('div');
+  ov.className = 'layer-light-overlay';
+  ov.style.cssText = `
+    position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+    background:${background};
+    mix-blend-mode:${blend};z-index:999;
+  `;
+  el.style.position = 'relative';
+  el.style.overflow = 'visible';
+  el.appendChild(ov);
+}
+
 // ── Preload all images across all frames ─────────────────────
 // Fires-and-forgets Image() loads so the browser caches every
 // sprite and background before the reader reaches that frame.
@@ -1848,11 +1956,19 @@ function _renderFrameDOM(f, next, cw, ch) {
   const filter = s.filter || 'none';
   const filterCSS = filter === 'none' ? '' : filter;
 
+  // Background FX (blur/filter chip/opacity/blend/lighting) — mirrors bgFx handling in create-mobile.html
+  const bgFx = f.bgFx || {};
+  const bgFxCSS = getSpriteFilterCSS(bgFx);
+  const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
+  const combinedBgFilter = [filterCSS, bgFxCSS, bgFxChipCSS].filter(Boolean).join(' ');
+
   const bgLayer = document.createElement('div');
   bgLayer.id = 'r-bg-layer';
   bgLayer.className = 'r-bg-div';
   bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
-  if (filterCSS) bgLayer.style.filter = filterCSS;
+  if (combinedBgFilter) bgLayer.style.filter = combinedBgFilter;
+  if (bgFx.fxOpacity !== undefined) bgLayer.style.opacity = bgFx.fxOpacity / 100;
+  if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = bgFx.fxBlend;
 
   if (isBgImage) {
     next.style.backgroundColor = 'transparent';
@@ -1873,16 +1989,31 @@ function _renderFrameDOM(f, next, cw, ch) {
       bgLayer.appendChild(wrapper);
     } else {
       // Static image -- matches create.html: object-fit:cover fills frame, scale() zooms
-      const imgEl = document.createElement('img');
-      imgEl.src = bg;
       const sv  = Math.max(1, typeof scale === 'number' ? scale : 1);
       const bpx = Math.min(100, Math.max(0, 50 + xOff * 0.5));
       const bpy = Math.min(100, Math.max(0, 50 + yOff * 0.5));
-      imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-        + `object-position:${bpx}% ${bpy}%;`
-        + `transform:scale(${sv}) rotate(${rotate}deg);`
-        + 'transform-origin:center center;pointer-events:none;';
-      bgLayer.appendChild(imgEl);
+      const transformCSS = 'transform:scale(' + sv + ') rotate(' + rotate + 'deg);transform-origin:center center;';
+      const bgHasFxSrc = !!bgFx._fxSrc;
+      const bgFxStrength = (bgFx.blurStrength != null) ? bgFx.blurStrength : 100;
+      if (bgHasFxSrc && bgFxStrength < 100) {
+        // Clean base + FX overlay at blur-opacity — matches create.html
+        const baseImg = document.createElement('img');
+        baseImg.src = bg;
+        baseImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+          + `object-position:${bpx}% ${bpy}%;pointer-events:none;` + transformCSS;
+        const overlayImg = document.createElement('img');
+        overlayImg.src = bgFx._fxSrc;
+        overlayImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+          + `object-position:${bpx}% ${bpy}%;pointer-events:none;opacity:${bgFxStrength / 100};` + transformCSS;
+        bgLayer.appendChild(baseImg);
+        bgLayer.appendChild(overlayImg);
+      } else {
+        const imgEl = document.createElement('img');
+        imgEl.src = bgHasFxSrc ? bgFx._fxSrc : bg;
+        imgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+          + `object-position:${bpx}% ${bpy}%;pointer-events:none;` + transformCSS;
+        bgLayer.appendChild(imgEl);
+      }
     }
   } else if (isBgGradient) {
     next.style.backgroundColor = 'transparent';
@@ -1894,6 +2025,7 @@ function _renderFrameDOM(f, next, cw, ch) {
     next.style.backgroundColor = bg;
   }
 
+  applyLightingToDOM(bgLayer, bgFx);
   next.appendChild(bgLayer);
 
   // 4. Add this frame's layers (buffer was already fully cleared above)
@@ -1912,6 +2044,7 @@ function _renderFrameDOM(f, next, cw, ch) {
     el.style.top    = ly + 'px';
     el.style.width  = lw + 'px';
     el.style.zIndex = 10 + layerIdx;
+    if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = l.fxBlend;
 
     // Rotation + flip — transform-origin MUST be center to match create.html
     const rot  = l.rotation || 0;
@@ -1933,15 +2066,42 @@ function _renderFrameDOM(f, next, cw, ch) {
     const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
 
     if (l.type === 'img') {
-      const imgSrc = l._fxSrc || l.src;
-      // Skip base64 blobs — only render real URLs; snapshots handle the rest
-      if (imgSrc && imgSrc.startsWith('http')) {
-        const img = document.createElement('img');
-        img.src = imgSrc;
-        img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
-        if (combinedFilter) img.style.filter = combinedFilter;
-        el.appendChild(img);
+      const hasFxSrc   = !!l._fxSrc;
+      const bStrength  = (l.blurStrength != null) ? l.blurStrength : 100;
+      // blurCSS (soft/pixel CSS approximation) is skipped when a canvas-baked
+      // _fxSrc snapshot already exists, so the effect isn't applied twice.
+      const imgBlurCSS   = hasFxSrc ? '' : blurCSS;
+      const imgFilterCSS = [imgBlurCSS, lfCSS].filter(Boolean).join(' ');
+
+      if (hasFxSrc && bStrength < 100) {
+        // Clean base + FX overlay at blur-opacity — matches create.html
+        if (l.src && l.src.startsWith('http')) {
+          const base = document.createElement('img');
+          base.src = l.src;
+          base.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;';
+          el.appendChild(base);
+        }
+        if (l._fxSrc.startsWith('http')) {
+          const overlay = document.createElement('img');
+          overlay.src = l._fxSrc;
+          overlay.style.cssText = `width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;opacity:${bStrength / 100};`;
+          if (lfCSS) overlay.style.filter = lfCSS;
+          el.appendChild(overlay);
+        }
+        el.style.position = 'relative';
+      } else {
+        const imgSrc = hasFxSrc ? l._fxSrc : l.src;
+        // Skip base64 blobs — only render real URLs; snapshots handle the rest
+        if (imgSrc && imgSrc.startsWith('http')) {
+          const img = document.createElement('img');
+          img.src = imgSrc;
+          img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+          if (imgFilterCSS) img.style.filter = imgFilterCSS;
+          el.appendChild(img);
+        }
       }
+      // Lighting overlay — sprite layers only, matches create.html
+      applyLightingToDOM(el, l);
 
     } else if (l.type === 'bubble' || l.type === 'thinking') {
       const fs = (l.fontSize || 28) * sx;
