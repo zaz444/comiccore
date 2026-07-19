@@ -19,6 +19,8 @@
       --orange: #ff7a00;
       --orange-light: #ff9a3c;
       --orange-glow: rgba(255,122,0,0.22);
+      --accent: #ff7a00;
+      --accent-rgb: 255,122,0;
       --bg: #0f0f11;
       --bg2: #18181b;
       --card: #1e1e22;
@@ -45,7 +47,7 @@
       content: '';
       position: fixed; top: -100px; left: -80px;
       width: 480px; height: 480px;
-      background: radial-gradient(circle, rgba(255,122,0,0.09) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(var(--accent-rgb),0.09) 0%, transparent 70%);
       pointer-events: none; z-index: 0;
     }
     body::after {
@@ -95,7 +97,7 @@
       border-radius: 20px; padding: 22px 20px;
       display: flex; align-items: center; justify-content: space-between;
       cursor: pointer; border: none; font-family: 'Inter', sans-serif;
-      box-shadow: 0 8px 32px var(--orange-glow), 0 0 0 1px rgba(255,122,0,0.3);
+      box-shadow: 0 8px 32px var(--orange-glow), 0 0 0 1px rgba(var(--accent-rgb),0.3);
       transition: all 0.2s ease; margin-bottom: 12px;
       position: relative; overflow: hidden;
     }
@@ -580,6 +582,34 @@
   let _myHandle = '';
   let _isOwner = false;
 
+  function hexToRgb(hex) {
+    const clean = hex.replace('#', '');
+    const r = parseInt(clean.slice(0,2), 16);
+    const g = parseInt(clean.slice(2,4), 16);
+    const b = parseInt(clean.slice(4,6), 16);
+    return `${r},${g},${b}`;
+  }
+  function lightenHex(hex, amt) {
+    const clean = hex.replace('#', '');
+    const r = Math.min(255, parseInt(clean.slice(0,2), 16) + amt);
+    const g = Math.min(255, parseInt(clean.slice(2,4), 16) + amt);
+    const b = Math.min(255, parseInt(clean.slice(4,6), 16) + amt);
+    return `rgb(${r},${g},${b})`;
+  }
+  function applyAccentColor(hex) {
+    const color = hex || '#ff7a00';
+    const rgb = hexToRgb(color);
+    document.documentElement.style.setProperty('--accent', color);
+    document.documentElement.style.setProperty('--accent-rgb', rgb);
+    document.documentElement.style.setProperty('--orange', color);
+    document.documentElement.style.setProperty('--orange-light', lightenHex(color, 50));
+    document.documentElement.style.setProperty('--orange-glow', `rgba(${rgb},0.22)`);
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute('content', color);
+  }
+  // Apply immediately from cached profile so there's no flash of the default color
+  applyAccentColor(JSON.parse(localStorage.getItem('user_profile') || '{}').accent_color);
+
   async function checkUser() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const user = session?.user ?? null;
@@ -593,6 +623,7 @@
           localStorage.setItem('user_profile', JSON.stringify(myProfile));
         }
       }
+      applyAccentColor(myProfile.accent_color);
       _myHandle = myProfile.handle || '';
       _isOwner = _myHandle === 'jeffyplays';
 

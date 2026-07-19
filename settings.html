@@ -50,55 +50,77 @@
             display: flex; width: 100%; height: 100%;
         }
 
-        .settings-sidebar {
-            width: 220px; min-width: 220px;
-            background: rgba(16, 16, 22, 0.6);
-            border-right: 1px solid var(--border);
-            overflow-y: auto; overflow-x: hidden;
-            display: flex; flex-direction: column;
-            position: relative;
+        /* ── Desktop: centered modal card instead of full-bleed stretch ── */
+        @media (min-width: 701px) {
+            #settings-view {
+                align-items: center; justify-content: center;
+                padding: 40px;
+            }
+            .settings-panel-wrapper {
+                width: 100%; max-width: 640px;
+                height: 100%; max-height: 780px;
+                margin: 0 auto;
+            }
+            .settings-content {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: 20px;
+                box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+            }
+            .settings-content-header { border-radius: 20px 20px 0 0; }
         }
 
-        .sidebar-top-header {
-            padding: 22px 18px 8px;
-            display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+        /* ── Discord-style Settings Menu (level 1) ── */
+        .settings-menu-list { display: none; }
+        .settings-menu-list.active { display: block; }
+        .settings-menu-group { margin-bottom: 22px; }
+        .settings-menu-group-title {
+            font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+            color: var(--muted); text-transform: uppercase;
+            padding: 0 6px 8px;
         }
-        .home-back-btn {
-            width: 34px; height: 34px; border-radius: 10px;
-            background: rgba(255,255,255,0.07); border: 1px solid var(--tile-border);
-            color: var(--muted); display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: .15s; flex-shrink: 0; text-decoration: none;
+        .settings-menu-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
         }
-        .home-back-btn:hover { background: rgba(255,255,255,0.12); color: white; }
-        .home-logo { font-size: 18px; font-weight: 900; color: var(--accent); letter-spacing: -0.5px; }
-        .home-logo sup { font-size: 9px; vertical-align: super; opacity: 0.7; }
+        .settings-menu-row {
+            display: flex; align-items: center; gap: 14px;
+            padding: 15px 16px;
+            cursor: pointer; transition: background .15s;
+            border-bottom: 1px solid var(--border);
+            background: none; border-left: none; border-right: none; border-top: none;
+            width: 100%; text-align: left; font-family: 'Inter', sans-serif;
+        }
+        .settings-menu-row:last-child { border-bottom: none; }
+        .settings-menu-row:hover { background: rgba(255,255,255,0.05); }
+        .settings-menu-row:active { background: rgba(255,255,255,0.08); }
+        .settings-menu-row-icon {
+            width: 20px; height: 20px; color: var(--accent);
+            flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+        }
+        .settings-menu-row-icon svg { width: 100%; height: 100%; }
+        .settings-menu-row-label { flex: 1; font-size: 14px; font-weight: 700; color: var(--text); min-width: 0; }
+        .settings-menu-row-value {
+            font-size: 12.5px; color: var(--muted); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; max-width: 120px;
+        }
+        .settings-menu-row-chevron { color: var(--muted); flex-shrink: 0; width: 16px; height: 16px; }
+        .settings-menu-row.danger .settings-menu-row-label,
+        .settings-menu-row.danger .settings-menu-row-icon { color: #ff3b30; }
 
-        .settings-section-group { padding: 18px 0 0; }
-
-        .settings-group-title {
-            font-size: 9px; font-weight: 900;
-            color: var(--accent); text-transform: uppercase;
-            letter-spacing: 2px; padding: 0 16px 10px;
-            opacity: 0.7;
+        .settings-back-btn {
+            width: 34px; height: 34px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--border);
+            border-radius: 10px; color: var(--text);
+            cursor: pointer; display: none;
+            align-items: center; justify-content: center;
+            transition: .15s; flex-shrink: 0;
         }
-
-        .settings-nav-item {
-            padding: 12px 16px; margin: 2px 8px;
-            background: transparent;
-            border: none; border-radius: 10px;
-            color: var(--muted); cursor: pointer;
-            font-size: 13px; font-weight: 600;
-            font-family: 'Inter', sans-serif;
-            text-align: left; transition: .15s;
-            width: calc(100% - 16px);
-        }
-        .settings-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
-        .settings-nav-item.active {
-            background: rgba(var(--accent-rgb), 0.15);
-            color: var(--accent);
-            border-left: 3px solid var(--accent);
-            padding-left: 13px;
-        }
+        .settings-back-btn.show { display: flex; }
+        .settings-back-btn:hover { background: rgba(255,255,255,0.12); border-color: var(--accent); }
 
         /* ══════════════════════════════════════
            CONTENT PANEL
@@ -126,8 +148,6 @@
             cursor: pointer; transition: .15s; flex-shrink: 0; text-decoration: none; font-size: 15px;
         }
         .settings-close-arrow:hover { background: rgba(255,255,255,0.12); color: white; }
-
-        .settings-mobile-back-btn { display: none; }
 
         .settings-content-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px 28px 120px; }
 
@@ -365,48 +385,18 @@
            RESPONSIVE — MOBILE (≤ 600px)
         ══════════════════════════════════════ */
         @media (max-width: 600px) {
-            /* Stacked single-column with slide transition, like profile settings */
             .settings-panel-wrapper { position: relative; overflow: hidden; }
-            .settings-sidebar {
-                width: 100%; min-width: 100%;
-                position: absolute; inset: 0; z-index: 1;
-                transition: transform 0.28s cubic-bezier(.4,0,.2,1), opacity 0.28s ease;
-            }
-            .settings-content {
-                position: absolute; inset: 0; z-index: 2;
-                transform: translateX(100%);
-                transition: transform 0.28s cubic-bezier(.4,0,.2,1);
-                background: var(--bg);
-            }
-            .settings-panel-wrapper.mobile-content-open .settings-sidebar {
-                transform: translateX(-30%); opacity: 0; pointer-events: none;
-            }
-            .settings-panel-wrapper.mobile-content-open .settings-content {
-                transform: translateX(0);
-            }
 
-            /* Mobile back button inside content header, replaces close-arrow's role */
-            .settings-mobile-back-btn {
-                display: flex; align-items: center; justify-content: center;
-                width: 36px; height: 36px;
-                background: rgba(255,255,255,0.06); border: 1px solid var(--border);
-                border-radius: 10px; color: var(--text); cursor: pointer;
-                transition: .15s; flex-shrink: 0;
-            }
-            .settings-mobile-back-btn:hover { background: rgba(255,255,255,0.1); }
+            .settings-back-btn { width: 36px; height: 36px; }
 
             .settings-content-header { padding: 14px 16px; }
             .settings-content-title  { font-size: 19px; }
             .settings-close-arrow    { width: 34px; height: 34px; }
             .settings-content-scroll { padding: 20px 16px 110px; }
-            .settings-section-group  { padding: 6px 0 0; }
-            .settings-group-title    { padding: 14px 16px 8px; font-size: 9px; }
-            .settings-nav-item {
-                padding: 15px 16px; font-size: 15px; margin: 2px 8px;
-                border-radius: 10px; min-height: 52px;
-                display: flex; align-items: center; width: calc(100% - 16px);
+            .settings-menu-row {
+                padding: 16px 16px; min-height: 52px;
             }
-            .settings-nav-item.active { padding-left: 13px; }
+            .settings-menu-row-label { font-size: 15px; }
 
             .settings-profile-header { margin: -20px -16px 20px -16px; }
             .srow:has(.glass-input), .srow:has(.glass-textarea) { flex-direction: column; align-items: stretch; }
@@ -492,53 +482,102 @@
 <!-- MAIN SETTINGS VIEW -->
 <div id="settings-view">
 
-    <!-- TWO-PANEL SETTINGS LAYOUT -->
     <div class="settings-panel-wrapper" id="settings-panel-wrapper">
 
-        <!-- SIDEBAR NAV -->
-        <div class="settings-sidebar">
-            <div class="sidebar-top-header">
-                <a href="javascript:history.back()" class="home-back-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
-                </a>
-                <div class="home-logo">ComicCore<sup>™</sup></div>
-            </div>
-
-            <div class="settings-section-group">
-                <div class="settings-group-title">MY ACCOUNT</div>
-                <button class="settings-nav-item active" data-page="profile" onclick="switchSettingsPage('profile')">Profile</button>
-                <button class="settings-nav-item" data-page="connections" onclick="switchSettingsPage('connections')">Connections</button>
-                <button class="settings-nav-item" data-page="privacy" onclick="switchSettingsPage('privacy')">Privacy &amp; Data</button>
-                <button class="settings-nav-item" data-page="account" onclick="switchSettingsPage('account')">Account</button>
-            </div>
-            <div class="settings-section-group">
-                <div class="settings-group-title">APPEARANCE</div>
-                <button class="settings-nav-item" data-page="profile-display" onclick="switchSettingsPage('profile-display')">Profile Display</button>
-                <button class="settings-nav-item" data-page="accent-pronouns" onclick="switchSettingsPage('accent-pronouns')">Accent &amp; Pronouns</button>
-            </div>
-            <div class="settings-section-group">
-                <div class="settings-group-title">ACTIVITY</div>
-                <button class="settings-nav-item" data-page="notifications" onclick="switchSettingsPage('notifications')">Notifications</button>
-                <button class="settings-nav-item" data-page="milestones" onclick="switchSettingsPage('milestones')">Milestones</button>
-            </div>
-            <div class="settings-section-group">
-                <div class="settings-group-title">READING</div>
-                <button class="settings-nav-item" data-page="toonscroll" onclick="switchSettingsPage('toonscroll')">ToonScroll</button>
-            </div>
-        </div>
-
-        <!-- CONTENT PANEL -->
         <div class="settings-content">
             <div class="settings-content-header">
                 <div class="settings-content-header-left">
-                    <button class="settings-mobile-back-btn" onclick="mobileSettingsBack()" aria-label="Back to menu">
+                    <button class="settings-back-btn" id="settings-back-btn" onclick="backToSettingsMenu()" aria-label="Back">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
                     </button>
-                    <div class="settings-content-title" id="page-title">Profile</div>
+                    <div class="settings-content-title" id="page-title">Settings</div>
                 </div>
                 <a href="javascript:history.back()" class="settings-close-arrow" aria-label="Close settings">✕</a>
             </div>
             <div class="settings-content-scroll">
+
+                <!-- SETTINGS MENU (level 1, Discord-style) -->
+                <div class="settings-menu-list active" id="settings-menu">
+                    <div class="settings-menu-group">
+                        <div class="settings-menu-group-title">My Account</div>
+                        <div class="settings-menu-card">
+                            <button class="settings-menu-row" onclick="switchSettingsPage('profile')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                                <span class="settings-menu-row-label">Profile</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <button class="settings-menu-row" onclick="switchSettingsPage('connections')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg></span>
+                                <span class="settings-menu-row-label">Connections</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <button class="settings-menu-row" onclick="switchSettingsPage('privacy')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></span>
+                                <span class="settings-menu-row-label">Privacy &amp; Data</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <button class="settings-menu-row" onclick="switchSettingsPage('account')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+                                <span class="settings-menu-row-label">Account</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-menu-group">
+                        <div class="settings-menu-group-title">Appearance</div>
+                        <div class="settings-menu-card">
+                            <button class="settings-menu-row" onclick="switchSettingsPage('profile-display')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                                <span class="settings-menu-row-label">Profile Display</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <button class="settings-menu-row" onclick="switchSettingsPage('accent-pronouns')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c1.7 0 3.1-1.4 3.1-3.1C20.5 6.4 16.7 2 12 2Z"/></svg></span>
+                                <span class="settings-menu-row-label">Accent &amp; Pronouns</span>
+                                <span class="settings-menu-row-value" id="menu-accent-preview"></span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-menu-group">
+                        <div class="settings-menu-group-title">Activity</div>
+                        <div class="settings-menu-card">
+                            <button class="settings-menu-row" onclick="switchSettingsPage('notifications')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+                                <span class="settings-menu-row-label">Notifications</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <button class="settings-menu-row" onclick="switchSettingsPage('milestones')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4h13l-2.5 4L17 12H4"/></svg></span>
+                                <span class="settings-menu-row-label">Milestones</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-menu-group">
+                        <div class="settings-menu-group-title">Reading</div>
+                        <div class="settings-menu-card">
+                            <button class="settings-menu-row" onclick="switchSettingsPage('toonscroll')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg></span>
+                                <span class="settings-menu-row-label">ToonScroll</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-menu-group">
+                        <div class="settings-menu-card">
+                            <button class="settings-menu-row danger" onclick="switchSettingsPage('account')">
+                                <span class="settings-menu-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+                                <span class="settings-menu-row-label">Danger Zone</span>
+                                <svg class="settings-menu-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
             <!-- PAGE: PROFILE -->
             <div class="settings-page" id="page-profile">
@@ -819,27 +858,23 @@
     };
 
     function switchSettingsPage(name) {
-        // Activate the right page
+        document.getElementById('settings-menu').classList.remove('active');
         document.querySelectorAll('.settings-page').forEach(p => p.classList.remove('active'));
         const page = document.getElementById('page-' + name);
         if (page) page.classList.add('active');
         document.getElementById('page-title').textContent = PAGE_TITLES[name] || 'Settings';
+        document.getElementById('settings-back-btn').classList.add('show');
         document.querySelector('.settings-content-scroll').scrollTop = 0;
-
-        // Highlight active nav item
-        document.querySelectorAll('.settings-nav-item').forEach(t => {
-            t.classList.toggle('active', t.dataset.page === name);
-        });
-
-        // On mobile, slide the content panel into view
-        document.getElementById('settings-panel-wrapper').classList.add('mobile-content-open');
 
         if (name === 'toonscroll') loadToonScrollSettings();
     }
 
-    // Mobile: slide back to the nav list
-    function mobileSettingsBack() {
-        document.getElementById('settings-panel-wrapper').classList.remove('mobile-content-open');
+    function backToSettingsMenu() {
+        document.querySelectorAll('.settings-page').forEach(p => p.classList.remove('active'));
+        document.getElementById('settings-menu').classList.add('active');
+        document.getElementById('page-title').textContent = 'Settings';
+        document.getElementById('settings-back-btn').classList.remove('show');
+        document.querySelector('.settings-content-scroll').scrollTop = 0;
     }
 
     // Keep switchPage as alias for backward-compat (used in unsaved-banner save btn etc.)
@@ -932,6 +967,8 @@
         const color = hex || '#ff7a00';
         document.documentElement.style.setProperty('--accent', color);
         document.documentElement.style.setProperty('--accent-rgb', hexToRgb(color));
+        const preview = document.getElementById('menu-accent-preview');
+        if (preview) preview.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${color};vertical-align:-2px;"></span>`;
     }
 
     function selectAccentColor(color, el) {
@@ -1279,7 +1316,7 @@
         document.getElementById('st-notif-announcements').checked = st.notif_announcements !== false;
         document.getElementById('st-notif-milestones').checked    = st.notif_milestones !== false;
 
-        switchSettingsPage('profile');
+        backToSettingsMenu();
         markClean();
         setTimeout(attachDirtyListeners, 50);
     }
