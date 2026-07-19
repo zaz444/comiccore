@@ -2171,8 +2171,19 @@ async function deleteComic(id, title, isMine = true) {
     : `Remove "${title}" as a moderator? This deletes it from Discover permanently for its creator.`;
   if (!confirm(msg)) return;
   closePopup();
-  const { error } = await _sb.from('comics').delete().eq('id', id);
+  // BUGFIX: a delete blocked by Row Level Security doesn't come back as an `error` —
+  // Supabase just matches zero rows and reports success either way. Without .select()
+  // there's no way to tell "deleted 1 row" from "deleted 0 rows (RLS blocked it)", so a
+  // blocked delete looked identical to a real one: toast said "Comic deleted", the row
+  // vanished from the local allComics array, but the row itself never left the database
+  // — and the next loadFeeds() refetch brought it right back. Requesting the deleted
+  // rows back and checking the array is actually non-empty is the only way to catch this.
+  const { data, error } = await _sb.from('comics').delete().eq('id', id).select('id');
   if (error) { showToast('Error deleting comic: ' + error.message); return; }
+  if (!data || !data.length) {
+    showToast("Couldn't delete — you may not have permission to remove this comic.");
+    return;
+  }
   allComics = allComics.filter(c => c.id !== id);
   renderComics(allComics, globalStars);
   showToast(isMine ? 'Comic deleted' : 'Comic removed');
