@@ -2021,13 +2021,16 @@ async function openPopup(id) {
   }
 
   // Delete: the creator can always delete their own comic; mods/admin can
-  // delete any comic as a moderation action.
+  // delete any comic as a moderation action. Mod/admin status takes priority
+  // in the label/wording — if you have mod powers, this always reads as a
+  // moderator action, even on a comic you happen to also own.
   if (isMine || isModOrAdmin) {
+    const asModerator = isModOrAdmin;
     const delBtn = document.createElement('button');
     delBtn.className = 'popup-delete-btn';
     delBtn.innerHTML = '🗑';
-    delBtn.title     = isMine ? 'Delete comic' : 'Delete comic (moderator action)';
-    delBtn.onclick   = () => deleteComic(c.id, c.title, isMine);
+    delBtn.title     = asModerator ? 'Delete comic (moderator action)' : 'Delete comic';
+    delBtn.onclick   = () => deleteComic(c.id, c.title, asModerator);
     btns.appendChild(delBtn);
   }
 
@@ -2165,10 +2168,10 @@ function openRatingModal(comicId) {
   location.href = 'reader.html?id=' + encodeURIComponent(comicId);
 }
 
-async function deleteComic(id, title, isMine = true) {
-  const msg = isMine
-    ? `Delete "${title}"? This removes it from Discover permanently.`
-    : `Remove "${title}" as a moderator? This deletes it from Discover permanently for its creator.`;
+async function deleteComic(id, title, asModerator = false) {
+  const msg = asModerator
+    ? `Remove "${title}" as a moderator? This deletes it from Discover permanently for its creator.`
+    : `Delete "${title}"? This removes it from Discover permanently.`;
   if (!confirm(msg)) return;
   closePopup();
   // BUGFIX: a delete blocked by Row Level Security doesn't come back as an `error` —
@@ -2186,7 +2189,7 @@ async function deleteComic(id, title, isMine = true) {
   }
   allComics = allComics.filter(c => c.id !== id);
   renderComics(allComics, globalStars);
-  showToast(isMine ? 'Comic deleted' : 'Comic removed');
+  showToast(asModerator ? 'Comic removed' : 'Comic deleted');
 }
 
 // ── Comments ──────────────────────────────────────────────
