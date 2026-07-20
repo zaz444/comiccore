@@ -794,6 +794,31 @@
     .action-option img { width: 100%; aspect-ratio: 1; object-fit: contain; }
     .action-option strong { display: block; font-size: 10px; margin-top: 4px; color: #aaa; }
 
+    /* ── Advanced Color Picker (Spectrum + Sliders) ── */
+    .cp-tab-row { display: flex; gap: 6px; margin-bottom: 14px; }
+    .cp-tab { flex: 1; padding: 9px; background: #161616; border: 1.5px solid #2c2c2e; color: #888; border-radius: 10px; font-size: 11px; font-weight: 900; font-family: inherit; cursor: pointer; transition: 0.15s; text-transform: uppercase; letter-spacing: 0.5px; }
+    .cp-tab.active { background: var(--teal); border-color: var(--teal); color: #000; }
+    #cp-spectrum-box { position: relative; width: 100%; height: 230px; border-radius: 16px; overflow: hidden; cursor: crosshair; touch-action: none; border: 1px solid #2c2c2e; }
+    #cp-spectrum-hue, #cp-spectrum-white, #cp-spectrum-black { position: absolute; inset: 0; }
+    #cp-spectrum-hue { background: linear-gradient(to bottom, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000); }
+    #cp-spectrum-white { background: linear-gradient(to right, rgba(255,255,255,1), rgba(255,255,255,0) 50%); }
+    #cp-spectrum-black { background: linear-gradient(to right, rgba(0,0,0,0) 50%, rgba(0,0,0,1)); }
+    #cp-spectrum-cursor { position: absolute; width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.5); transform: translate(-50%,-50%); pointer-events: none; }
+    .cp-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .cp-slider-label { width: 16px; font-size: 12px; font-weight: 900; color: #888; flex-shrink: 0; }
+    .cp-slider-row input[type=range] { flex: 1; accent-color: var(--teal); }
+    .cp-slider-val { width: 34px; text-align: right; font-size: 11px; font-weight: 800; color: #aaa; flex-shrink: 0; }
+    .cp-bottom-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+    .cp-eyedrop-btn { width: 38px; height: 38px; border-radius: 10px; background: #161616; border: 1.5px solid #2c2c2e; color: var(--text); font-size: 15px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+    .cp-eyedrop-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .cp-hex-field { flex: 1; min-width: 0; background: #000; border: 1px solid #333; border-radius: 10px; color: var(--text); font-size: 13px; font-weight: 700; padding: 10px; text-align: center; font-family: inherit; text-transform: uppercase; }
+    .cp-current-swatch { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); flex-shrink: 0; }
+    .cp-recent-label { font-size: 9px; font-weight: 900; color: #444; text-transform: uppercase; letter-spacing: 1.5px; margin: 16px 0 8px; }
+    .cp-recent-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .cp-recent-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); cursor: pointer; padding: 0; flex-shrink: 0; }
+    .cp-add-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px dashed #444; background: none; color: #666; font-size: 16px; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: inherit; line-height: 1; }
+    .mob-color-trigger-btn { width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(from 180deg,#ff3b30,#ff9500,#ffcc00,#34c759,#30b0c7,#007aff,#5856d6,#ff2d92,#ff3b30); border: 2px solid rgba(255,255,255,0.25); cursor: pointer; padding: 0; flex-shrink: 0; }
+
     /* Export sheet */
     .export-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-size: 13px; }
     .export-tab-row { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -1022,6 +1047,52 @@
             <span onclick="closeActionModal()" style="cursor:pointer;font-size:22px;">✕</span>
         </div>
         <div id="action-selector-list" class="action-selector-grid"></div>
+    </div>
+</div>
+
+<!-- Advanced Color Picker (Spectrum + Sliders) -->
+<div id="color-picker-modal" class="overlay-full" style="z-index:8500;" onclick="if(event.target===this)closeAdvancedColorPicker()">
+    <div class="modal-content" style="max-width:340px;" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h2 style="margin:0;color:var(--text);font-size:16px;">Colors</h2>
+            <span onclick="closeAdvancedColorPicker()" style="cursor:pointer;font-size:22px;color:#666;">✕</span>
+        </div>
+        <div class="cp-tab-row">
+            <button type="button" class="cp-tab active" id="cp-tab-spectrum" onclick="cpSwitchTab('spectrum')">Spectrum</button>
+            <button type="button" class="cp-tab" id="cp-tab-sliders" onclick="cpSwitchTab('sliders')">Sliders</button>
+        </div>
+        <div id="cp-pane-spectrum">
+            <div id="cp-spectrum-box">
+                <div id="cp-spectrum-hue"></div>
+                <div id="cp-spectrum-white"></div>
+                <div id="cp-spectrum-black"></div>
+                <div id="cp-spectrum-cursor"></div>
+            </div>
+        </div>
+        <div id="cp-pane-sliders" style="display:none;">
+            <div class="cp-slider-row">
+                <span class="cp-slider-label" style="color:#ff453a;">R</span>
+                <input type="range" id="cp-slider-r" min="0" max="255" value="0">
+                <span class="cp-slider-val" id="cp-slider-r-val">0</span>
+            </div>
+            <div class="cp-slider-row">
+                <span class="cp-slider-label" style="color:#34c759;">G</span>
+                <input type="range" id="cp-slider-g" min="0" max="255" value="0">
+                <span class="cp-slider-val" id="cp-slider-g-val">0</span>
+            </div>
+            <div class="cp-slider-row">
+                <span class="cp-slider-label" style="color:#0a84ff;">B</span>
+                <input type="range" id="cp-slider-b" min="0" max="255" value="0">
+                <span class="cp-slider-val" id="cp-slider-b-val">0</span>
+            </div>
+        </div>
+        <div class="cp-bottom-row">
+            <button type="button" class="cp-eyedrop-btn" id="cp-eyedrop-btn" onclick="cpUseEyedropper()" title="Pick color from screen"><i class="fi fi-rs-eye-dropper"></i></button>
+            <input type="text" class="cp-hex-field" id="cp-hex-field" maxlength="7" placeholder="#000000">
+            <div class="cp-current-swatch" id="cp-current-swatch"></div>
+        </div>
+        <div class="cp-recent-label">Recent</div>
+        <div class="cp-recent-row" id="cp-recent-row"></div>
     </div>
 </div>
 
@@ -1259,10 +1330,10 @@
         <div class="add-grid">
             <button class="add-btn" onclick="closeSheet('add');openSheet('sprites')"><span class="add-ico"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite library" style="width:24px;height:24px;"></span>Sprite Library</button>
             <button class="add-btn" onclick="closeSheet('add');openSheet('gallery')"><span class="add-ico" style="position:relative;display:inline-block;"><img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/sprites.png" class="bot-custom-icon" alt="sprite gallery" style="width:24px;height:24px;filter:hue-rotate(90deg) saturate(2);"><span style="position:absolute;top:-3px;right:-3px;background:#a855f7;color:#fff;font-size:7px;font-weight:900;border-radius:50%;width:10px;height:10px;display:flex;align-items:center;justify-content:center;line-height:1;">🖼</span></span>Sprite Gallery</button>
-            <button class="add-btn" onclick="closeSheet('add');openSheet('favorites')"><span class="add-ico">⭐</span>Favorites</button>
-            <button class="add-btn" onclick="triggerImport('object');closeSheet('add')"><span class="add-ico">📦</span>Upload Image</button>
-            <button class="add-btn" onclick="openMultiImport();closeSheet('add')"><span class="add-ico">🗂</span>Multi-Frame</button>
-            <button class="add-btn" onclick="closeSheet('add');openSheet('audio')"><span class="add-ico">🔊</span>Audio</button>
+            <button class="add-btn" onclick="closeSheet('add');openSheet('favorites')" title="Favorites"><span class="add-ico"><i class="fi fi-rs-star"></i></span></button>
+            <button class="add-btn" onclick="triggerImport('object');closeSheet('add')" title="Upload Image"><span class="add-ico"><i class="fi fi-rs-cloud-upload"></i></span></button>
+            <button class="add-btn" onclick="openMultiImport();closeSheet('add')" title="Multi-Frame"><span class="add-ico"><i class="fi fi-rs-images"></i></span></button>
+            <button class="add-btn" onclick="closeSheet('add');openSheet('audio')" title="Audio"><span class="add-ico"><i class="fi fi-rs-volume"></i></span></button>
         </div>
     </div>
 </div>
@@ -1434,7 +1505,8 @@
             <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;">Preset Colors</div>
             <div id="mob-color-swatches" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;"></div>
             <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-                <input type="color" id="mob-custom-color" value="#ffffff" style="width:44px;height:38px;border:none;border-radius:8px;cursor:pointer;">
+                <button type="button" id="mob-custom-color-swatch" onclick="openAdvColorPickerFor('mob-custom-color', this)" style="width:44px;height:38px;border-radius:8px;border:1.5px solid rgba(255,255,255,0.15);cursor:pointer;background:#ffffff;padding:0;flex-shrink:0;"></button>
+                <input type="hidden" id="mob-custom-color" value="#ffffff">
                 <button onclick="applyMobBgColor(document.getElementById('mob-custom-color').value)" style="flex:1;padding:10px;background:#ff7a00;color:#000;border:none;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit;">Apply</button>
             </div>
         </div>
@@ -1445,9 +1517,11 @@
             <div id="mob-gradient-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:160px;overflow-y:auto;"></div>
             <div style="font-size:9px;font-weight:900;color:#444;text-transform:uppercase;letter-spacing:1.5px;margin-top:2px;">Custom</div>
             <div style="display:flex;gap:6px;align-items:center;">
-                <input type="color" id="mob-grad-c1" value="#ff7a00" style="width:36px;height:34px;border:none;border-radius:8px;cursor:pointer;">
+                <button type="button" id="mob-grad-c1-swatch" onclick="openAdvColorPickerFor('mob-grad-c1', this)" style="width:36px;height:34px;border-radius:8px;border:1.5px solid rgba(255,255,255,0.15);cursor:pointer;background:#ff7a00;padding:0;flex-shrink:0;"></button>
+                <input type="hidden" id="mob-grad-c1" value="#ff7a00">
                 <span style="color:#444;font-size:13px;">→</span>
-                <input type="color" id="mob-grad-c2" value="#9b59b6" style="width:36px;height:34px;border:none;border-radius:8px;cursor:pointer;">
+                <button type="button" id="mob-grad-c2-swatch" onclick="openAdvColorPickerFor('mob-grad-c2', this)" style="width:36px;height:34px;border-radius:8px;border:1.5px solid rgba(255,255,255,0.15);cursor:pointer;background:#9b59b6;padding:0;flex-shrink:0;"></button>
+                <input type="hidden" id="mob-grad-c2" value="#9b59b6">
                 <select id="mob-grad-dir" style="flex:1;padding:7px;background:#111;border:1px solid #333;color:#aaa;border-radius:8px;font-size:11px;font-weight:700;outline:none;font-family:inherit;">
                     <option value="to right">→ Right</option>
                     <option value="to bottom">↓ Down</option>
@@ -1475,10 +1549,10 @@
         </div>
         <!-- Layer order controls -->
         <div style="display:flex;gap:5px;padding:6px 0 2px;flex-wrap:nowrap;">
-            <button onclick="moveLayerToFront()" style="flex:1;padding:7px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;">⬆⬆ FRONT</button>
-            <button onclick="moveLayerZ(1)"      style="flex:1;padding:7px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;">↑ FWD</button>
-            <button onclick="moveLayerZ(-1)"     style="flex:1;padding:7px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;">↓ BACK</button>
-            <button onclick="moveLayerToBack()"  style="flex:1;padding:7px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:.3px;">⬇⬇ BACK</button>
+            <button onclick="moveLayerToFront()" title="Bring to Front" style="flex:1;padding:9px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;"><i class="fi fi-rs-bring-front"></i></button>
+            <button onclick="moveLayerZ(1)"      title="Move Forward"   style="flex:1;padding:9px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;"><i class="fi fi-rs-angle-up"></i></button>
+            <button onclick="moveLayerZ(-1)"     title="Move Backward"  style="flex:1;padding:9px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;"><i class="fi fi-rs-angle-down"></i></button>
+            <button onclick="moveLayerToBack()"  title="Send to Back"   style="flex:1;padding:9px 2px;background:#1e1e20;border:1px solid #2a2a2c;color:#aaa;border-radius:8px;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;"><i class="fi fi-rs-send-back"></i></button>
         </div>
         <div id="mob-layer-list"></div>
     </div>
@@ -1622,6 +1696,11 @@
             <button class="fx-target-tab active" id="fx-target-layer" onclick="setFxTarget('layer')">Sprite</button>
             <button class="fx-target-tab" id="fx-target-bg" onclick="setFxTarget('bg')">Background</button>
         </div>
+
+        <!-- PREVIEW (moved up so the live result is visible right away, no scrolling past every FX section) -->
+        <div style="font-size:9px;font-weight:900;color:#555;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px;text-align:center;">Preview</div>
+        <div id="fx-preview-box"><div id="fx-preview-content"></div></div>
+
         <div style="font-size:11px;color:#555;font-weight:700;margin-bottom:10px;text-align:center;padding:8px 0;display:none;" id="fx-selected-hint">⚠️ Select a layer first to apply effects</div>
 
         <div id="fx-controls-body" style="display:none;">
@@ -1780,10 +1859,6 @@
             <button onclick="clearFxFromSelected()" style="flex:1;padding:10px;background:#1e1e20;color:#888;border:1px solid #333;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Clear FX</button>
             <button onclick="closeSheet('fx')" style="flex:1;padding:10px;background:var(--teal);color:#000;border:none;border-radius:10px;font-weight:900;cursor:pointer;font-family:inherit;">Done</button>
         </div>
-
-        <!-- PREVIEW (scroll down to see the layer with current FX applied) -->
-        <div style="font-size:9px;font-weight:900;color:#555;letter-spacing:1px;text-transform:uppercase;margin:16px 0 6px;text-align:center;">Preview</div>
-        <div id="fx-preview-box"><div id="fx-preview-content"></div></div>
         </div><!-- /fx-controls-body -->
     </div>
 </div>
@@ -1898,8 +1973,8 @@
 <!-- TOP BAR -->
 <div id="top-bar">
     <button class="tb-btn" onclick="handleExit()">← Exit</button>
-    <button class="tb-btn" onclick="undo()" title="Undo">↩</button>
-    <button class="tb-btn" onclick="redo()" title="Redo">↪</button>
+    <button class="tb-btn" onclick="undo()" title="Undo" style="font-size:15px;padding:7px 10px;"><i class="fi fi-rs-undo"></i></button>
+    <button class="tb-btn" onclick="redo()" title="Redo" style="font-size:15px;padding:7px 10px;"><i class="fi fi-rs-redo"></i></button>
     <div class="tb-spacer"></div>
     <button class="tb-icon-btn" onclick="openSheet('fx')">
         <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/uibuttons/fx.webp" alt="fx">FX
@@ -1908,9 +1983,9 @@
         <span class="bico">🧅</span>Onion
     </button>
     <div class="tb-spacer"></div>
-    <button id="frame-audio-badge" onclick="openSheet('audio')" style="display:none;background:rgba(0,210,255,0.15);border:1px solid rgba(0,210,255,0.4);color:var(--teal);font-size:12px;border-radius:14px;padding:6px 9px;margin-left:6px;cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1;" title="Frame has audio">🔊</button>
-    <button class="tb-btn" onclick="openSaveChoiceModal()">💾</button>
-    <button class="tb-btn" onclick="openDraftsModal()" title="Drafts">📂</button>
+    <button id="frame-audio-badge" onclick="openSheet('audio')" style="display:none;background:rgba(0,210,255,0.15);border:1px solid rgba(0,210,255,0.4);color:var(--teal);font-size:12px;border-radius:14px;padding:6px 9px;margin-left:6px;cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1;" title="Frame has audio"><i class="fi fi-rs-volume"></i></button>
+    <button class="tb-btn" onclick="openSaveChoiceModal()" title="Save" style="font-size:15px;padding:7px 10px;"><i class="fi fi-rs-disk"></i></button>
+    <button class="tb-btn" onclick="openDraftsModal()" title="Drafts" style="font-size:15px;padding:7px 10px;"><i class="fi fi-rs-archive"></i></button>
     <button class="tb-btn" id="collab-invite-btn" onclick="openCollabPanel()" title="Co-create" style="display:none;">👥</button>
 </div>
 <!-- Tap-to-show bar when UI is hidden -->
@@ -2588,7 +2663,16 @@ function renderTextColorSwatches() {
     const cur = (activeLayer.color || '#000000').toLowerCase();
     w.innerHTML = MOB_COLOR_PRESETS.map(hex =>
         `<button type="button" onclick="event.stopPropagation();mobPickTextColor('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${cur === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
-    ).join('') + `<input type="text" id="text-color-hex" value="${activeLayer.color || '#000000'}" maxlength="7" oninput="event.stopPropagation();mobApplyTextColorHex(this.value)" style="width:56px;background:#000;border:1px solid #333;border-radius:6px;color:var(--text);font-size:10px;padding:5px;text-align:center;font-family:inherit;">`;
+    ).join('') + `<button type="button" class="mob-color-trigger-btn" onclick="event.stopPropagation();mobOpenAdvancedTextColor()" title="More colors"></button>`
+      + `<input type="text" id="text-color-hex" value="${activeLayer.color || '#000000'}" maxlength="7" oninput="event.stopPropagation();mobApplyTextColorHex(this.value)" style="width:56px;background:#000;border:1px solid #333;border-radius:6px;color:var(--text);font-size:10px;padding:5px;text-align:center;font-family:inherit;">`;
+}
+function mobOpenAdvancedTextColor() {
+    if (!activeLayer) return;
+    saveState();
+    openAdvancedColorPicker(activeLayer.color || '#000000', (hex) => {
+        activeLayer.color = hex;
+        render(); renderTransformPreview(); renderTextColorSwatches();
+    });
 }
 function mobPickTextColor(hex) {
     if (!activeLayer) return;
@@ -2614,10 +2698,10 @@ function renderBubbleColorSwatches() {
     const curBorder = (activeLayer.bubbleBorderColor || '#000000').toLowerCase();
     if (bgWrap) bgWrap.innerHTML = MOB_COLOR_PRESETS.map(hex =>
         `<button type="button" onclick="event.stopPropagation();mobPickBubbleBg('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${curBg === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
-    ).join('');
+    ).join('') + `<button type="button" class="mob-color-trigger-btn" onclick="event.stopPropagation();mobOpenAdvancedBubbleBg()" title="More colors"></button>`;
     if (borderWrap) borderWrap.innerHTML = MOB_COLOR_PRESETS.map(hex =>
         `<button type="button" onclick="event.stopPropagation();mobPickBubbleBorder('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${curBorder === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
-    ).join('');
+    ).join('') + `<button type="button" class="mob-color-trigger-btn" onclick="event.stopPropagation();mobOpenAdvancedBubbleBorder()" title="More colors"></button>`;
     const bgHex = document.getElementById('bubble-bg-hex');
     if (bgHex) bgHex.value = activeLayer.bubbleBg || '#ffffff';
     const borderHex = document.getElementById('bubble-border-hex');
@@ -2647,6 +2731,265 @@ function mobApplyBubbleColorHex(which, val) {
     renderBubbleColorSwatches();
     render(); renderTransformPreview();
 }
+function mobOpenAdvancedBubbleBg() {
+    if (!activeLayer) return;
+    saveState();
+    openAdvancedColorPicker(activeLayer.bubbleBg || '#ffffff', (hex) => {
+        activeLayer.bubbleBg = hex;
+        renderBubbleColorSwatches(); render(); renderTransformPreview();
+    });
+}
+function mobOpenAdvancedBubbleBorder() {
+    if (!activeLayer) return;
+    saveState();
+    openAdvancedColorPicker(activeLayer.bubbleBorderColor || '#000000', (hex) => {
+        activeLayer.bubbleBorderColor = hex;
+        renderBubbleColorSwatches(); render(); renderTransformPreview();
+    });
+}
+
+// ── ADVANCED COLOR PICKER (Spectrum + Sliders) ──────────────────────────
+// A single reusable modal, opened from anywhere a color needs picking.
+// Design mirrors iOS Markup's picker: a hue/white/black spectrum square,
+// a plain RGB-sliders tab, a hex field, a system eyedropper, and a small
+// row of up to 5 saved colors.
+//
+// Usage: openAdvancedColorPicker(currentHex, hex => { ...apply hex live... })
+// The callback fires on every meaningful change (drag tick, slider tick,
+// swatch tap, hex confirm, eyedropper result) — it should just assign the
+// property and render(). Callers are responsible for calling saveState()
+// ONCE before opening the picker, so a whole picking session collapses
+// into a single undo step instead of flooding history per-tick.
+let _cpOnChange = null;
+let _cpHex = '#ffffff';
+const CP_RECENT_KEY = 'cc-recent-colors';
+
+function _cpHueToRgb(h) {
+    h = ((h % 360) + 360) % 360;
+    const c = 1, x = 1 - Math.abs((h / 60) % 2 - 1);
+    let r, g, b;
+    if (h < 60) [r, g, b] = [c, x, 0];
+    else if (h < 120) [r, g, b] = [x, c, 0];
+    else if (h < 180) [r, g, b] = [0, c, x];
+    else if (h < 240) [r, g, b] = [0, x, c];
+    else if (h < 300) [r, g, b] = [x, 0, c];
+    else [r, g, b] = [c, 0, x];
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+function _cpRgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+}
+function _cpHexToRgb(hex) {
+    let h = (hex || '').replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    if (h.length !== 6 || isNaN(n)) return [0, 0, 0];
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function _cpRgbToHue(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    if (d === 0) return 0;
+    let h;
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    return h < 0 ? h + 360 : h;
+}
+// Given a fraction across the spectrum box (0-1 both axes), resolve a hex.
+// y picks the hue (wraps top→bottom through the full rainbow); x blends
+// white→hue on the left half and hue→black on the right half.
+function _cpSpectrumColorAt(xFrac, yFrac) {
+    xFrac = Math.max(0, Math.min(1, xFrac));
+    yFrac = Math.max(0, Math.min(1, yFrac));
+    const [hr, hg, hb] = _cpHueToRgb(yFrac * 360);
+    let r, g, b;
+    if (xFrac <= 0.5) {
+        const t = xFrac / 0.5;
+        r = 255 + (hr - 255) * t; g = 255 + (hg - 255) * t; b = 255 + (hb - 255) * t;
+    } else {
+        const t = (xFrac - 0.5) / 0.5;
+        r = hr * (1 - t); g = hg * (1 - t); b = hb * (1 - t);
+    }
+    return _cpRgbToHex(r, g, b);
+}
+// Inverse of the above — approximate cursor placement for an arbitrary hex
+// (arbitrary colors can fall off the spectrum's white→hue→black path, e.g.
+// a hand-typed hex or an eyedropper pick, so this places the dot at the
+// closest point on that path rather than an exact match).
+function _cpPositionForHex(hex) {
+    const [r, g, b] = _cpHexToRgb(hex);
+    const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
+    const hue = _cpRgbToHue(r, g, b);
+    const y = hue / 360;
+    const sat = max === 0 ? 0 : (max - min) / max;
+    const x = max >= 0.999 ? sat / 2 : 1 - max / 2;
+    return { x, y };
+}
+
+function _cpRenderRecent() {
+    const row = document.getElementById('cp-recent-row');
+    if (!row) return;
+    let recent = [];
+    try { recent = JSON.parse(localStorage.getItem(CP_RECENT_KEY) || '[]'); } catch (e) { recent = []; }
+    row.innerHTML = recent.slice(0, 5).map(hex =>
+        `<button type="button" class="cp-recent-swatch" style="background:${hex};" onclick="cpApplyHex('${hex}')" title="${hex}"></button>`
+    ).join('') + `<button type="button" class="cp-add-swatch" onclick="cpAddCurrentToRecent()" title="Save current color">+</button>`;
+}
+function cpAddCurrentToRecent() {
+    let recent = [];
+    try { recent = JSON.parse(localStorage.getItem(CP_RECENT_KEY) || '[]'); } catch (e) { recent = []; }
+    recent = recent.filter(h => h.toLowerCase() !== _cpHex.toLowerCase());
+    recent.unshift(_cpHex);
+    recent = recent.slice(0, 5);
+    try { localStorage.setItem(CP_RECENT_KEY, JSON.stringify(recent)); } catch (e) {}
+    _cpRenderRecent();
+}
+
+function cpSwitchTab(tab) {
+    document.getElementById('cp-tab-spectrum').classList.toggle('active', tab === 'spectrum');
+    document.getElementById('cp-tab-sliders').classList.toggle('active', tab === 'sliders');
+    document.getElementById('cp-pane-spectrum').style.display = tab === 'spectrum' ? 'block' : 'none';
+    document.getElementById('cp-pane-sliders').style.display = tab === 'sliders' ? 'block' : 'none';
+}
+
+// Pushes a new value everywhere it needs to show up (swatch, hex field,
+// spectrum cursor, RGB sliders) without re-triggering each other.
+function _cpSyncUI(hex, opts) {
+    opts = opts || {};
+    _cpHex = hex;
+    const swatch = document.getElementById('cp-current-swatch');
+    if (swatch) swatch.style.background = hex;
+    const hexField = document.getElementById('cp-hex-field');
+    if (hexField && document.activeElement !== hexField) hexField.value = hex.toUpperCase();
+    if (opts.skipCursor !== true) {
+        const pos = _cpPositionForHex(hex);
+        const cursor = document.getElementById('cp-spectrum-cursor');
+        const box = document.getElementById('cp-spectrum-box');
+        if (cursor && box) {
+            cursor.style.left = (pos.x * 100) + '%';
+            cursor.style.top = (pos.y * 100) + '%';
+        }
+    }
+    if (opts.skipSliders !== true) {
+        const [r, g, b] = _cpHexToRgb(hex);
+        const rEl = document.getElementById('cp-slider-r'), gEl = document.getElementById('cp-slider-g'), bEl = document.getElementById('cp-slider-b');
+        if (rEl) rEl.value = r; if (gEl) gEl.value = g; if (bEl) bEl.value = b;
+        const rv = document.getElementById('cp-slider-r-val'), gv = document.getElementById('cp-slider-g-val'), bv = document.getElementById('cp-slider-b-val');
+        if (rv) rv.innerText = r; if (gv) gv.innerText = g; if (bv) bv.innerText = b;
+    }
+}
+function cpApplyHex(hex) {
+    _cpSyncUI(hex);
+    if (_cpOnChange) _cpOnChange(hex);
+}
+
+function openAdvancedColorPicker(initialHex, onChange) {
+    _cpOnChange = onChange || null;
+    cpSwitchTab('spectrum');
+    const hex = (initialHex || '#ffffff').toLowerCase();
+    _cpSyncUI(hex);
+    _cpRenderRecent();
+    document.getElementById('color-picker-modal').style.display = 'flex';
+    _cpWireSpectrum();
+    _cpWireSliders();
+    _cpWireHexField();
+}
+function closeAdvancedColorPicker() {
+    document.getElementById('color-picker-modal').style.display = 'none';
+    _cpOnChange = null;
+}
+
+let _cpSpectrumWired = false;
+function _cpWireSpectrum() {
+    if (_cpSpectrumWired) return;
+    _cpSpectrumWired = true;
+    const box = document.getElementById('cp-spectrum-box');
+    if (!box) return;
+    let dragging = false;
+    function pick(clientX, clientY) {
+        const rect = box.getBoundingClientRect();
+        const xFrac = (clientX - rect.left) / rect.width;
+        const yFrac = (clientY - rect.top) / rect.height;
+        const hex = _cpSpectrumColorAt(xFrac, yFrac);
+        _cpSyncUI(hex, { skipCursor: true });
+        const cursor = document.getElementById('cp-spectrum-cursor');
+        if (cursor) {
+            cursor.style.left = (Math.max(0, Math.min(1, xFrac)) * 100) + '%';
+            cursor.style.top = (Math.max(0, Math.min(1, yFrac)) * 100) + '%';
+        }
+        if (_cpOnChange) _cpOnChange(hex);
+    }
+    box.addEventListener('touchstart', e => { dragging = true; pick(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
+    document.addEventListener('touchmove', e => { if (!dragging) return; pick(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
+    document.addEventListener('touchend', () => { dragging = false; });
+    box.addEventListener('mousedown', e => { dragging = true; pick(e.clientX, e.clientY); e.preventDefault(); });
+    document.addEventListener('mousemove', e => { if (dragging) pick(e.clientX, e.clientY); });
+    document.addEventListener('mouseup', () => { dragging = false; });
+}
+let _cpSlidersWired = false;
+function _cpWireSliders() {
+    if (_cpSlidersWired) return;
+    _cpSlidersWired = true;
+    ['r', 'g', 'b'].forEach(ch => {
+        const el = document.getElementById('cp-slider-' + ch);
+        if (!el) return;
+        el.addEventListener('input', () => {
+            const [r, g, b] = _cpHexToRgb(_cpHex);
+            const vals = { r, g, b };
+            vals[ch] = parseInt(el.value) || 0;
+            const hex = _cpRgbToHex(vals.r, vals.g, vals.b);
+            document.getElementById('cp-slider-' + ch + '-val').innerText = vals[ch];
+            _cpSyncUI(hex, { skipSliders: true });
+            if (_cpOnChange) _cpOnChange(hex);
+        });
+    });
+}
+let _cpHexFieldWired = false;
+function _cpWireHexField() {
+    if (_cpHexFieldWired) return;
+    _cpHexFieldWired = true;
+    const field = document.getElementById('cp-hex-field');
+    if (!field) return;
+    function commit() {
+        let v = (field.value || '').trim();
+        if (v && v[0] !== '#') v = '#' + v;
+        if (!/^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v)) return;
+        _cpSyncUI(v);
+        if (_cpOnChange) _cpOnChange(v);
+    }
+    field.addEventListener('blur', commit);
+    field.addEventListener('keydown', e => { if (e.key === 'Enter') { commit(); field.blur(); } });
+}
+// Generic bridge for swatch buttons that stand in for a plain hidden
+// <input> (e.g. background solid color, gradient stops) — keeps every
+// existing .value-reading caller working untouched.
+function openAdvColorPickerFor(inputId, swatchBtn) {
+    const input = document.getElementById(inputId);
+    const cur = (input && input.value) || '#ffffff';
+    openAdvancedColorPicker(cur, (hex) => {
+        if (input) {
+            input.value = hex;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (swatchBtn) swatchBtn.style.background = hex;
+    });
+}
+function cpUseEyedropper() {
+    if (!window.EyeDropper) return;
+    try {
+        new window.EyeDropper().open().then(result => {
+            if (result && result.sRGBHex) cpApplyHex(result.sRGBHex);
+        }).catch(() => {});
+    } catch (e) {}
+}
+(function _cpInitEyedropBtn() {
+    document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('cp-eyedrop-btn');
+        if (btn && !window.EyeDropper) { btn.disabled = true; btn.title = 'Eyedropper not supported in this browser'; }
+    });
+})();
 
 // Tail position is stored as a 0-100% point along the bubble's bottom edge
 // (so it can sit anywhere, including dead-center) instead of a left/right
@@ -3289,7 +3632,7 @@ function renderSqaColorPopover() {
     ).join('');
     pop.innerHTML = `
         <div style="font-size:9px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">${isBubble ? 'Bubble Color' : 'Text Color'}</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">${swatches}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">${swatches}<button type="button" class="mob-color-trigger-btn" onclick="event.stopPropagation();mobSqaOpenAdvancedPicker()" title="More colors"></button></div>
         <input type="text" id="sqa-color-hex" value="${cur}" maxlength="7" oninput="event.stopPropagation();mobSqaApplyColorHex(this.value)" style="width:100%;background:#000;border:1px solid #333;border-radius:8px;color:var(--text);font-size:12px;padding:8px;text-align:center;font-family:inherit;box-sizing:border-box;">
     `;
     positionSqaPopover(activeLayer);
@@ -3315,6 +3658,19 @@ function mobSqaApplyColorHex(val) {
     render();
     renderTransformPreview();
     renderBubbleColorSwatches();
+}
+function mobSqaOpenAdvancedPicker() {
+    if (!activeLayer) return;
+    const isBubble = ['bubble', 'thinking'].includes(activeLayer.type);
+    const cur = isBubble ? (activeLayer.bubbleBg || '#ffffff') : (activeLayer.color || '#000000');
+    saveState();
+    openAdvancedColorPicker(cur, (hex) => {
+        if (isBubble) activeLayer.bubbleBg = hex; else activeLayer.color = hex;
+        render();
+        renderTransformPreview();
+        renderBubbleColorSwatches();
+        renderSqaColorPopover();
+    });
 }
 let _sqaStyleRowOpen = false;
 function mobToggleSqaStyleRow() {
@@ -4624,6 +4980,16 @@ function renderFxPreview() {
     if (!activeLayer) { wrap.style.display = 'none'; return; }
 
     const layer = activeLayer;
+
+    // Blend modes have nothing to blend against in an isolated single-layer
+    // preview — mix-blend-mode needs real content underneath it, so a plain
+    // checkerboard makes the effect look like it's doing nothing. When a
+    // blend mode is active, show the real composited frame instead.
+    if (layer.fxBlend && layer.fxBlend !== 'normal') {
+        renderFxPreviewComposited(wrap, box, layer);
+        return;
+    }
+
     box.style.transform = 'none';
     box.innerHTML = '';
 
@@ -4638,7 +5004,6 @@ function renderFxPreview() {
         const lfCSS     = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
         const holder = document.createElement('div');
         holder.style.cssText = `position:relative;display:inline-block;width:${layer.w||120}px;`;
-        if (layer.fxBlend && layer.fxBlend !== 'normal') holder.style.mixBlendMode = layer.fxBlend;
 
         if (hasFxSrc && bStrength < 100) {
             // Blend mode: clean base + fx overlay at blurStrength opacity (matches main canvas)
@@ -4667,10 +5032,45 @@ function renderFxPreview() {
         box.appendChild(holder);
     } else {
         if (layer.fxOpacity !== undefined) el.style.opacity = layer.fxOpacity / 100;
-        if (layer.fxBlend && layer.fxBlend !== 'normal') el.style.mixBlendMode = layer.fxBlend;
         box.appendChild(el);
     }
 
+    _fitPreviewBox(wrap, box);
+}
+
+// Full-frame composited preview, used only while a blend mode is active.
+// Clones the live editing canvas — which render() already keeps in sync
+// with every FX change — instead of rebuilding the frame from scratch, so
+// the active layer's blend result shows against the real background and
+// other sprites exactly as it will look in the finished panel.
+function renderFxPreviewComposited(wrap, box, layer) {
+    wrap.style.display = 'flex';
+    box.style.transform = 'none';
+    box.innerHTML = '';
+
+    const clone = canvas.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.style.position = 'relative';
+    clone.style.inset = 'auto';
+    clone.style.width = canvas.offsetWidth + 'px';
+    clone.style.height = canvas.offsetHeight + 'px';
+    clone.style.pointerEvents = 'none';
+    clone.onclick = null;
+
+    // Strip interactive chrome — this is a passive preview, not an editable canvas
+    clone.querySelectorAll('.resize-handle, .rotate-handle, .rotate-handle-stem, .tail-scroller-track, .tail-scroller-handle, .sqa-corner-toggle').forEach(h => h.remove());
+    const onionClone = clone.querySelector('#onion-skin-canvas');
+    if (onionClone) onionClone.style.display = 'none';
+    const dragClone = clone.querySelector('#bg-drag-overlay');
+    if (dragClone) dragClone.remove();
+
+    // Swap the bulky selection outline for a subtle one so the highlighted
+    // layer is still identifiable without cluttering the preview
+    clone.querySelectorAll('.layer.active').forEach(el => el.classList.remove('active'));
+    const targetEl = clone.querySelector(`[data-layer-id="${layer.id}"]`);
+    if (targetEl) targetEl.style.outline = '2px solid rgba(0,210,255,0.9)';
+
+    box.appendChild(clone);
     _fitPreviewBox(wrap, box);
 }
 
@@ -5791,50 +6191,82 @@ function handleActionSelect(img, pack, isEditing) {
     if (isEditing && activeLayer) {
         saveState();
         const layer = activeLayer;
-        const probe = new Image();
-        probe.crossOrigin = 'anonymous';
-        probe.onload = () => {
-            if (!probe.naturalWidth) return;
-            const cropped = cropSpriteToContent(probe);
+        const isChar = !!(layer.charHeight || layer.packData);
 
-            // Anchor bottom so the sprite feet stay on the same ground line
-            const oldBottom = layer.y + (layer.h != null ? layer.h : layer.w);
-            const oldLeft   = layer.x;
+        const probeNew = new Image();
+        probeNew.crossOrigin = 'anonymous';
+        probeNew.onload = () => {
+            if (!probeNew.naturalWidth) { closeActionModal(); render(); return; }
+            const croppedNew = cropSpriteToContent(probeNew);
 
-            // Treat any pack sprite as a character — height is always locked.
-            // Backfill charHeight from current layer.h so legacy sprites work too.
-            const isChar = !!(layer.charHeight || layer.packData);
+            // Anchor bottom-center: feet stay on the same ground line, and the
+            // sprite doesn't drift sideways as its width changes between poses
+            // (a pure left-anchor would let a wider pose creep into whatever's
+            // next to it — this is what was showing up as sprites landing on
+            // top of each other's boxes after a pose swap).
+            const oldW       = layer.w != null ? layer.w : layer.h;
+            const oldH       = layer.h != null ? layer.h : layer.w;
+            const oldBottom  = layer.y + oldH;
+            const oldCenterX = layer.x + oldW / 2;
+
+            const corsBlockedNew = (croppedNew.src === probeNew.src) && (croppedNew.w === probeNew.naturalWidth) && (croppedNew.h === probeNew.naturalHeight);
+
+            const finish = (newW, newH) => {
+                layer.src = croppedNew.src;
+                layer.w = newW;
+                layer.h = newH;
+                layer.x = Math.round(oldCenterX - newW / 2);
+                layer.y = Math.round(oldBottom - newH);
+                closeActionModal();
+                render();
+            };
+
             if (isChar) {
-                const lockH = layer.charHeight || layer.h;
-                if (!layer.charHeight) layer.charHeight = lockH; // persist for future switches
-                // Detect CORS fallback: cropSpriteToContent returns full natural dims unchanged
-                const corsBlocked = (cropped.src === probe.src) && (cropped.w === probe.naturalWidth) && (cropped.h === probe.naturalHeight);
-                if (corsBlocked) {
-                    // Can't trust AR — keep w unchanged, just swap src
-                    layer.h = lockH;
-                } else {
-                    const ar = cropped.w / cropped.h;
-                    layer.h = lockH;
-                    layer.w = Math.round(lockH * ar);
+                if (!layer.charHeight) layer.charHeight = oldH; // backfill for legacy layers
+
+                if (corsBlockedNew) {
+                    // Can't read the new pose's pixels at all — best effort:
+                    // keep the current box size, just swap the source.
+                    finish(oldW, oldH);
+                    return;
                 }
+
+                // Different poses are naturally different shapes (a crouch is
+                // short and wide, a stand is tall and narrow) — forcing every
+                // pose to the same locked height stretched/ballooned poses
+                // that weren't meant to be that tall. Instead, derive the true
+                // display scale (px shown per px of source content) from the
+                // CURRENTLY visible pose, then apply that same scale to the
+                // new pose's own trimmed content so it renders at its real
+                // relative size.
+                const probeCur = new Image();
+                probeCur.crossOrigin = 'anonymous';
+                probeCur.onload = () => {
+                    if (probeCur.naturalWidth && probeCur.naturalHeight) {
+                        const scale = oldH / probeCur.naturalHeight;
+                        finish(Math.round(croppedNew.w * scale), Math.round(croppedNew.h * scale));
+                    } else {
+                        const ar = croppedNew.w / croppedNew.h;
+                        finish(Math.round(oldH * ar), oldH);
+                    }
+                };
+                probeCur.onerror = () => {
+                    const ar = croppedNew.w / croppedNew.h;
+                    finish(Math.round(oldH * ar), oldH);
+                };
+                probeCur.src = layer.src;
             } else {
                 // Effect / plain image: scale proportionally from current width
-                const scale = layer.w / cropped.w;
-                layer.h = Math.round(cropped.h * scale);
-                // w stays the same
+                const scale = oldW / croppedNew.w;
+                finish(oldW, Math.round(croppedNew.h * scale));
             }
-
-            layer.src = cropped.src;
-            layer.x   = oldLeft;
-            layer.y   = oldBottom - layer.h;
-            render();
         };
-        probe.onerror = () => render();
-        probe.src = img;
+        probeNew.onerror = () => { closeActionModal(); render(); };
+        probeNew.src = img;
     } else {
         addSpriteToCanvas(img, pack);
+        closeActionModal(); render();
     }
-    closeActionModal(); render();
 }
 // ── Trim transparent padding from a sprite image ────────────────────────
 function trimTransparentBounds(img) {
