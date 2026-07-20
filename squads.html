@@ -8,14 +8,18 @@
     <title>ComicCore - Squads</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@flaticon/flaticon-uicons@3.3.1/css/regular/straight.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 90px; }
+        i.fi { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+        .sq-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; flex-shrink: 0; }
 
         .sq-header { position: sticky; top: 0; z-index: 200; background: rgba(0,0,0,0.96); backdrop-filter: blur(20px); border-bottom: 1px solid #1a1a1a; padding: 14px 16px 0; }
         .sq-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        .sq-back { background: none; border: 1px solid #222; color: #666; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; transition: .15s; }
+        .sq-back { background: none; border: 1px solid #222; color: #666; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; transition: .15s; display: inline-flex; align-items: center; gap: 5px; }
+        .sq-back i.fi { font-size: 10px; }
         .sq-back:hover { border-color: #555; color: white; }
         .sq-header-brand { font-size: 11px; font-weight: 900; color: #ff7a00; letter-spacing: 2px; }
         .sq-header-title { font-size: 21px; font-weight: 900; margin: 0 0 2px; }
@@ -58,7 +62,9 @@
             border: 1px solid rgba(255,122,0,.25); border-radius: 8px;
             padding: 5px 0; font-size: 11px; font-weight: 900; cursor: pointer;
             font-family: inherit; transition: .15s; position: relative;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
         }
+        .sq-mine-card-btn i.fi { font-size: 10px; }
         .sq-mine-card-btn:hover { background: rgba(255,122,0,.22); }
 
         .sq-mine-join-card {
@@ -92,8 +98,8 @@
             position: relative; overflow: hidden;
         }
         .sq-rec-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .sq-rec-private { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,.75); font-size: 9px; font-weight: 900; color: #888; padding: 2px 5px; border-radius: 5px; backdrop-filter: blur(4px); }
-        .sq-rec-active { position: absolute; bottom: 5px; left: 7px; font-size: 9px; font-weight: 900; color: #32d74b; }
+        .sq-rec-private { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,.75); font-size: 9px; font-weight: 900; color: #888; padding: 3px 5px; border-radius: 5px; backdrop-filter: blur(4px); display: flex; align-items: center; }
+        .sq-rec-active { position: absolute; bottom: 5px; left: 7px; font-size: 9px; font-weight: 900; color: #32d74b; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,.6); padding: 2px 6px; border-radius: 5px; backdrop-filter: blur(4px); }
         .sq-rec-body { padding: 9px 10px 11px; }
         .sq-rec-name { font-size: 12px; font-weight: 900; color: #f5f5f7; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sq-rec-meta { font-size: 10px; color: #444; font-weight: 700; margin-bottom: 7px; }
@@ -101,13 +107,16 @@
             width: 100%; background: #ff7a00; color: #000; border: none;
             border-radius: 8px; padding: 6px 0; font-size: 11px; font-weight: 900;
             cursor: pointer; font-family: inherit; transition: .15s;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
         }
+        .sq-rec-join i.fi { font-size: 10px; }
         .sq-rec-join:hover { opacity: .85; }
         .sq-rec-join.joined { background: rgba(255,255,255,.06); color: #555; border: 1px solid #1e1e1e; cursor: default; }
         .sq-rec-join.pending { background: rgba(255,122,0,.08); color: #ff7a00; border: 1px solid rgba(255,122,0,.2); cursor: default; font-size: 10px; }
 
-        .sq-search-wrap { padding: 0 16px 6px; }
-        .sq-search { width: 100%; background: #0d0d0d; border: 1px solid #1a1a1a; color: white; padding: 10px 14px; border-radius: 12px; font-size: 13px; font-weight: 600; outline: none; font-family: inherit; transition: .15s; }
+        .sq-search-wrap { padding: 0 16px 6px; position: relative; }
+        .sq-search-wrap i.fi { position: absolute; left: 30px; top: 50%; transform: translateY(-50%); color: #3a3a3a; font-size: 13px; pointer-events: none; }
+        .sq-search { width: 100%; background: #0d0d0d; border: 1px solid #1a1a1a; color: white; padding: 10px 14px 10px 36px; border-radius: 12px; font-size: 13px; font-weight: 600; outline: none; font-family: inherit; transition: .15s; }
         .sq-search:focus { border-color: #ff7a00; }
         .sq-search::placeholder { color: #2a2a2a; }
 
@@ -118,7 +127,8 @@
 
         .sq-sort-wrap { padding: 0 16px 8px; display: flex; gap: 6px; align-items: center; }
         .sq-sort-label { font-size: 10px; font-weight: 800; color: #333; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
-        .sq-sort-btn { padding: 4px 10px; border-radius: 20px; border: 1px solid #1e1e1e; background: none; color: #444; font-size: 11px; font-weight: 800; cursor: pointer; transition: .15s; font-family: inherit; }
+        .sq-sort-btn { padding: 4px 10px; border-radius: 20px; border: 1px solid #1e1e1e; background: none; color: #444; font-size: 11px; font-weight: 800; cursor: pointer; transition: .15s; font-family: inherit; display: inline-flex; align-items: center; gap: 4px; }
+        .sq-sort-btn i.fi { font-size: 10px; }
         .sq-sort-btn.on { border-color: #555; color: #ccc; }
 
         .sq-create-wrap { padding: 0 16px 14px; }
@@ -194,7 +204,8 @@
         .sq-card-body { flex: 1; min-width: 0; }
         .sq-card-nameline { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; flex-wrap: wrap; }
         .sq-card-name { font-size: 14px; font-weight: 800; color: #f5f5f7; }
-        .sq-tag-badge { font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 6px; }
+        .sq-tag-badge { font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px; }
+        .sq-tag-badge i.fi { font-size: 8px; }
         .sq-badge-mine { background: rgba(255,122,0,.1); border: 1px solid rgba(255,122,0,.2); color: #ff7a00; }
         .sq-badge-private { background: #1a1a1a; border: 1px solid #222; color: #555; }
         .sq-card-owner { font-size: 11px; color: #444; font-weight: 700; margin-bottom: 5px; }
@@ -204,7 +215,8 @@
         .sq-card-meta { font-size: 11px; color: #333; font-weight: 700; }
         .sq-card-right { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; flex-shrink: 0; justify-content: center; }
 
-        .sq-action-btn { border-radius: 10px; padding: 7px 13px; font-size: 11px; font-weight: 900; cursor: pointer; font-family: inherit; transition: .15s; white-space: nowrap; border: none; }
+        .sq-action-btn { border-radius: 10px; padding: 7px 13px; font-size: 11px; font-weight: 900; cursor: pointer; font-family: inherit; transition: .15s; white-space: nowrap; border: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+        .sq-action-btn i.fi { font-size: 10px; }
         .sq-btn-join { background: #ff7a00; color: #000; }
         .sq-btn-join:hover { opacity: .85; }
         .sq-btn-joined { background: rgba(255,255,255,.06); color: #555; border: 1px solid #1e1e1e !important; cursor: default; }
@@ -230,12 +242,12 @@
         .sq-btn-collab-comic:hover { filter: brightness(1.12); transform: scale(1.04); }
         .sq-btn-leave { background: none; color: #ff3b30; border: 1px solid rgba(255,59,48,.25) !important; }
         .sq-btn-leave:hover { background: rgba(255,59,48,.08); }
-        .sq-btn-members { background: #111; color: #555; border: 1px solid #1e1e1e !important; padding: 7px 10px; }
+        .sq-btn-members { background: #111; color: #555; border: 1px solid #1e1e1e !important; }
         .sq-btn-members:hover { border-color: #444 !important; color: #aaa; }
         .sq-unread-badge { position: absolute; top: -6px; right: -6px; background: #ff3b30; color: white; border-radius: 10px; font-size: 9px; font-weight: 900; padding: 1px 5px; min-width: 16px; text-align: center; pointer-events: none; }
 
         .sq-empty { text-align: center; padding: 60px 20px; color: #2a2a2a; }
-        .sq-empty-icon { font-size: 40px; margin-bottom: 12px; }
+        .sq-empty-icon { font-size: 34px; margin-bottom: 12px; color: #2a2a2a; }
         .sq-empty-title { font-size: 14px; font-weight: 800; }
         .sq-empty-sub { font-size: 12px; color: #222; margin-top: 4px; }
 
@@ -436,7 +448,7 @@
 
         /* Empty community */
         .comm-empty { text-align: center; padding: 50px 20px; color: #2a2a2a; }
-        .comm-empty-icon { font-size: 44px; margin-bottom: 12px; }
+        .comm-empty-icon { font-size: 36px; margin-bottom: 12px; color: #2a2a2a; }
         .comm-empty-title { font-size: 14px; font-weight: 800; color: #333; }
         .comm-empty-sub { font-size: 12px; margin-top: 4px; }
 
@@ -488,7 +500,7 @@
 <div class="sq-header">
     <div class="sq-header-top">
         <div class="sq-header-brand">COMICCORE</div>
-        <button class="sq-back" onclick="goBack()">← Back</button>
+        <button class="sq-back" onclick="goBack()"><i class="fi fi-rs-arrow-left"></i> Back</button>
     </div>
     <div class="sq-header-title">Squads</div>
     <div class="sq-header-sub">Join communities · chat · share ideas</div>
@@ -507,7 +519,7 @@
 <!-- ── My Squads Strip (Amino-style, always visible) ── -->
 <div class="sq-mine-section" id="sq-mine-section" style="display:none;">
     <div class="sq-mine-header">
-        <span class="sq-mine-title">💬 My Squads</span>
+        <span class="sq-mine-title">My Squads</span>
         <button class="sq-mine-see-all" onclick="switchTab('mine')">See All →</button>
     </div>
     <div class="sq-mine-scroll" id="sq-mine-scroll"></div>
@@ -517,13 +529,14 @@
 <div class="sq-rec-section" id="sq-rec-section" style="display:none;">
     <div class="sq-section-divider"></div>
     <div class="sq-rec-header">
-        <span class="sq-rec-title">🏕️ Recommended Squads</span>
+        <span class="sq-rec-title">Recommended Squads</span>
     </div>
     <div class="sq-rec-grid" id="sq-rec-grid"></div>
     <div class="sq-section-divider" style="margin-top:16px;"></div>
 </div>
 
 <div class="sq-search-wrap">
+    <i class="fi fi-rs-search"></i>
     <input class="sq-search" id="sq-search" placeholder="Search squads by name or topic…" oninput="renderFeed()">
 </div>
 
@@ -535,7 +548,7 @@
     <button class="sq-sort-btn"    id="sort-active"  onclick="setSort('active')">Active</button>
     <button class="sq-sort-btn"    id="sort-members" onclick="setSort('members')">Members</button>
     <button class="sq-sort-btn"    id="sort-collab"  onclick="openCollabInvitesSheet()">
-        🎨 Co-create<span id="collab-invite-badge" style="display:none;background:var(--accent);color:#000;border-radius:6px;font-size:9px;font-weight:900;padding:1px 5px;margin-left:4px;vertical-align:middle;"></span>
+        <i class="fi fi-rs-palette"></i> Co-create<span id="collab-invite-badge" style="display:none;background:var(--accent);color:#000;border-radius:6px;font-size:9px;font-weight:900;padding:1px 5px;margin-left:4px;vertical-align:middle;"></span>
     </button>
 </div>
 
@@ -557,7 +570,7 @@
             <div class="sq-sheet-sub">A community where members chat and share ideas.</div>
         </div>
         <div class="sq-pfp-row">
-            <div class="sq-pfp-pick" id="pfp-pick" onclick="document.getElementById('pfp-file').click()">🖼</div>
+            <div class="sq-pfp-pick" id="pfp-pick" onclick="document.getElementById('pfp-file').click()"><i class="fi fi-rs-picture"></i></div>
             <input type="file" id="pfp-file" hidden accept="image/*" onchange="handlePfp(this,false)">
             <input class="sq-input" id="sq-name" placeholder="Squad name" maxlength="40" style="flex:1;">
         </div>
@@ -580,10 +593,10 @@
     <div class="sq-sheet">
         <div style="display:flex;justify-content:space-between;align-items:center;">
             <div class="sq-sheet-title" id="manage-title">Manage Squad</div>
-            <span onclick="closeManageModal()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+            <span onclick="closeManageModal()" style="cursor:pointer;color:#444;font-size:20px;line-height:1;"><i class="fi fi-rs-cross-small"></i></span>
         </div>
         <div class="sq-pfp-row">
-            <div class="sq-pfp-pick" id="edit-pfp-pick" onclick="document.getElementById('edit-pfp-file').click()">✎</div>
+            <div class="sq-pfp-pick" id="edit-pfp-pick" onclick="document.getElementById('edit-pfp-file').click()"><i class="fi fi-rs-pencil"></i></div>
             <input type="file" id="edit-pfp-file" hidden accept="image/*" onchange="handlePfp(this,true)">
             <input class="sq-input" id="edit-name" placeholder="Squad name" style="flex:1;">
         </div>
@@ -623,7 +636,7 @@
     <div class="sq-sheet" style="max-height:70vh;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
             <div class="sq-sheet-title" id="members-view-title">Members</div>
-            <span onclick="closeMembersModal()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+            <span onclick="closeMembersModal()" style="cursor:pointer;color:#444;font-size:20px;line-height:1;"><i class="fi fi-rs-cross-small"></i></span>
         </div>
         <div id="members-view-list"></div>
         <div class="sq-btn-ghost" onclick="closeMembersModal()">Close</div>
@@ -634,8 +647,8 @@
 <div class="sq-overlay" id="collab-invites-overlay">
     <div class="sq-sheet" style="max-height:80vh;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <div class="sq-sheet-title">🎨 Co-create Invites</div>
-            <span onclick="closeCollabInvitesSheet()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+            <div class="sq-sheet-title" style="display:flex;align-items:center;gap:8px;"><i class="fi fi-rs-palette" style="font-size:16px;color:var(--accent);"></i> Co-create Invites</div>
+            <span onclick="closeCollabInvitesSheet()" style="cursor:pointer;color:#444;font-size:20px;line-height:1;"><i class="fi fi-rs-cross-small"></i></span>
         </div>
         <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:14px;">Comics you've been invited to co-create</div>
         <div id="collab-invites-list">
@@ -660,7 +673,7 @@
                 </svg>
                 Squad Comics
             </div>
-            <span onclick="closeCollabComicSheet()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+            <span onclick="closeCollabComicSheet()" style="cursor:pointer;color:#444;font-size:20px;line-height:1;"><i class="fi fi-rs-cross-small"></i></span>
         </div>
         <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:16px;">Start a new comic or manage existing squad co-creations</div>
 
@@ -699,16 +712,16 @@
     <div class="sq-sheet">
         <div style="display:flex;justify-content:space-between;align-items:center;">
             <div class="sq-sheet-title">New Post</div>
-            <span onclick="closeCommPostModal()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+            <span onclick="closeCommPostModal()" style="cursor:pointer;color:#444;font-size:20px;line-height:1;"><i class="fi fi-rs-cross-small"></i></span>
         </div>
         <div>
             <div class="sq-label-sm" style="margin-bottom:8px;">Post Type</div>
             <div class="comm-post-type-select" id="comm-ptype-row">
-                <button class="comm-ptype-btn on" data-type="text" onclick="setPostType('text')"><span class="pt-icon">✍️</span>Text</button>
-                <button class="comm-ptype-btn" data-type="image" onclick="setPostType('image')"><span class="pt-icon">🖼️</span>Image</button>
-                <button class="comm-ptype-btn" data-type="poll" onclick="setPostType('poll')"><span class="pt-icon">📊</span>Poll</button>
-                <button class="comm-ptype-btn" data-type="discussion" onclick="setPostType('discussion')"><span class="pt-icon">💬</span>Discussion</button>
-                <button class="comm-ptype-btn" data-type="announcement" onclick="setPostType('announcement')"><span class="pt-icon">📣</span>Announcement</button>
+                <button class="comm-ptype-btn on" data-type="text" onclick="setPostType('text')"><span class="pt-icon"><i class="fi fi-rs-text"></i></span>Text</button>
+                <button class="comm-ptype-btn" data-type="image" onclick="setPostType('image')"><span class="pt-icon"><i class="fi fi-rs-picture"></i></span>Image</button>
+                <button class="comm-ptype-btn" data-type="poll" onclick="setPostType('poll')"><span class="pt-icon"><i class="fi fi-rs-chart-simple"></i></span>Poll</button>
+                <button class="comm-ptype-btn" data-type="discussion" onclick="setPostType('discussion')"><span class="pt-icon"><i class="fi fi-rs-comment"></i></span>Discussion</button>
+                <button class="comm-ptype-btn" data-type="announcement" onclick="setPostType('announcement')"><span class="pt-icon"><i class="fi fi-rs-megaphone"></i></span>Announcement</button>
             </div>
         </div>
         <div>
@@ -721,7 +734,7 @@
         <!-- Image section -->
         <div id="comm-image-section" style="display:none;">
             <div class="comm-image-pick" id="comm-image-pick" onclick="document.getElementById('comm-img-input').click()">
-                <span style="font-size:28px;position:relative;z-index:1;">📷</span>
+                <span style="font-size:24px;position:relative;z-index:1;color:#444;"><i class="fi fi-rs-cloud-upload"></i></span>
                 <span class="comm-image-pick-label">Tap to upload image</span>
                 <img id="comm-img-preview" src="" style="display:none;">
             </div>
@@ -759,7 +772,7 @@
     <div class="sq-sheet" style="max-height:85vh;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
             <div class="sq-sheet-title">Comments</div>
-            <span onclick="closeCommentsModal()" style="cursor:pointer;color:#444;font-size:22px;font-weight:900;line-height:1;">✕</span>
+            <span onclick="closeCommentsModal()" style="cursor:pointer;color:#444;font-size:20px;line-height:1;"><i class="fi fi-rs-cross-small"></i></span>
         </div>
         <div id="comm-comments-list" style="display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto;"></div>
         <div style="display:flex;gap:8px;margin-top:8px;">
@@ -798,6 +811,32 @@
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // ── Identity avatars — colored initials mark, same idea as Discord/Slack
+    // fallback icons, so every squad reads as distinct instead of one shared glyph ──
+    const AVATAR_PALETTE = ['#ff7a00','#ff9f45','#4fd1c5','#5b8cff','#a35bff','#ff5b8c','#f5b942','#32d74b'];
+    function avatarTone(name) {
+        const str = String(name || '?');
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+    }
+    function avatarInitials(name) {
+        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (!words.length) return '?';
+        if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+        return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    function avatarFallbackHtml(name, fontSize) {
+        const color = avatarTone(name);
+        return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:${color}22;color:${color};font-weight:900;font-size:${fontSize}px;letter-spacing:-0.3px;">${esc(avatarInitials(name))}</div>`;
+    }
+    function avatarError(imgEl) {
+        const wrap = imgEl.parentElement;
+        const name = wrap.getAttribute('data-avatar-name') || '';
+        const size = wrap.getAttribute('data-avatar-size') || 18;
+        wrap.innerHTML = avatarFallbackHtml(name, size);
+    }
+
     // ── Toast ──────────────────────────────────────────────
     let _toastTimer;
     function toast(msg, color = '#1a1a1a') {
@@ -826,7 +865,7 @@
     // ── Init ──────────────────────────────────────────────
     async function init() {
         if (localStorage.getItem('cc-privacy-team') === 'false') {
-            document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#0a0a0a;color:#fff;text-align:center;gap:16px;"><div style="font-size:48px">🔒</div><h2 style="margin:0">Squads is Disabled</h2><p style="color:#666;margin:0">You've turned this off in Settings.</p><a href="settings.html" style="background:#FF7A00;color:#000;padding:12px 24px;border-radius:24px;font-weight:700;text-decoration:none;margin-top:8px">Go to Settings</a><a href="index.html" style="color:#666;font-size:13px">← Back Home</a></div>`;
+            document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#0a0a0a;color:#fff;text-align:center;gap:16px;"><div style="font-size:40px;color:#444;"><i class="fi fi-rs-lock"></i></div><h2 style="margin:0">Squads is Disabled</h2><p style="color:#666;margin:0">You've turned this off in Settings.</p><a href="settings.html" style="background:#FF7A00;color:#000;padding:12px 24px;border-radius:24px;font-weight:700;text-decoration:none;margin-top:8px">Go to Settings</a><a href="index.html" style="color:#666;font-size:13px;display:inline-flex;align-items:center;gap:5px;"><i class="fi fi-rs-arrow-left" style="font-size:10px;"></i> Back Home</a></div>`;
             return;
         }
         const local = JSON.parse(localStorage.getItem('user_profile') || '{}');
@@ -959,7 +998,7 @@
 
         feed.innerHTML = `
             <div class="comm-trending" id="comm-trending-wrap">
-                <div class="comm-trending-label">🔥 Trending Tags</div>
+                <div class="comm-trending-label">Trending Tags</div>
                 <div class="comm-tag-scroll" id="comm-trending-tags">
                     <div class="comm-tag-chip" style="opacity:.4;">Loading…</div>
                 </div>
@@ -969,10 +1008,10 @@
                 <div class="comm-compose-fake" onclick="openCommPostModal()">Share something with your squads…</div>
             </div>
             <div class="comm-post-type-row">
-                <button class="comm-type-btn" onclick="openCommPostModal('image')">🖼 Photo</button>
-                <button class="comm-type-btn" onclick="openCommPostModal('poll')">📊 Poll</button>
-                <button class="comm-type-btn" onclick="openCommPostModal('discussion')">💬 Discussion</button>
-                <button class="comm-type-btn" onclick="openCommPostModal('announcement')">📣 Announce</button>
+                <button class="comm-type-btn" onclick="openCommPostModal('image')"><i class="fi fi-rs-picture"></i> Photo</button>
+                <button class="comm-type-btn" onclick="openCommPostModal('poll')"><i class="fi fi-rs-chart-simple"></i> Poll</button>
+                <button class="comm-type-btn" onclick="openCommPostModal('discussion')"><i class="fi fi-rs-comment"></i> Discussion</button>
+                <button class="comm-type-btn" onclick="openCommPostModal('announcement')"><i class="fi fi-rs-megaphone"></i> Announce</button>
             </div>
             <div id="comm-posts-feed"></div>`;
 
@@ -997,7 +1036,7 @@
 
         const mySquadIds = mySquads.map(s => String(s.id));
         if (!mySquadIds.length) {
-            postsFeed.innerHTML = `<div class="comm-empty"><div class="comm-empty-icon">🏕️</div><div class="comm-empty-title">Join a squad first</div><div class="comm-empty-sub">Community posts from your squads appear here.</div></div>`;
+            postsFeed.innerHTML = `<div class="comm-empty"><div class="comm-empty-icon"><i class="fi fi-rs-inbox"></i></div><div class="comm-empty-title">Join a squad first</div><div class="comm-empty-sub">Community posts from your squads appear here.</div></div>`;
             return;
         }
 
@@ -1026,7 +1065,7 @@
             : commPosts;
 
         if (!list.length) {
-            postsFeed.innerHTML = `<div class="comm-empty"><div class="comm-empty-icon">📝</div><div class="comm-empty-title">No posts yet</div><div class="comm-empty-sub">Be the first to post in your squads!</div></div>`;
+            postsFeed.innerHTML = `<div class="comm-empty"><div class="comm-empty-icon"><i class="fi fi-rs-document"></i></div><div class="comm-empty-title">No posts yet</div><div class="comm-empty-sub">Be the first to post in your squads!</div></div>`;
             return;
         }
 
@@ -1036,7 +1075,7 @@
     function buildCommPostCard(p, mySquads) {
         const squad = (mySquads || allSquads).find(s => String(s.id) === String(p.squad_id));
         const typeColors = { text:'badge-text', image:'badge-image', poll:'badge-poll', discussion:'badge-discussion', announcement:'badge-announcement' };
-        const typeLabels = { text:'Text', image:'Photo', poll:'Poll', discussion:'Discussion', announcement:'📣 Announcement' };
+        const typeLabels = { text:'Text', image:'Photo', poll:'Poll', discussion:'Discussion', announcement:'Announcement' };
         const badgeCls = typeColors[p.post_type] || 'badge-text';
         const badgeLabel = typeLabels[p.post_type] || 'Post';
 
@@ -1077,7 +1116,7 @@
             <div class="comm-poll-meta">${totalVotes} vote${totalVotes!==1?'s':''} · ${myVote ? 'You voted' : 'Tap to vote'}</div></div>`;
         } else if (p.post_type === 'discussion') {
             mediaHtml = `<div class="comm-discussion-bar" onclick="toggleCommComments('${esc(p.id)}')">
-                <span class="comm-disc-icon">💬</span>
+                <span class="comm-disc-icon"><i class="fi fi-rs-comment"></i></span>
                 <span class="comm-disc-label">Join the discussion · ${p.comment_count||0} replies</span>
                 <span class="comm-disc-arrow">›</span>
             </div>`;
@@ -1220,7 +1259,7 @@
 
     function renderCommTagBuilder() {
         document.getElementById('comm-tag-builder').innerHTML = commPostTags.map(t =>
-            `<span class="comm-post-tag" style="cursor:default;">#${esc(t)} <span onclick="removeCommTag('${esc(t)}')" style="cursor:pointer;opacity:.6;">✕</span></span>`
+            `<span class="comm-post-tag" style="cursor:default;">#${esc(t)} <span onclick="removeCommTag('${esc(t)}')" style="cursor:pointer;opacity:.6;"><i class="fi fi-rs-cross-small"></i></span></span>`
         ).join('');
     }
 
@@ -1284,7 +1323,7 @@
 
             commPosts.unshift(newPost);
             closeCommPostModal();
-            toast('Posted! 🎉', '#32d74b');
+            toast('Posted!', '#32d74b');
 
             const mySquads = allSquads.filter(s => {
                 const sid = String(s.id);
@@ -1474,33 +1513,17 @@
         });
 
         if (!list.length) {
-            feed.innerHTML = `<div class="sq-empty"><div class="sq-empty-icon">🏕️</div><div class="sq-empty-title">${activeTab==='mine'?'No squads yet':'No squads found'}</div><div class="sq-empty-sub">${activeTab==='mine'?'Join or create a squad to get started':'Try a different search or create one!'}</div></div>`;
+            feed.innerHTML = `<div class="sq-empty"><div class="sq-empty-icon"><i class="fi ${activeTab==='mine'?'fi-rs-inbox':'fi-rs-search'}"></i></div><div class="sq-empty-title">${activeTab==='mine'?'No squads yet':'No squads found'}</div><div class="sq-empty-sub">${activeTab==='mine'?'Join or create a squad to get started':'Try a different search or create one!'}</div></div>`;
             renderMySquadsStrip();
             renderRecSquadsGrid();
             return;
         }
 
-        list.forEach(s => { feed.appendChild(buildCard(s)); hydrateMemberAvatars(s.id); });
+        list.forEach(s => { feed.appendChild(buildCard(s)); });
         hydrateUnreadBadges();
         // Also keep Amino-style sections updated
         renderMySquadsStrip();
         renderRecSquadsGrid();
-    }
-
-    async function hydrateMemberAvatars(squadId) {
-        const wrap = document.getElementById(`avatars-${squadId}`);
-        if (!wrap) return;
-        const members = allAccepted.filter(r => r.ticket_id === String(squadId)).slice(0, 5);
-        if (!members.length) return;
-        const pics = await Promise.all(members.map(async m => {
-            const { data } = await _sb.from('profiles').select('pic,handle').eq('handle', m.sender_handle).maybeSingle();
-            return data;
-        }));
-        wrap.innerHTML = pics.filter(Boolean).map((p, i) =>
-            `<img src="${esc(p.pic||'')}" title="@${esc(p.handle)}" style="width:20px;height:20px;border-radius:6px;object-fit:cover;border:1.5px solid #111;margin-left:${i===0?0:-6}px;background:#222;" onerror="this.style.display='none'">`
-        ).join('');
-        const total = allAccepted.filter(r => r.ticket_id === String(squadId)).length;
-        if (total > 5) wrap.innerHTML += `<span style="font-size:9px;font-weight:800;color:#444;margin-left:4px;">+${total-5}</span>`;
     }
 
     function buildCard(s) {
@@ -1518,8 +1541,8 @@
         card.className = `sq-card${isOwner ? ' is-mine' : ''}`;
 
         const pfpHtml = s.pfp
-            ? `<div class="sq-card-pfp"><img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='💬'"></div>`
-            : `<div class="sq-card-pfp">💬</div>`;
+            ? `<div class="sq-card-pfp" data-avatar-name="${esc(s.team_name)}" data-avatar-size="18"><img src="${esc(s.pfp)}" onerror="avatarError(this)"></div>`
+            : `<div class="sq-card-pfp">${avatarFallbackHtml(s.team_name, 18)}</div>`;
 
         const topicsHtml = topics.length
             ? `<div class="sq-card-topics">${topics.map(t=>`<span class="sq-card-topic-tag">${esc(t)}</span>`).join('')}</div>`
@@ -1529,7 +1552,7 @@
         if (isOwner) {
             actions = `
                 <button class="sq-action-btn sq-btn-manage" onclick="event.stopPropagation();openManageModal('${sid}')">Manage</button>
-                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')">💬 Chat</button>
+                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')"><i class="fi fi-rs-comment"></i> Chat</button>
                 <button class="sq-action-btn sq-btn-collab-comic" title="Make a comic with your squad" onclick="event.stopPropagation();openCollabComicSheet('${sid}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg">
                         <rect x="1.5" y="6" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6" opacity="0.38"/>
@@ -1542,8 +1565,8 @@
                 </button>`;
         } else if (isMember) {
             actions = `
-                <button class="sq-action-btn sq-btn-joined">✓ Joined</button>
-                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')">💬 Chat</button>
+                <button class="sq-action-btn sq-btn-joined"><i class="fi fi-rs-check"></i> Joined</button>
+                <button class="sq-action-btn sq-btn-chat" id="chatbtn-${sid}" onclick="event.stopPropagation();goToChat('${sid}')"><i class="fi fi-rs-comment"></i> Chat</button>
                 <button class="sq-action-btn sq-btn-collab-comic" title="Make a comic with your squad" onclick="event.stopPropagation();openCollabComicSheet('${sid}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg">
                         <rect x="1.5" y="6" width="13" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6" opacity="0.38"/>
@@ -1554,13 +1577,13 @@
                         <path d="M7 6 L9.5 7 L12 6 L9.5 5 Z" fill="currentColor"/>
                     </svg>
                 </button>
-                <button class="sq-action-btn sq-btn-members" onclick="event.stopPropagation();openMembersModal('${sid}')" title="View members">👥</button>
+                <button class="sq-action-btn sq-btn-members" onclick="event.stopPropagation();openMembersModal('${sid}')" title="View members">Members</button>
                 <button class="sq-action-btn sq-btn-leave" onclick="event.stopPropagation();leaveSquad('${sid}')">Leave</button>`;
         } else if (isPending) {
-            actions = `<button class="sq-action-btn sq-btn-pending">⏳ Pending…</button>`;
+            actions = `<button class="sq-action-btn sq-btn-pending"><i class="fi fi-rs-time-past"></i> Pending…</button>`;
         } else {
             const requiresRequest = s.owner_handle !== 'jeffyplays' || s.is_private;
-            const btnLabel = requiresRequest ? '📨 Request to Join' : 'Join';
+            const btnLabel = requiresRequest ? '<i class="fi fi-rs-mailbox-flag-up"></i> Request to Join' : 'Join';
             actions = `<button class="sq-action-btn sq-btn-join" id="jbtn-${sid}" onclick="event.stopPropagation();joinSquad('${sid}',${!!s.is_private})">${btnLabel}</button>`;
         }
 
@@ -1571,7 +1594,7 @@
             const mins = Math.floor(diff/60000), hrs = Math.floor(diff/3600000), days = Math.floor(diff/86400000);
             const when = mins<1?'Just now':mins<60?`${mins}m ago`:hrs<24?`${hrs}h ago`:`${days}d ago`;
             const isActive = diff < 3600000;
-            activityHtml = `<span style="color:${isActive?'#32d74b':'#333'};font-size:10px;font-weight:800;">${isActive?'🟢':'⚫'} ${when}</span>`;
+            activityHtml = `<span style="display:inline-flex;align-items:center;gap:4px;color:${isActive?'#32d74b':'#333'};font-size:10px;font-weight:800;"><span class="sq-status-dot"></span>${when}</span>`;
         }
 
         card.innerHTML = `
@@ -1580,16 +1603,15 @@
                 <div class="sq-card-nameline">
                     <span class="sq-card-name">${esc(s.team_name)}</span>
                     ${isOwner?'<span class="sq-tag-badge sq-badge-mine">YOURS</span>':''}
-                    ${s.is_private?'<span class="sq-tag-badge sq-badge-private">🔒 PRIVATE</span>':''}
+                    ${s.is_private?'<span class="sq-tag-badge sq-badge-private"><i class="fi fi-rs-lock"></i> PRIVATE</span>':''}
                 </div>
                 <div class="sq-card-owner">by @${esc(s.owner_handle)}</div>
                 ${s.description?`<div class="sq-card-desc">${esc(s.description)}</div>`:''}
                 ${topicsHtml}
                 <div class="sq-card-meta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <span>👥 ${memberCount} member${memberCount!==1?'s':''}</span>
+                    <span>${memberCount} member${memberCount!==1?'s':''}</span>
                     ${activityHtml}
                 </div>
-                <div id="avatars-${sid}" style="display:flex;align-items:center;margin-top:6px;"></div>
             </div>
             <div class="sq-card-right">${actions}</div>`;
         return card;
@@ -1611,15 +1633,15 @@
         const status = requiresRequest ? 'pending' : 'accepted';
         const { error } = await _sb.from('team_requests').insert([{ ticket_id: sid, sender_handle: myHandle, status }]);
         if (error) {
-            if (btn) { btn.innerText = requiresRequest ? '📨 Request' : 'Join'; btn.disabled = false; }
+            if (btn) { btn.innerText = requiresRequest ? 'Request' : 'Join'; btn.disabled = false; }
             toast('Failed to join. Try again.', '#ff3b30'); return;
         }
         myRequests.push({ ticket_id: sid, sender_handle: myHandle, status });
         if (!requiresRequest) {
             allAccepted.push({ ticket_id: sid, sender_handle: myHandle });
-            toast('Joined! 🎉', '#32d74b');
+            toast('Joined!', '#32d74b');
         } else {
-            toast('Request sent! Waiting for approval. ✉️', '#ff7a00');
+            toast('Request sent — waiting for approval.', '#ff7a00');
         }
         await updateStats();
         renderFeed();
@@ -1646,7 +1668,7 @@
         document.querySelectorAll('#topic-row .sq-topic.on').forEach(t => t.classList.remove('on'));
         newPfp = '';
         const pp = document.getElementById('pfp-pick');
-        pp.style.backgroundImage = ''; pp.innerHTML = '🖼'; pp.classList.remove('has-img');
+        pp.style.backgroundImage = ''; pp.innerHTML = '<i class="fi fi-rs-picture"></i>'; pp.classList.remove('has-img');
     }
 
     async function createSquad() {
@@ -1677,7 +1699,7 @@
         const optimisticPfp = pfpIsBase64 ? newPfp : (newPfp || null);
         allSquads.unshift({ ...newSquad, pfp: optimisticPfp });
         closeCreateModal();
-        toast('Squad created! 🎉', '#32d74b');
+        toast('Squad created!', '#32d74b');
         await updateStats();
         renderFeed();
 
@@ -1712,7 +1734,7 @@
         editPfp = s.pfp || '';
         const ep = document.getElementById('edit-pfp-pick');
         if (s.pfp) { ep.style.backgroundImage=`url(${s.pfp})`; ep.innerHTML=''; ep.classList.add('has-img'); }
-        else       { ep.style.backgroundImage=''; ep.innerHTML='✎'; ep.classList.remove('has-img'); }
+        else       { ep.style.backgroundImage=''; ep.innerHTML='<i class="fi fi-rs-pencil"></i>'; ep.classList.remove('has-img'); }
 
         document.getElementById('invite-link-input').value =
             `${location.origin}${location.pathname.replace('squads.html','')}squads.html?join=${sid}`;
@@ -1784,7 +1806,7 @@
         }).eq('id', activeManageId);
 
         closeManageModal();
-        toast('Saved! ✓', '#32d74b');
+        toast('Saved!', '#32d74b');
         await loadSquads();
         btn.innerText = 'Save Changes'; btn.disabled = false;
 
@@ -1816,7 +1838,7 @@
     function copyInviteLink() {
         const val = document.getElementById('invite-link-input').value;
         navigator.clipboard.writeText(val)
-            .then(() => toast('Link copied! 📋'))
+            .then(() => toast('Link copied!'))
             .catch(() => { document.getElementById('invite-link-input').select(); document.execCommand('copy'); toast('Link copied!'); });
     }
 
@@ -1875,7 +1897,7 @@
 
     function startNewCollabComic() {
         // Go to the right editor (mobile or desktop) — the user will publish first,
-        // then use the 👥 Co-create button to invite squad members
+        // then use the Co-create button to invite squad members
         closeCollabComicSheet();
         const dest = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
         // Store squad hint so create.html can pre-select this squad in the invite panel
@@ -1911,7 +1933,7 @@
                 .eq('status', 'accepted');
 
             if (!collabs || !collabs.length) {
-                listEl.innerHTML = '<div style="font-size:12px;color:#333;font-weight:700;padding:8px 0;">No co-created comics yet.<br><span style="opacity:.6;">Publish a comic, then tap 👥 to invite squad members.</span></div>';
+                listEl.innerHTML = '<div style="font-size:12px;color:#333;font-weight:700;padding:8px 0;">No co-created comics yet.<br><span style="opacity:.6;">Publish a comic, then invite squad members from the Members button.</span></div>';
                 return;
             }
 
@@ -1922,17 +1944,17 @@
             listEl.innerHTML = unique.map(c => `
                 <div style="background:#111;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
                     <div style="min-width:0;">
-                        <div style="font-size:13px;font-weight:900;color:#f5f5f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📖 ${esc(c.comic_title || 'Untitled')}</div>
+                        <div style="font-size:13px;font-weight:900;color:#f5f5f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;"><i class="fi fi-rs-book-open" style="font-size:11px;color:#555;"></i> ${esc(c.comic_title || 'Untitled')}</div>
                         <div style="font-size:11px;color:#444;font-weight:700;margin-top:2px;">@${esc(c.inviter_handle)} + @${esc(c.invitee_handle)}</div>
                     </div>
                     <div style="display:flex;gap:6px;flex-shrink:0;">
                         <button onclick="location.href='reader.html?id=${esc(c.comic_id)}'"
                             style="background:#1e1e1e;border:1px solid #2a2a2a;color:#ccc;font-size:11px;font-weight:700;border-radius:8px;padding:6px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">
-                            📖 Read
+                            <i class="fi fi-rs-book-open"></i> Read
                         </button>
                         <button onclick="editCollabComic('${esc(c.comic_id)}')"
                             style="background:var(--accent);border:none;color:#000;font-size:11px;font-weight:900;border-radius:8px;padding:6px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">
-                            ✏️ Edit
+                            <i class="fi fi-rs-pencil"></i> Edit
                         </button>
                     </div>
                 </div>`).join('');
@@ -1973,12 +1995,12 @@
         }
 
         const statusColor = { accepted: '#32d74b', declined: '#ff453a', pending: '#ff7a00' };
-        const statusLabel = { accepted: '✅ Joined', declined: '❌ Declined', pending: '⏳ Pending' };
+        const statusLabel = { accepted: '<i class="fi fi-rs-check"></i> Joined', declined: '<i class="fi fi-rs-cross-small"></i> Declined', pending: '<i class="fi fi-rs-time-past"></i> Pending' };
 
         listEl.innerHTML = data.map(inv => `
             <div style="background:#111;border-radius:12px;padding:14px;margin-bottom:10px;">
-                <div style="font-size:13px;font-weight:900;color:#f5f5f7;margin-bottom:3px;">
-                    📖 ${inv.comic_title || 'Untitled Comic'}
+                <div style="font-size:13px;font-weight:900;color:#f5f5f7;margin-bottom:3px;display:flex;align-items:center;gap:6px;">
+                    <i class="fi fi-rs-book-open" style="font-size:11px;color:#555;"></i> ${inv.comic_title || 'Untitled Comic'}
                 </div>
                 <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:10px;">
                     Invited by @${inv.inviter_handle}
@@ -1987,14 +2009,14 @@
                 <div style="display:flex;gap:8px;">
                     <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','accepted',this)"
                         style="flex:1;background:var(--accent);border:none;color:#000;font-weight:900;font-size:12px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
-                        ✅ Accept &amp; Co-create
+                        <i class="fi fi-rs-check"></i> Accept &amp; Co-create
                     </button>
                     <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','declined',this)"
                         style="background:#1e1e1e;border:1px solid #2a2a2a;color:#555;font-weight:700;font-size:12px;border-radius:10px;padding:10px 16px;cursor:pointer;font-family:inherit;white-space:nowrap;">
                         Decline
                     </button>
                 </div>` : `
-                <div style="font-size:12px;font-weight:800;color:${statusColor[inv.status] || '#555'};">
+                <div style="font-size:12px;font-weight:800;color:${statusColor[inv.status] || '#555'};display:flex;align-items:center;gap:5px;">
                     ${statusLabel[inv.status] || inv.status}
                 </div>`}
             </div>`).join('');
@@ -2100,22 +2122,22 @@
             const lastMsg  = (window._lastMsgMap || {})[sid];
             const isUnread = lastMsg && new Date(lastMsg.created_at).getTime() > lastSeen && lastMsg.sender_handle !== myHandle;
             const coverHtml = s.pfp
-                ? `<img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='💬'">`
-                : '💬';
+                ? `<img src="${esc(s.pfp)}" onerror="avatarError(this)">`
+                : avatarFallbackHtml(s.team_name, 26);
             return `<div class="sq-mine-card" onclick="goToChat('${sid}')">
-                <div class="sq-mine-card-cover">
+                <div class="sq-mine-card-cover" data-avatar-name="${esc(s.team_name)}" data-avatar-size="26">
                     ${coverHtml}
                     ${isOwner ? '<span class="sq-mine-card-yours">YOURS</span>' : ''}
                 </div>
                 <div class="sq-mine-card-body">
                     <div class="sq-mine-card-name">${esc(s.team_name)}</div>
                     <button class="sq-mine-card-btn" onclick="event.stopPropagation();goToChat('${sid}')">
-                        💬 Chat${isUnread ? ' <span class="sq-unread-badge" style="position:absolute;top:-5px;right:-5px;">●</span>' : ''}
+                        <i class="fi fi-rs-comment"></i> Chat${isUnread ? ' <span class="sq-unread-badge" style="position:absolute;top:-5px;right:-5px;">●</span>' : ''}
                     </button>
                 </div>
             </div>`;
         }).join('') + `<div class="sq-mine-join-card" onclick="openCreateModal()">
-            <div class="sq-mine-join-icon">＋</div>
+            <div class="sq-mine-join-icon"><i class="fi fi-rs-plus"></i></div>
             <div class="sq-mine-join-label">Create Squad</div>
         </div>`;
 
@@ -2142,18 +2164,18 @@
             const lastMsg = (window._lastMsgMap || {})[sid];
             const isActive = lastMsg && (Date.now() - new Date(lastMsg.created_at)) < 3600000;
             const coverHtml = s.pfp
-                ? `<img src="${esc(s.pfp)}" onerror="this.parentElement.innerHTML='🏕️'">`
-                : '🏕️';
+                ? `<img src="${esc(s.pfp)}" onerror="avatarError(this)">`
+                : avatarFallbackHtml(s.team_name, 24);
             return `<div class="sq-rec-card">
-                <div class="sq-rec-cover" onclick="location.href='squads.html#${sid}'">
+                <div class="sq-rec-cover" onclick="location.href='squads.html#${sid}'" data-avatar-name="${esc(s.team_name)}" data-avatar-size="24">
                     ${coverHtml}
-                    ${s.is_private ? '<span class="sq-rec-private">🔒</span>' : ''}
-                    ${isActive ? '<span class="sq-rec-active">🟢 Active</span>' : ''}
+                    ${s.is_private ? '<span class="sq-rec-private"><i class="fi fi-rs-lock"></i></span>' : ''}
+                    ${isActive ? '<span class="sq-rec-active"><span class="sq-status-dot"></span>Active</span>' : ''}
                 </div>
                 <div class="sq-rec-body">
                     <div class="sq-rec-name">${esc(s.team_name)}</div>
-                    <div class="sq-rec-meta">👥 ${cnt} member${cnt!==1?'s':''}</div>
-                    <button class="sq-rec-join" id="recjoin-${sid}" onclick="recJoinSquad(this,'${sid}',${!!s.is_private})">${s.owner_handle !== 'jeffyplays' || s.is_private ? '📨 Request' : 'Join'}</button>
+                    <div class="sq-rec-meta">${cnt} member${cnt!==1?'s':''}</div>
+                    <button class="sq-rec-join" id="recjoin-${sid}" onclick="recJoinSquad(this,'${sid}',${!!s.is_private})">${s.owner_handle !== 'jeffyplays' || s.is_private ? '<i class="fi fi-rs-mailbox-flag-up"></i> Request' : 'Join'}</button>
                 </div>
             </div>`;
         }).join('');
@@ -2171,16 +2193,16 @@
         btn.disabled = true; btn.innerText = '…';
         const status = requiresRequest ? 'pending' : 'accepted';
         const { error } = await _sb.from('team_requests').insert([{ ticket_id: sid, sender_handle: myHandle, status }]);
-        if (error) { btn.disabled = false; btn.innerText = requiresRequest ? '📨 Request' : 'Join'; toast('Error — try again', '#ff3b30'); return; }
+        if (error) { btn.disabled = false; btn.innerText = requiresRequest ? 'Request' : 'Join'; toast('Error — try again', '#ff3b30'); return; }
         myRequests.push({ ticket_id: sid, sender_handle: myHandle, status });
         if (!requiresRequest) {
             allAccepted.push({ ticket_id: sid, sender_handle: myHandle });
-            btn.className = 'sq-rec-join joined'; btn.innerText = '✓ Joined';
-            toast('Joined! 🎉', '#32d74b');
+            btn.className = 'sq-rec-join joined'; btn.innerText = 'Joined';
+            toast('Joined!', '#32d74b');
             renderMySquadsStrip();
         } else {
-            btn.className = 'sq-rec-join pending'; btn.innerText = '⏳ Pending';
-            toast('Request sent! Waiting for approval. ✉️', '#ff7a00');
+            btn.className = 'sq-rec-join pending'; btn.innerText = 'Pending';
+            toast('Request sent — waiting for approval.', '#ff7a00');
         }
         await updateStats();
     }
