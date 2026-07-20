@@ -6234,27 +6234,45 @@ function handleActionSelect(img, pack, isEditing) {
                 // Different poses are naturally different shapes (a crouch is
                 // short and wide, a stand is tall and narrow) — forcing every
                 // pose to the same locked height stretched/ballooned poses
-                // that weren't meant to be that tall. Instead, derive the true
-                // display scale (px shown per px of source content) from the
-                // CURRENTLY visible pose, then apply that same scale to the
-                // new pose's own trimmed content so it renders at its real
-                // relative size.
-                const probeCur = new Image();
-                probeCur.crossOrigin = 'anonymous';
-                probeCur.onload = () => {
-                    if (probeCur.naturalWidth && probeCur.naturalHeight) {
-                        const scale = oldH / probeCur.naturalHeight;
-                        finish(Math.round(croppedNew.w * scale), Math.round(croppedNew.h * scale));
-                    } else {
+                // that weren't meant to be that tall. So we scale each pose's
+                // own trimmed content by (current displayed height) / (current
+                // pose's raw trimmed-artwork height), derived FRESH at swap
+                // time from whatever's live on screen right now. That means:
+                //  - if the user manually resized the sprite since it was
+                //    added or last swapped, that resize is respected (oldH
+                //    reflects it), instead of reverting to a size locked in
+                //    at creation time
+                //  - the scale otherwise stays consistent swap-to-swap, since
+                //    each swap updates contentH to the new pose's own value
+                //    for the next swap to reference
+                if (layer.contentH) {
+                    const scale = oldH / layer.contentH;
+                    layer.contentH = croppedNew.h;
+                    finish(Math.round(croppedNew.w * scale), Math.round(croppedNew.h * scale));
+                } else {
+                    // Legacy layer saved before contentH was tracked — backfill
+                    // it once from the currently displayed pose (one extra image
+                    // load), then every future swap uses the fast path above.
+                    const probeCur = new Image();
+                    probeCur.crossOrigin = 'anonymous';
+                    probeCur.onload = () => {
+                        if (probeCur.naturalWidth && probeCur.naturalHeight) {
+                            const scale = oldH / probeCur.naturalHeight;
+                            layer.contentH = croppedNew.h;
+                            finish(Math.round(croppedNew.w * scale), Math.round(croppedNew.h * scale));
+                        } else {
+                            const ar = croppedNew.w / croppedNew.h;
+                            layer.contentH = croppedNew.h;
+                            finish(Math.round(oldH * ar), oldH);
+                        }
+                    };
+                    probeCur.onerror = () => {
                         const ar = croppedNew.w / croppedNew.h;
+                        layer.contentH = croppedNew.h;
                         finish(Math.round(oldH * ar), oldH);
-                    }
-                };
-                probeCur.onerror = () => {
-                    const ar = croppedNew.w / croppedNew.h;
-                    finish(Math.round(oldH * ar), oldH);
-                };
-                probeCur.src = layer.src;
+                    };
+                    probeCur.src = layer.src;
+                }
             } else {
                 // Effect / plain image: scale proportionally from current width
                 const scale = oldW / croppedNew.w;
@@ -6356,6 +6374,12 @@ function addSpriteToCanvas(src, pack) {
             nl.src = cropped.src;
             // Store the canonical height on the layer so action switches can reference it
             nl.charHeight = targetH;
+            // Track the raw trimmed-artwork height of the CURRENTLY loaded pose.
+            // Manual resizes change nl.h/nl.w but never this — so at pose-swap
+            // time we can always derive an up-to-date scale as
+            // (live displayed height) / (this), which reflects any resize the
+            // user has done since, instead of a scale frozen at add-time.
+            nl.contentH = cropped.h;
         } else {
             // ── Effect / plain image: keep original width-based sizing ──
             const initW = Math.round(cw * 0.4);
@@ -6376,6 +6400,8 @@ function addSpriteToCanvas(src, pack) {
                 if (isCharacter) {
                     nl.h = targetH;
                     nl.w = Math.round(targetH * fallback.naturalWidth / fallback.naturalHeight);
+                    nl.charHeight = targetH;
+                    nl.contentH = fallback.naturalHeight;
                 } else {
                     nl.h = Math.round(nl.w * fallback.naturalHeight / fallback.naturalWidth);
                 }
