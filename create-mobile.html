@@ -6231,48 +6231,18 @@ function handleActionSelect(img, pack, isEditing) {
                     return;
                 }
 
-                // Different poses are naturally different shapes (a crouch is
-                // short and wide, a stand is tall and narrow) — forcing every
-                // pose to the same locked height stretched/ballooned poses
-                // that weren't meant to be that tall. So we scale each pose's
-                // own trimmed content by (current displayed height) / (current
-                // pose's raw trimmed-artwork height), derived FRESH at swap
-                // time from whatever's live on screen right now. That means:
-                //  - if the user manually resized the sprite since it was
-                //    added or last swapped, that resize is respected (oldH
-                //    reflects it), instead of reverting to a size locked in
-                //    at creation time
-                //  - the scale otherwise stays consistent swap-to-swap, since
-                //    each swap updates contentH to the new pose's own value
-                //    for the next swap to reference
-                if (layer.contentH) {
-                    const scale = oldH / layer.contentH;
-                    layer.contentH = croppedNew.h;
-                    finish(Math.round(croppedNew.w * scale), Math.round(croppedNew.h * scale));
-                } else {
-                    // Legacy layer saved before contentH was tracked — backfill
-                    // it once from the currently displayed pose (one extra image
-                    // load), then every future swap uses the fast path above.
-                    const probeCur = new Image();
-                    probeCur.crossOrigin = 'anonymous';
-                    probeCur.onload = () => {
-                        if (probeCur.naturalWidth && probeCur.naturalHeight) {
-                            const scale = oldH / probeCur.naturalHeight;
-                            layer.contentH = croppedNew.h;
-                            finish(Math.round(croppedNew.w * scale), Math.round(croppedNew.h * scale));
-                        } else {
-                            const ar = croppedNew.w / croppedNew.h;
-                            layer.contentH = croppedNew.h;
-                            finish(Math.round(oldH * ar), oldH);
-                        }
-                    };
-                    probeCur.onerror = () => {
-                        const ar = croppedNew.w / croppedNew.h;
-                        layer.contentH = croppedNew.h;
-                        finish(Math.round(oldH * ar), oldH);
-                    };
-                    probeCur.src = layer.src;
-                }
+                // Height is locked to whatever's currently displayed (oldH —
+                // live, so it respects any manual resize the user has done)
+                // and never changes on a pose swap, full stop. Width is
+                // derived from the NEW pose's own aspect ratio at that fixed
+                // height, so it doesn't stretch/squash — but height itself
+                // never shrinks or grows just because a different pose's
+                // artwork happens to trim to a shorter or taller box (e.g. a
+                // punch that leans the silhouette sideways). The character's
+                // on-screen size should only change when the user deliberately
+                // resizes it, never as a side effect of swapping poses.
+                const ar = croppedNew.w / croppedNew.h;
+                finish(Math.round(oldH * ar), oldH);
             } else {
                 // Effect / plain image: scale proportionally from current width
                 const scale = oldW / croppedNew.w;
