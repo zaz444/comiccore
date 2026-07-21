@@ -877,6 +877,7 @@
 
     let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     let pfpBase64 = '';
+    let _pfpChanged = false;
     let bannerBase64 = '';
     let _settingsAccentColor = '#ff7a00';
     let _settingsPronoun = '';
@@ -1085,10 +1086,20 @@
         if (!pic) return '';
         if (pic.startsWith('data:image')) return pic;
         if (pic.startsWith('avatars/')) {
-            const { data } = _supabase.storage.from('avatars').getPublicUrl(pic.replace('avatars/', ''));
+            let cleanPath = pic;
+            while (cleanPath.startsWith('avatars/')) cleanPath = cleanPath.slice('avatars/'.length);
+            const { data } = _supabase.storage.from('avatars').getPublicUrl(cleanPath);
             return data.publicUrl;
         }
         return pic;
+    }
+
+    function normalizeStoragePath(pic) {
+        if (!pic || pic.startsWith('data:image') || pic.startsWith('http')) return pic;
+        let path = pic;
+        let prefixes = 0;
+        while (path.startsWith('avatars/')) { path = path.slice('avatars/'.length); prefixes++; }
+        return prefixes > 0 ? `avatars/${path}` : pic;
     }
 
     function selectStatus(status) {
@@ -1203,6 +1214,7 @@
     function confirmGalleryPfp() {
         if (!selectedGalleryUrl) return;
         pfpBase64 = selectedGalleryUrl;
+        _pfpChanged = true;
         document.getElementById('pfp-preview').src = formatImageUrl(pfpBase64);
         markDirty(); closePfpPicker();
     }
@@ -1257,6 +1269,7 @@
         const canvas=document.createElement('canvas'); canvas.width=400; canvas.height=400;
         canvas.getContext('2d').drawImage(img,-left/sc,-top/sc,PFP_SIZE/sc,PFP_SIZE/sc,0,0,400,400);
         pfpBase64=canvas.toDataURL('image/jpeg',0.9);
+        _pfpChanged = true;
         document.getElementById('pfp-preview').src=pfpBase64;
         markDirty(); closePfpCrop();
     }
@@ -1309,8 +1322,8 @@
     async function saveSettings() {
         if (!myProfile.handle) { showToast('Not logged in'); return; }
 
-        let picPath = myProfile.pic || '';
-        let bannerPath = myProfile.banner || '';
+        let picPath = normalizeStoragePath(myProfile.pic || '');
+        let bannerPath = normalizeStoragePath(myProfile.banner || '');
 
         if (pfpBase64 && pfpBase64.startsWith('data:image')) {
             try {
@@ -1320,6 +1333,9 @@
                 if (error) { showToast('PFP upload failed: '+error.message); return; }
                 if (data) picPath = `avatars/${fn}`;
             } catch(e) { showToast('PFP upload error'); return; }
+        } else if (_pfpChanged && pfpBase64) {
+            // Gallery avatar or other direct URL was selected (not a cropped upload)
+            picPath = pfpBase64;
         }
 
         if (bannerBase64 && bannerBase64.startsWith('data:image')) {
@@ -1385,6 +1401,7 @@
 
         if (!error) {
             markClean();
+            _pfpChanged = false;
             localStorage.setItem('user_profile', JSON.stringify(updated));
             myProfile = updated;
             showToast('✓ Settings saved!');
@@ -1418,6 +1435,7 @@
 
         pfpBase64 = myProfile.pic || GALLERY_AVATARS[0];
         document.getElementById('pfp-preview').src = formatImageUrl(pfpBase64);
+        _pfpChanged = false;
 
         bannerBase64 = myProfile.banner || '';
         if (bannerBase64) { document.getElementById('banner-preview').src = formatImageUrl(bannerBase64); document.getElementById('banner-preview').style.display='block'; }
