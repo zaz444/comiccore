@@ -89,7 +89,8 @@ word-wrap:break-word;line-height:1.35;
 .bubble-style-rect .bubble-tail::after{content:'';position:absolute;top:-17px;left:-9px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid var(--bubble-bg,#fff);}
 
 /* ── Style 4: Spiky / Burst ── */
-.bubble-style-spiky{border:3px solid var(--bubble-border,#000);clip-path:polygon(50% 0%,61% 6%,74% 2%,79% 13%,93% 12%,91% 25%,100% 33%,90% 41%,98% 52%,86% 56%,90% 70%,76% 70%,75% 84%,62% 79%,54% 92%,43% 83%,30% 88%,28% 74%,15% 76%,17% 61%,4% 56%,13% 45%,3% 35%,14% 27%,8% 14%,22% 14%,25% 2%,38% 7%);padding:22px 28px;box-shadow:none;}
+.bubble-style-spiky{background:var(--bubble-border,#000);border:none;clip-path:polygon(50% 0%,58.28% 19.09%,75% 6.7%,72.63% 27.37%,93.3% 25%,80.91% 41.72%,100% 50%,80.91% 58.28%,93.3% 75%,72.63% 72.63%,75% 93.3%,58.28% 80.91%,50% 100%,41.72% 80.91%,25% 93.3%,27.37% 72.63%,6.7% 75%,19.09% 58.28%,0% 50%,19.09% 41.72%,6.7% 25%,27.37% 27.37%,25% 6.7%,41.72% 19.09%);padding:6px;box-shadow:none;}
+.bubble-style-spiky .bubble-clip-fill{display:block;background:var(--bubble-bg,#fff);width:100%;box-sizing:border-box;clip-path:polygon(50% 0%,58.28% 19.09%,75% 6.7%,72.63% 27.37%,93.3% 25%,80.91% 41.72%,100% 50%,80.91% 58.28%,93.3% 75%,72.63% 72.63%,75% 93.3%,58.28% 80.91%,50% 100%,41.72% 80.91%,25% 93.3%,27.37% 72.63%,6.7% 75%,19.09% 58.28%,0% 50%,19.09% 41.72%,6.7% 25%,27.37% 27.37%,25% 6.7%,41.72% 19.09%);padding:22px 28px;}
 .bubble-style-spiky .bubble-tail{display:none;}
 
 /* ── Style 5: Cloud (thinking) ── */
@@ -98,7 +99,8 @@ word-wrap:break-word;line-height:1.35;
 .bubble-style-cloud .bubble-tail{display:none;}
 
 /* ── Style 6: Shout ── */
-.bubble-style-shout{background:var(--bubble-bg,#ffeb3b);border:3.5px solid var(--bubble-border,#000);clip-path:polygon(5% 10%,20% 0%,35% 10%,50% 0%,65% 10%,80% 0%,95% 10%,100% 30%,95% 50%,100% 70%,95% 90%,80% 100%,65% 90%,50% 100%,35% 90%,20% 100%,5% 90%,0% 70%,5% 50%,0% 30%);padding:20px 24px;box-shadow:none;}
+.bubble-style-shout{background:var(--bubble-border,#000);border:none;clip-path:polygon(5% 10%,20% 0%,35% 10%,50% 0%,65% 10%,80% 0%,95% 10%,100% 30%,95% 50%,100% 70%,95% 90%,80% 100%,65% 90%,50% 100%,35% 90%,20% 100%,5% 90%,0% 70%,5% 50%,0% 30%);padding:6px;box-shadow:none;}
+.bubble-style-shout .bubble-clip-fill{display:block;background:var(--bubble-bg,#ffeb3b);width:100%;box-sizing:border-box;clip-path:polygon(5% 10%,20% 0%,35% 10%,50% 0%,65% 10%,80% 0%,95% 10%,100% 30%,95% 50%,100% 70%,95% 90%,80% 100%,65% 90%,50% 100%,35% 90%,20% 100%,5% 90%,0% 70%,5% 50%,0% 30%);padding:20px 24px;}
 .bubble-style-shout .bubble-tail{display:none;}
 
 /* ── Style 7: Whisper ── */
@@ -1117,8 +1119,17 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
             el.style.width = lw + 'px';
             const bubble = document.createElement('div');
             bubble.className = `speech-bubble bubble-style-${bStyle}`;
-            bubble.style.cssText = `font-size:${fs}px;font-family:${ff};color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};border-color:${bubBorder};background:${bubBg};--bubble-bg:${bubBg};--bubble-border:${bubBorder};padding:${Math.max(10, 14 * sx)}px ${Math.max(14, 18 * sx)}px;`;
-            bubble.appendChild(document.createTextNode(l.content || ''));
+            const isBurst = bStyle === 'spiky' || bStyle === 'shout';
+            bubble.style.cssText = `font-size:${fs}px;font-family:${ff};--bubble-bg:${bubBg};--bubble-border:${bubBorder};${isBurst ? '' : `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};border-color:${bubBorder};background:${bubBg};padding:${Math.max(10, 14 * sx)}px ${Math.max(14, 18 * sx)}px;`}`;
+            if (isBurst) {
+                const fill = document.createElement('div');
+                fill.className = 'bubble-clip-fill';
+                fill.style.cssText = `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};`;
+                fill.appendChild(document.createTextNode(l.content || ''));
+                bubble.appendChild(fill);
+            } else {
+                bubble.appendChild(document.createTextNode(l.content || ''));
+            }
             if (combinedFilter) el.style.filter = combinedFilter;
             el.appendChild(bubble);
         } else if (l.type === 'text' || l.type === 'subtitle') {
@@ -2161,9 +2172,18 @@ function _renderFrameDOM(f, next, cw, ch) {
 
       const bubble = document.createElement('div');
       bubble.className = `speech-bubble bubble-style-${bStyle}`;
+      // Burst-style bubbles (Shout, Burst) are clipped to a jagged polygon.
+      // A plain CSS border on a clipped element only paints where the
+      // polygon touches the box's literal top/bottom/left/right edges,
+      // leaving the interior zigzag unbordered — so those styles render
+      // their text in a nested fill layer instead (matches create.html).
+      const isBurst = bStyle === 'spiky' || bStyle === 'shout';
       bubble.style.cssText = [
         `font-size:${fs}px`,
         `font-family:${ff}`,
+        `--bubble-bg:${bubBg}`,
+        `--bubble-border:${bubBorder}`,
+      ].concat(isBurst ? [] : [
         `color:${textColor}`,
         `font-weight:${boldW}`,
         `font-style:${italicS}`,
@@ -2171,11 +2191,23 @@ function _renderFrameDOM(f, next, cw, ch) {
         `text-decoration:${decos}`,
         `border-color:${bubBorder}`,
         `background:${bubBg}`,
-        // Sync the ::after pseudo-element color for tails that use #fff fill
-        `--bubble-bg:${bubBg}`,
-        `--bubble-border:${bubBorder}`,
-      ].join(';');
-      bubble.appendChild(document.createTextNode(l.content || ''));
+      ]).join(';');
+
+      if (isBurst) {
+        const fill = document.createElement('div');
+        fill.className = 'bubble-clip-fill';
+        fill.style.cssText = [
+          `color:${textColor}`,
+          `font-weight:${boldW}`,
+          `font-style:${italicS}`,
+          `text-align:${alignS}`,
+          `text-decoration:${decos}`,
+        ].join(';');
+        fill.appendChild(document.createTextNode(l.content || ''));
+        bubble.appendChild(fill);
+      } else {
+        bubble.appendChild(document.createTextNode(l.content || ''));
+      }
 
       // Tail: shown only for styles that use one (same logic as create.html)
       const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
@@ -2189,10 +2221,12 @@ function _renderFrameDOM(f, next, cw, ch) {
         const tailPos = getBubbleTailPos(l, bStyle);
         tail.style.left = tailPos + '%';
         tail.style.right = 'auto';
-        // Scale the tail triangle itself so it matches the bubble/font scale
-        // (sx), same ratio create.html renders at, instead of staying a fixed
-        // pixel size regardless of canvas scale.
-        tail.style.transform = `translateX(-50%) scale(${sx})`;
+        // Scale the tail triangle to match the bubble/font scale (sx), same
+        // ratio create.html renders at, and mirror it horizontally once past
+        // the midpoint so it reads as a natural reflection rather than the
+        // same lean relocated to the other side (matches create.html).
+        const tailMirror = tailPos >= 50 ? -1 : 1;
+        tail.style.transform = `translateX(-50%) scale(${tailMirror * sx}, ${sx})`;
         tail.style.transformOrigin = 'top center';
         bubble.appendChild(tail);
       }
