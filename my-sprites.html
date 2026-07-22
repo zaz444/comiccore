@@ -180,6 +180,25 @@
     }
     .primary-btn:disabled { opacity: 0.4; }
 
+    /* ── New Sprite sheet ── */
+    .cover-upload-zone {
+        aspect-ratio: 1; width: 100%; max-width: 200px; margin: 0 auto 16px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+        background: repeating-conic-gradient(#1a1a1c 0% 25%, #151517 0% 50%) 0 0 / 16px 16px;
+        border: 2px dashed var(--border); border-radius: 14px; cursor: pointer; position: relative;
+        overflow: hidden;
+    }
+    .cover-upload-zone img {
+        position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 10px;
+        image-rendering: pixelated; image-rendering: crisp-edges;
+    }
+    .cover-upload-zone .cuz-label {
+        font-size: 12px; font-weight: 700; color: var(--text-dim); text-align: center;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .cover-upload-zone .cuz-label i { font-size: 24px; }
+    .cover-upload-zone.has-img .cuz-label { display: none; }
+
     /* Actions editor */
     .action-row {
         display: flex; align-items: center; gap: 10px; padding: 10px;
@@ -230,6 +249,7 @@
     <a class="icon-btn" href="create-mobile.html" title="Back to Editor"><i class="fi fi-rs-arrow-left"></i></a>
     <div class="top-bar-title">My Sprites</div>
     <div class="top-bar-spacer"></div>
+    <button class="icon-btn" onclick="openNewSpriteSheet()" title="Add Sprite" style="background:var(--accent);border-color:var(--accent);color:#000;font-size:18px;font-weight:900;">+</button>
     <button class="select-toggle" id="select-toggle-btn" onclick="toggleSelectMode()">Select</button>
 </div>
 
@@ -244,6 +264,26 @@
     <div class="spacer"></div>
     <button class="bar-btn" onclick="openMoveToPack()"><i class="fi fi-rs-box"></i>Move to Pack</button>
     <button class="bar-btn danger" onclick="bulkDeleteSprites()"><i class="fi fi-rs-trash"></i>Delete</button>
+</div>
+
+<!-- New Sprite sheet -->
+<div class="sheet-overlay" id="overlay-newsprite" onclick="closeSheet('newsprite')"></div>
+<div class="sheet" id="sheet-newsprite">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">New Sprite<button class="sheet-close" onclick="closeSheet('newsprite')">&#10005;</button></div>
+    <div class="sheet-body">
+        <div class="field-label">Cover Image</div>
+        <label for="new-sprite-file">
+            <div class="cover-upload-zone" id="new-sprite-cover-zone">
+                <img id="new-sprite-cover-preview" src="" style="display:none;">
+                <div class="cuz-label"><i class="fi fi-rs-cloud-upload"></i>Tap to choose image</div>
+            </div>
+        </label>
+        <input type="file" id="new-sprite-file" accept="image/*" style="display:none;" onchange="handleNewSpriteCover(this)">
+        <div class="field-label" style="margin-top:14px;">Name</div>
+        <input type="text" class="text-input" id="new-sprite-name" placeholder="e.g. Hero, Villain, Cat…" maxlength="40">
+        <button class="primary-btn" id="new-sprite-save-btn" onclick="saveNewSprite()" disabled>Save Sprite</button>
+    </div>
 </div>
 
 <!-- Sprite action sheet: Add Sprite / Duplicate / Edit Actions / Edit Nametag -->
@@ -297,12 +337,12 @@
         <div class="action-select-bar" id="action-select-bar" style="display:none;margin-top:8px;">
             <button class="bar-btn danger" style="width:100%;justify-content:center;" onclick="deleteSelectedActions()"><i class="fi fi-rs-trash"></i>Delete Selected</button>
         </div>
-        <button class="file-btn" style="margin-top:12px;" onclick="toggleAddActionForm()"><i class="fi fi-rs-plus"></i>Add Action</button>
+        <label class="file-btn" for="new-action-file" style="margin-top:12px;"><i class="fi fi-rs-plus"></i>Add Actions</label>
+        <input type="file" id="new-action-file" accept="image/*" multiple style="display:none;" onchange="handleActionFilesPicked(this)">
         <div class="add-action-form" id="add-action-form">
-            <input type="text" class="text-input" id="new-action-name" placeholder="Action name (e.g. idle, walk, punch)" style="margin-bottom:0;">
-            <label class="file-btn" for="new-action-file"><i class="fi fi-rs-upload"></i><span id="new-action-file-label">Choose image</span></label>
-            <input type="file" id="new-action-file" accept="image/*" style="display:none;" onchange="handleActionFilePicked(this)">
-            <button class="primary-btn" id="save-action-btn" onclick="submitAddAction()" disabled>Save Action</button>
+            <div class="field-label">Queued (<span id="queued-count">0</span>)</div>
+            <div id="action-preview-list"></div>
+            <button class="primary-btn" id="save-action-btn" onclick="submitAddActions()" disabled>Save Actions</button>
         </div>
     </div>
 </div>
@@ -346,7 +386,7 @@ let selectedIds = new Set();
 let currentSprite = null;       // sprite the sheet-sas / nametag / actions sheets are open for
 let actionSelectMode = false;
 let selectedActionKeys = new Set();
-let pendingActionFile = null;   // { name, dataUrl } staged from the file input
+let pendingActionFiles = [];    // [{ name, dataUrl }] staged from the multi-file picker
 
 window.addEventListener('load', init);
 
@@ -362,6 +402,7 @@ async function init() {
     await Promise.all([loadPacks(), loadSprites()]);
     renderPackChips();
     renderGrid();
+    migrateBase64Sprites(); // fire-and-forget: silently uploads any leftover base64 src values
 }
 
 async function loadSprites() {
@@ -433,7 +474,14 @@ function renderGrid() {
     const grid = document.getElementById('sprite-grid');
     const list = currentFilteredSprites();
     if (!list.length) {
-        grid.innerHTML = '<div class="empty-state"><i class="fi fi-rs-picture"></i><h3>No sprites here</h3><p>Sprites you save from the editor will show up here.</p></div>';
+        const isAll = activePackFilter === null;
+        grid.innerHTML = `
+            <div class="empty-state">
+                <i class="fi fi-rs-picture"></i>
+                <h3>${isAll ? 'No sprites yet' : 'No sprites here'}</h3>
+                <p style="margin-bottom:16px;">${isAll ? 'Upload a cover image to create your first sprite.' : 'Move sprites here using the Select menu.'}</p>
+                ${isAll ? `<button class="primary-btn" style="max-width:200px;margin:0 auto;" onclick="openNewSpriteSheet()">+ Add Sprite</button>` : ''}
+            </div>`;
         return;
     }
     grid.innerHTML = '';
@@ -523,6 +571,67 @@ function addSpriteToCanvasFlow() {
     location.href = 'create-mobile.html';
 }
 
+// ── New Sprite (direct upload — no need to go through the editor) ──
+let pendingNewSpriteCover = null; // dataUrl
+
+function openNewSpriteSheet() {
+    pendingNewSpriteCover = null;
+    document.getElementById('new-sprite-name').value = '';
+    document.getElementById('new-sprite-cover-preview').src = '';
+    document.getElementById('new-sprite-cover-preview').style.display = 'none';
+    document.getElementById('new-sprite-cover-zone').classList.remove('has-img');
+    document.getElementById('new-sprite-save-btn').disabled = true;
+    const fi = document.getElementById('new-sprite-file');
+    if (fi) fi.value = '';
+    openSheet('newsprite');
+}
+
+function handleNewSpriteCover(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        pendingNewSpriteCover = reader.result;
+        const preview = document.getElementById('new-sprite-cover-preview');
+        preview.src = pendingNewSpriteCover;
+        preview.style.display = 'block';
+        document.getElementById('new-sprite-cover-zone').classList.add('has-img');
+        // Auto-fill name from filename if field is empty
+        const nameInput = document.getElementById('new-sprite-name');
+        if (!nameInput.value.trim()) {
+            nameInput.value = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+        }
+        document.getElementById('new-sprite-save-btn').disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+async function saveNewSprite() {
+    if (!pendingNewSpriteCover) { showToast('Choose a cover image first'); return; }
+    const name = document.getElementById('new-sprite-name').value.trim() || 'My Sprite';
+    const btn = document.getElementById('new-sprite-save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+    try {
+        const url = await uploadToStorage(pendingNewSpriteCover, 'sprite');
+        const { data, error } = await _supabase.from('personal_sprites').insert([{
+            user_id: currentUserId, src: url, name, actions: {}, created_at: new Date().toISOString()
+        }]).select().single();
+        if (error) throw error;
+        const newSprite = { ...data, actions: {} };
+        allSprites.unshift(newSprite);
+        closeSheet('newsprite');
+        renderGrid();
+        showToast('Sprite saved!');
+        // Immediately open actions editor so they can add poses right away
+        openSpriteSheet(newSprite);
+    } catch(e) {
+        showToast('Save failed: ' + (e.message || e));
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save Sprite';
+}
+
 async function duplicateSprite() {
     if (!currentSprite) return;
     const { data, error } = await _supabase.from('personal_sprites').insert([{
@@ -568,11 +677,26 @@ function openEditActions() {
     document.getElementById('action-select-toggle').classList.remove('active');
     document.getElementById('actions-title').textContent = currentSprite.name || 'Edit Actions';
     document.getElementById('actions-cover-img').src = toImgSrc(currentSprite.src);
-    document.getElementById('add-action-form').classList.remove('open');
     resetAddActionForm();
     renderActionsList();
     closeSheet('sas');
     openSheet('actions');
+    migrateBase64Actions(); // fire-and-forget: upload any base64 action values in the background
+}
+
+async function migrateBase64Actions() {
+    if (!currentSprite) return;
+    const actions = currentSprite.actions || {};
+    const base64Keys = Object.keys(actions).filter(k => actions[k] && actions[k].startsWith('data:'));
+    if (!base64Keys.length) return;
+    for (const key of base64Keys) {
+        try {
+            const url = await uploadToStorage(actions[key], 'action');
+            currentSprite.actions[key] = url;
+        } catch(e) { console.warn('Action migration failed for key', key, e); }
+    }
+    await persistActions();
+    renderActionsList();
 }
 
 function renderActionsList() {
@@ -636,43 +760,110 @@ async function deleteSelectedActions() {
     if (await persistActions()) { toggleActionSelectMode(); showToast('Actions deleted'); }
 }
 
-function toggleAddActionForm() {
-    document.getElementById('add-action-form').classList.toggle('open');
+// ── Storage upload helper (mirrors create-mobile.html's uploadSpriteToStorage) ──
+async function uploadToStorage(dataUrl, folder) {
+    const handle = (JSON.parse(localStorage.getItem('user_profile') || '{}').handle || 'guest')
+        .toLowerCase().replace(/[^a-z0-9_]/g, '') || 'guest';
+    const res  = await fetch(dataUrl);
+    const blob = await res.blob();
+    const ext  = dataUrl.startsWith('data:image/gif')  ? 'gif'
+               : dataUrl.startsWith('data:image/webp') ? 'webp'
+               : dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg') ? 'jpg'
+               : 'png';
+    const path = `user/${handle}/${folder}_${Date.now()}_${Math.random().toString(36).slice(2,7)}.${ext}`;
+    const { error } = await _supabase.storage
+        .from('backgrounds')
+        .upload(path, blob, { upsert: true, cacheControl: '86400', contentType: 'image/' + ext });
+    if (error) throw error;
+    return _supabase.storage.from('backgrounds').getPublicUrl(path).data.publicUrl;
 }
 
+// ── Migrate any existing base64 sprite src values to Storage on load ──
+async function migrateBase64Sprites() {
+    const base64Sprites = allSprites.filter(s => s.src && s.src.startsWith('data:'));
+    if (!base64Sprites.length) return;
+    for (const sp of base64Sprites) {
+        try {
+            const url = await uploadToStorage(sp.src, 'sprite');
+            const { error } = await _supabase.from('personal_sprites').update({ src: url }).eq('id', sp.id);
+            if (!error) { sp.src = url; }
+        } catch(e) { console.warn('Migration failed for sprite', sp.id, e); }
+    }
+    renderGrid();
+}
+
+// ── Multi-file action picker ──
 function resetAddActionForm() {
-    pendingActionFile = null;
-    document.getElementById('new-action-name').value = '';
-    document.getElementById('new-action-file-label').textContent = 'Choose image';
+    pendingActionFiles = [];
+    document.getElementById('action-preview-list').innerHTML = '';
+    document.getElementById('queued-count').textContent = '0';
     document.getElementById('save-action-btn').disabled = true;
     const fileInput = document.getElementById('new-action-file');
     if (fileInput) fileInput.value = '';
+    document.getElementById('add-action-form').classList.remove('open');
 }
 
-function handleActionFilePicked(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-        pendingActionFile = reader.result;
-        document.getElementById('new-action-file-label').textContent = file.name;
-        document.getElementById('save-action-btn').disabled = false;
-    };
-    reader.readAsDataURL(file);
+function handleActionFilesPicked(input) {
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+    let loaded = 0;
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // Auto-name from filename: strip extension, replace separators with spaces
+            const autoName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || file.name;
+            pendingActionFiles.push({ name: autoName, dataUrl: reader.result });
+            if (++loaded === files.length) renderActionQueue();
+        };
+        reader.readAsDataURL(file);
+    });
+    document.getElementById('add-action-form').classList.add('open');
 }
 
-async function submitAddAction() {
-    const name = document.getElementById('new-action-name').value.trim();
-    if (!name) { showToast('Give the action a name first'); return; }
-    if (!pendingActionFile) { showToast('Choose an image first'); return; }
+function renderActionQueue() {
+    const list = document.getElementById('action-preview-list');
+    document.getElementById('queued-count').textContent = pendingActionFiles.length;
+    document.getElementById('save-action-btn').disabled = pendingActionFiles.length === 0;
+    list.innerHTML = '';
+    pendingActionFiles.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = 'action-row';
+        row.innerHTML = `
+            <img src="${item.dataUrl}">
+            <input class="text-input" style="margin:0;flex:1;padding:8px 10px;font-size:12px;" value="${escapeHtml(item.name)}"
+                oninput="pendingActionFiles[${i}].name=this.value.trim()">
+            <button class="action-del" onclick="pendingActionFiles.splice(${i},1);renderActionQueue()"><i class="fi fi-rs-trash"></i></button>
+        `;
+        list.appendChild(row);
+    });
+}
+
+async function submitAddActions() {
+    if (!pendingActionFiles.length) return;
+    const btn = document.getElementById('save-action-btn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
     currentSprite.actions = currentSprite.actions || {};
-    currentSprite.actions[name] = pendingActionFile;
-    if (await persistActions()) {
-        renderActionsList();
-        toggleAddActionForm();
-        resetAddActionForm();
-        showToast('Action added');
+    const total = pendingActionFiles.length;
+    let failed = 0;
+    for (const item of pendingActionFiles) {
+        const name = item.name || 'action';
+        try {
+            const url = await uploadToStorage(item.dataUrl, 'action');
+            currentSprite.actions[name] = url;
+        } catch(e) {
+            console.warn('Action upload failed:', e);
+            failed++;
+        }
     }
+    const ok = await persistActions();
+    if (ok) {
+        renderActionsList();
+        resetAddActionForm();
+        showToast(failed ? `Saved with ${failed} upload error(s)` : `${total} action${total !== 1 ? 's' : ''} added`);
+    }
+    btn.textContent = 'Save Actions';
+    btn.disabled = false;
 }
 
 // ── Move to Pack ──
