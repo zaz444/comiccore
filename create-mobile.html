@@ -1944,6 +1944,11 @@
                 <button class="ts-fmt-btn" id="fmt-outline" title="Outline" onclick="toggleTextFmt('outline')" style="-webkit-text-stroke:1px currentColor;paint-order:stroke fill;"><b>Aa</b></button>
                 <button class="ts-fmt-btn" style="flex:none;padding:8px 12px;" onclick="event.stopPropagation();mobToggleTextColorSwatches()">🎨</button>
             </div>
+            <div id="outline-width-row" class="ts-row" style="display:none;">
+                <span class="ts-label">Stroke</span>
+                <input type="range" id="outline-width-slider" min="0.5" max="12" step="0.5" value="2" oninput="document.getElementById('outline-width-num').value=this.value;updateTextProp('outlineWidth',this.value)">
+                <input type="number" id="outline-width-num" class="ts-num" min="0.5" max="12" step="0.5" value="2" oninput="document.getElementById('outline-width-slider').value=+this.value;updateTextProp('outlineWidth',this.value)">
+            </div>
             <div id="mob-text-color-swatches" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;padding:8px;background:#111;border-radius:8px;border:1px solid #2a2a2c;"></div>
             <!-- Bubble style mini grid (shown for bubbles) -->
             <div id="bubble-style-change-row" style="display:none;margin-top:10px;">
@@ -2541,6 +2546,11 @@ function syncTransformSheet() {
             const btn = document.getElementById('fmt-' + prop);
             if (btn) btn.classList.toggle('active', !!activeLayer[prop]);
         });
+        const owRow = document.getElementById('outline-width-row');
+        if (owRow) owRow.style.display = activeLayer.outline ? 'flex' : 'none';
+        const owVal = activeLayer.outlineWidth != null ? activeLayer.outlineWidth : defaultOutlineWidth(activeLayer.fontSize || 24);
+        document.getElementById('outline-width-slider').value = owVal;
+        document.getElementById('outline-width-num').value = owVal;
     }
     const isBubble = ['bubble','thinking'].includes(activeLayer.type);
     document.getElementById('bubble-style-change-row').style.display = isBubble ? 'block' : 'none';
@@ -2566,19 +2576,35 @@ function toggleTextFmt(prop) {
     if (prop === 'bold') activeLayer.bold = !activeLayer.bold;
     if (prop === 'italic') activeLayer.italic = !activeLayer.italic;
     if (prop === 'underline') activeLayer.underline = !activeLayer.underline;
-    if (prop === 'outline') activeLayer.outline = !activeLayer.outline;
+    if (prop === 'outline') {
+        activeLayer.outline = !activeLayer.outline;
+        if (activeLayer.outline && activeLayer.outlineWidth == null) {
+            activeLayer.outlineWidth = defaultOutlineWidth(activeLayer.fontSize || 24);
+        }
+        const owRow = document.getElementById('outline-width-row');
+        if (owRow) owRow.style.display = activeLayer.outline ? 'flex' : 'none';
+        const owSlider = document.getElementById('outline-width-slider');
+        const owNum = document.getElementById('outline-width-num');
+        if (owSlider) owSlider.value = activeLayer.outlineWidth;
+        if (owNum) owNum.value = activeLayer.outlineWidth;
+    }
     const btn = document.getElementById('fmt-' + prop);
     if (btn) btn.classList.toggle('active', !!activeLayer[prop]);
     render();
     renderTransformPreview();
 }
 
-// Quick text-outline (stroke) effect — scales with font size so it stays
-// crisp at both small captions and big poster-style text. paint-order keeps
-// the stroke from eating into the fill on webkit/blink.
-function textOutlineCSS(fontSize) {
+// Quick text-outline (stroke) effect — defaults to scaling with font size so
+// it stays crisp at both small captions and big poster-style text, but a
+// layer can override with an explicit outlineWidth (set via the Stroke
+// slider). paint-order keeps the stroke from eating into the fill on
+// webkit/blink.
+function defaultOutlineWidth(fontSize) {
     if (!fontSize) fontSize = 24;
-    const w = Math.max(1, Math.round(fontSize * 0.07 * 10) / 10);
+    return Math.max(1, Math.round(fontSize * 0.07 * 10) / 10);
+}
+function textOutlineCSS(fontSize, outlineWidth) {
+    const w = (outlineWidth != null && outlineWidth !== '') ? (+outlineWidth) : defaultOutlineWidth(fontSize);
     return `-webkit-text-stroke:${w}px #000;paint-order:stroke fill;`;
 }
 
@@ -3555,7 +3581,7 @@ function _renderNow() {
             bub.style.cssText = `width:${layer.w||120}px;font-size:${layer.fontSize||18}px;font-family:${layer.fontFamily||'Inter, sans-serif'};--bubble-border:${bubBorder};--bubble-bg:${bubBg};${isBurst ? '' : `border-color:${bubBorder};background:${bubBg};`}`;
             bub.style.transform = `rotate(${layer.rotation||0}deg)`;
             if (layer.fxOpacity !== undefined) bub.style.opacity = layer.fxOpacity / 100;
-            const textCss = `font-weight:${layer.bold ? '900' : ''};font-style:${layer.italic ? 'italic' : 'normal'};text-decoration:${decoB};text-align:${layer.align || 'center'};${layer.color ? `color:${layer.color};` : ''}${layer.outline ? textOutlineCSS(layer.fontSize||18) : ''}`;
+            const textCss = `font-weight:${layer.bold ? '900' : ''};font-style:${layer.italic ? 'italic' : 'normal'};text-decoration:${decoB};text-align:${layer.align || 'center'};${layer.color ? `color:${layer.color};` : ''}${layer.outline ? textOutlineCSS(layer.fontSize||18, layer.outlineWidth) : ''}`;
             if (isBurst) {
                 const fill = document.createElement('div');
                 fill.className = 'bubble-clip-fill';
@@ -3581,7 +3607,7 @@ function _renderNow() {
             el.appendChild(bub);
         } else if (layer.type === 'text') {
             const t = document.createElement('div');
-            t.style.cssText = `color:${layer.color||'#000'};font-size:${layer.fontSize||24}px;font-family:${layer.fontFamily||'Inter, sans-serif'};font-weight:${layer.bold?'900':'700'};font-style:${layer.italic?'italic':'normal'};text-decoration:${layer.underline?'underline':'none'};white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;min-width:60px;width:${layer.w||200}px;transform:rotate(${layer.rotation||0}deg);text-align:${layer.align||'left'};${layer.outline ? textOutlineCSS(layer.fontSize||24) : ''}`;
+            t.style.cssText = `color:${layer.color||'#000'};font-size:${layer.fontSize||24}px;font-family:${layer.fontFamily||'Inter, sans-serif'};font-weight:${layer.bold?'900':'700'};font-style:${layer.italic?'italic':'normal'};text-decoration:${layer.underline?'underline':'none'};white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;min-width:60px;width:${layer.w||200}px;transform:rotate(${layer.rotation||0}deg);text-align:${layer.align||'left'};${layer.outline ? textOutlineCSS(layer.fontSize||24, layer.outlineWidth) : ''}`;
             if (layer.fxOpacity !== undefined) t.style.opacity = layer.fxOpacity / 100;
             t.innerText = layer.content || 'Text';
             el.appendChild(t);
@@ -3593,7 +3619,7 @@ function _renderNow() {
             const italicS = layer.italic ? 'italic' : 'normal';
             const ff      = layer.fontFamily || "'Inter', sans-serif";
             const fs      = layer.fontSize || 16;
-            const outlineS = layer.outline ? textOutlineCSS(fs) : '';
+            const outlineS = layer.outline ? textOutlineCSS(fs, layer.outlineWidth) : '';
             const s = document.createElement('div');
             s.style.cssText = `width:${layer.w||canvas.offsetWidth}px;transform:rotate(${layer.rotation||0}deg);`;
             s.innerHTML = `
@@ -3863,7 +3889,14 @@ function renderSqaFontPopover() {
             <button id="sqa-fmt-italic" class="ts-fmt-btn ${l.italic ? 'active' : ''}" onclick="event.stopPropagation();toggleTextFmt('italic');renderSqaFontPopover();" style="flex:1;"><i>I</i></button>
             <button id="sqa-fmt-underline" class="ts-fmt-btn ${l.underline ? 'active' : ''}" onclick="event.stopPropagation();toggleTextFmt('underline');renderSqaFontPopover();" style="flex:1;"><u>U</u></button>
             <button id="sqa-fmt-outline" class="ts-fmt-btn ${l.outline ? 'active' : ''}" title="Outline" onclick="event.stopPropagation();toggleTextFmt('outline');renderSqaFontPopover();" style="flex:1;-webkit-text-stroke:1px currentColor;paint-order:stroke fill;"><b>Aa</b></button>
-        </div>` : ''}
+        </div>
+        ${l.outline ? `
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-weight:800;color:#555;flex-shrink:0;">STROKE</span>
+            <button onclick="event.stopPropagation();mobSqaBumpOutlineWidth(-0.5)" style="width:26px;height:26px;border-radius:8px;border:1px solid #333;background:#111;color:var(--text);font-weight:900;cursor:pointer;flex-shrink:0;">−</button>
+            <span style="flex:1;text-align:center;font-size:12px;font-weight:800;color:#aaa;">${l.outlineWidth != null ? l.outlineWidth : defaultOutlineWidth(l.fontSize || 24)}px</span>
+            <button onclick="event.stopPropagation();mobSqaBumpOutlineWidth(0.5)" style="width:26px;height:26px;border-radius:8px;border:1px solid #333;background:#111;color:var(--text);font-weight:900;cursor:pointer;flex-shrink:0;">+</button>
+        </div>` : ''}` : ''}
     `;
     const sel = pop.querySelector('select');
     if (sel) sel.value = l.fontFamily || "'Inter', sans-serif";
@@ -3879,6 +3912,20 @@ function mobSqaBumpSize(delta) {
     render();
     renderTransformPreview();
     renderSqaFontPopover();
+}
+function mobSqaBumpOutlineWidth(delta) {
+    if (!activeLayer) return;
+    saveState();
+    const base = activeLayer.outlineWidth != null ? activeLayer.outlineWidth : defaultOutlineWidth(activeLayer.fontSize || 24);
+    activeLayer.outlineWidth = Math.round(Math.max(0.5, Math.min(12, base + delta)) * 10) / 10;
+    render();
+    renderTransformPreview();
+    renderSqaFontPopover();
+    // Keep the ts-row slider in the other panel in sync too
+    const owSlider = document.getElementById('outline-width-slider');
+    const owNum = document.getElementById('outline-width-num');
+    if (owSlider) owSlider.value = activeLayer.outlineWidth;
+    if (owNum) owNum.value = activeLayer.outlineWidth;
 }
 
 function updateSpriteQuickBar(layer) {
@@ -5010,9 +5057,13 @@ function sbCopyLayer() { if (activeLayer) { window._layerClipboard = JSON.parse(
 function sbPasteLayer() { if (!window._layerClipboard) return; saveState(); const copy = { ...JSON.parse(JSON.stringify(window._layerClipboard)), id: Date.now(), x: (window._layerClipboard.x || 0) + 20, y: (window._layerClipboard.y || 0) + 20 }; frames[currentIdx].layers.push(copy); activeLayer = copy; render(); renderMobLayers(); }
 function updateTextProp(prop, value) {
     if (activeLayer && ['bubble','thinking','text','subtitle'].includes(activeLayer.type)) {
-        activeLayer[prop] = (prop === 'fontSize') ? parseInt(value) : value;
+        activeLayer[prop] = (prop === 'fontSize') ? parseInt(value) : (prop === 'outlineWidth') ? parseFloat(value) : value;
         if (prop === 'fontFamily') { try { localStorage.setItem('cc-last-font', value); } catch(e) {} }
         render(); renderTransformPreview();
+        if (prop === 'outlineWidth') {
+            const pop = document.getElementById('sqa-popover');
+            if (pop && pop.dataset.kind === 'font') renderSqaFontPopover();
+        }
     }
 }
 function mobLastFont(fallback) {
@@ -5053,7 +5104,7 @@ function buildLayerPreviewElement(layer) {
         el = document.createElement('div');
         el.className = 'speech-bubble bubble-style-' + bStyle;
         el.style.cssText = `width:${layer.w||120}px;font-size:${layer.fontSize||18}px;font-family:${layer.fontFamily||'Inter, sans-serif'};--bubble-border:${bubBorder};--bubble-bg:${bubBg};${isBurst ? '' : `border-color:${bubBorder};background:${bubBg};`}`;
-        const textCss = `font-weight:${layer.bold ? '900' : ''};font-style:${layer.italic ? 'italic' : 'normal'};text-decoration:${[layer.underline ? 'underline' : '', layer.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none'};text-align:${layer.align || 'center'};${layer.color ? `color:${layer.color};` : ''}${layer.outline ? textOutlineCSS(layer.fontSize||18) : ''}`;
+        const textCss = `font-weight:${layer.bold ? '900' : ''};font-style:${layer.italic ? 'italic' : 'normal'};text-decoration:${[layer.underline ? 'underline' : '', layer.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none'};text-align:${layer.align || 'center'};${layer.color ? `color:${layer.color};` : ''}${layer.outline ? textOutlineCSS(layer.fontSize||18, layer.outlineWidth) : ''}`;
         if (isBurst) {
             const fill = document.createElement('div');
             fill.className = 'bubble-clip-fill';
@@ -5076,7 +5127,7 @@ function buildLayerPreviewElement(layer) {
         if (layer.type === 'thinking') [1,2,3].forEach(n => { const d = document.createElement('div'); d.className = 'thought-dot-' + n; el.appendChild(d); });
     } else if (layer.type === 'text') {
         el = document.createElement('div');
-        el.style.cssText = `color:${layer.color||'#000'};font-size:${layer.fontSize||24}px;font-family:${layer.fontFamily||'Inter, sans-serif'};font-weight:${layer.bold?'900':'700'};font-style:${layer.italic?'italic':'normal'};text-decoration:${layer.underline?'underline':'none'};white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;width:${layer.w||200}px;text-align:${layer.align||'left'};${layer.outline ? textOutlineCSS(layer.fontSize||24) : ''}`;
+        el.style.cssText = `color:${layer.color||'#000'};font-size:${layer.fontSize||24}px;font-family:${layer.fontFamily||'Inter, sans-serif'};font-weight:${layer.bold?'900':'700'};font-style:${layer.italic?'italic':'normal'};text-decoration:${layer.underline?'underline':'none'};white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;width:${layer.w||200}px;text-align:${layer.align||'left'};${layer.outline ? textOutlineCSS(layer.fontSize||24, layer.outlineWidth) : ''}`;
         el.innerText = layer.content || 'Text';
     } else if (layer.type === 'subtitle') {
         const nameColor = layer.nameColor || '#ff9500';
@@ -5086,7 +5137,7 @@ function buildLayerPreviewElement(layer) {
         const italicS = layer.italic ? 'italic' : 'normal';
         const ff = layer.fontFamily || "'Inter', sans-serif";
         const fs = layer.fontSize || 16;
-        const outlineS = layer.outline ? textOutlineCSS(fs) : '';
+        const outlineS = layer.outline ? textOutlineCSS(fs, layer.outlineWidth) : '';
         el = document.createElement('div');
         el.style.cssText = `width:${layer.w||200}px;`;
         el.innerHTML = `
@@ -8344,7 +8395,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
             const deco     = [layer.underline ? 'underline' : '', layer.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
             const alignS   = layer.align  || 'center';
             const textColor = layer.color || '#000';
-            const outlineS  = layer.outline ? textOutlineCSS(fs) : '';
+            const outlineS  = layer.outline ? textOutlineCSS(fs, layer.outlineWidth != null ? layer.outlineWidth * scaleX : null) : '';
 
             let innerHtml = '';
             if (layer.type === 'bubble' || layer.type === 'thinking') {
