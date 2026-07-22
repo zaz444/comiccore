@@ -986,7 +986,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
     if (combinedBgFilter) bgLayer.style.filter = combinedBgFilter;
     if (bgFx.fxOpacity !== undefined) bgLayer.style.opacity = bgFx.fxOpacity / 100;
-    if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = bgFx.fxBlend;
+    if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = cssBlendMode(bgFx.fxBlend);
 
     if (isBgImage) {
         if (isBgAnimated) {
@@ -1055,7 +1055,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         el.style.top = ly + 'px';
         el.style.width = lw + 'px';
         el.style.zIndex = 10 + layerIdx;
-        if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = l.fxBlend;
+        if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = cssBlendMode(l.fxBlend);
 
         const rot = l.rotation || 0;
         const flip = l.flipped ? -1 : 1;
@@ -1580,6 +1580,13 @@ function textOutlineCSS(fontSize, outlineWidth) {
   return `-webkit-text-stroke:${w}px #000;paint-order:stroke fill;`;
 }
 
+// 'add' (additive/"linear dodge") isn't a native CSS mix-blend-mode keyword —
+// CSS calls it 'plus-lighter' (canvas calls it 'lighter', not used here).
+// Everything else in create.html's FX_BLEND_MODES already matches the CSS
+// keyword directly, so this only needs to special-case 'add'. Mirrors
+// create.html's cssBlendMode().
+function cssBlendMode(name) { return name === 'add' ? 'plus-lighter' : name; }
+
 // ── Share URL ─────────────────────────────────────────────
 function buildShareUrl() {
   shareUrl = `${READER_BASE}?id=${encodeURIComponent(comicId)}`;
@@ -2030,7 +2037,7 @@ function _renderFrameDOM(f, next, cw, ch) {
   bgLayer.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;';
   if (combinedBgFilter) bgLayer.style.filter = combinedBgFilter;
   if (bgFx.fxOpacity !== undefined) bgLayer.style.opacity = bgFx.fxOpacity / 100;
-  if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = bgFx.fxBlend;
+  if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = cssBlendMode(bgFx.fxBlend);
 
   if (isBgImage) {
     next.style.backgroundColor = 'transparent';
@@ -2106,7 +2113,7 @@ function _renderFrameDOM(f, next, cw, ch) {
     el.style.top    = ly + 'px';
     el.style.width  = lw + 'px';
     el.style.zIndex = 10 + layerIdx;
-    if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = l.fxBlend;
+    if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = cssBlendMode(l.fxBlend);
 
     // Rotation + flip — transform-origin MUST be center to match create.html
     const rot  = l.rotation || 0;
