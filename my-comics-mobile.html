@@ -66,33 +66,58 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 .stat-val{font-size:22px;font-weight:900;line-height:1;color:var(--text);}
 .stat-lbl{font-size:9px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
 
-/* ── Comics list (mobile: vertical list, not grid) ── */
-.comics-list{display:flex;flex-direction:column;gap:10px;}
+/* ── Comics grid (2-col, matches Discover card style) ── */
+.comics-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 
-/* ── Comic row card ── */
-.comic-row{background:var(--card);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;display:flex;align-items:stretch;cursor:pointer;transition:.18s;position:relative;min-height:88px;box-shadow:0 2px 12px rgba(0,0,0,0.3);}
-.comic-row.draft-row{border-left:3px solid var(--teal);}
-.comic-row.pub-row{border-left:3px solid var(--orange);}
-.comic-row:active{background:var(--card2);}
+/* ── Comic card (mirrors discover .comic-card) ── */
+.comic-card{cursor:pointer;transition:transform .2s,border-color .18s,box-shadow .18s;position:relative;background:var(--card);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.3);display:flex;flex-direction:column;}
+.comic-card:hover{transform:translateY(-3px);border-color:rgba(255,215,0,0.35);box-shadow:0 8px 28px rgba(255,215,0,0.1);background:var(--card2);}
+.comic-card:active{transform:scale(.97);}
 
-/* Thumb */
-.row-thumb{width:68px;flex-shrink:0;background:var(--bg2);position:relative;overflow:hidden;}
-.row-thumb img,.row-thumb .thumb-bg{width:100%;height:100%;object-fit:cover;display:block;}
-.thumb-bg{display:flex;align-items:center;justify-content:center;font-size:26px;background:linear-gradient(135deg,var(--card),var(--bg2));}
+/* Cover image area */
+.comic-card-cover{width:100%;aspect-ratio:2/3;overflow:hidden;background:#111;position:relative;}
+.comic-card-cover img{width:100%;height:100%;object-fit:cover;display:block;}
+.comic-card-cover .no-cover{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;background:linear-gradient(135deg,#0f0f11,#1a1a2e);}
 
-/* Info */
-.row-info{flex:1;padding:12px 12px 12px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;}
-.row-title{font-size:14px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
-.row-meta{font-size:10px;color:var(--text-muted);font-weight:600;}
-.row-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px;}
-.badge{font-size:8px;font-weight:900;padding:2px 8px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;}
-.badge-draft{background:rgba(0,201,177,0.15);color:var(--teal);border:1px solid rgba(0,201,177,0.25);}
-.badge-pub{background:rgba(255,122,0,0.15);color:var(--orange);border:1px solid rgba(255,122,0,0.25);}
-.badge-pages{background:var(--card2);color:var(--text-dim);border:1px solid var(--border);}
+/* Cloud overlay icon at bottom of cover, not in text badges */
+.cover-cloud-icon{position:absolute;bottom:6px;right:6px;background:rgba(0,210,255,0.18);backdrop-filter:blur(4px);border:1px solid rgba(0,210,255,0.3);border-radius:8px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;}
 
-/* Action trigger button */
-.row-menu{width:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:20px;cursor:pointer;border-left:1px solid var(--border);transition:.12s;}
-.row-menu:active{background:var(--card2);color:var(--text-muted);}
+/* Status pill on cover top-left */
+.cover-status-pill{position:absolute;top:6px;left:6px;font-size:8px;font-weight:900;padding:2px 7px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;}
+.cover-status-draft{background:rgba(0,201,177,0.85);color:#000;}
+.cover-status-pub{background:rgba(255,122,0,0.9);color:#000;}
+
+/* Card info footer */
+.comic-card-info{padding:8px 10px 10px;flex:1;display:flex;flex-direction:column;gap:2px;}
+.comic-card-title{font-size:12px;font-weight:800;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;line-height:1.28;min-height:2.56em;}
+.comic-card-sub{font-size:10px;color:var(--text-dim);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ── Popup (exact discover.html style) ── */
+.popup-overlay{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center;}
+.popup-overlay.open{display:flex;}
+.popup-sheet{background:#141416;border-radius:20px 20px 0 0;border-top:1px solid #222;width:100%;max-width:560px;max-height:88dvh;overflow-y:auto;position:relative;animation:slideUp .3s cubic-bezier(.4,0,.2,1);}
+.popup-sheet::-webkit-scrollbar{display:none;}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.popup-cover{width:100%;aspect-ratio:1.6;object-fit:cover;display:block;background:#0a0a0a;border-radius:20px 20px 0 0;}
+.popup-cover-placeholder{width:100%;aspect-ratio:1.6;background:linear-gradient(135deg,#111,#1a1a2e);display:flex;align-items:center;justify-content:center;font-size:52px;border-radius:20px 20px 0 0;}
+.popup-close{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.7);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);z-index:2;}
+.popup-body{padding:16px 18px 28px;}
+.popup-title{font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-.3px;color:#f5f5f7;}
+.popup-creator{font-size:12px;color:#555;margin-bottom:12px;font-weight:700;}
+.popup-meta-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.popup-meta-chip{background:#1e1e20;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;color:#888;}
+.popup-meta-chip.teal{color:var(--teal);background:rgba(0,201,177,0.12);border:1px solid rgba(0,201,177,0.2);}
+.popup-meta-chip.orange{color:var(--orange);background:rgba(255,122,0,0.12);border:1px solid rgba(255,122,0,0.2);}
+.popup-meta-chip.blue{color:#00d2ff;background:rgba(0,210,255,0.12);border:1px solid rgba(0,210,255,0.2);}
+.popup-btns{display:flex;gap:8px;flex-wrap:wrap;}
+.read-btn{flex:1;background:white;color:#000;border:none;padding:13px;border-radius:10px;font-size:14px;font-weight:900;cursor:pointer;transition:.15s;letter-spacing:.3px;min-width:120px;font-family:'Inter',sans-serif;}
+.read-btn:hover{background:#e8e8e8;}
+.popup-edit-btn{background:#1e1e20;border:1.5px solid #00d2ff;color:#00d2ff;padding:13px 16px;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;}
+.popup-edit-btn:hover{background:rgba(0,210,255,0.08);}
+.popup-rename-btn{background:#1e1e20;border:1.5px solid #2a2a2c;color:#888;padding:13px 16px;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;}
+.popup-rename-btn:hover{background:#2a2a2c;}
+.popup-delete-btn{background:#1e1e20;border:1.5px solid var(--danger);color:var(--danger);padding:13px 16px;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:6px;transition:.15s;}
+.popup-delete-btn:hover{background:rgba(255,59,48,0.1);}
 
 /* ── Empty state ── */
 .empty{text-align:center;padding:64px 24px;display:flex;flex-direction:column;align-items:center;gap:14px;}
@@ -226,6 +251,20 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 </div>
 
 <!-- Bottom Nav -->
+
+<!-- ── Detail Popup (same structure as discover.html) ── -->
+<div class="popup-overlay" id="popup-overlay" onclick="if(event.target===this)closePopup()">
+  <div class="popup-sheet" id="popup-sheet">
+    <button class="popup-close" onclick="closePopup()">✕</button>
+    <div id="popup-cover-wrap"></div>
+    <div class="popup-body">
+      <div class="popup-title"    id="popup-title"></div>
+      <div class="popup-creator"  id="popup-creator"></div>
+      <div class="popup-meta-row" id="popup-meta"></div>
+      <div class="popup-btns"     id="popup-btns"></div>
+    </div>
+  </div>
+</div>
 
 <!-- ── Action Sheet (draft) ── -->
 <div id="action-sheet" class="overlay" onclick="if(event.target===this)closeActionSheet()">
@@ -595,38 +634,39 @@ function renderDrafts() {
 }
 
 function makeDraftRow(d) {
-  const row = document.createElement('div');
-  row.className = 'comic-row draft-row';
+  const card = document.createElement('div');
+  card.className = 'comic-card';
+  card.dataset.id = d.id;
+  card.dataset.type = 'draft';
   const pages = d.data?.length || 0;
-  const thumbHtml = makeDraftThumb(d.data?.[0], d.ratio);
   const isCloud = d._source === 'supabase';
+  const thumbInner = makeDraftThumb(d.data?.[0], d.ratio);
 
-  row.innerHTML = `
-    <div class="row-thumb">${thumbHtml}</div>
-    <div class="row-info">
-      <div class="row-title">${escHtml(d.title || 'Untitled')}</div>
-      <div class="row-meta">${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}</div>
-      <div class="row-badges">
-        ${isCloud ? '<span class="badge" style="background:rgba(0,210,255,.15);color:#00d2ff;border:1px solid rgba(0,210,255,.25);">☁ Cloud</span>' : ''}
-        <span class="badge badge-draft">Draft</span>
-        <span class="badge badge-pages">${pages} page${pages!==1?'s':''}</span>
+  card.innerHTML = `
+    <div class="comic-card-cover">
+      <div style="width:100%;height:100%;position:relative;">
+        ${thumbInner}
+        <div class="cover-status-pill cover-status-draft">Draft</div>
+        ${isCloud ? '<div class="cover-cloud-icon">☁</div>' : ''}
       </div>
     </div>
-    <div class="row-menu" onclick="event.stopPropagation();openDraftActions('${d.id}','${escAttr(d.title||'Untitled')}',${pages})">⋯</div>
+    <div class="comic-card-info">
+      <div class="comic-card-title">${escHtml(d.title || 'Untitled')}</div>
+      <div class="comic-card-sub">${pages} page${pages!==1?'s':''} · ${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}</div>
+    </div>
   `;
-  row.onclick = () => resumeDraft(d.id);
-  return row;
+  card.onclick = () => openDraftPopup(d);
+  return card;
 }
 
 function makeDraftThumb(frame, ratio) {
-  if (!frame) return `<div class="thumb-bg">📄</div>`;
+  if (!frame) return `<div class="no-cover">📄</div>`;
   const imgLayer = frame.layers?.find(l => l.type==='img' && l.src);
-  if (imgLayer) return `<img src="${imgLayer.src}" onerror="this.parentNode.innerHTML='<div class=\\'thumb-bg\\'>📄</div>'">`;
+  if (imgLayer) return `<img src="${imgLayer.src}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📄</div>'">`;
   const bg = frame.background || '#111';
   const isUrl = typeof bg==='string' && (bg.startsWith('http')||bg.startsWith('data:'));
-  const isGrad = typeof bg==='string' && bg.includes('gradient');
   const style = isUrl ? `background:url('${bg}') center/cover` : `background:${bg}`;
-  return `<div class="thumb-bg" style="${style};font-size:0;"></div>`;
+  return `<div style="width:100%;height:100%;${style};"></div>`;
 }
 
 // ── Render published ──────────────────────────────────────
@@ -655,78 +695,133 @@ function renderPublished() {
 }
 
 function makePublishedRow(c) {
-  const row = document.createElement('div');
-  row.className = 'comic-row pub-row';
-  const pages = c.data?.length || 0;
+  const card = document.createElement('div');
+  card.className = 'comic-card';
+  card.dataset.id = c.id;
+  card.dataset.type = 'published';
   const stars = c.stars || 0;
-  const thumbHtml = c.cover
-    ? `<img src="${c.cover}" onerror="this.parentNode.innerHTML='<div class=\\'thumb-bg\\'>📖</div>'">`
-    : `<div class="thumb-bg">📖</div>`;
+  const pages = c.data?.length || 0;
+  const coverHtml = c.cover
+    ? `<img src="${c.cover}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+    : `<div class="no-cover">📖</div>`;
 
-  row.innerHTML = `
-    <div class="row-thumb">${thumbHtml}</div>
-    <div class="row-info">
-      <div class="row-title">${escHtml(c.title || 'Untitled')}</div>
-      <div class="row-meta">⭐ ${stars} star${stars!==1?'s':''} · ${pages} page${pages!==1?'s':''}</div>
-      <div class="row-badges">
-        <span class="badge badge-pub">Live</span>
+  card.innerHTML = `
+    <div class="comic-card-cover">
+      <div style="width:100%;height:100%;position:relative;">
+        ${coverHtml}
+        <div class="cover-status-pill cover-status-pub">Live</div>
       </div>
     </div>
-    <div class="row-menu" onclick="event.stopPropagation();openPublishedActions('${c.id}','${escAttr(c.title||'Untitled')}')">⋯</div>
-  `;
-  row.onclick = () => readComic(c.id);
-  return row;
-}
-
-// ── Action Sheets ─────────────────────────────────────────
-function openDraftActions(id, title, pages) {
-  document.getElementById('action-sheet-title').innerText = title || 'Untitled';
-  document.getElementById('action-sheet-sub').innerText = `Draft · ${pages} page${pages!==1?'s':''}`;
-  document.getElementById('action-sheet-body').innerHTML = `
-    <div class="sheet-action" onclick="closeActionSheet();resumeDraft('${id}')">
-      <span class="sheet-action-icon">✏️</span>
-      <span class="sheet-action-label teal">Resume Editing</span>
-    </div>
-    <div class="sheet-action" onclick="closeActionSheet();openRenameSheet('${id}','${escAttr(title)}')">
-      <span class="sheet-action-icon">📝</span>
-      <span class="sheet-action-label">Rename Draft</span>
-    </div>
-    <div class="sheet-action" onclick="closeActionSheet();askDelete('${id}','draft','${escAttr(title)}')">
-      <span class="sheet-action-icon">🗑</span>
-      <span class="sheet-action-label danger">Delete Draft</span>
-    </div>
-    <div class="sheet-action" onclick="closeActionSheet()">
-      <span class="sheet-action-icon" style="color:var(--text-dim);">✕</span>
-      <span class="sheet-action-label" style="color:var(--text-muted);">Cancel</span>
+    <div class="comic-card-info">
+      <div class="comic-card-title">${escHtml(c.title || 'Untitled')}</div>
+      <div class="comic-card-sub">⭐ ${stars} · ${pages} page${pages!==1?'s':''}</div>
     </div>
   `;
-  document.getElementById('action-sheet').classList.add('open');
+  card.onclick = () => openPublishedPopup(c);
+  return card;
 }
 
-function openPublishedActions(id, title) {
-  document.getElementById('action-sheet-title').innerText = title || 'Untitled';
-  document.getElementById('action-sheet-sub').innerText = 'Published · Live on Discover';
-  document.getElementById('action-sheet-body').innerHTML = `
-    <div class="sheet-action" onclick="closeActionSheet();readComic('${id}')">
-      <span class="sheet-action-icon">📖</span>
-      <span class="sheet-action-label teal">Read</span>
-    </div>
-    <div class="sheet-action" onclick="closeActionSheet();editPublished('${id}')">
-      <span class="sheet-action-icon">✏️</span>
-      <span class="sheet-action-label">Edit in Editor</span>
-    </div>
-    <div class="sheet-action" onclick="closeActionSheet();askDelete('${id}','published','${escAttr(title)}')">
-      <span class="sheet-action-icon">🗑</span>
-      <span class="sheet-action-label danger">Unpublish & Delete</span>
-    </div>
-    <div class="sheet-action" onclick="closeActionSheet()">
-      <span class="sheet-action-icon" style="color:var(--text-dim);">✕</span>
-      <span class="sheet-action-label" style="color:var(--text-muted);">Cancel</span>
-    </div>
+// ── Popup (discover-style) ─────────────────────────────────
+function openDraftPopup(d) {
+  const pages = d.data?.length || 0;
+  const isCloud = d._source === 'supabase';
+
+  // Cover
+  const coverWrap = document.getElementById('popup-cover-wrap');
+  const thumbFrame = d.data?.[0];
+  const imgLayer = thumbFrame?.layers?.find(l => l.type==='img' && l.src);
+  if (imgLayer) {
+    coverWrap.innerHTML = `<img class="popup-cover" src="${imgLayer.src}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📄</div>'">`;
+  } else if (thumbFrame?.background) {
+    const bg = thumbFrame.background;
+    const isUrl = typeof bg==='string' && (bg.startsWith('http')||bg.startsWith('data:'));
+    coverWrap.innerHTML = `<div class="popup-cover-placeholder" style="${isUrl?`background:url('${bg}') center/cover`:`background:${bg}`};font-size:0;"></div>`;
+  } else {
+    coverWrap.innerHTML = `<div class="popup-cover-placeholder">📄</div>`;
+  }
+
+  document.getElementById('popup-title').innerText = d.title || 'Untitled';
+  document.getElementById('popup-creator').innerText = `Draft · last edited ${d.lastModified || 'recently'}`;
+
+  document.getElementById('popup-meta').innerHTML = `
+    <span class="popup-meta-chip teal">Draft</span>
+    <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
+    ${isCloud ? '<span class="popup-meta-chip blue">☁ Cloud saved</span>' : ''}
   `;
-  document.getElementById('action-sheet').classList.add('open');
+
+  const btns = document.getElementById('popup-btns');
+  btns.innerHTML = '';
+
+  const resumeBtn = document.createElement('button');
+  resumeBtn.className = 'read-btn';
+  resumeBtn.innerHTML = '✏️ Resume Editing';
+  resumeBtn.onclick = () => { closePopup(); resumeDraft(d.id); };
+  btns.appendChild(resumeBtn);
+
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'popup-rename-btn';
+  renameBtn.innerHTML = '📝 Rename';
+  renameBtn.onclick = () => { closePopup(); openRenameSheet(d.id, d.title || 'Untitled'); };
+  btns.appendChild(renameBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'popup-delete-btn';
+  delBtn.innerHTML = '🗑 Delete';
+  delBtn.onclick = () => { closePopup(); askDelete(d.id, 'draft', d.title || 'Untitled'); };
+  btns.appendChild(delBtn);
+
+  document.getElementById('popup-overlay').classList.add('open');
 }
 
+function openPublishedPopup(c) {
+  const stars = c.stars || 0;
+  const pages = c.data?.length || 0;
+
+  // Cover
+  const coverWrap = document.getElementById('popup-cover-wrap');
+  coverWrap.innerHTML = c.cover
+    ? `<img class="popup-cover" src="${c.cover}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📖</div>'">`
+    : `<div class="popup-cover-placeholder">📖</div>`;
+
+  document.getElementById('popup-title').innerText = c.title || 'Untitled';
+  document.getElementById('popup-creator').innerHTML = `Published · Live on Discover`;
+
+  document.getElementById('popup-meta').innerHTML = `
+    <span class="popup-meta-chip orange">Live</span>
+    <span class="popup-meta-chip">⭐ ${stars} star${stars!==1?'s':''}</span>
+    <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
+    ${c.description ? `<span class="popup-meta-chip" style="color:#aaa;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.description)}</span>` : ''}
+  `;
+
+  const btns = document.getElementById('popup-btns');
+  btns.innerHTML = '';
+
+  const readBtn = document.createElement('button');
+  readBtn.className = 'read-btn';
+  readBtn.innerHTML = '▶ Read Now';
+  readBtn.onclick = () => { closePopup(); readComic(c.id); };
+  btns.appendChild(readBtn);
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'popup-edit-btn';
+  editBtn.innerHTML = '✏️ Edit';
+  editBtn.onclick = () => { closePopup(); editPublished(c.id); };
+  btns.appendChild(editBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'popup-delete-btn';
+  delBtn.innerHTML = '🗑 Unpublish';
+  delBtn.onclick = () => { closePopup(); askDelete(c.id, 'published', c.title || 'Untitled'); };
+  btns.appendChild(delBtn);
+
+  document.getElementById('popup-overlay').classList.add('open');
+}
+
+function closePopup() {
+  document.getElementById('popup-overlay').classList.remove('open');
+}
+
+// ── Action Sheets (kept for delete confirm / rename, triggered from popup) ────
 function closeActionSheet() {
   document.getElementById('action-sheet').classList.remove('open');
 }
