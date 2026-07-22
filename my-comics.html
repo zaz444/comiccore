@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ComicCore — My Comics</title>
 <link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@flaticon/flaticon-uicons@3.3.1/css/regular/straight.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
@@ -26,120 +27,157 @@
   --danger:#ff3b30;
   --green:#32d74b;
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{
-  margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
-  min-height:100dvh;display:flex;flex-direction:column;
-  overflow-x:hidden;position:relative;
-}
-body::before{
-  content:'';position:fixed;top:-100px;left:-80px;
-  width:480px;height:480px;
-  background:radial-gradient(circle,rgba(255,122,0,0.09) 0%,transparent 70%);
-  pointer-events:none;z-index:0;
-}
-body::after{
-  content:'';position:fixed;bottom:-80px;right:-60px;
-  width:380px;height:380px;
-  background:radial-gradient(circle,rgba(0,201,177,0.06) 0%,transparent 70%);
-  pointer-events:none;z-index:0;
-}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
+html,body{height:100%;overscroll-behavior:none;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column;position:relative;overflow-x:hidden;}
+body::before{content:'';position:fixed;top:-100px;left:-80px;width:480px;height:480px;background:radial-gradient(circle,rgba(255,122,0,0.09) 0%,transparent 70%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;height:380px;background:radial-gradient(circle,rgba(0,201,177,0.06) 0%,transparent 70%);pointer-events:none;z-index:0;}
 
 /* ── Top bar ── */
-.topbar{position:sticky;top:0;z-index:100;height:54px;background:rgba(15,15,17,0.88);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;backdrop-filter:blur(20px);}
-.topbar-title{font-size:15px;font-weight:900;letter-spacing:.5px;color:var(--text);}
-.topbar-sub{font-size:11px;color:var(--text-dim);font-weight:700;flex:1;}
-.tb{background:var(--card2);border:1px solid var(--border);color:var(--text-muted);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;font-family:'Inter',sans-serif;transition:.15s;white-space:nowrap;}
-.tb:hover{background:#303038;color:var(--text);}
-.tb.accent{border-color:rgba(255,122,0,0.4);color:var(--orange);}
-.tb.accent:hover{background:rgba(255,122,0,0.1);color:var(--orange-light);}
-.tb.teal{border-color:rgba(0,201,177,0.3);color:var(--teal);}
-.tb.teal:hover{background:rgba(0,201,177,0.08);}
+.topbar{position:sticky;top:0;z-index:100;height:56px;background:rgba(15,15,17,0.88);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;backdrop-filter:blur(20px);}
+.back-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0;text-decoration:none;transition:.15s;}
+.back-btn:hover{background:#303038;color:var(--text);}
+.topbar-center{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0;}
+.topbar-title{font-size:15px;font-weight:900;letter-spacing:.3px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.topbar-sub{font-size:10px;color:var(--text-dim);font-weight:700;}
+.new-btn{height:36px;padding:0 14px;background:var(--orange);color:#000;border:none;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;letter-spacing:.3px;transition:.15s;}
+.new-btn:hover{background:var(--orange-light);}
 
-/* ── Tab switcher ── */
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:rgba(15,15,17,0.7);position:sticky;top:54px;z-index:90;backdrop-filter:blur(8px);}
-.tab{flex:1;padding:13px 8px;text-align:center;font-size:11px;font-weight:900;letter-spacing:.5px;color:var(--text-dim);cursor:pointer;border:none;background:none;transition:.12s;text-transform:uppercase;border-bottom:2px solid transparent;font-family:'Inter',sans-serif;}
+/* ── Tabs ── */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:rgba(15,15,17,0.85);position:sticky;top:56px;z-index:90;backdrop-filter:blur(8px);}
+.tab{flex:1;padding:14px 8px;text-align:center;font-size:11px;font-weight:900;letter-spacing:.8px;color:var(--text-dim);cursor:pointer;border:none;background:none;text-transform:uppercase;border-bottom:2.5px solid transparent;transition:.12s;font-family:'Inter',sans-serif;}
 .tab:hover{color:var(--text-muted);}
 .tab.active{color:var(--orange);border-bottom-color:var(--orange);}
-.tab-count{background:var(--card2);color:var(--text-dim);border-radius:10px;padding:1px 6px;font-size:9px;margin-left:4px;font-weight:900;}
-.tab.active .tab-count{background:rgba(255,122,0,0.15);color:var(--orange);}
+.tab-count{display:inline-flex;align-items:center;justify-content:center;background:var(--card2);color:var(--text-dim);border-radius:10px;padding:1px 7px;font-size:9px;margin-left:5px;font-weight:900;min-width:18px;}
+.tab.active .tab-count{background:rgba(255,122,0,.18);color:var(--orange);}
 
-.content{flex:1;padding:16px;max-width:680px;margin:0 auto;width:100%;position:relative;z-index:1;}
+/* ── Content ── */
+.content{flex:1;padding:14px 14px 0;position:relative;z-index:1;}
 
-/* ── Toolbar row ── */
-.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
-.search-box{flex:1;min-width:140px;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:9px;font-family:'Inter',sans-serif;font-size:12px;outline:none;transition:.15s;}
+/* ── Search + sort bar ── */
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+.search-box{flex:1;background:var(--card);border:1.5px solid var(--border);color:var(--text);padding:10px 14px;border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;outline:none;transition:.15s;}
 .search-box:focus{border-color:rgba(255,122,0,0.5);box-shadow:0 0 0 3px rgba(255,122,0,0.08);}
 .search-box::placeholder{color:var(--text-dim);}
-select.tb{appearance:none;padding-right:10px;}
+.sort-select{appearance:none;background:var(--card2);border:1px solid var(--border);color:var(--text-muted);padding:10px 12px;border-radius:12px;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;outline:none;cursor:pointer;}
 
-/* ── Comics grid ── */
-.comics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;}
-
-/* ── Comic card ── */
-.comic-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.18s;position:relative;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.3);}
-.comic-card:hover{background:var(--card2);transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5);}
-.comic-card.draft-card:hover{border-color:rgba(0,201,177,0.35);box-shadow:0 8px 24px var(--teal-glow);}
-.comic-card.pub-card:hover{border-color:rgba(255,122,0,0.35);box-shadow:0 8px 24px var(--orange-glow);}
-.comic-thumb{width:100%;aspect-ratio:.7;background:var(--bg2);position:relative;overflow:hidden;flex-shrink:0;}
-.comic-thumb canvas{width:100%;height:100%;object-fit:cover;display:block;}
-.comic-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
-.comic-thumb .thumb-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;background:linear-gradient(135deg,var(--card),var(--bg2));}
-.comic-thumb .page-badge{position:absolute;bottom:5px;right:5px;background:rgba(0,0,0,.85);color:var(--text-muted);font-size:8px;font-weight:900;padding:2px 6px;border-radius:6px;letter-spacing:.5px;}
-.comic-thumb .status-badge{position:absolute;top:7px;left:7px;font-size:8px;font-weight:900;padding:2px 8px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;}
-.badge-draft{background:rgba(0,201,177,0.15);color:var(--teal);border:1px solid rgba(0,201,177,0.25);}
-.badge-pub{background:rgba(255,122,0,0.15);color:var(--orange);border:1px solid rgba(255,122,0,0.25);}
-.comic-info{padding:9px 10px 10px;flex:1;display:flex;flex-direction:column;gap:3px;}
-.comic-title{font-size:12px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.comic-meta{font-size:9px;color:var(--text-dim);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.comic-stars{font-size:10px;color:var(--text-muted);font-weight:700;display:flex;align-items:center;gap:3px;}
-/* Quick actions on hover */
-.card-actions{position:absolute;inset:0;background:rgba(0,0,0,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;opacity:0;transition:.18s;backdrop-filter:blur(4px);}
-.comic-card:hover .card-actions{opacity:1;}
-.ca-btn{padding:8px 18px;border-radius:9px;font-size:11px;font-weight:900;cursor:pointer;border:none;transition:.12s;min-width:110px;text-align:center;letter-spacing:.3px;font-family:'Inter',sans-serif;}
-.ca-btn:hover{filter:brightness(1.12);transform:translateY(-1px);}
-.ca-open{background:var(--orange);color:#000;}
-.ca-edit{background:var(--card2);color:var(--text);border:1px solid var(--border);}
-.ca-read{background:var(--teal);color:#000;}
-.ca-del{background:transparent;color:var(--danger);border:1px solid rgba(255,59,48,.3);font-size:10px;padding:5px 14px;}
-
-/* ── Empty state ── */
-.empty{text-align:center;padding:60px 20px;display:flex;flex-direction:column;align-items:center;gap:12px;}
-.empty-icon{font-size:52px;opacity:.25;}
-.empty-title{font-size:15px;font-weight:900;color:var(--text-muted);}
-.empty-sub{font-size:12px;color:var(--text-dim);line-height:1.6;max-width:260px;}
-.empty .tb{margin-top:8px;padding:10px 22px;font-size:12px;}
-
-/* ── Stats bar (published) ── */
-.stats-bar{display:flex;gap:16px;align-items:center;padding:10px 0 6px;border-bottom:1px solid var(--border);margin-bottom:14px;flex-wrap:wrap;}
-.stat-item{display:flex;flex-direction:column;gap:1px;}
-.stat-val{font-size:18px;font-weight:900;color:var(--text);line-height:1;}
+/* ── Stats bar ── */
+.stats-bar{display:flex;gap:20px;padding:10px 2px 14px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+.stat-item{display:flex;flex-direction:column;gap:2px;}
+.stat-val{font-size:22px;font-weight:900;line-height:1;color:var(--text);}
 .stat-lbl{font-size:9px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
 
-/* ── New comic modal ── */
-.overlay{position:fixed;inset:0;background:rgba(10,10,12,0.88);z-index:5000;display:none;align-items:flex-end;justify-content:center;padding-bottom:0;backdrop-filter:blur(20px);}
-.bottom-sheet{background:var(--bg2);border-radius:20px 20px 0 0;border:1px solid var(--border);padding:24px 20px 36px;width:100%;max-width:500px;position:relative;}
-.sheet-handle{width:36px;height:4px;background:var(--card2);border-radius:2px;margin:0 auto 20px;}
-.sheet-title{font-size:16px;font-weight:900;margin-bottom:6px;letter-spacing:.5px;color:var(--text);}
-.sheet-sub{font-size:12px;color:var(--text-muted);margin-bottom:20px;line-height:1.5;}
-.ratio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
-.ratio-opt{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:14px 8px;text-align:center;cursor:pointer;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:8px;}
-.ratio-opt:hover{border-color:rgba(255,255,255,0.15);background:var(--card2);}
+/* ── Comics grid (2-col, matches Discover card style) ── */
+.comics-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+
+/* ── Comic card (mirrors discover .comic-card) ── */
+.comic-card{cursor:pointer;transition:transform .2s,border-color .18s,box-shadow .18s;position:relative;background:var(--card);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.3);display:flex;flex-direction:column;}
+.comic-card:hover{transform:translateY(-3px);border-color:rgba(255,215,0,0.35);box-shadow:0 8px 28px rgba(255,215,0,0.1);background:var(--card2);}
+.comic-card:active{transform:scale(.97);}
+
+/* Cover image area — square 1:1, matches discover's grid card size */
+.comic-card-cover{width:100%;aspect-ratio:1/1;overflow:hidden;background:#111;position:relative;}
+.comic-card-cover img{width:100%;height:100%;object-fit:cover;display:block;}
+.comic-card-cover .no-cover{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;background:linear-gradient(135deg,#0f0f11,#1a1a2e);}
+
+/* Cloud-saved indicator, sits under the card title (not on the cover) */
+.comic-card-cloud{display:flex;align-items:center;gap:4px;font-size:9px;font-weight:800;color:#00d2ff;margin:1px 0 2px;}
+.comic-card-cloud i{font-size:10px;line-height:1;}
+
+/* Status pill on cover top-left */
+.cover-status-pill{position:absolute;top:6px;left:6px;font-size:8px;font-weight:900;padding:2px 7px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;}
+.cover-status-draft{background:rgba(0,201,177,0.85);color:#000;}
+.cover-status-pub{background:rgba(255,122,0,0.9);color:#000;}
+
+/* Card info footer */
+.comic-card-info{padding:8px 10px 10px;flex:1;display:flex;flex-direction:column;gap:2px;}
+.comic-card-title{font-size:12px;font-weight:800;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;line-height:1.28;min-height:2.56em;}
+.comic-card-sub{font-size:10px;color:var(--text-dim);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ── Popup (exact discover.html style) ── */
+.popup-overlay{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center;}
+.popup-overlay.open{display:flex;}
+.popup-sheet{background:#141416;border-radius:20px 20px 0 0;border-top:1px solid #222;width:100%;max-width:560px;max-height:88dvh;overflow-y:auto;position:relative;animation:slideUp .3s cubic-bezier(.4,0,.2,1);}
+.popup-sheet::-webkit-scrollbar{display:none;}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.popup-cover{width:100%;aspect-ratio:1.6;object-fit:cover;display:block;background:#0a0a0a;border-radius:20px 20px 0 0;}
+.popup-cover-placeholder{width:100%;aspect-ratio:1.6;background:linear-gradient(135deg,#111,#1a1a2e);display:flex;align-items:center;justify-content:center;font-size:52px;border-radius:20px 20px 0 0;}
+.popup-close{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.7);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);z-index:2;}
+.popup-body{padding:16px 18px 28px;}
+.popup-title{font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-.3px;color:#f5f5f7;}
+.popup-creator{font-size:12px;color:#555;margin-bottom:12px;font-weight:700;}
+.popup-meta-row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.popup-meta-chip{background:#1e1e20;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;color:#888;}
+.popup-meta-chip.teal{color:var(--teal);background:rgba(0,201,177,0.12);border:1px solid rgba(0,201,177,0.2);}
+.popup-meta-chip.orange{color:var(--orange);background:rgba(255,122,0,0.12);border:1px solid rgba(255,122,0,0.2);}
+.popup-meta-chip.blue{color:#00d2ff;background:rgba(0,210,255,0.12);border:1px solid rgba(0,210,255,0.2);display:flex;align-items:center;gap:5px;}
+.popup-desc{font-size:13px;line-height:1.6;color:#aaa;margin-bottom:14px;}
+.popup-btns{display:flex;gap:8px;flex-wrap:wrap;}
+.read-btn{flex:1;background:white;color:#000;border:none;padding:13px;border-radius:10px;font-size:14px;font-weight:900;cursor:pointer;transition:.15s;letter-spacing:.3px;min-width:120px;font-family:'Inter',sans-serif;}
+.read-btn:hover{background:#e8e8e8;}
+.popup-edit-btn{background:#1e1e20;border:1.5px solid #00d2ff;color:#00d2ff;padding:13px 16px;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;}
+.popup-edit-btn:hover{background:rgba(0,210,255,0.08);}
+.popup-rename-btn{background:#1e1e20;border:1.5px solid #2a2a2c;color:#888;padding:13px 16px;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;}
+.popup-rename-btn:hover{background:#2a2a2c;}
+.popup-delete-btn{background:#1e1e20;border:1.5px solid var(--danger);color:var(--danger);padding:13px 16px;border-radius:10px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:6px;transition:.15s;}
+.popup-delete-btn:hover{background:rgba(255,59,48,0.1);}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:64px 24px;display:flex;flex-direction:column;align-items:center;gap:14px;}
+.empty-icon{font-size:56px;opacity:.25;}
+.empty-title{font-size:16px;font-weight:900;color:var(--text-muted);}
+.empty-sub{font-size:13px;color:var(--text-dim);line-height:1.6;max-width:260px;}
+.empty-cta{margin-top:4px;padding:13px 28px;background:var(--orange);color:#000;border:none;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.3px;}
+
+
+
+/* ── Bottom Sheet Overlay ── */
+.overlay{position:fixed;inset:0;background:rgba(10,10,12,0.88);z-index:500;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(20px);}
+.overlay.open{display:flex;}
+.sheet{background:var(--bg2);border-radius:22px 22px 0 0;border:1px solid var(--border);border-bottom:none;width:100%;max-width:500px;padding:0 0 max(env(safe-area-inset-bottom),20px);}
+.sheet-handle{width:38px;height:4px;background:var(--card2);border-radius:2px;margin:14px auto 4px;}
+.sheet-header{padding:16px 20px 12px;border-bottom:1px solid var(--border);}
+.sheet-header-title{font-size:14px;font-weight:900;color:var(--text);letter-spacing:.3px;}
+.sheet-header-sub{font-size:11px;color:var(--text-muted);margin-top:3px;}
+
+/* Sheet action rows */
+.sheet-action{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;transition:.12s;border-bottom:1px solid var(--border);}
+.sheet-action:last-child{border-bottom:none;}
+.sheet-action:active{background:var(--card2);}
+.sheet-action-icon{font-size:20px;width:36px;text-align:center;flex-shrink:0;}
+.sheet-action-label{font-size:14px;font-weight:700;flex:1;color:var(--text);}
+.sheet-action-label.danger{color:var(--danger);}
+.sheet-action-label.accent{color:var(--orange);}
+.sheet-action-label.teal{color:var(--teal);}
+
+/* ── New comic sheet ── */
+.ratio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 20px 20px;}
+.ratio-opt{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:8px;}
+.ratio-opt:active{background:var(--card2);}
 .ratio-opt.sel{border-color:var(--orange);background:rgba(255,122,0,0.08);}
 .ratio-preview{background:var(--card2);border-radius:4px;border:1px solid var(--border);}
 .ratio-opt.sel .ratio-preview{border-color:rgba(255,122,0,0.3);}
 .ratio-name{font-size:10px;font-weight:900;color:var(--text-muted);letter-spacing:.3px;}
 .ratio-dims{font-size:8px;color:var(--text-dim);font-weight:700;}
-
-/* ── Confirm delete sheet ── */
-.del-sheet{background:var(--bg2);border-radius:20px 20px 0 0;border:1px solid var(--border);padding:24px 20px 36px;width:100%;max-width:500px;}
-
-/* ── Toast ── */
-.toast-el{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);padding:9px 20px;border-radius:11px;font-weight:900;font-size:12px;z-index:9999;pointer-events:none;white-space:nowrap;transition:opacity .4s;}
+.sheet-cta{margin:0 20px 4px;padding:15px;background:var(--orange);color:#000;border:none;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;width:calc(100% - 40px);font-family:'Inter',sans-serif;letter-spacing:.3px;}
 
 /* ── Rename input ── */
-.rename-input{background:var(--card);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;outline:none;width:100%;margin-bottom:10px;transition:.15s;}
+.rename-wrap{padding:14px 20px 20px;}
+.rename-input{background:var(--card);border:1.5px solid var(--border);color:var(--text);padding:13px 14px;border-radius:12px;font-family:'Inter',sans-serif;font-size:15px;outline:none;width:100%;margin-bottom:12px;transition:.15s;}
 .rename-input:focus{border-color:rgba(255,122,0,0.5);box-shadow:0 0 0 3px rgba(255,122,0,0.08);}
+.rename-row{display:flex;gap:10px;}
+.rename-cancel{flex:1;padding:13px;background:var(--card2);border:1px solid var(--border);color:var(--text-muted);border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;}
+.rename-ok{flex:1;padding:13px;background:var(--orange);border:none;color:#000;border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;}
+
+/* ── Delete confirm sheet ── */
+.del-wrap{padding:14px 20px 20px;}
+.del-title{font-size:15px;font-weight:900;color:var(--danger);margin-bottom:6px;}
+.del-sub{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:20px;}
+.del-confirm{width:100%;padding:15px;background:var(--danger);color:white;border:none;border-radius:14px;font-size:14px;font-weight:900;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:10px;}
+.del-cancel{width:100%;padding:14px;background:var(--card2);border:1px solid var(--border);color:var(--text-muted);border-radius:14px;font-size:13px;font-weight:900;cursor:pointer;font-family:'Inter',sans-serif;}
+
+/* ── Toast ── */
+.toast-el{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:14px;font-weight:900;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;transition:opacity .4s;}
 </style>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#ff7a00">
@@ -158,51 +196,14 @@ select.tb{appearance:none;padding-right:10px;}
 </head>
 <body>
 
-<!-- New comic sheet -->
-<div id="new-sheet" class="overlay" onclick="if(event.target===this)closeNew()">
-  <div class="bottom-sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">📖 New Comic</div>
-    <div class="sheet-sub">Pick the panel shape for your comic. This sets the canvas ratio and can't be changed after creation.</div>
-    <div class="ratio-grid" id="ratio-grid"></div>
-    <button class="tb accent" style="width:100%;padding:13px;font-size:13px;border-radius:11px;" onclick="startNewComic()">START CREATING →</button>
-  </div>
-</div>
-
-<!-- Rename draft sheet -->
-<div id="rename-sheet" class="overlay" onclick="if(event.target===this)closeRename()">
-  <div class="bottom-sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">✏️ Rename Draft</div>
-    <input class="rename-input" id="rename-inp" placeholder="Comic title...">
-    <div style="display:flex;gap:8px;">
-      <button class="tb" style="flex:1;padding:11px;" onclick="closeRename()">Cancel</button>
-      <button class="tb accent" style="flex:1;padding:11px;" onclick="confirmRename()">Rename</button>
-    </div>
-  </div>
-</div>
-
-<!-- Delete confirm sheet -->
-<div id="del-sheet" class="overlay" onclick="if(event.target===this)closeDel()">
-  <div class="del-sheet">
-    <div class="sheet-handle"></div>
-    <div id="del-title" style="font-size:14px;font-weight:900;margin-bottom:6px;color:var(--danger)">🗑 Delete Comic?</div>
-    <div id="del-sub" style="font-size:12px;color:var(--text-muted);margin-bottom:20px;line-height:1.5;"></div>
-    <div style="display:flex;gap:8px;">
-      <button class="tb" style="flex:1;padding:11px;" onclick="closeDel()">Cancel</button>
-      <button class="tb" style="flex:1;padding:11px;border-color:var(--danger);color:var(--danger);" onclick="confirmDelete()">DELETE</button>
-    </div>
-  </div>
-</div>
-
 <!-- Top bar -->
 <div class="topbar">
-  <button class="tb" onclick="location.href='index.html'">← Home</button>
-  <div>
+  <a href="index.html" class="back-btn">←</a>
+  <div class="topbar-center">
     <div class="topbar-title">My Comics</div>
-    <div class="topbar-sub" id="topbar-sub">Loading...</div>
+    <div class="topbar-sub" id="topbar-sub">Loading…</div>
   </div>
-  <button class="tb accent" onclick="openNew()">+ New Comic</button>
+  <button class="new-btn" onclick="openNewSheet()">+ New</button>
 </div>
 
 <!-- Tabs -->
@@ -222,70 +223,132 @@ select.tb{appearance:none;padding-right:10px;}
 <div class="content">
   <!-- Drafts toolbar -->
   <div class="toolbar" id="drafts-toolbar">
-    <input class="search-box" id="draft-search" placeholder="🔍 Search drafts..." oninput="renderDrafts()">
-    <select class="tb" id="draft-sort" onchange="renderDrafts()">
+    <input class="search-box" id="draft-search" placeholder="🔍 Search drafts…" oninput="renderDrafts()">
+    <select class="sort-select" id="draft-sort" onchange="renderDrafts()">
       <option value="newest">Newest</option>
       <option value="oldest">Oldest</option>
       <option value="alpha">A→Z</option>
-      <option value="pages">Most pages</option>
+      <option value="pages">Pages</option>
     </select>
   </div>
 
-
   <!-- Published toolbar -->
   <div class="toolbar" id="pub-toolbar" style="display:none;">
-    <input class="search-box" id="pub-search" placeholder="🔍 Search published..." oninput="renderPublished()">
-    <select class="tb" id="pub-sort" onchange="renderPublished()">
+    <input class="search-box" id="pub-search" placeholder="🔍 Search published…" oninput="renderPublished()">
+    <select class="sort-select" id="pub-sort" onchange="renderPublished()">
       <option value="newest">Newest</option>
-      <option value="stars">Most Starred</option>
+      <option value="stars">⭐ Stars</option>
       <option value="alpha">A→Z</option>
     </select>
   </div>
 
-  <!-- Drafts stats -->
+  <!-- Stats bars -->
   <div id="draft-stats" class="stats-bar" style="display:none;"></div>
-
-  <!-- Published stats -->
   <div id="pub-stats" class="stats-bar" style="display:none;"></div>
 
-  <!-- Grid container -->
-  <div id="grid-container"></div>
+  <!-- List container -->
+  <div id="list-container"></div>
 
   <!-- Collab container -->
-  <div id="collab-container" style="display:none;"></div>
+  <div id="collab-container" style="display:none; padding: 12px;"></div>
+</div>
+
+<!-- Bottom Nav -->
+
+<!-- ── Detail Popup (same structure as discover.html) ── -->
+<div class="popup-overlay" id="popup-overlay" onclick="if(event.target===this)closePopup()">
+  <div class="popup-sheet" id="popup-sheet">
+    <button class="popup-close" onclick="closePopup()">✕</button>
+    <div id="popup-cover-wrap"></div>
+    <div class="popup-body">
+      <div class="popup-title"    id="popup-title"></div>
+      <div class="popup-creator"  id="popup-creator"></div>
+      <div class="popup-meta-row" id="popup-meta"></div>
+      <div class="popup-desc"     id="popup-desc" style="display:none;"></div>
+      <div class="popup-btns"     id="popup-btns"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Action Sheet (draft) ── -->
+<div id="action-sheet" class="overlay" onclick="if(event.target===this)closeActionSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-header-title" id="action-sheet-title">Comic</div>
+      <div class="sheet-header-sub" id="action-sheet-sub"></div>
+    </div>
+    <div id="action-sheet-body"></div>
+  </div>
+</div>
+
+<!-- ── New Comic Sheet ── -->
+<div id="new-sheet" class="overlay" onclick="if(event.target===this)closeNewSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-header-title">📖 New Comic</div>
+      <div class="sheet-header-sub">Pick a canvas ratio — can't change later.</div>
+    </div>
+    <div class="ratio-grid" id="ratio-grid"></div>
+    <button class="sheet-cta" onclick="startNewComic()">START CREATING →</button>
+  </div>
+</div>
+
+<!-- ── Rename Sheet ── -->
+<div id="rename-sheet" class="overlay" onclick="if(event.target===this)closeRenameSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-header-title">✏️ Rename Draft</div>
+    </div>
+    <div class="rename-wrap">
+      <input class="rename-input" id="rename-inp" placeholder="Comic title…" maxlength="80">
+      <div class="rename-row">
+        <button class="rename-cancel" onclick="closeRenameSheet()">Cancel</button>
+        <button class="rename-ok" onclick="confirmRename()">Rename</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Sheet ── -->
+<div id="del-sheet" class="overlay" onclick="if(event.target===this)closeDelSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="del-wrap">
+      <div class="del-title" id="del-title">🗑 Delete?</div>
+      <div class="del-sub" id="del-sub"></div>
+      <button class="del-confirm" onclick="confirmDelete()">DELETE PERMANENTLY</button>
+      <button class="del-cancel" onclick="closeDelSheet()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <script>
 const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
 
 // ── Draft Save/Load helpers (SQL-first, Storage bucket fallback) ──────────────
-// If draft data is too large for a Supabase row (~1MB limit), we upload the
-// JSON to comiccore-assets/drafts/<id>.json and store a reference row instead.
-const DRAFT_BUCKET   = 'comiccore-assets';
-const DRAFT_PREFIX   = 'drafts/';
-const INLINE_LIMIT   = 900_000; // bytes before spilling to bucket
+const DRAFT_BUCKET  = 'comiccore-assets';
+const DRAFT_PREFIX  = 'drafts/';
+const INLINE_LIMIT  = 900_000;
 
 async function saveDraft(draftId, title, framesData, canvasRatio) {
   if (!myHandle) throw new Error('Not logged in');
   const payload = JSON.stringify(framesData);
   let rowData;
-
   if (payload.length > INLINE_LIMIT) {
-    // Upload to storage bucket
     const path = `${DRAFT_PREFIX}${draftId}.json`;
     const { error: upErr } = await _sb.storage
       .from(DRAFT_BUCKET)
       .upload(path, new Blob([payload], { type: 'application/json' }), { upsert: true });
     if (upErr) throw upErr;
-    rowData = { storage_path: path }; // store reference, not data inline
+    rowData = { storage_path: path };
   } else {
     rowData = { data: framesData, storage_path: null };
   }
-
   const row = {
-    id: draftId,
-    owner_handle: myHandle,
-    title,
+    id: draftId, owner_handle: myHandle, title,
     canvas_ratio: canvasRatio,
     updated_at: new Date().toISOString(),
     ...rowData
@@ -296,11 +359,8 @@ async function saveDraft(draftId, title, framesData, canvasRatio) {
 }
 
 async function loadDraftData(d) {
-  // If the row has a storage_path, fetch from bucket
   if (d.storage_path) {
-    const { data, error } = await _sb.storage
-      .from(DRAFT_BUCKET)
-      .download(d.storage_path);
+    const { data, error } = await _sb.storage.from(DRAFT_BUCKET).download(d.storage_path);
     if (error) throw error;
     return JSON.parse(await data.text());
   }
@@ -314,19 +374,15 @@ let published = [];
 let myHandle = null, myName = null;
 let pendingDeleteId = null, pendingDeleteType = null;
 let renameTargetId = null;
-let selectedRatio = { w: 9, h: 13, label: 'Comic', dims: '9:13' };
-
-// Expose saveDraft so create.html can import this logic via localStorage bridge
-window._ccSaveDraft = saveDraft;
-window._ccLoadDraftData = loadDraftData;
+let selectedRatio = { w: 9, h: 13 };
 
 const RATIOS = [
-  { w:9,  h:13, label:'Comic',     dims:'9:13',   icon:{ w:38, h:54 } },
-  { w:1,  h:1,  label:'Square',    dims:'1:1',    icon:{ w:46, h:46 } },
-  { w:9,  h:16, label:'Vertical',  dims:'9:16',   icon:{ w:36, h:62 } },
-  { w:16, h:9,  label:'Wide',      dims:'16:9',   icon:{ w:64, h:36 } },
-  { w:4,  h:3,  label:'Classic',   dims:'4:3',    icon:{ w:54, h:40 } },
-  { w:3,  h:4,  label:'Portrait',  dims:'3:4',    icon:{ w:42, h:56 } },
+  { w:9,  h:13, label:'Comic',    dims:'9:13',  icon:{ w:34, h:48 } },
+  { w:1,  h:1,  label:'Square',   dims:'1:1',   icon:{ w:44, h:44 } },
+  { w:9,  h:16, label:'Vertical', dims:'9:16',  icon:{ w:32, h:56 } },
+  { w:16, h:9,  label:'Wide',     dims:'16:9',  icon:{ w:60, h:34 } },
+  { w:4,  h:3,  label:'Classic',  dims:'4:3',   icon:{ w:52, h:38 } },
+  { w:3,  h:4,  label:'Portrait', dims:'3:4',   icon:{ w:38, h:50 } },
 ];
 
 // ── Init ───────────────────────────────────────────────────
@@ -345,6 +401,7 @@ window.onload = async () => {
 
 // ── Load data ─────────────────────────────────────────────
 async function loadDrafts() {
+  // Load ONLY from Supabase (no localStorage fallback)
   if (!myHandle) {
     drafts = [];
     document.getElementById('drafts-count').innerText = 0;
@@ -356,15 +413,13 @@ async function loadDrafts() {
       .select('id, title, data, storage_path, canvas_ratio, updated_at, created_at')
       .eq('owner_handle', myHandle)
       .order('updated_at', { ascending: false });
-
+    
     if (error) throw error;
 
     if (window.CCOffline) CCOffline.cacheMyDrafts(myHandle, sbDrafts || []);
 
     drafts = (sbDrafts || []).map(d => ({
-      id: d.id,
-      title: d.title || 'Untitled',
-      data: d.data,
+      id: d.id, title: d.title || 'Untitled', data: d.data,
       storage_path: d.storage_path || null,
       ratio: d.canvas_ratio || { w:1, h:1 },
       lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
@@ -374,27 +429,22 @@ async function loadDrafts() {
   } catch(e) {
     console.error('Failed to load drafts:', e);
 
-    // OFFLINE FALLBACK — Supabase didn't respond (probably no connection).
-    // Show whatever drafts were cached locally the last time this loaded.
+    // OFFLINE FALLBACK — show whatever drafts were cached locally last time
     const cached = window.CCOffline ? await CCOffline.getCachedMyDrafts(myHandle) : [];
     if (cached.length) {
       drafts = cached.map(d => ({
-        id: d.id,
-        title: d.title || 'Untitled',
-        data: d.data,
+        id: d.id, title: d.title || 'Untitled', data: d.data,
         storage_path: d.storage_path || null,
         ratio: d.canvas_ratio || { w:1, h:1 },
         lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
         _source: 'cache'
       }));
       document.getElementById('drafts-count').innerText = drafts.length;
-      toast('Offline — showing cached drafts', 'var(--orange)');
       return;
     }
 
     drafts = [];
     document.getElementById('drafts-count').innerText = 0;
-    toast('⚠ Could not load drafts: ' + e.message, 'var(--danger)');
   }
 }
 
@@ -403,17 +453,17 @@ async function loadPublished() {
 
   let data, error;
   try {
-    ({ data, error } = await _sb.from('comics').select('id,title,description,cover,tags,stars,data,canvas_ratio,created_at,owner_handle').eq('owner_handle', myHandle).order('id', { ascending: false }));
+    ({ data, error } = await _sb.from('comics')
+      .select('id,title,description,cover,tags,stars,data,storage_path,canvas_ratio,created_at,owner_handle')
+      .eq('owner_handle', myHandle)
+      .order('id', { ascending: false }));
   } catch (e) {
     error = e;
   }
 
   if (error) {
     console.error('Failed to load published:', error);
-    // OFFLINE FALLBACK — show last-cached published comics instead of an empty grid
-    const cached = window.CCOffline ? await CCOffline.getCachedMyComics(myHandle) : [];
-    published = cached;
-    if (cached.length) toast('Offline — showing cached comics', 'var(--orange)');
+    published = window.CCOffline ? await CCOffline.getCachedMyComics(myHandle) : [];
   } else {
     published = data || [];
     if (window.CCOffline) CCOffline.cacheMyComics(myHandle, published);
@@ -423,10 +473,10 @@ async function loadPublished() {
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
 }
 
+// ── Clear cache ───────────────────────────────────────────
 // ── Stats ─────────────────────────────────────────────────
 function renderStats() {
-  // Draft stats
-  const totalPages = drafts.reduce((a, d) => a + (d.data?.length || 0), 0);
+  const totalPages = drafts.reduce((a,d) => a+(d.data?.length||0), 0);
   const draftEl = document.getElementById('draft-stats');
   if (drafts.length) {
     draftEl.style.display = 'flex';
@@ -437,15 +487,14 @@ function renderStats() {
     ].map(s => `<div class="stat-item"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
   } else { draftEl.style.display = 'none'; }
 
-  // Published stats
-  const totalStars = published.reduce((a, c) => a + (c.stars || 0), 0);
+  const totalStars = published.reduce((a,c) => a+(c.stars||0), 0);
   const pubEl = document.getElementById('pub-stats');
   if (published.length) {
     pubEl.style.display = 'flex';
     pubEl.innerHTML = [
       { v: published.length, l: 'Published' },
-      { v: totalStars, l: 'Total Stars' },
-      { v: Math.max(...published.map(c => c.stars||0), 0), l: 'Top Stars' },
+      { v: totalStars,       l: 'Total Stars' },
+      { v: Math.max(...published.map(c=>c.stars||0), 0), l: 'Top Stars' },
     ].map(s => `<div class="stat-item"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
   } else { pubEl.style.display = 'none'; }
 }
@@ -453,14 +502,14 @@ function renderStats() {
 // ── Tab switching ─────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
-  document.getElementById('tab-drafts').classList.toggle('active', tab === 'drafts');
-  document.getElementById('tab-published').classList.toggle('active', tab === 'published');
-  document.getElementById('tab-collab').classList.toggle('active', tab === 'collab');
-  document.getElementById('drafts-toolbar').style.display = tab === 'drafts' ? 'flex' : 'none';
-  document.getElementById('pub-toolbar').style.display = tab === 'published' ? 'flex' : 'none';
+  document.getElementById('tab-drafts').classList.toggle('active', tab==='drafts');
+  document.getElementById('tab-published').classList.toggle('active', tab==='published');
+  document.getElementById('tab-collab').classList.toggle('active', tab==='collab');
+  document.getElementById('drafts-toolbar').style.display = tab==='drafts' ? 'flex' : 'none';
+  document.getElementById('pub-toolbar').style.display = tab==='published' ? 'flex' : 'none';
   document.getElementById('draft-stats').style.display = (tab==='drafts'&&drafts.length) ? 'flex' : 'none';
   document.getElementById('pub-stats').style.display = (tab==='published'&&published.length) ? 'flex' : 'none';
-  document.getElementById('grid-container').style.display = tab === 'collab' ? 'none' : '';
+  document.getElementById('list-container').style.display = tab === 'collab' ? 'none' : '';
   document.getElementById('collab-container').style.display = tab === 'collab' ? '' : 'none';
   if (tab === 'drafts') renderDrafts();
   else if (tab === 'published') renderPublished();
@@ -484,8 +533,12 @@ async function loadCollab() {
     if (pending > 0) {
       badge.textContent = pending;
       badge.style.display = '';
-      badge.style.background = 'var(--accent,#ff7a00)';
+      badge.style.background = '#ff7a00';
       badge.style.color = '#000';
+      badge.style.borderRadius = '6px';
+      badge.style.padding = '1px 5px';
+      badge.style.fontSize = '10px';
+      badge.style.fontWeight = '900';
     } else if (collabInvites.length) {
       badge.textContent = collabInvites.length;
       badge.style.display = '';
@@ -497,10 +550,10 @@ function renderCollab() {
   const el = document.getElementById('collab-container');
   if (!collabInvites.length) {
     el.innerHTML = `
-      <div class="empty">
-        <div class="empty-icon">🤝</div>
-        <div class="empty-title">No co-create invites yet</div>
-        <div class="empty-sub">When a squad member invites you to co-create a comic, it'll appear here.</div>
+      <div style="text-align:center;padding:40px 20px;">
+        <div style="font-size:40px;margin-bottom:12px;">🤝</div>
+        <div style="font-size:16px;font-weight:800;color:#f5f5f7;margin-bottom:6px;">No co-create invites yet</div>
+        <div style="font-size:12px;color:#444;font-weight:700;">When a squad member invites you to co-create a comic, it'll appear here.</div>
       </div>`;
     return;
   }
@@ -508,24 +561,33 @@ function renderCollab() {
   const statusColor = { accepted: '#32d74b', declined: '#555', pending: '#ff7a00' };
   const statusLabel = { accepted: '✅ Accepted', declined: '❌ Declined', pending: '⏳ Pending' };
 
-  el.innerHTML = `<div class="comics-grid">${collabInvites.map(inv => `
-    <div class="comic-card pub-card" style="opacity:${inv.status==='declined'?0.45:1};">
-      <div class="comic-thumb" style="display:flex;align-items:center;justify-content:center;font-size:36px;background:#111;">🎨</div>
-      <div class="comic-info">
-        <div class="comic-title">${escHtml(inv.comic_title || 'Untitled Comic')}</div>
-        <div class="comic-meta" style="font-size:11px;color:#444;font-weight:700;">Invited by @${escHtml(inv.inviter_handle)}</div>
-        <div class="comic-stars" style="color:${statusColor[inv.status]||'#555'};font-size:12px;font-weight:800;">${statusLabel[inv.status]||inv.status}</div>
-      </div>
-      <div class="card-actions">
-        ${inv.status === 'pending' ? `
-          <button class="ca-btn ca-edit" onclick="event.stopPropagation();acceptCollabInvite('${inv.id}','${inv.comic_id}')">✅ Accept</button>
-          <button class="ca-btn ca-del" onclick="event.stopPropagation();declineCollabInvite('${inv.id}')">Decline</button>
-        ` : inv.status === 'accepted' ? `
-          <button class="ca-btn ca-edit" onclick="event.stopPropagation();openCollabComic('${inv.comic_id}')">✏️ Open</button>
-          <button class="ca-btn ca-read" onclick="event.stopPropagation();readComic('${inv.comic_id}')">📖 Read</button>
-        ` : ''}
-      </div>
-    </div>`).join('')}</div>`;
+  el.innerHTML = collabInvites.map(inv => `
+    <div style="background:#1c1c1e;border-radius:14px;padding:14px;margin-bottom:12px;opacity:${inv.status==='declined'?0.45:1};">
+      <div style="font-size:14px;font-weight:900;color:#f5f5f7;margin-bottom:3px;">📖 ${escHtml(inv.comic_title || 'Untitled Comic')}</div>
+      <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:6px;">Invited by @${escHtml(inv.inviter_handle)}</div>
+      <div style="font-size:12px;font-weight:800;color:${statusColor[inv.status]||'#555'};margin-bottom:${inv.status==='pending'?'10px':'0'};">${statusLabel[inv.status]||inv.status}</div>
+      ${inv.status === 'pending' ? `
+        <div style="display:flex;gap:8px;">
+          <button onclick="acceptCollabInvite('${inv.id}','${inv.comic_id}')"
+            style="flex:1;background:#ff7a00;border:none;color:#000;font-weight:900;font-size:13px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
+            ✅ Accept & Co-create
+          </button>
+          <button onclick="declineCollabInvite('${inv.id}')"
+            style="background:#111;border:1px solid #2a2a2a;color:#555;font-weight:700;font-size:12px;border-radius:10px;padding:10px 14px;cursor:pointer;font-family:inherit;">
+            Decline
+          </button>
+        </div>` : inv.status === 'accepted' ? `
+        <div style="display:flex;gap:8px;">
+          <button onclick="openCollabComic('${inv.comic_id}')"
+            style="flex:1;background:#ff7a00;border:none;color:#000;font-weight:900;font-size:13px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
+            ✏️ Open Editor
+          </button>
+          <button onclick="readComic('${inv.comic_id}')"
+            style="background:#111;border:1px solid #2a2a2a;color:#ccc;font-weight:700;font-size:12px;border-radius:10px;padding:10px 14px;cursor:pointer;font-family:inherit;">
+            📖 Read
+          </button>
+        </div>` : ''}
+    </div>`).join('');
 }
 
 async function acceptCollabInvite(inviteId, comicId) {
@@ -545,7 +607,7 @@ async function declineCollabInvite(inviteId) {
 
 function openCollabComic(comicId) {
   localStorage.setItem('edit_comic_id', comicId);
-  location.href = 'create.html';
+  location.href = 'create-mobile.html';
 }
 // ── End Collab ─────────────────────────────────────────────
 
@@ -554,81 +616,61 @@ function renderDrafts() {
   const q = document.getElementById('draft-search').value.toLowerCase();
   const sort = document.getElementById('draft-sort').value;
   let list = drafts.filter(d => !q || d.title?.toLowerCase().includes(q));
-
-  if (sort === 'newest') list = [...list].reverse();
-  else if (sort === 'oldest') {} // already chronological
+  if (sort === 'newest')   list = [...list].reverse();
   else if (sort === 'alpha') list = [...list].sort((a,b) => (a.title||'').localeCompare(b.title||''));
-  else if (sort === 'pages') list = [...list].sort((a,b) => (b.data?.length||0) - (a.data?.length||0));
+  else if (sort === 'pages') list = [...list].sort((a,b) => (b.data?.length||0)-(a.data?.length||0));
 
-  const grid = document.getElementById('grid-container');
+  const container = document.getElementById('list-container');
   if (!list.length) {
-    grid.innerHTML = '';
-    const empty = document.createElement('div');
-    empty.className = 'empty';
-    empty.innerHTML = `
+    container.innerHTML = `<div class="empty">
       <div class="empty-icon">✏️</div>
       <div class="empty-title">${q ? 'No drafts found' : 'No drafts yet'}</div>
-      <div class="empty-sub">${q ? 'Try a different search.' : 'Start building your first comic. Saved drafts appear here so you can come back and finish anytime.'}</div>
-      ${!q ? `<button class="tb accent" onclick="openNew()">+ Create Your First Comic</button>` : ''}
-    `;
-    grid.appendChild(empty);
+      <div class="empty-sub">${q ? 'Try a different search.' : 'Start a comic and save it as a draft — it will appear here.'}</div>
+      ${!q ? `<button class="empty-cta" onclick="openNewSheet()">+ Create Your First Comic</button>` : ''}
+    </div>`;
     return;
   }
-
-  grid.innerHTML = '';
-  const dg = document.createElement('div');
-  dg.className = 'comics-grid';
-  list.forEach(d => dg.appendChild(makeDraftCard(d)));
-  grid.appendChild(dg);
+  const listEl = document.createElement('div');
+  listEl.className = 'comics-list';
+  list.forEach(d => listEl.appendChild(makeDraftRow(d)));
+  container.innerHTML = '';
+  container.appendChild(listEl);
 }
 
-function makeDraftCard(d) {
+function makeDraftRow(d) {
   const card = document.createElement('div');
-  card.className = 'comic-card draft-card';
-
-  const pageCount = d.data?.length || 0;
-  const firstFrame = d.data?.[0];
-  const thumbHtml = makeDraftThumb(firstFrame, d.ratio);
+  card.className = 'comic-card';
+  card.dataset.id = d.id;
+  card.dataset.type = 'draft';
+  const pages = d.data?.length || 0;
   const isCloud = d._source === 'supabase';
+  const thumbInner = makeDraftThumb(d.data?.[0], d.ratio);
 
   card.innerHTML = `
-    <div class="comic-thumb">
-      ${thumbHtml}
-      ${isCloud ? '<div style="position:absolute;top:7px;left:7px;font-size:9px;background:rgba(0,210,255,.18);color:#00d2ff;padding:2px 8px;border-radius:8px;font-weight:900;letter-spacing:.3px;border:1px solid rgba(0,210,255,.2);">☁ Cloud</div>' : ''}
-      <div class="status-badge badge-draft">Draft</div>
-      <div class="page-badge">${pageCount} page${pageCount!==1?'s':''}</div>
+    <div class="comic-card-cover">
+      <div style="width:100%;height:100%;position:relative;">
+        ${thumbInner}
+        <div class="cover-status-pill cover-status-draft">Draft</div>
+      </div>
     </div>
-    <div class="comic-info">
-      <div class="comic-title">${escHtml(d.title || 'Untitled')}</div>
-      <div class="comic-meta">Edited ${d.lastModified || 'recently'}</div>
-    </div>
-    <div class="card-actions">
-      <button class="ca-btn ca-open" onclick="event.stopPropagation();resumeDraft('${d.id}')">✏️ Resume</button>
-      <button class="ca-btn ca-edit" onclick="event.stopPropagation();openRename('${d.id}','${escAttr(d.title||'Untitled')}')">Rename</button>
-      <button class="ca-btn ca-del" onclick="event.stopPropagation();askDelete('${d.id}','draft','${escAttr(d.title||'Untitled')}')">Delete Draft</button>
+    <div class="comic-card-info">
+      <div class="comic-card-title">${escHtml(d.title || 'Untitled')}</div>
+      ${isCloud ? '<div class="comic-card-cloud"><i class="fi fi-rs-cloud"></i> Cloud saved</div>' : ''}
+      <div class="comic-card-sub">${pages} page${pages!==1?'s':''} · ${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}</div>
     </div>
   `;
-  card.onclick = () => resumeDraft(d.id);
+  card.onclick = () => openDraftPopup(d);
   return card;
 }
 
 function makeDraftThumb(frame, ratio) {
-  if (!frame) return `<div class="thumb-placeholder">📄</div>`;
-  const bg = frame.background || '#fff';
-  const hasImage = frame.layers?.some(l => l.type === 'img' && l.src);
-  if (hasImage) {
-    const imgLayer = frame.layers.find(l => l.type === 'img' && l.src);
-    return `<img src="${imgLayer.src}" style="object-fit:cover;" onerror="this.parentNode.innerHTML='<div class=\\'thumb-placeholder\\'>📄</div>'">`;
-  }
-  const isGradient = typeof bg === 'string' && bg.includes('gradient');
-  const isUrl = typeof bg === 'string' && (bg.startsWith('http') || bg.startsWith('data:'));
-  let bgCss;
-  if (isUrl) bgCss = `background:url('${bg}') center/cover`;
-  else if (isGradient) bgCss = `background:${bg}`;
-  else bgCss = `background:${bg}`;
-  const textLayers = frame.layers?.filter(l => ['text','bubble','thinking','subtitle'].includes(l.type)) || [];
-  const textPreview = textLayers.length ? `<div style="position:absolute;bottom:6px;left:6px;right:6px;font-size:7px;font-weight:700;color:rgba(0,0,0,.7);background:rgba(255,255,255,.8);padding:2px 5px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(textLayers[0].content?.slice(0,30)||'')}</div>` : '';
-  return `<div style="width:100%;height:100%;${bgCss};">${textPreview}</div>`;
+  if (!frame) return `<div class="no-cover">📄</div>`;
+  const imgLayer = frame.layers?.find(l => l.type==='img' && l.src);
+  if (imgLayer) return `<img src="${imgLayer.src}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📄</div>'">`;
+  const bg = frame.background || '#111';
+  const isUrl = typeof bg==='string' && (bg.startsWith('http')||bg.startsWith('data:'));
+  const style = isUrl ? `background:url('${bg}') center/cover` : `background:${bg}`;
+  return `<div style="width:100%;height:100%;${style};"></div>`;
 }
 
 // ── Render published ──────────────────────────────────────
@@ -636,61 +678,164 @@ function renderPublished() {
   const q = document.getElementById('pub-search').value.toLowerCase();
   const sort = document.getElementById('pub-sort').value;
   let list = published.filter(c => !q || c.title?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q));
-
-  if (sort === 'newest') {} // already sorted desc
-  else if (sort === 'stars') list = [...list].sort((a,b) => (b.stars||0) - (a.stars||0));
+  if (sort === 'stars') list = [...list].sort((a,b) => (b.stars||0)-(a.stars||0));
   else if (sort === 'alpha') list = [...list].sort((a,b) => (a.title||'').localeCompare(b.title||''));
 
-  const grid = document.getElementById('grid-container');
+  const container = document.getElementById('list-container');
   if (!list.length) {
-    grid.innerHTML = '';
-    const empty = document.createElement('div');
-    empty.className = 'empty';
-    empty.innerHTML = `
+    container.innerHTML = `<div class="empty">
       <div class="empty-icon">🌍</div>
       <div class="empty-title">${q ? 'No matches' : 'Nothing published yet'}</div>
-      <div class="empty-sub">${q ? 'Try different search terms.' : 'When you publish a comic from the editor it appears here. Your fans can discover and star your work.'}</div>
-      ${!q ? `<button class="tb accent" onclick="openNew()">Create & Publish</button>` : ''}
-    `;
-    grid.appendChild(empty);
+      <div class="empty-sub">${q ? 'Try different search terms.' : 'Comics you publish appear here. Fans can discover and star your work.'}</div>
+      ${!q ? `<button class="empty-cta" onclick="openNewSheet()">Create & Publish</button>` : ''}
+    </div>`;
     return;
   }
-
-  grid.innerHTML = '';
-  const dg = document.createElement('div');
-  dg.className = 'comics-grid';
-  list.forEach(c => dg.appendChild(makePublishedCard(c)));
-  grid.appendChild(dg);
+  const listEl = document.createElement('div');
+  listEl.className = 'comics-list';
+  list.forEach(c => listEl.appendChild(makePublishedRow(c)));
+  container.innerHTML = '';
+  container.appendChild(listEl);
 }
 
-function makePublishedCard(c) {
+function makePublishedRow(c) {
   const card = document.createElement('div');
-  card.className = 'comic-card pub-card';
-  const pageCount = c.data?.length || 0;
+  card.className = 'comic-card';
+  card.dataset.id = c.id;
+  card.dataset.type = 'published';
   const stars = c.stars || 0;
-  const thumbHtml = c.cover
-    ? `<img src="${c.cover}" onerror="this.src='';this.parentNode.innerHTML='<div class=\\'thumb-placeholder\\'>📖</div>'">`
-    : `<div class="thumb-placeholder">📖</div>`;
+  const pages = c.data?.length || 0;
+  const coverHtml = c.cover
+    ? `<img src="${c.cover}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
+    : `<div class="no-cover">📖</div>`;
 
   card.innerHTML = `
-    <div class="comic-thumb">
-      ${thumbHtml}
-      <div class="status-badge badge-pub">Live</div>
-      <div class="page-badge">${pageCount}p</div>
+    <div class="comic-card-cover">
+      <div style="width:100%;height:100%;position:relative;">
+        ${coverHtml}
+        <div class="cover-status-pill cover-status-pub">Live</div>
+      </div>
     </div>
-    <div class="comic-info">
-      <div class="comic-title">${escHtml(c.title || 'Untitled')}</div>
-      <div class="comic-stars">⭐ ${stars} star${stars!==1?'s':''}</div>
-      ${c.description ? `<div class="comic-meta">${escHtml(c.description.slice(0,50))}${c.description.length>50?'…':''}</div>` : ''}
-    </div>
-    <div class="card-actions">
-      <button class="ca-btn ca-read" onclick="event.stopPropagation();readComic('${c.id}')">📖 Read</button>
-      <button class="ca-btn ca-edit" onclick="event.stopPropagation();editPublished('${c.id}')">✏️ Edit</button>
-      <button class="ca-btn ca-del" onclick="event.stopPropagation();askDelete('${c.id}','published','${escAttr(c.title||'Untitled')}')">Delete</button>
+    <div class="comic-card-info">
+      <div class="comic-card-title">${escHtml(c.title || 'Untitled')}</div>
+      <div class="comic-card-sub">⭐ ${stars} · ${pages} page${pages!==1?'s':''}</div>
     </div>
   `;
-  card.onclick = () => readComic(c.id);
+  card.onclick = () => openPublishedPopup(c);
   return card;
+}
+
+// ── Popup (discover-style) ─────────────────────────────────
+function openDraftPopup(d) {
+  const pages = d.data?.length || 0;
+  const isCloud = d._source === 'supabase';
+
+  // Cover
+  const coverWrap = document.getElementById('popup-cover-wrap');
+  const thumbFrame = d.data?.[0];
+  const imgLayer = thumbFrame?.layers?.find(l => l.type==='img' && l.src);
+  if (imgLayer) {
+    coverWrap.innerHTML = `<img class="popup-cover" src="${imgLayer.src}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📄</div>'">`;
+  } else if (thumbFrame?.background) {
+    const bg = thumbFrame.background;
+    const isUrl = typeof bg==='string' && (bg.startsWith('http')||bg.startsWith('data:'));
+    coverWrap.innerHTML = `<div class="popup-cover-placeholder" style="${isUrl?`background:url('${bg}') center/cover`:`background:${bg}`};font-size:0;"></div>`;
+  } else {
+    coverWrap.innerHTML = `<div class="popup-cover-placeholder">📄</div>`;
+  }
+
+  document.getElementById('popup-title').innerText = d.title || 'Untitled';
+  document.getElementById('popup-creator').innerText = `Draft · last edited ${d.lastModified || 'recently'}`;
+
+  document.getElementById('popup-meta').innerHTML = `
+    <span class="popup-meta-chip teal">Draft</span>
+    <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
+    ${isCloud ? '<span class="popup-meta-chip blue"><i class="fi fi-rs-cloud"></i> Cloud saved</span>' : ''}
+  `;
+
+  // Drafts have no description — keep the desc block hidden
+  const draftDescEl = document.getElementById('popup-desc');
+  draftDescEl.innerText = '';
+  draftDescEl.style.display = 'none';
+
+  const btns = document.getElementById('popup-btns');
+  btns.innerHTML = '';
+
+  const resumeBtn = document.createElement('button');
+  resumeBtn.className = 'read-btn';
+  resumeBtn.innerHTML = '✏️ Resume Editing';
+  resumeBtn.onclick = () => { closePopup(); resumeDraft(d.id); };
+  btns.appendChild(resumeBtn);
+
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'popup-rename-btn';
+  renameBtn.innerHTML = '📝 Rename';
+  renameBtn.onclick = () => { closePopup(); openRenameSheet(d.id, d.title || 'Untitled'); };
+  btns.appendChild(renameBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'popup-delete-btn';
+  delBtn.innerHTML = '🗑 Delete';
+  delBtn.onclick = () => { closePopup(); askDelete(d.id, 'draft', d.title || 'Untitled'); };
+  btns.appendChild(delBtn);
+
+  document.getElementById('popup-overlay').classList.add('open');
+}
+
+function openPublishedPopup(c) {
+  const stars = c.stars || 0;
+  const pages = c.data?.length || 0;
+
+  // Cover
+  const coverWrap = document.getElementById('popup-cover-wrap');
+  coverWrap.innerHTML = c.cover
+    ? `<img class="popup-cover" src="${c.cover}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📖</div>'">`
+    : `<div class="popup-cover-placeholder">📖</div>`;
+
+  document.getElementById('popup-title').innerText = c.title || 'Untitled';
+  document.getElementById('popup-creator').innerHTML = `Published · Live on Discover`;
+
+  document.getElementById('popup-meta').innerHTML = `
+    <span class="popup-meta-chip orange">Live</span>
+    <span class="popup-meta-chip">⭐ ${stars} star${stars!==1?'s':''}</span>
+    <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
+  `;
+
+  const pubDescEl = document.getElementById('popup-desc');
+  pubDescEl.innerText = c.description || '';
+  pubDescEl.style.display = c.description ? 'block' : 'none';
+
+  const btns = document.getElementById('popup-btns');
+  btns.innerHTML = '';
+
+  const readBtn = document.createElement('button');
+  readBtn.className = 'read-btn';
+  readBtn.innerHTML = '▶ Read Now';
+  readBtn.onclick = () => { closePopup(); readComic(c.id); };
+  btns.appendChild(readBtn);
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'popup-edit-btn';
+  editBtn.innerHTML = '✏️ Edit';
+  editBtn.onclick = () => { closePopup(); editPublished(c.id); };
+  btns.appendChild(editBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'popup-delete-btn';
+  delBtn.innerHTML = '🗑 Unpublish';
+  delBtn.onclick = () => { closePopup(); askDelete(c.id, 'published', c.title || 'Untitled'); };
+  btns.appendChild(delBtn);
+
+  document.getElementById('popup-overlay').classList.add('open');
+}
+
+function closePopup() {
+  document.getElementById('popup-overlay').classList.remove('open');
+}
+
+// ── Action Sheets (kept for delete confirm / rename, triggered from popup) ────
+function closeActionSheet() {
+  document.getElementById('action-sheet').classList.remove('open');
 }
 
 // ── Actions ───────────────────────────────────────────────
@@ -698,31 +843,36 @@ function resumeDraft(id) {
   const draft = drafts.find(d => String(d.id) === String(id));
   localStorage.removeItem('edit_comic_id');
   localStorage.setItem('active_draft_id', String(id));
-  // Pass storage_path so create.html can fetch large data from bucket
-  if (draft?.storage_path) {
-    localStorage.setItem('active_draft_storage_path', draft.storage_path);
-  } else {
-    localStorage.removeItem('active_draft_storage_path');
-  }
-  location.href = 'create.html';
+  if (draft?.storage_path) localStorage.setItem('active_draft_storage_path', draft.storage_path);
+  else localStorage.removeItem('active_draft_storage_path');
+  location.href = 'create-mobile.html';
 }
 
 async function editPublished(id) {
-  // Pull the published comic's frames into a new draft so the user edits a copy,
-  // then can re-publish. Same flow as Discover's "edit & republish".
   const comic = published.find(c => String(c.id) === String(id));
   if (!comic) return;
   toast('⏳ Pulling into draft…');
   try {
     const draftId = crypto.randomUUID();
-    const framesData = comic.data || [];
+    // BUGFIX: `comic.data` is null whenever this comic's frames were spilled
+    // to Storage for size (see loadDraftData). Falling back straight to `[]`
+    // silently created an empty draft, and republishing it then overwrote the
+    // real published comic with nothing — this is what was wiping people's comics.
+    const framesData = await loadDraftData(comic);
+    // SAFETY NET: loadDraftData() throws on an actual fetch/download error, but a
+    // corrupted or unexpectedly-empty row wouldn't throw — it would just come back
+    // empty, and the old `|| []` fallback would then quietly save a blank draft.
+    // Treat "loaded successfully but empty" the same as a failure: stop and tell the
+    // person, rather than letting them start editing a comic that looks wiped.
+    if (!framesData || !framesData.length) {
+      throw new Error("This comic's saved data came back empty — refusing to open a blank draft. Nothing has been changed.");
+    }
     await saveDraft(draftId, (comic.title || 'Untitled') + ' (edit)', framesData, comic.canvas_ratio || { w:1, h:1 });
-    // Track which published comic this draft is editing so create.html can re-publish to same row
     localStorage.setItem('edit_source_comic_id', String(id));
-    localStorage.removeItem('active_draft_storage_path');
     localStorage.setItem('active_draft_id', draftId);
+    localStorage.removeItem('active_draft_storage_path');
     localStorage.removeItem('edit_comic_id');
-    location.href = 'create.html';
+    location.href = 'create-mobile.html';
   } catch(e) {
     toast('⚠ Could not create draft: ' + e.message, 'var(--danger)');
   }
@@ -732,25 +882,29 @@ function readComic(id) {
   location.href = `reader.html?id=${id}`;
 }
 
-// ── Delete flow ───────────────────────────────────────────
+// ── Delete ────────────────────────────────────────────────
 function askDelete(id, type, title) {
   pendingDeleteId = id;
   pendingDeleteType = type;
-  document.getElementById('del-sub').innerText = `"${title}" will be permanently deleted${type==='published'?' and removed from the discover feed':' from your device'}. This can't be undone.`;
-  document.getElementById('del-sheet').style.display = 'flex';
+  document.getElementById('del-title').innerText = type === 'draft' ? '🗑 Delete Draft?' : '🗑 Unpublish & Delete?';
+  document.getElementById('del-sub').innerText = `"${title}" will be permanently deleted${type==='published'?' and removed from the Discover feed':' from your device'}. This can't be undone.`;
+  document.getElementById('del-sheet').classList.add('open');
 }
-function closeDel() { document.getElementById('del-sheet').style.display = 'none'; pendingDeleteId = null; }
+
+function closeDelSheet() {
+  document.getElementById('del-sheet').classList.remove('open');
+  pendingDeleteId = null;
+}
+
 async function confirmDelete() {
   const deleteId = pendingDeleteId;
   const deleteType = pendingDeleteType;
-  closeDel();
+  closeDelSheet();
   if (deleteType === 'draft') {
     const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
-    // Remove SQL row
     await _sb.from('drafts').delete().eq('id', deleteId);
-    // Remove bucket file if one exists
     if (draftToDelete?.storage_path) {
-      await _sb.storage.from(DRAFT_BUCKET).remove([draftToDelete.storage_path]);
+      await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
     }
     drafts = drafts.filter(d => String(d.id) !== String(deleteId));
     document.getElementById('drafts-count').innerText = drafts.length;
@@ -762,23 +916,24 @@ async function confirmDelete() {
     if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
     published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
+    document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
     renderStats(); renderPublished();
-    toast('🗑 Comic unpublished & deleted');
+    toast('🗑 Comic removed from Discover');
   }
 }
 
-// ── Rename flow ───────────────────────────────────────────
-function openRename(id, currentTitle) {
+// ── Rename ────────────────────────────────────────────────
+function openRenameSheet(id, currentTitle) {
   renameTargetId = id;
-  document.getElementById('rename-inp').value = currentTitle;
-  document.getElementById('rename-sheet').style.display = 'flex';
-  setTimeout(() => document.getElementById('rename-inp').focus(), 100);
+  document.getElementById('rename-inp').value = currentTitle || '';
+  document.getElementById('rename-sheet').classList.add('open');
+  setTimeout(() => document.getElementById('rename-inp').focus(), 150);
 }
-function closeRename() { document.getElementById('rename-sheet').style.display = 'none'; }
+function closeRenameSheet() { document.getElementById('rename-sheet').classList.remove('open'); }
 async function confirmRename() {
   const newTitle = document.getElementById('rename-inp').value.trim();
   if (!newTitle) return;
-  closeRename();
+  closeRenameSheet();
   const idx = drafts.findIndex(d => d.id == renameTargetId);
   if (idx >= 0) {
     drafts[idx].title = newTitle;
@@ -789,19 +944,18 @@ async function confirmRename() {
   }
 }
 
-// ── New comic flow ─────────────────────────────────────────
+// ── New Comic ─────────────────────────────────────────────
 
-function openNew() {
-  document.getElementById('new-sheet').style.display = 'flex';
+function openNewSheet() {
+  document.getElementById('new-sheet').classList.add('open');
 }
-function closeNew() { document.getElementById('new-sheet').style.display = 'none'; }
+function closeNewSheet() { document.getElementById('new-sheet').classList.remove('open'); }
 
 function buildRatioGrid() {
   const grid = document.getElementById('ratio-grid');
-  grid.innerHTML = '';
   RATIOS.forEach((r, i) => {
     const opt = document.createElement('div');
-    opt.className = 'ratio-opt' + (i === 0 ? ' sel' : '');
+    opt.className = 'ratio-opt' + (i===0?' sel':'');
     opt.innerHTML = `
       <div class="ratio-preview" style="width:${r.icon.w}px;height:${r.icon.h}px;"></div>
       <div class="ratio-name">${r.label}</div>
@@ -818,25 +972,25 @@ function buildRatioGrid() {
 }
 
 function startNewComic() {
-  closeNew();
+  closeNewSheet();
   localStorage.removeItem('active_draft_id');
   localStorage.removeItem('edit_comic_id');
   localStorage.removeItem('cc-pending-frames');
   localStorage.setItem('cc-new-comic-ratio', JSON.stringify({ w: selectedRatio.w, h: selectedRatio.h }));
-  location.href = 'create.html';
+  location.href = 'create-mobile.html';
 }
 
 // ── Helpers ───────────────────────────────────────────────
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escAttr(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
-function toast(msg, col = 'var(--green)') {
+function toast(msg, col='var(--green)') {
   const t = document.createElement('div');
   t.className = 'toast-el';
-  t.style.background = col; t.style.color = '#000';
+  t.style.background = col; t.style.color = col==='var(--green)' ? '#000' : 'white';
   t.innerText = msg;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; }, 2000);
+  setTimeout(() => { t.style.opacity='0'; }, 2000);
   setTimeout(() => t.remove(), 2500);
 }
 </script>
