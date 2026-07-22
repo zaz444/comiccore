@@ -215,7 +215,7 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
     Published <span class="tab-count" id="pub-count">0</span>
   </button>
   <button class="tab" id="tab-collab" onclick="switchTab('collab')">
-    🎨 Collab <span class="tab-count" id="collab-count" style="display:none;"></span>
+    <i class="fi fi-rs-palette"></i> Collab <span class="tab-count" id="collab-count" style="display:none;"></span>
   </button>
 </div>
 
@@ -223,7 +223,7 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 <div class="content">
   <!-- Drafts toolbar -->
   <div class="toolbar" id="drafts-toolbar">
-    <input class="search-box" id="draft-search" placeholder="🔍 Search drafts…" oninput="renderDrafts()">
+    <input class="search-box" id="draft-search" placeholder="Search drafts…" oninput="renderDrafts()">
     <select class="sort-select" id="draft-sort" onchange="renderDrafts()">
       <option value="newest">Newest</option>
       <option value="oldest">Oldest</option>
@@ -234,7 +234,7 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 
   <!-- Published toolbar -->
   <div class="toolbar" id="pub-toolbar" style="display:none;">
-    <input class="search-box" id="pub-search" placeholder="🔍 Search published…" oninput="renderPublished()">
+    <input class="search-box" id="pub-search" placeholder="Search published…" oninput="renderPublished()">
     <select class="sort-select" id="pub-sort" onchange="renderPublished()">
       <option value="newest">Newest</option>
       <option value="stars">⭐ Stars</option>
@@ -317,7 +317,7 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="del-wrap">
-      <div class="del-title" id="del-title">🗑 Delete?</div>
+      <div class="del-title" id="del-title">Delete?</div>
       <div class="del-sub" id="del-sub"></div>
       <button class="del-confirm" onclick="confirmDelete()">DELETE PERMANENTLY</button>
       <button class="del-cancel" onclick="closeDelSheet()">Cancel</button>
@@ -327,6 +327,9 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 
 <script>
 const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
+
+// Same trash icon discover.html uses for delete actions — keeps iconography consistent, no emoji.
+const ICON_TRASH = '<svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-2px;margin-right:5px;fill:none;stroke:currentColor;stroke-width:2;"><path d="M4 7h16M9 7V4h6v3m-8 0 1 14h8l1-14"/></svg>';
 
 // ── Draft Save/Load helpers (SQL-first, Storage bucket fallback) ──────────────
 const DRAFT_BUCKET  = 'comiccore-assets';
@@ -551,7 +554,7 @@ function renderCollab() {
   if (!collabInvites.length) {
     el.innerHTML = `
       <div style="text-align:center;padding:40px 20px;">
-        <div style="font-size:40px;margin-bottom:12px;">🤝</div>
+        <div style="font-size:40px;margin-bottom:12px;"><i class="fi fi-rs-handshake"></i></div>
         <div style="font-size:16px;font-weight:800;color:#f5f5f7;margin-bottom:6px;">No co-create invites yet</div>
         <div style="font-size:12px;color:#444;font-weight:700;">When a squad member invites you to co-create a comic, it'll appear here.</div>
       </div>`;
@@ -559,7 +562,11 @@ function renderCollab() {
   }
 
   const statusColor = { accepted: '#32d74b', declined: '#555', pending: '#ff7a00' };
-  const statusLabel = { accepted: '✅ Accepted', declined: '❌ Declined', pending: '⏳ Pending' };
+  const statusLabel = {
+    accepted: '<i class="fi fi-rs-check"></i> Accepted',
+    declined: '<i class="fi fi-rs-ban"></i> Declined',
+    pending: '<i class="fi fi-rs-clock"></i> Pending'
+  };
 
   el.innerHTML = collabInvites.map(inv => `
     <div style="background:#1c1c1e;border-radius:14px;padding:14px;margin-bottom:12px;opacity:${inv.status==='declined'?0.45:1};">
@@ -570,7 +577,7 @@ function renderCollab() {
         <div style="display:flex;gap:8px;">
           <button onclick="acceptCollabInvite('${inv.id}','${inv.comic_id}')"
             style="flex:1;background:#ff7a00;border:none;color:#000;font-weight:900;font-size:13px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
-            ✅ Accept & Co-create
+            <i class="fi fi-rs-check"></i> Accept &amp; Co-create
           </button>
           <button onclick="declineCollabInvite('${inv.id}')"
             style="background:#111;border:1px solid #2a2a2a;color:#555;font-weight:700;font-size:12px;border-radius:10px;padding:10px 14px;cursor:pointer;font-family:inherit;">
@@ -584,7 +591,7 @@ function renderCollab() {
           </button>
           <button onclick="readComic('${inv.comic_id}')"
             style="background:#111;border:1px solid #2a2a2a;color:#ccc;font-weight:700;font-size:12px;border-radius:10px;padding:10px 14px;cursor:pointer;font-family:inherit;">
-            📖 Read
+            ▶ Read
           </button>
         </div>` : ''}
     </div>`).join('');
@@ -664,9 +671,9 @@ function makeDraftRow(d) {
 }
 
 function makeDraftThumb(frame, ratio) {
-  if (!frame) return `<div class="no-cover">📄</div>`;
+  if (!frame) return `<div class="no-cover">📖</div>`;
   const imgLayer = frame.layers?.find(l => l.type==='img' && l.src);
-  if (imgLayer) return `<img src="${imgLayer.src}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📄</div>'">`;
+  if (imgLayer) return `<img src="${imgLayer.src}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`;
   const bg = frame.background || '#111';
   const isUrl = typeof bg==='string' && (bg.startsWith('http')||bg.startsWith('data:'));
   const style = isUrl ? `background:url('${bg}') center/cover` : `background:${bg}`;
@@ -684,7 +691,7 @@ function renderPublished() {
   const container = document.getElementById('list-container');
   if (!list.length) {
     container.innerHTML = `<div class="empty">
-      <div class="empty-icon">🌍</div>
+      <div class="empty-icon"><i class="fi fi-rs-globe"></i></div>
       <div class="empty-title">${q ? 'No matches' : 'Nothing published yet'}</div>
       <div class="empty-sub">${q ? 'Try different search terms.' : 'Comics you publish appear here. Fans can discover and star your work.'}</div>
       ${!q ? `<button class="empty-cta" onclick="openNewSheet()">Create & Publish</button>` : ''}
@@ -735,13 +742,13 @@ function openDraftPopup(d) {
   const thumbFrame = d.data?.[0];
   const imgLayer = thumbFrame?.layers?.find(l => l.type==='img' && l.src);
   if (imgLayer) {
-    coverWrap.innerHTML = `<img class="popup-cover" src="${imgLayer.src}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📄</div>'">`;
+    coverWrap.innerHTML = `<img class="popup-cover" src="${imgLayer.src}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📖</div>'">`;
   } else if (thumbFrame?.background) {
     const bg = thumbFrame.background;
     const isUrl = typeof bg==='string' && (bg.startsWith('http')||bg.startsWith('data:'));
     coverWrap.innerHTML = `<div class="popup-cover-placeholder" style="${isUrl?`background:url('${bg}') center/cover`:`background:${bg}`};font-size:0;"></div>`;
   } else {
-    coverWrap.innerHTML = `<div class="popup-cover-placeholder">📄</div>`;
+    coverWrap.innerHTML = `<div class="popup-cover-placeholder">📖</div>`;
   }
 
   document.getElementById('popup-title').innerText = d.title || 'Untitled';
@@ -769,13 +776,13 @@ function openDraftPopup(d) {
 
   const renameBtn = document.createElement('button');
   renameBtn.className = 'popup-rename-btn';
-  renameBtn.innerHTML = '📝 Rename';
+  renameBtn.innerHTML = '✏️ Rename';
   renameBtn.onclick = () => { closePopup(); openRenameSheet(d.id, d.title || 'Untitled'); };
   btns.appendChild(renameBtn);
 
   const delBtn = document.createElement('button');
   delBtn.className = 'popup-delete-btn';
-  delBtn.innerHTML = '🗑 Delete';
+  delBtn.innerHTML = ICON_TRASH + 'Delete';
   delBtn.onclick = () => { closePopup(); askDelete(d.id, 'draft', d.title || 'Untitled'); };
   btns.appendChild(delBtn);
 
@@ -822,7 +829,7 @@ function openPublishedPopup(c) {
 
   const delBtn = document.createElement('button');
   delBtn.className = 'popup-delete-btn';
-  delBtn.innerHTML = '🗑 Unpublish';
+  delBtn.innerHTML = ICON_TRASH + 'Unpublish';
   delBtn.onclick = () => { closePopup(); askDelete(c.id, 'published', c.title || 'Untitled'); };
   btns.appendChild(delBtn);
 
@@ -886,7 +893,7 @@ function readComic(id) {
 function askDelete(id, type, title) {
   pendingDeleteId = id;
   pendingDeleteType = type;
-  document.getElementById('del-title').innerText = type === 'draft' ? '🗑 Delete Draft?' : '🗑 Unpublish & Delete?';
+  document.getElementById('del-title').innerHTML = ICON_TRASH + (type === 'draft' ? 'Delete Draft?' : 'Unpublish & Delete?');
   document.getElementById('del-sub').innerText = `"${title}" will be permanently deleted${type==='published'?' and removed from the Discover feed':' from your device'}. This can't be undone.`;
   document.getElementById('del-sheet').classList.add('open');
 }
@@ -910,7 +917,7 @@ async function confirmDelete() {
     document.getElementById('drafts-count').innerText = drafts.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
     renderStats(); renderDrafts();
-    toast('🗑 Draft deleted');
+    toast('Draft deleted');
   } else {
     const { error } = await _sb.from('comics').delete().eq('id', deleteId);
     if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
@@ -918,7 +925,7 @@ async function confirmDelete() {
     document.getElementById('pub-count').innerText = published.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
     renderStats(); renderPublished();
-    toast('🗑 Comic removed from Discover');
+    toast('Comic removed from Discover');
   }
 }
 
