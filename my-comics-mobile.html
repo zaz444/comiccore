@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ComicCore — My Comics</title>
 <link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@flaticon/flaticon-uicons@3.3.1/css/regular/straight.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
@@ -74,13 +75,14 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 .comic-card:hover{transform:translateY(-3px);border-color:rgba(255,215,0,0.35);box-shadow:0 8px 28px rgba(255,215,0,0.1);background:var(--card2);}
 .comic-card:active{transform:scale(.97);}
 
-/* Cover image area */
-.comic-card-cover{width:100%;aspect-ratio:2/3;overflow:hidden;background:#111;position:relative;}
+/* Cover image area — square 1:1, matches discover's grid card size */
+.comic-card-cover{width:100%;aspect-ratio:1/1;overflow:hidden;background:#111;position:relative;}
 .comic-card-cover img{width:100%;height:100%;object-fit:cover;display:block;}
 .comic-card-cover .no-cover{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;background:linear-gradient(135deg,#0f0f11,#1a1a2e);}
 
-/* Cloud overlay icon at bottom of cover, not in text badges */
-.cover-cloud-icon{position:absolute;bottom:6px;right:6px;background:rgba(0,210,255,0.18);backdrop-filter:blur(4px);border:1px solid rgba(0,210,255,0.3);border-radius:8px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;}
+/* Cloud-saved indicator, sits under the card title (not on the cover) */
+.comic-card-cloud{display:flex;align-items:center;gap:4px;font-size:9px;font-weight:800;color:#00d2ff;margin:1px 0 2px;}
+.comic-card-cloud i{font-size:10px;line-height:1;}
 
 /* Status pill on cover top-left */
 .cover-status-pill{position:absolute;top:6px;left:6px;font-size:8px;font-weight:900;padding:2px 7px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase;}
@@ -104,11 +106,12 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 .popup-body{padding:16px 18px 28px;}
 .popup-title{font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-.3px;color:#f5f5f7;}
 .popup-creator{font-size:12px;color:#555;margin-bottom:12px;font-weight:700;}
-.popup-meta-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.popup-meta-row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
 .popup-meta-chip{background:#1e1e20;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;color:#888;}
 .popup-meta-chip.teal{color:var(--teal);background:rgba(0,201,177,0.12);border:1px solid rgba(0,201,177,0.2);}
 .popup-meta-chip.orange{color:var(--orange);background:rgba(255,122,0,0.12);border:1px solid rgba(255,122,0,0.2);}
-.popup-meta-chip.blue{color:#00d2ff;background:rgba(0,210,255,0.12);border:1px solid rgba(0,210,255,0.2);}
+.popup-meta-chip.blue{color:#00d2ff;background:rgba(0,210,255,0.12);border:1px solid rgba(0,210,255,0.2);display:flex;align-items:center;gap:5px;}
+.popup-desc{font-size:13px;line-height:1.6;color:#aaa;margin-bottom:14px;}
 .popup-btns{display:flex;gap:8px;flex-wrap:wrap;}
 .read-btn{flex:1;background:white;color:#000;border:none;padding:13px;border-radius:10px;font-size:14px;font-weight:900;cursor:pointer;transition:.15s;letter-spacing:.3px;min-width:120px;font-family:'Inter',sans-serif;}
 .read-btn:hover{background:#e8e8e8;}
@@ -261,6 +264,7 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
       <div class="popup-title"    id="popup-title"></div>
       <div class="popup-creator"  id="popup-creator"></div>
       <div class="popup-meta-row" id="popup-meta"></div>
+      <div class="popup-desc"     id="popup-desc" style="display:none;"></div>
       <div class="popup-btns"     id="popup-btns"></div>
     </div>
   </div>
@@ -647,11 +651,11 @@ function makeDraftRow(d) {
       <div style="width:100%;height:100%;position:relative;">
         ${thumbInner}
         <div class="cover-status-pill cover-status-draft">Draft</div>
-        ${isCloud ? '<div class="cover-cloud-icon">☁</div>' : ''}
       </div>
     </div>
     <div class="comic-card-info">
       <div class="comic-card-title">${escHtml(d.title || 'Untitled')}</div>
+      ${isCloud ? '<div class="comic-card-cloud"><i class="fi fi-rs-cloud"></i> Cloud saved</div>' : ''}
       <div class="comic-card-sub">${pages} page${pages!==1?'s':''} · ${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}</div>
     </div>
   `;
@@ -746,8 +750,13 @@ function openDraftPopup(d) {
   document.getElementById('popup-meta').innerHTML = `
     <span class="popup-meta-chip teal">Draft</span>
     <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
-    ${isCloud ? '<span class="popup-meta-chip blue">☁ Cloud saved</span>' : ''}
+    ${isCloud ? '<span class="popup-meta-chip blue"><i class="fi fi-rs-cloud"></i> Cloud saved</span>' : ''}
   `;
+
+  // Drafts have no description — keep the desc block hidden
+  const draftDescEl = document.getElementById('popup-desc');
+  draftDescEl.innerText = '';
+  draftDescEl.style.display = 'none';
 
   const btns = document.getElementById('popup-btns');
   btns.innerHTML = '';
@@ -790,8 +799,11 @@ function openPublishedPopup(c) {
     <span class="popup-meta-chip orange">Live</span>
     <span class="popup-meta-chip">⭐ ${stars} star${stars!==1?'s':''}</span>
     <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
-    ${c.description ? `<span class="popup-meta-chip" style="color:#aaa;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.description)}</span>` : ''}
   `;
+
+  const pubDescEl = document.getElementById('popup-desc');
+  pubDescEl.innerText = c.description || '';
+  pubDescEl.style.display = c.description ? 'block' : 'none';
 
   const btns = document.getElementById('popup-btns');
   btns.innerHTML = '';
