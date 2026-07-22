@@ -1122,7 +1122,7 @@
         <h2 style="margin-top:0;color:var(--accent);font-size:18px;">Publish Comic</h2>
         <div id="cover-preview-box" style="width:100%;aspect-ratio:1;background:#111;border:2px dashed #444;margin-bottom:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;border-radius:12px;" onclick="document.getElementById('cover-input').click()">
             <img id="final-cover-img" style="width:100%;height:100%;object-fit:cover;display:none;">
-            <span id="cover-label" style="color:#555;font-size:13px;">Tap to upload 1:1 Cover</span>
+            <span id="cover-label" style="color:#555;font-size:13px;">Tap to upload cover (optional)</span>
         </div>
         <input type="text" id="pub-title" class="pub-input" placeholder="Comic Title">
         <input type="text" id="pub-tags" class="pub-input" placeholder="Tags (e.g. action, comedy)">
@@ -7773,8 +7773,28 @@ async function finalPublish() {
     const btn = document.getElementById('publish-btn');
     const title = document.getElementById('pub-title').value.trim();
     if (!title) { alert('Please enter a title.'); return; }
-    if (!finalCoverBase64) { alert('Please upload a cover image.'); return; }
     btn.disabled = true; btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
+    // If no cover uploaded, auto-generate from frame 0
+    if (!finalCoverBase64) {
+        try {
+            btn.innerText = 'Generating cover…';
+            const f0 = frames[0];
+            const _r = getFrameRatio(f0);
+            const ar = _r.w / _r.h;
+            const sz = 800;
+            const hw = ar >= 1 ? sz : Math.round(sz * ar);
+            const hh = ar <= 1 ? sz : Math.round(sz / ar);
+            const offscreen = await renderFrameToCanvas(f0, hw, hh);
+            finalCoverBase64 = offscreen.toDataURL('image/jpeg', 0.88);
+            const img = document.getElementById('final-cover-img');
+            img.src = finalCoverBase64; img.style.display = 'block';
+            document.getElementById('cover-label').style.display = 'none';
+        } catch(e) {
+            alert('Could not auto-generate cover. Please upload one manually.');
+            btn.disabled = false; btn.innerText = editingComicId ? 'UPDATE' : 'POST NOW';
+            return;
+        }
+    }
     // If cover is still base64 (upload race or old comic), upload it now
     if (finalCoverBase64.startsWith('data:')) {
         btn.innerText = 'Uploading cover…';
