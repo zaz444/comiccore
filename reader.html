@@ -1688,7 +1688,12 @@ function getSpriteFilterCSS(layer) {
   const blurType = layer.blurType || 'none';
   if (blurType === 'none') return '';
   const amt = layer.blurAmount ?? layer.blurAmt ?? 4;  // desktop: blurAmount, mobile: blurAmt
-  if (blurType === 'soft')  return `blur(${amt}px)`;
+  // 'gaussian'/'soft' and 'lens' — must stay in sync with getSpriteFilterCSS() in create-mobile.html.
+  // These two were previously missing here, so Gaussian/Lens blur silently
+  // dropped in the DOM-rebuild fallback (used whenever a frame_snapshot isn't
+  // available yet) even though the baked snapshot path always rendered them fine.
+  if (blurType === 'gaussian' || blurType === 'soft') return `blur(${amt}px)`;
+  if (blurType === 'lens')  return `blur(${amt * 1.2}px) brightness(112%) saturate(88%)`;
   if (blurType === 'pixel') return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
   return '';
 }
