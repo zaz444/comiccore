@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>My Sprites - ComicCore</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@flaticon/flaticon-uicons@3.3.1/css/regular/straight.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+        --bg: #0f0f11; --card: #1c1c1e; --text: #f5f5f7; --text-dim: #6b6b74;
+        --accent: #ff7a00; --border: #2c2c2e; --teal: #00d2ff;
+        --danger: #ff3b30; --sheet-bg: #161618;
+    }
+
+    body {
+        font-family: 'Inter', sans-serif;
+        background: var(--bg); color: var(--text);
+        min-height: 100vh; min-height: 100dvh;
+        padding-bottom: 90px; /* room for the select bar when it appears */
+    }
+
+    i.fi { display: inline-flex; align-items: center; justify-content: center; }
+
+    /* ── Top bar ── */
+    .top-bar {
+        position: sticky; top: 0; z-index: 200;
+        background: rgba(15,15,17,0.92); backdrop-filter: blur(14px);
+        border-bottom: 1px solid var(--border);
+        padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+    }
+    .icon-btn {
+        width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+        background: var(--card); border: 1px solid var(--border); color: var(--text);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; font-size: 15px; text-decoration: none;
+    }
+    .icon-btn:active { background: #2a2a2e; }
+    .top-bar-title { font-size: 15px; font-weight: 900; letter-spacing: -0.2px; }
+    .top-bar-spacer { flex: 1; }
+    .select-toggle {
+        background: var(--card); border: 1px solid var(--border); color: var(--text);
+        padding: 8px 14px; border-radius: 10px; font-size: 12px; font-weight: 800;
+        cursor: pointer; font-family: inherit;
+    }
+    .select-toggle.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    /* ── Pack chips ── */
+    .pack-row {
+        display: flex; gap: 8px; overflow-x: auto; padding: 12px 14px 4px;
+        -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    }
+    .pack-row::-webkit-scrollbar { display: none; }
+    .pack-chip {
+        flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+        padding: 7px 12px; border-radius: 20px; background: var(--card);
+        border: 1px solid var(--border); color: var(--text-dim);
+        font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .pack-chip.active { background: rgba(255,122,0,0.15); border-color: var(--accent); color: var(--accent); }
+    .pack-chip .pack-del { color: var(--text-dim); font-size: 10px; }
+    .pack-chip.active .pack-del { color: var(--accent); }
+
+    /* ── Grid ── */
+    .grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        padding: 10px 14px 20px;
+    }
+    .sprite-card {
+        background: var(--card); border: 2px solid var(--border); border-radius: 14px;
+        overflow: hidden; position: relative; cursor: pointer;
+        display: flex; flex-direction: column;
+    }
+    .sprite-card:active { border-color: var(--accent); }
+    .sprite-card.selected { border-color: var(--teal); background: rgba(0,210,255,0.08); }
+    .sprite-thumb {
+        aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+        background: repeating-conic-gradient(#1a1a1c 0% 25%, #151517 0% 50%) 0 0 / 16px 16px;
+    }
+    .sprite-thumb img {
+        width: 100%; height: 100%; object-fit: contain; padding: 10px;
+        image-rendering: pixelated; image-rendering: -moz-crisp-edges; image-rendering: crisp-edges;
+    }
+    .sprite-name {
+        padding: 8px 10px; font-size: 12px; font-weight: 700;
+        background: rgba(0,0,0,0.35); border-top: 1px solid var(--border);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .select-dot {
+        position: absolute; top: 8px; left: 8px; width: 22px; height: 22px;
+        border-radius: 50%; background: rgba(0,0,0,0.55); border: 2px solid var(--text-dim);
+        display: none; align-items: center; justify-content: center; color: transparent; font-size: 12px;
+    }
+    .sprite-card.select-mode .select-dot { display: flex; }
+    .sprite-card.selected .select-dot { background: var(--teal); border-color: var(--teal); color: #000; }
+
+    .empty-state {
+        grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-dim);
+    }
+    .empty-state i { font-size: 30px; display: block; margin-bottom: 10px; }
+    .empty-state h3 { font-size: 15px; color: var(--text); margin-bottom: 6px; }
+    .empty-state p { font-size: 13px; }
+
+    /* ── Bottom select bar ── */
+    .select-bar {
+        position: fixed; left: 0; right: 0; bottom: -100px; z-index: 250;
+        background: var(--sheet-bg); border-top: 1px solid var(--border);
+        padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+        transition: bottom 0.25s ease;
+    }
+    .select-bar.open { bottom: 0; }
+    .select-bar .count { font-size: 12px; font-weight: 800; color: var(--text-dim); flex-shrink: 0; }
+    .select-bar .spacer { flex: 1; }
+    .bar-btn {
+        display: flex; align-items: center; gap: 6px;
+        padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+        background: var(--card); color: var(--text); font-size: 12px; font-weight: 800;
+        cursor: pointer; font-family: inherit;
+    }
+    .bar-btn.danger { color: var(--danger); border-color: rgba(255,59,48,0.35); background: rgba(255,59,48,0.08); }
+
+    /* ── Generic bottom sheet ── */
+    .sheet-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300;
+        display: none; backdrop-filter: blur(3px);
+    }
+    .sheet-overlay.open { display: block; }
+    .sheet {
+        position: fixed; left: 0; right: 0; bottom: -100%; z-index: 400;
+        background: var(--sheet-bg); border-radius: 20px 20px 0 0;
+        border-top: 1px solid var(--border);
+        max-height: 80vh; display: flex; flex-direction: column;
+        transition: bottom 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    .sheet.open { bottom: 0; }
+    .sheet-handle { width: 36px; height: 4px; background: #444; border-radius: 2px; margin: 10px auto 0; flex-shrink: 0; }
+    .sheet-title {
+        font-size: 15px; font-weight: 900; color: var(--accent); padding: 12px 16px 10px;
+        border-bottom: 1px solid var(--border); flex-shrink: 0;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .sheet-close { background: none; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer; }
+    .sheet-body { flex: 1; overflow-y: auto; padding: 14px; -webkit-overflow-scrolling: touch; }
+
+    /* Sprite action sheet */
+    .sas-preview { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .sas-preview img {
+        width: 56px; height: 56px; object-fit: contain; background: var(--card);
+        border-radius: 10px; border: 1px solid var(--border); padding: 4px;
+        image-rendering: pixelated;
+    }
+    .sas-preview .sas-name { font-size: 14px; font-weight: 800; }
+    .sas-option {
+        display: flex; align-items: center; gap: 12px; width: 100%;
+        padding: 14px; margin-bottom: 8px; border-radius: 12px;
+        background: var(--card); border: 1px solid var(--border); color: var(--text);
+        font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: left;
+    }
+    .sas-option:active { border-color: var(--accent); }
+    .sas-option i { width: 20px; text-align: center; color: var(--accent); font-size: 16px; flex-shrink: 0; }
+    .sas-option.danger i { color: var(--danger); }
+
+    .field-label {
+        font-size: 10px; font-weight: 900; color: var(--text-dim); text-transform: uppercase;
+        letter-spacing: 1px; margin-bottom: 8px;
+    }
+    .text-input {
+        width: 100%; padding: 12px; background: #111; border: 1px solid #333;
+        color: var(--text); border-radius: 10px; font-size: 14px; font-family: inherit;
+        outline: none; margin-bottom: 12px;
+    }
+    .text-input:focus { border-color: var(--accent); }
+    .primary-btn {
+        width: 100%; padding: 12px; background: var(--accent); border: none;
+        color: #000; border-radius: 10px; font-size: 13px; font-weight: 900;
+        cursor: pointer; font-family: inherit;
+    }
+    .primary-btn:disabled { opacity: 0.4; }
+
+    /* Actions editor */
+    .action-row {
+        display: flex; align-items: center; gap: 10px; padding: 10px;
+        background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+        margin-bottom: 8px; position: relative;
+    }
+    .action-row img { width: 40px; height: 40px; object-fit: contain; background: #111; border-radius: 6px; image-rendering: pixelated; }
+    .action-row .action-name { flex: 1; font-size: 13px; font-weight: 700; }
+    .action-row .action-del { color: var(--danger); background: none; border: none; font-size: 15px; cursor: pointer; }
+    .action-row .action-dot {
+        width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--text-dim);
+        display: none; align-items: center; justify-content: center; color: transparent; font-size: 11px; flex-shrink: 0;
+    }
+    .action-row.select-mode .action-dot { display: flex; }
+    .action-row.selected .action-dot { background: var(--teal); border-color: var(--teal); color: #000; }
+    .action-row.select-mode .action-del { display: none; }
+
+    .add-action-form {
+        display: none; flex-direction: column; gap: 8px; margin-top: 10px;
+        padding: 12px; background: var(--card); border: 1px dashed var(--border); border-radius: 12px;
+    }
+    .add-action-form.open { display: flex; }
+    .file-btn {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 12px; border: 1px dashed var(--border); border-radius: 10px;
+        color: var(--text-dim); font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
+    .pack-pick-row {
+        display: flex; align-items: center; gap: 10px; padding: 12px;
+        background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+        margin-bottom: 8px; cursor: pointer; font-size: 13px; font-weight: 700;
+    }
+    .pack-pick-row i { color: var(--accent); }
+
+    .toast {
+        position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+        background: rgba(20,20,22,0.96); color: #fff; padding: 9px 20px; border-radius: 20px;
+        font-size: 12px; font-weight: 800; z-index: 9999; pointer-events: none;
+        border: 1px solid #333; opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a class="icon-btn" href="create-mobile.html" title="Back to Editor"><i class="fi fi-rs-arrow-left"></i></a>
+    <div class="top-bar-title">My Sprites</div>
+    <div class="top-bar-spacer"></div>
+    <button class="select-toggle" id="select-toggle-btn" onclick="toggleSelectMode()">Select</button>
+</div>
+
+<div class="pack-row" id="pack-row"></div>
+
+<div class="grid" id="sprite-grid">
+    <div class="empty-state"><i class="fi fi-rs-hourglass"></i><h3>Loading...</h3></div>
+</div>
+
+<div class="select-bar" id="select-bar">
+    <div class="count" id="select-count">0 selected</div>
+    <div class="spacer"></div>
+    <button class="bar-btn" onclick="openMoveToPack()"><i class="fi fi-rs-box"></i>Move to Pack</button>
+    <button class="bar-btn danger" onclick="bulkDeleteSprites()"><i class="fi fi-rs-trash"></i>Delete</button>
+</div>
+
+<!-- Sprite action sheet: Add Sprite / Duplicate / Edit Actions / Edit Nametag -->
+<div class="sheet-overlay" id="overlay-sas" onclick="closeSheet('sas')"></div>
+<div class="sheet" id="sheet-sas">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Sprite Options<button class="sheet-close" onclick="closeSheet('sas')">&#10005;</button></div>
+    <div class="sheet-body">
+        <div class="sas-preview">
+            <img id="sas-img" src="">
+            <div class="sas-name" id="sas-name"></div>
+        </div>
+        <button class="sas-option" onclick="addSpriteToCanvasFlow()"><i class="fi fi-rs-picture"></i>Add Sprite</button>
+        <button class="sas-option" onclick="duplicateSprite()"><i class="fi fi-rs-copy"></i>Duplicate</button>
+        <button class="sas-option" onclick="openEditActions()"><i class="fi fi-rs-shuffle"></i>Edit Actions</button>
+        <button class="sas-option" onclick="openEditNametag()"><i class="fi fi-rs-pencil"></i>Edit Nametag</button>
+    </div>
+</div>
+
+<!-- Edit Nametag sheet -->
+<div class="sheet-overlay" id="overlay-nametag" onclick="closeSheet('nametag')"></div>
+<div class="sheet" id="sheet-nametag">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Edit Nametag<button class="sheet-close" onclick="closeSheet('nametag')">&#10005;</button></div>
+    <div class="sheet-body">
+        <div class="field-label">Private Name Tag</div>
+        <input type="text" class="text-input" id="nametag-input" placeholder="Your label (only you see this)" maxlength="40">
+        <button class="primary-btn" onclick="saveNametag()">Save</button>
+    </div>
+</div>
+
+<!-- Edit Actions sheet -->
+<div class="sheet-overlay" id="overlay-actions" onclick="closeSheet('actions')"></div>
+<div class="sheet" id="sheet-actions">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">
+        <span id="actions-title">Edit Actions</span>
+        <span>
+            <button class="select-toggle" id="action-select-toggle" style="margin-right:6px;" onclick="toggleActionSelectMode()">Select</button>
+            <button class="sheet-close" onclick="closeSheet('actions')">&#10005;</button>
+        </span>
+    </div>
+    <div class="sheet-body">
+        <div class="field-label">Cover</div>
+        <div class="action-row" style="cursor:default;">
+            <img id="actions-cover-img" src="">
+            <div class="action-name">main.png</div>
+        </div>
+        <div class="field-label" style="margin-top:14px;">Actions</div>
+        <div id="actions-list"></div>
+        <div class="action-select-bar" id="action-select-bar" style="display:none;margin-top:8px;">
+            <button class="bar-btn danger" style="width:100%;justify-content:center;" onclick="deleteSelectedActions()"><i class="fi fi-rs-trash"></i>Delete Selected</button>
+        </div>
+        <button class="file-btn" style="margin-top:12px;" onclick="toggleAddActionForm()"><i class="fi fi-rs-plus"></i>Add Action</button>
+        <div class="add-action-form" id="add-action-form">
+            <input type="text" class="text-input" id="new-action-name" placeholder="Action name (e.g. idle, walk, punch)" style="margin-bottom:0;">
+            <label class="file-btn" for="new-action-file"><i class="fi fi-rs-upload"></i><span id="new-action-file-label">Choose image</span></label>
+            <input type="file" id="new-action-file" accept="image/*" style="display:none;" onchange="handleActionFilePicked(this)">
+            <button class="primary-btn" id="save-action-btn" onclick="submitAddAction()" disabled>Save Action</button>
+        </div>
+    </div>
+</div>
+
+<!-- Move to Pack sheet -->
+<div class="sheet-overlay" id="overlay-movepack" onclick="closeSheet('movepack')"></div>
+<div class="sheet" id="sheet-movepack">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Move to Pack<button class="sheet-close" onclick="closeSheet('movepack')">&#10005;</button></div>
+    <div class="sheet-body">
+        <div class="pack-pick-row" onclick="moveSelectedToPack(null)"><i class="fi fi-rs-box-open"></i>Unfiled</div>
+        <div id="movepack-list"></div>
+        <div class="field-label" style="margin-top:16px;">New Pack</div>
+        <input type="text" class="text-input" id="new-pack-name" placeholder="Pack name" maxlength="30">
+        <button class="primary-btn" onclick="createPackAndMove()">Create &amp; Move</button>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// My Sprites — private, per-user sprite library
+// Shares the same Supabase project + auth storage key as create-mobile.html
+// so a logged-in session carries over between the two pages.
+// ══════════════════════════════════════════════════════════════════
+const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
+const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
+const _supabase = supabase.createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
+});
+
+let currentUserId = null;
+let allSprites = [];
+let allPacks = [];
+let activePackFilter = null; // null = All, 'unfiled' = no pack, else a pack id
+
+let selectMode = false;
+let selectedIds = new Set();
+
+let currentSprite = null;       // sprite the sheet-sas / nametag / actions sheets are open for
+let actionSelectMode = false;
+let selectedActionKeys = new Set();
+let pendingActionFile = null;   // { name, dataUrl } staged from the file input
+
+window.addEventListener('load', init);
+
+async function init() {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (!session || !session.user) {
+        document.getElementById('sprite-grid').innerHTML =
+            '<div class="empty-state"><i class="fi fi-rs-lock"></i><h3>Log in to see your sprites</h3><p>Your private sprites are tied to your account.</p></div>';
+        document.getElementById('select-toggle-btn').style.display = 'none';
+        return;
+    }
+    currentUserId = session.user.id;
+    await Promise.all([loadPacks(), loadSprites()]);
+    renderPackChips();
+    renderGrid();
+}
+
+async function loadSprites() {
+    const { data, error } = await _supabase.from('personal_sprites')
+        .select('id, name, src, actions, pack_id, created_at')
+        .order('created_at', { ascending: false });
+    if (error) {
+        showToast('Could not load sprites: ' + error.message);
+        allSprites = [];
+        return;
+    }
+    allSprites = (data || []).map(s => ({ ...s, actions: normalizeActions(s.actions) }));
+}
+
+async function loadPacks() {
+    const { data, error } = await _supabase.from('personal_sprite_packs')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: true });
+    if (error) { allPacks = []; return; }
+    allPacks = data || [];
+}
+
+function normalizeActions(a) {
+    if (!a) return {};
+    if (typeof a === 'string') { try { return JSON.parse(a); } catch(e) { return {}; } }
+    return a;
+}
+
+// ── Pack filter chips ──
+function renderPackChips() {
+    const row = document.getElementById('pack-row');
+    let html = `<div class="pack-chip ${activePackFilter === null ? 'active' : ''}" onclick="setPackFilter(null)">All</div>`;
+    html += `<div class="pack-chip ${activePackFilter === 'unfiled' ? 'active' : ''}" onclick="setPackFilter('unfiled')">Unfiled</div>`;
+    allPacks.forEach(p => {
+        html += `<div class="pack-chip ${activePackFilter === p.id ? 'active' : ''}" onclick="setPackFilter('${p.id}')">
+            <span>${escapeHtml(p.name)}</span>
+            <span class="pack-del" onclick="event.stopPropagation();deletePack('${p.id}')"><i class="fi fi-rs-cross-small"></i></span>
+        </div>`;
+    });
+    row.innerHTML = html;
+}
+
+function setPackFilter(id) {
+    activePackFilter = id;
+    renderPackChips();
+    renderGrid();
+}
+
+async function deletePack(id) {
+    if (!confirm('Delete this pack? Sprites inside it will move to Unfiled, not get deleted.')) return;
+    const { error } = await _supabase.from('personal_sprite_packs').delete().eq('id', id);
+    if (error) { showToast('Could not delete pack'); return; }
+    allPacks = allPacks.filter(p => p.id !== id);
+    allSprites.forEach(s => { if (s.pack_id === id) s.pack_id = null; });
+    if (activePackFilter === id) activePackFilter = null;
+    renderPackChips();
+    renderGrid();
+    showToast('Pack deleted');
+}
+
+// ── Grid ──
+function currentFilteredSprites() {
+    if (activePackFilter === null) return allSprites;
+    if (activePackFilter === 'unfiled') return allSprites.filter(s => !s.pack_id);
+    return allSprites.filter(s => s.pack_id === activePackFilter);
+}
+
+function renderGrid() {
+    const grid = document.getElementById('sprite-grid');
+    const list = currentFilteredSprites();
+    if (!list.length) {
+        grid.innerHTML = '<div class="empty-state"><i class="fi fi-rs-picture"></i><h3>No sprites here</h3><p>Sprites you save from the editor will show up here.</p></div>';
+        return;
+    }
+    grid.innerHTML = '';
+    list.forEach(sp => {
+        const card = document.createElement('div');
+        card.className = 'sprite-card' + (selectMode ? ' select-mode' : '') + (selectedIds.has(sp.id) ? ' selected' : '');
+        card.dataset.id = sp.id;
+        card.innerHTML = `
+            <div class="select-dot"><i class="fi fi-rs-check"></i></div>
+            <div class="sprite-thumb"><img src="${toImgSrc(sp.src)}" loading="lazy"></div>
+            <div class="sprite-name">${escapeHtml(sp.name || 'My Sprite')}</div>
+        `;
+        card.addEventListener('click', () => onCardTap(sp, card));
+        grid.appendChild(card);
+    });
+}
+
+function toImgSrc(raw) {
+    if (!raw) return '';
+    return raw.startsWith('data:') || raw.startsWith('http') ? raw : `data:image/png;base64,${raw}`;
+}
+
+function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function onCardTap(sprite, cardEl) {
+    if (selectMode) {
+        toggleSelect(sprite.id, cardEl);
+    } else {
+        openSpriteSheet(sprite);
+    }
+}
+
+// ── Select mode ──
+function toggleSelectMode() {
+    selectMode = !selectMode;
+    selectedIds.clear();
+    document.getElementById('select-toggle-btn').classList.toggle('active', selectMode);
+    document.getElementById('select-bar').classList.remove('open');
+    renderGrid();
+}
+
+function toggleSelect(id, cardEl) {
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+    cardEl.classList.toggle('selected', selectedIds.has(id));
+    updateSelectBar();
+}
+
+function updateSelectBar() {
+    const bar = document.getElementById('select-bar');
+    document.getElementById('select-count').textContent = selectedIds.size + ' selected';
+    bar.classList.toggle('open', selectedIds.size > 0);
+}
+
+async function bulkDeleteSprites() {
+    if (!selectedIds.size) return;
+    if (!confirm('Delete ' + selectedIds.size + ' sprite(s)? This cannot be undone.')) return;
+    const ids = [...selectedIds];
+    const { error } = await _supabase.from('personal_sprites').delete().in('id', ids);
+    if (error) { showToast('Delete failed: ' + error.message); return; }
+    allSprites = allSprites.filter(s => !ids.includes(s.id));
+    selectedIds.clear();
+    toggleSelectMode();
+    showToast('Deleted');
+}
+
+// ── Sprite action sheet (Add Sprite / Duplicate / Edit Actions / Edit Nametag) ──
+function openSpriteSheet(sprite) {
+    currentSprite = sprite;
+    document.getElementById('sas-img').src = toImgSrc(sprite.src);
+    document.getElementById('sas-name').textContent = sprite.name || 'My Sprite';
+    openSheet('sas');
+}
+
+function addSpriteToCanvasFlow() {
+    if (!currentSprite) return;
+    // Reuses create-mobile.html's existing "incoming_sprite_pack" handler, which
+    // already opens the action/pose picker and drops the chosen pose onto the canvas.
+    localStorage.setItem('incoming_sprite_pack', JSON.stringify({
+        id: currentSprite.id,
+        name: currentSprite.name,
+        image_data: currentSprite.src,
+        actions: currentSprite.actions || {}
+    }));
+    location.href = 'create-mobile.html';
+}
+
+async function duplicateSprite() {
+    if (!currentSprite) return;
+    const { data, error } = await _supabase.from('personal_sprites').insert([{
+        user_id: currentUserId,
+        src: currentSprite.src,
+        name: (currentSprite.name || 'My Sprite') + ' (copy)',
+        actions: currentSprite.actions || {},
+        pack_id: currentSprite.pack_id || null
+    }]).select().single();
+    if (error) { showToast('Duplicate failed: ' + error.message); return; }
+    allSprites.unshift({ ...data, actions: normalizeActions(data.actions) });
+    closeSheet('sas');
+    renderGrid();
+    showToast('Sprite duplicated');
+}
+
+// ── Edit Nametag ──
+function openEditNametag() {
+    if (!currentSprite) return;
+    document.getElementById('nametag-input').value = currentSprite.name || '';
+    closeSheet('sas');
+    openSheet('nametag');
+}
+
+async function saveNametag() {
+    const val = document.getElementById('nametag-input').value.trim();
+    if (!val || !currentSprite) return;
+    const { error } = await _supabase.from('personal_sprites').update({ name: val }).eq('id', currentSprite.id);
+    if (error) { showToast('Could not save nametag'); return; }
+    currentSprite.name = val;
+    const row = allSprites.find(s => s.id === currentSprite.id);
+    if (row) row.name = val;
+    closeSheet('nametag');
+    renderGrid();
+    showToast('Nametag updated');
+}
+
+// ── Edit Actions ──
+function openEditActions() {
+    if (!currentSprite) return;
+    actionSelectMode = false;
+    selectedActionKeys.clear();
+    document.getElementById('action-select-toggle').classList.remove('active');
+    document.getElementById('actions-title').textContent = currentSprite.name || 'Edit Actions';
+    document.getElementById('actions-cover-img').src = toImgSrc(currentSprite.src);
+    document.getElementById('add-action-form').classList.remove('open');
+    resetAddActionForm();
+    renderActionsList();
+    closeSheet('sas');
+    openSheet('actions');
+}
+
+function renderActionsList() {
+    const list = document.getElementById('actions-list');
+    const actions = currentSprite.actions || {};
+    const keys = Object.keys(actions);
+    if (!keys.length) {
+        list.innerHTML = '<div style="color:var(--text-dim);font-size:12px;font-weight:700;padding:8px 2px;">No actions yet — add one below.</div>';
+        document.getElementById('action-select-bar').style.display = 'none';
+        return;
+    }
+    list.innerHTML = '';
+    keys.forEach(name => {
+        const row = document.createElement('div');
+        row.className = 'action-row' + (actionSelectMode ? ' select-mode' : '') + (selectedActionKeys.has(name) ? ' selected' : '');
+        row.innerHTML = `
+            <div class="action-dot"><i class="fi fi-rs-check"></i></div>
+            <img src="${toImgSrc(actions[name])}">
+            <div class="action-name">${escapeHtml(name)}</div>
+            <button class="action-del" onclick="deleteSingleAction('${name.replace(/'/g,"\\'")}')"><i class="fi fi-rs-trash"></i></button>
+        `;
+        row.addEventListener('click', (e) => {
+            if (!actionSelectMode) return;
+            if (e.target.closest('.action-del')) return;
+            if (selectedActionKeys.has(name)) selectedActionKeys.delete(name);
+            else selectedActionKeys.add(name);
+            renderActionsList();
+        });
+        list.appendChild(row);
+    });
+    document.getElementById('action-select-bar').style.display = actionSelectMode ? 'block' : 'none';
+}
+
+function toggleActionSelectMode() {
+    actionSelectMode = !actionSelectMode;
+    selectedActionKeys.clear();
+    document.getElementById('action-select-toggle').classList.toggle('active', actionSelectMode);
+    renderActionsList();
+}
+
+async function persistActions() {
+    const { error } = await _supabase.from('personal_sprites')
+        .update({ actions: currentSprite.actions }).eq('id', currentSprite.id);
+    if (error) { showToast('Could not save actions: ' + error.message); return false; }
+    const row = allSprites.find(s => s.id === currentSprite.id);
+    if (row) row.actions = currentSprite.actions;
+    return true;
+}
+
+async function deleteSingleAction(name) {
+    if (!confirm('Delete the "' + name + '" action?')) return;
+    delete currentSprite.actions[name];
+    if (await persistActions()) { renderActionsList(); showToast('Action deleted'); }
+}
+
+async function deleteSelectedActions() {
+    if (!selectedActionKeys.size) return;
+    if (!confirm('Delete ' + selectedActionKeys.size + ' action(s)?')) return;
+    selectedActionKeys.forEach(name => delete currentSprite.actions[name]);
+    selectedActionKeys.clear();
+    if (await persistActions()) { toggleActionSelectMode(); showToast('Actions deleted'); }
+}
+
+function toggleAddActionForm() {
+    document.getElementById('add-action-form').classList.toggle('open');
+}
+
+function resetAddActionForm() {
+    pendingActionFile = null;
+    document.getElementById('new-action-name').value = '';
+    document.getElementById('new-action-file-label').textContent = 'Choose image';
+    document.getElementById('save-action-btn').disabled = true;
+    const fileInput = document.getElementById('new-action-file');
+    if (fileInput) fileInput.value = '';
+}
+
+function handleActionFilePicked(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        pendingActionFile = reader.result;
+        document.getElementById('new-action-file-label').textContent = file.name;
+        document.getElementById('save-action-btn').disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+async function submitAddAction() {
+    const name = document.getElementById('new-action-name').value.trim();
+    if (!name) { showToast('Give the action a name first'); return; }
+    if (!pendingActionFile) { showToast('Choose an image first'); return; }
+    currentSprite.actions = currentSprite.actions || {};
+    currentSprite.actions[name] = pendingActionFile;
+    if (await persistActions()) {
+        renderActionsList();
+        toggleAddActionForm();
+        resetAddActionForm();
+        showToast('Action added');
+    }
+}
+
+// ── Move to Pack ──
+function openMoveToPack() {
+    if (!selectedIds.size) return;
+    const list = document.getElementById('movepack-list');
+    list.innerHTML = allPacks.map(p =>
+        `<div class="pack-pick-row" onclick="moveSelectedToPack('${p.id}')"><i class="fi fi-rs-box"></i>${escapeHtml(p.name)}</div>`
+    ).join('');
+    document.getElementById('new-pack-name').value = '';
+    openSheet('movepack');
+}
+
+async function moveSelectedToPack(packId) {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const { error } = await _supabase.from('personal_sprites').update({ pack_id: packId }).in('id', ids);
+    if (error) { showToast('Move failed: ' + error.message); return; }
+    allSprites.forEach(s => { if (ids.includes(s.id)) s.pack_id = packId; });
+    closeSheet('movepack');
+    toggleSelectMode();
+    renderGrid();
+    showToast('Moved');
+}
+
+async function createPackAndMove() {
+    const name = document.getElementById('new-pack-name').value.trim();
+    if (!name) { showToast('Name your pack first'); return; }
+    const { data, error } = await _supabase.from('personal_sprite_packs')
+        .insert([{ user_id: currentUserId, name }]).select().single();
+    if (error) { showToast('Could not create pack: ' + error.message); return; }
+    allPacks.push(data);
+    renderPackChips();
+    await moveSelectedToPack(data.id);
+}
+
+// ── Generic sheet open/close ──
+function openSheet(name) {
+    document.getElementById('overlay-' + name).classList.add('open');
+    document.getElementById('sheet-' + name).classList.add('open');
+}
+function closeSheet(name) {
+    document.getElementById('overlay-' + name).classList.remove('open');
+    document.getElementById('sheet-' + name).classList.remove('open');
+}
+
+// ── Toast ──
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+</script>
+</body>
+</html>
