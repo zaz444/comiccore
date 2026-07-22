@@ -8360,9 +8360,22 @@ async function saveSpriteToPersonal() {
 }
 
 // ── GO TO MY SPRITES (private sprite library/manager page) ──
-function goToMySprites() {
-    saveOffline(true); // flush current work before leaving, same as the other cross-page nav actions
+async function goToMySprites() {
+    saveOffline(true);
     closeSheet('add');
+    // Render frame 0 as a cover hint for my-sprites' "New Sprite" sheet.
+    try {
+        const f = frames[0];
+        if (f) {
+            const _r = getFrameRatio(f);
+            const ar = _r.w / _r.h;
+            const hintSize = 400;
+            const hw = ar >= 1 ? hintSize : Math.round(hintSize * ar);
+            const hh = ar <= 1 ? hintSize : Math.round(hintSize / ar);
+            const offscreen = await renderFrameToCanvas(f, hw, hh);
+            lsSet('ms_cover_hint', offscreen.toDataURL('image/jpeg', 0.82));
+        }
+    } catch(e) { /* non-critical */ }
     location.href = 'my-sprites.html';
 }
 
