@@ -1120,11 +1120,11 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
             const bubble = document.createElement('div');
             bubble.className = `speech-bubble bubble-style-${bStyle}`;
             const isBurst = bStyle === 'spiky' || bStyle === 'shout';
-            bubble.style.cssText = `font-size:${fs}px;font-family:${ff};--bubble-bg:${bubBg};--bubble-border:${bubBorder};${isBurst ? '' : `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};border-color:${bubBorder};background:${bubBg};padding:${Math.max(10, 14 * sx)}px ${Math.max(14, 18 * sx)}px;`}`;
+            bubble.style.cssText = `font-size:${fs}px;font-family:${ff};--bubble-bg:${bubBg};--bubble-border:${bubBorder};${isBurst ? '' : `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};border-color:${bubBorder};background:${bubBg};padding:${Math.max(10, 14 * sx)}px ${Math.max(14, 18 * sx)}px;${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}`}`;
             if (isBurst) {
                 const fill = document.createElement('div');
                 fill.className = 'bubble-clip-fill';
-                fill.style.cssText = `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};`;
+                fill.style.cssText = `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}`;
                 fill.appendChild(document.createTextNode(l.content || ''));
                 bubble.appendChild(fill);
             } else {
@@ -1149,9 +1149,10 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
             el.style.lineHeight = '1.3';
             el.style.whiteSpace = 'pre-wrap';
             el.style.padding = Math.max(4, 8 * sx) + 'px';
+            if (l.outline && l.type !== 'subtitle') el.style.cssText += textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null);
             if (l.type === 'subtitle') {
                 el.innerHTML = `<div style="background:${l.nameColor || '#ff9500'};color:#fff;font-size:${Math.max(8, fs * 0.55)}px;font-weight:900;font-family:${ff};padding:${Math.max(2, 3 * sx)}px ${Math.max(6, 10 * sx)}px;border-radius:5px 5px 0 0;">${esc(l.characterName || 'CHARACTER')}</div>
-                <div style="background:rgba(255,255,255,0.96);color:${textColor};font-size:${fs}px;font-weight:${boldW};font-family:${ff};padding:${Math.max(4, 6 * sx)}px ${Math.max(6, 10 * sx)}px;border-radius:0 0 5px 5px;border:1.5px solid rgba(0,0,0,.1);border-top:none;">${esc(l.content || '')}</div>`;
+                <div style="background:rgba(255,255,255,0.96);color:${textColor};font-size:${fs}px;font-weight:${boldW};font-family:${ff};padding:${Math.max(4, 6 * sx)}px ${Math.max(6, 10 * sx)}px;border-radius:0 0 5px 5px;border:1.5px solid rgba(0,0,0,.1);border-top:none;${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}">${esc(l.content || '')}</div>`;
             } else {
                 el.innerText = l.content || '';
             }
@@ -1563,6 +1564,20 @@ function openStoryShare() {
 
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Text-outline (stroke) CSS — mirrors create.html's textOutlineCSS/defaultOutlineWidth
+// so stroked text/bubble/subtitle layers render the same in the reader as in the
+// editor. fontSize passed in here is already scale-adjusted (fs = layer.fontSize * sx),
+// so the proportional default falls out correctly; an explicit outlineWidth (stored
+// unscaled on the layer) must be scaled by sx by the caller before being passed in.
+function defaultOutlineWidth(fontSize) {
+  if (!fontSize) fontSize = 24;
+  return Math.max(1, Math.round(fontSize * 0.07 * 10) / 10);
+}
+function textOutlineCSS(fontSize, outlineWidth) {
+  const w = (outlineWidth != null && outlineWidth !== '') ? (+outlineWidth) : defaultOutlineWidth(fontSize);
+  return `-webkit-text-stroke:${w}px #000;paint-order:stroke fill;`;
 }
 
 // ── Share URL ─────────────────────────────────────────────
@@ -2191,7 +2206,7 @@ function _renderFrameDOM(f, next, cw, ch) {
         `text-decoration:${decos}`,
         `border-color:${bubBorder}`,
         `background:${bubBg}`,
-      ]).join(';');
+      ].concat(l.outline ? [textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null)] : [])).join(';');
 
       if (isBurst) {
         const fill = document.createElement('div');
@@ -2202,7 +2217,7 @@ function _renderFrameDOM(f, next, cw, ch) {
           `font-style:${italicS}`,
           `text-align:${alignS}`,
           `text-decoration:${decos}`,
-        ].join(';');
+        ].concat(l.outline ? [textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null)] : []).join(';');
         fill.appendChild(document.createTextNode(l.content || ''));
         bubble.appendChild(fill);
       } else {
@@ -2257,7 +2272,7 @@ function _renderFrameDOM(f, next, cw, ch) {
       el.style.overflow = 'visible';
       el.innerHTML = `
         <div style="background:${nameColor};color:#fff;font-size:${Math.max(8, fs * 0.55)}px;font-weight:900;font-family:${ff};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;text-align:${alignS};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(l.characterName || 'CHARACTER')}</div>
-        <div style="background:rgba(255,255,255,0.96);color:${dialogColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,.1);border-top:none;">${esc(l.content || '')}</div>`;
+        <div style="background:rgba(255,255,255,0.96);color:${dialogColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,.1);border-top:none;${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}">${esc(l.content || '')}</div>`;
 
       if (combinedFilter) el.style.filter = combinedFilter;
 
@@ -2276,6 +2291,7 @@ function _renderFrameDOM(f, next, cw, ch) {
       el.style.lineHeight     = '1.3';
       el.style.whiteSpace     = 'pre-wrap';
       el.innerText            = l.content || '';
+      if (l.outline) el.style.cssText += textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null);
 
       if (combinedFilter) el.style.filter = combinedFilter;
     }
