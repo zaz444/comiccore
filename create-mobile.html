@@ -1185,7 +1185,7 @@
             <img id="bg-choice-preview" style="width:100%;height:100%;object-fit:cover;">
         </div>
         <button onclick="bgChoiceCrop()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
-            <span style="font-size:22px;">✂️</span>
+            <span style="font-size:22px;"><i class="fi fi-rs-tool-crop"></i></span>
             <div style="text-align:left;"><div style="font-size:13px;font-weight:900;">Crop Import</div><div style="font-size:11px;color:#666;margin-top:2px;">Manually adjust crop</div></div>
         </button>
         <button onclick="bgChoiceFixed()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
@@ -1495,8 +1495,8 @@
 
             <!-- Upload buttons — Mine and Edit only, not Official -->
             <div id="mob-bg-upload-buttons" style="display:none;flex-direction:column;gap:6px;">
-                <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:18px;">📷</span>Upload (Auto-fit)</button>
-                <button class="bg-action-btn" onclick="closeSheet('bg');triggerBgCropImport()"><span style="font-size:18px;">✂️</span>Upload & Crop</button>
+                <button class="bg-action-btn" onclick="closeSheet('bg');triggerImport('bg')"><span style="font-size:18px;"><i class="fi fi-rs-cloud-upload"></i></span>Upload (Auto-fit)</button>
+                <button class="bg-action-btn" onclick="closeSheet('bg');triggerBgCropImport()"><span style="font-size:18px;"><i class="fi fi-rs-tool-crop"></i></span>Upload & Crop</button>
             </div>
 
             <!-- Edit content — all background editing controls live here now -->
@@ -6696,7 +6696,22 @@ function showBgImportChoiceModal(src) {
     document.getElementById('bg-import-choice-modal').style.display = 'flex';
 }
 function closeBgChoiceModal() { document.getElementById('bg-import-choice-modal').style.display = 'none'; }
-function bgChoiceCrop() { closeBgChoiceModal(); const t = document.getElementById('crop-target'); t.src = _bgChoiceSrc; document.getElementById('crop-modal').style.display = 'flex'; if (cropper) cropper.destroy(); const r = canvasRatio || { w:1, h:1 }; cropper = new Cropper(t, { aspectRatio: r.w / r.h, viewMode: 1 }); }
+function bgChoiceCrop() {
+    closeBgChoiceModal();
+    const t = document.getElementById('crop-target');
+    document.getElementById('crop-modal').style.display = 'flex';
+    if (cropper) { cropper.destroy(); cropper = null; }
+    const r = canvasRatio || { w: 1, h: 1 };
+    const initCropper = () => { cropper = new Cropper(t, { aspectRatio: r.w / r.h, viewMode: 1 }); };
+    // Cropper measures the <img> the instant it's constructed. If we build it
+    // right after setting .src, the browser hasn't decoded the image yet, so
+    // Cropper sees a 0x0 image and the modal's black backdrop is all that shows.
+    // Waiting for 'load' (with a .complete fallback for cached/instant images)
+    // guarantees the image is actually ready before Cropper measures it.
+    t.onload = () => { t.onload = null; initCropper(); };
+    t.src = _bgChoiceSrc;
+    if (t.complete && t.naturalWidth) { t.onload = null; initCropper(); }
+}
 async function bgChoiceFixed() {
     closeBgChoiceModal();
     if (!_bgChoiceSrc) return;
@@ -6995,7 +7010,16 @@ document.getElementById('img-input').addEventListener('change', (e) => {
 function handleCoverInput(e) {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => { currentImportType='cover'; const t=document.getElementById('crop-target'); t.src=ev.target.result; document.getElementById('crop-modal').style.display='flex'; if(cropper)cropper.destroy(); cropper=new Cropper(t,{aspectRatio:1,viewMode:1}); };
+    reader.onload = (ev) => {
+        currentImportType = 'cover';
+        const t = document.getElementById('crop-target');
+        document.getElementById('crop-modal').style.display = 'flex';
+        if (cropper) { cropper.destroy(); cropper = null; }
+        const initCropper = () => { cropper = new Cropper(t, { aspectRatio: 1, viewMode: 1 }); };
+        t.onload = () => { t.onload = null; initCropper(); };
+        t.src = ev.target.result;
+        if (t.complete && t.naturalWidth) { t.onload = null; initCropper(); }
+    };
     reader.onerror = () => showToast('⚠️ Failed to read ' + file.name);
     reader.readAsDataURL(file);
     e.target.value = '';
