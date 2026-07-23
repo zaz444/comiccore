@@ -8279,7 +8279,74 @@ async function renderFrameToCanvas(frame, cw, ch) {
                 innerHtml = `<div style="font-family:${ff};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};text-decoration:${deco};color:${textColor};text-align:${alignS};white-space:pre-wrap;word-wrap:break-word;line-height:1.3;width:${bw}px;box-sizing:border-box;${outlineS}">${(layer.content || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
             }
 
+            // Word-wraps text to fit maxWidth using the ctx's currently-set font.
+            const wrapLines = (text, maxWidth) => {
+                const words = String(text || '').split(/\s+/).filter(Boolean);
+                const lines = []; let cur = '';
+                words.forEach(w => {
+                    const test = cur ? cur + ' ' + w : w;
+                    if (cur && ctx.measureText(test).width > maxWidth) { lines.push(cur); cur = w; }
+                    else cur = test;
+                });
+                if (cur) lines.push(cur);
+                return lines.length ? lines : [''];
+            };
+            // Draws a readable box + wrapped text directly on the canvas — used when
+            // the SVG foreignObject trick silently fails to rasterize (a known,
+            // long-standing WebKit/Safari limitation, especially on iOS).
+            const drawFallback = () => {
+                ctx.save();
+                ctx.textBaseline = 'top';
+                const pad = 12, innerW = Math.max(20, bw - pad * 2);
+                const fontStr = `${boldW} ${fs}px ${ff.replace(/['"]/g,'')}`;
+                if (layer.type === 'bubble' || layer.type === 'thinking') {
+                    ctx.font = fontStr;
+                    const lines = wrapLines(layer.content, innerW);
+                    const lineH = fs * 1.3;
+                    const boxH = Math.max(fs + pad * 2, lines.length * lineH + pad * 2);
+                    ctx.fillStyle = layer.bubbleBg || '#fff';
+                    ctx.fillRect(bx, by, bw, boxH);
+                    ctx.strokeStyle = layer.bubbleBorderColor || '#000';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(bx, by, bw, boxH);
+                    ctx.fillStyle = textColor;
+                    lines.forEach((line, i) => ctx.fillText(line, bx + pad, by + pad + i * lineH, innerW));
+                } else if (layer.type === 'subtitle') {
+                    const subFs = Math.max(10, Math.round(fs * 0.55)), nameH = subFs + 12;
+                    ctx.fillStyle = layer.nameColor || '#ff9500';
+                    ctx.fillRect(bx, by, bw, nameH);
+                    ctx.font = `900 ${subFs}px ${ff.replace(/['"]/g,'')}`;
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText((layer.characterName || 'CHARACTER').toUpperCase(), bx + pad, by + 6, innerW);
+                    ctx.font = fontStr;
+                    const lines = wrapLines(layer.content, innerW);
+                    const lineH = fs * 1.3;
+                    const dialogH = Math.max(lineH, lines.length * lineH) + pad;
+                    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+                    ctx.fillRect(bx, by + nameH, bw, dialogH);
+                    ctx.fillStyle = textColor;
+                    lines.forEach((line, i) => ctx.fillText(line, bx + pad, by + nameH + 6 + i * lineH, innerW));
+                } else {
+                    ctx.font = fontStr;
+                    ctx.fillStyle = textColor;
+                    const lines = wrapLines(layer.content, bw);
+                    const lineH = fs * 1.3;
+                    lines.forEach((line, i) => ctx.fillText(line, bx, by + i * lineH, bw));
+                }
+                ctx.restore();
+            };
             await new Promise(res => {
+                let settled = false, url = null;
+                const finish = () => {
+                    if (settled) return;
+                    settled = true; clearTimeout(timer);
+                    if (url) URL.revokeObjectURL(url);
+                    res();
+                };
+                // Safety net: if the SVG image never fires onload/onerror (silent
+                // failure mode seen on iOS Safari), don't hang the export forever —
+                // fall back to a plain-canvas rendering after a short wait.
+                const timer = setTimeout(() => { if (!settled) { drawFallback(); finish(); } }, 1800);
                 try {
                     const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${bw + 60}" height="${ch}">
                         <foreignObject width="${bw + 60}" height="${ch}">
@@ -8287,26 +8354,19 @@ async function renderFrameToCanvas(frame, cw, ch) {
                         </foreignObject>
                     </svg>`;
                     const blob = new Blob([svgStr], { type: 'image/svg+xml' });
-                    const url  = URL.createObjectURL(blob);
+                    url = URL.createObjectURL(blob);
                     const img  = new Image();
                     img.onload = () => {
+                        if (settled) return;
                         ctx.save();
                         if (layer.fxBlend && layer.fxBlend !== 'normal') ctx.globalCompositeOperation = canvasBlendMode(layer.fxBlend);
                         ctx.drawImage(img, bx, by);
                         ctx.restore();
-                        URL.revokeObjectURL(url); res();
+                        finish();
                     };
-                    img.onerror = () => {
-                        // Plain text fallback
-                        ctx.save();
-                        ctx.font = `${boldW} ${fs}px ${ff.replace(/['"]/g,'')}`;
-                        ctx.fillStyle = textColor;
-                        ctx.fillText(layer.content || '', bx, by + fs, bw);
-                        ctx.restore();
-                        URL.revokeObjectURL(url); res();
-                    };
+                    img.onerror = () => { if (!settled) { drawFallback(); finish(); } };
                     img.src = url;
-                } catch(e) { res(); }
+                } catch(e) { drawFallback(); finish(); }
             });
         }
     }
@@ -8361,45 +8421,61 @@ async function exportStrip() {
     var statusEl=document.getElementById('strip-status');
     var previewWrap=document.getElementById('strip-preview-wrap');
     statusEl.innerText='Rendering...';
-    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
-    var rows=Math.ceil(frames.length/cols), pad=10;
-    var sw=(cw+pad)*cols+pad, sh=(ch+pad)*rows+pad;
-    var sc=document.createElement('canvas'); sc.width=sw; sc.height=sh;
-    var ctx2=sc.getContext('2d'); ctx2.fillStyle='#111'; ctx2.fillRect(0,0,sw,sh);
-    for (var i=0;i<frames.length;i++) {
-        statusEl.innerText='Frame '+(i+1)+' / '+frames.length;
-        var fc=await renderFrameToCanvas(frames[i],cw,ch);
-        var row=Math.floor(i/cols), col=i%cols;
-        ctx2.drawImage(fc,pad+col*(cw+pad),pad+row*(ch+pad));
-        ctx2.fillStyle='rgba(255,122,0,0.9)'; ctx2.fillRect(pad+col*(cw+pad),pad+row*(ch+pad),22,18);
-        ctx2.fillStyle='#000'; ctx2.font='bold 10px Inter'; ctx2.textAlign='center';
-        ctx2.fillText(i+1,pad+col*(cw+pad)+11,pad+row*(ch+pad)+13);
+    try {
+        var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+        var rows=Math.ceil(frames.length/cols), pad=10;
+        var sw=(cw+pad)*cols+pad, sh=(ch+pad)*rows+pad;
+        var sc=document.createElement('canvas'); sc.width=sw; sc.height=sh;
+        var ctx2=sc.getContext('2d'); ctx2.fillStyle='#111'; ctx2.fillRect(0,0,sw,sh);
+        for (var i=0;i<frames.length;i++) {
+            statusEl.innerText='Frame '+(i+1)+' / '+frames.length;
+            var fc=await renderFrameToCanvas(frames[i],cw,ch);
+            var row=Math.floor(i/cols), col=i%cols;
+            ctx2.drawImage(fc,pad+col*(cw+pad),pad+row*(ch+pad));
+            ctx2.fillStyle='rgba(255,122,0,0.9)'; ctx2.fillRect(pad+col*(cw+pad),pad+row*(ch+pad),22,18);
+            ctx2.fillStyle='#000'; ctx2.font='bold 10px Inter'; ctx2.textAlign='center';
+            ctx2.fillText(i+1,pad+col*(cw+pad)+11,pad+row*(ch+pad)+13);
+        }
+        var dataUrl=sc.toDataURL('image/png');
+        document.getElementById('strip-preview-img').src=dataUrl;
+        previewWrap.style.display='block';
+        statusEl.innerText='Done! Long-press image to save on iOS.';
+        mobileDownload(dataUrl,'comic-strip.png');
+    } catch(err) {
+        statusEl.innerText='Error: '+(err && err.message ? err.message : err);
     }
-    var dataUrl=sc.toDataURL('image/png');
-    document.getElementById('strip-preview-img').src=dataUrl;
-    previewWrap.style.display='block';
-    statusEl.innerText='Done! Long-press image to save on iOS.';
-    mobileDownload(dataUrl,'comic-strip.png');
 }
 
 async function openExportFramesTab() {
     var grid=document.getElementById('export-frames-grid');
     grid.innerHTML='<div style="color:#555;font-size:12px;padding:10px;">Rendering...</div>';
     var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
-    grid.innerHTML='';
+    var built=document.createDocumentFragment();
     for (var i=0;i<frames.length;i++) {
-        var fc=await renderFrameToCanvas(frames[i],cw,ch);
-        var dataUrl=fc.toDataURL('image/png');
-        var wrap=document.createElement('div');
-        wrap.style.cssText='position:relative;border-radius:10px;overflow:hidden;border:2px solid #333;cursor:pointer;';
-        var img=document.createElement('img');
-        img.src=dataUrl; img.style.cssText='width:100%;display:block;';
-        var label=document.createElement('div');
-        label.style.cssText='position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:var(--accent);font-size:10px;font-weight:900;padding:5px 8px;text-align:center;';
-        label.innerText='FRAME '+(i+1)+' - TAP TO SAVE';
-        wrap.appendChild(img); wrap.appendChild(label);
-        (function(url,idx){ wrap.onclick=function(){mobileDownload(url,'frame-'+idx+'.png');}; })(dataUrl,i+1);
-        grid.appendChild(wrap);
+        try {
+            var fc=await renderFrameToCanvas(frames[i],cw,ch);
+            var dataUrl=fc.toDataURL('image/png');
+            var wrap=document.createElement('div');
+            wrap.style.cssText='position:relative;border-radius:10px;overflow:hidden;border:2px solid #333;cursor:pointer;';
+            var img=document.createElement('img');
+            img.src=dataUrl; img.style.cssText='width:100%;display:block;';
+            var label=document.createElement('div');
+            label.style.cssText='position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:var(--accent);font-size:10px;font-weight:900;padding:5px 8px;text-align:center;';
+            label.innerText='FRAME '+(i+1)+' - TAP TO SAVE';
+            wrap.appendChild(img); wrap.appendChild(label);
+            (function(url,idx){ wrap.onclick=function(){mobileDownload(url,'frame-'+idx+'.png');}; })(dataUrl,i+1);
+            built.appendChild(wrap);
+        } catch(e) {
+            var errBox=document.createElement('div');
+            errBox.style.cssText='border:2px dashed #a33;border-radius:10px;padding:10px;color:#f88;font-size:11px;';
+            errBox.innerText='Frame '+(i+1)+' failed to render'+(e && e.message ? (': '+e.message) : '');
+            built.appendChild(errBox);
+        }
+    }
+    grid.innerHTML='';
+    grid.appendChild(built);
+    if (!grid.children.length) {
+        grid.innerHTML='<div style="color:#a33;font-size:12px;padding:10px;">Nothing could be rendered. Try again, or check your connection.</div>';
     }
 }
 
