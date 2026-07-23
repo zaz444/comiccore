@@ -1017,6 +1017,10 @@
             <div class="ban-duration-grid" id="ban-dur-grid"></div>
             <div class="ban-section-label">Reason <span style="color:var(--dim);font-weight:600;text-transform:none;letter-spacing:0;">(logged)</span></div>
             <textarea class="ban-reason-input" id="ban-reason-input" placeholder="e.g. Spam, rule violation…"></textarea>
+            <label id="ban-ip-row" style="display:flex; align-items:flex-start; gap:9px; margin:-4px 0 14px; cursor:pointer; font-size:12.5px; color:var(--dim); line-height:1.4;">
+                <input type="checkbox" id="ban-ip-checkbox" style="margin-top:2px; accent-color: var(--orange, #ff9800);">
+                <span>Also block this account's known IP addresses — prevents logging back in with a new account from the same device/network. Shared networks (school, work, family wifi) may catch other users too.</span>
+            </label>
             <div class="ban-actions">
                 <button class="ban-cancel-btn" onclick="closeBanModal()">Cancel</button>
                 <button class="ban-confirm-btn mode-pause" id="ban-confirm-btn" onclick="confirmBanAction()">Confirm Pause</button>
@@ -1837,7 +1841,7 @@
                         const pauseBtn = document.createElement('button'); pauseBtn.className = 'admin-btn pause-col'; pauseBtn.innerText = 'Pause'; pauseBtn.onclick = () => openBanModal(handle, profile.name || handle, 'pause'); adminGrid.appendChild(pauseBtn);
                         const banBtn = document.createElement('button'); banBtn.className = 'admin-btn danger'; banBtn.innerText = 'Ban'; banBtn.onclick = () => openBanModal(handle, profile.name || handle, 'ban'); adminGrid.appendChild(banBtn);
                     } else {
-                        const restoreBtn = document.createElement('button'); restoreBtn.className = 'admin-btn warn'; restoreBtn.innerText = 'Restore'; restoreBtn.onclick = async () => { await _supabase.from('bans').delete().eq('banned_handle', handle); await logBanAction(handle, 'restore', null, 'Account restored', null); showToast('@' + handle + ' restored'); loadPublicProfile(handle); }; adminGrid.appendChild(restoreBtn);
+                        const restoreBtn = document.createElement('button'); restoreBtn.className = 'admin-btn warn'; restoreBtn.innerText = 'Restore'; restoreBtn.onclick = async () => { await _supabase.from('bans').delete().eq('banned_handle', handle); await _supabase.from('banned_ips').delete().eq('banned_handle', handle); await logBanAction(handle, 'restore', null, 'Account restored', null); showToast('@' + handle + ' restored'); loadPublicProfile(handle); }; adminGrid.appendChild(restoreBtn);
                         const switchBtn = document.createElement('button');
                         if (currentAction === 'pause') { switchBtn.className = 'admin-btn danger'; switchBtn.innerText = 'Escalate to Ban'; switchBtn.onclick = () => openBanModal(handle, profile.name || handle, 'ban'); }
                         else { switchBtn.className = 'admin-btn pause-col'; switchBtn.innerText = 'Change to Pause'; switchBtn.onclick = () => openBanModal(handle, profile.name || handle, 'pause'); }
@@ -1899,6 +1903,7 @@
         function openBanModal(handle, name, mode = 'pause') {
             _banTargetHandle = handle; _banDuration = ''; _banMode = mode;
             document.getElementById('ban-reason-input').value = '';
+            document.getElementById('ban-ip-checkbox').checked = false;
             switchBanMode(mode);
             document.getElementById('ban-sub-text').innerText = '@' + handle + (name && name !== handle ? ' · ' + name : '');
             document.getElementById('ban-overlay').classList.add('open');
@@ -1941,15 +1946,42 @@
         async function confirmBanAction() {
             if (!_banDuration) { showToast('Pick a duration first'); return; }
             const reason = document.getElementById('ban-reason-input').value.trim();
+            const alsoBanIps = document.getElementById('ban-ip-checkbox').checked;
             const expiresAt = banDurToExpiry(_banDuration);
             const durLabels = [...PAUSE_DURATIONS, ...BAN_DURATIONS];
             const durLabel  = durLabels.find(d => d.val === _banDuration)?.label || _banDuration;
             const { error } = await _supabase.from('bans').upsert([{ banned_handle: _banTargetHandle, banned_by: myProfile.handle, action_type: _banMode, reason: reason || null, expires_at: expiresAt, created_at: new Date().toISOString() }], { onConflict: 'banned_handle' });
             if (error) { showToast('Error: ' + error.message); return; }
             await logBanAction(_banTargetHandle, _banMode, expiresAt, reason, durLabel + (_banDuration === 'perm' ? '' : ''));
+
+            let ipNote = '';
+            if (alsoBanIps) {
+                const ipCount = await banKnownIps(_banTargetHandle, reason, expiresAt);
+                ipNote = ipCount > 0 ? ` · ${ipCount} IP${ipCount === 1 ? '' : 's'} blocked` : ' · no known IPs on file';
+            }
+
             closeBanModal();
-            showToast((_banMode === 'pause' ? 'Paused' : 'Banned') + ' @' + _banTargetHandle + ' · ' + durLabel);
+            showToast((_banMode === 'pause' ? 'Paused' : 'Banned') + ' @' + _banTargetHandle + ' · ' + durLabel + ipNote);
             loadPublicProfile(_banTargetHandle);
+        }
+
+        // Looks up every IP this handle has ever logged in from (recorded by
+        // login.html on each successful sign-in) and adds them to banned_ips,
+        // so a fresh account from the same device/network gets blocked too.
+        async function banKnownIps(handle, reason, expiresAt) {
+            const { data: ips } = await _supabase.from('login_ips').select('ip').eq('handle', handle);
+            if (!ips || !ips.length) return 0;
+            const rows = ips.map(r => ({
+                ip: r.ip,
+                banned_handle: handle,
+                banned_by: myProfile.handle,
+                reason: reason || null,
+                expires_at: expiresAt,
+                created_at: new Date().toISOString()
+            }));
+            const { error } = await _supabase.from('banned_ips').upsert(rows, { onConflict: 'ip' });
+            if (error) { showToast('IP ban error: ' + error.message); return 0; }
+            return rows.length;
         }
 
         async function openBanLog(filterHandle) {

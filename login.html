@@ -661,11 +661,68 @@
     { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
   );
 
+  // ── Ban / IP-ban enforcement ────────────────────────────────────
+  const GET_IP_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co/functions/v1/get-ip';
+
+  let _cachedIp = null;
+  async function getClientIp() {
+    if (_cachedIp) return _cachedIp;
+    try {
+      const res = await fetch(GET_IP_URL, {
+        headers: { apikey: 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE' }
+      });
+      const { ip } = await res.json();
+      _cachedIp = (ip && ip !== 'unknown') ? ip : null;
+    } catch {
+      _cachedIp = null; // fail open — don't block real logins over a network hiccup
+    }
+    return _cachedIp;
+  }
+
+  async function checkIpBanned() {
+    const ip = await getClientIp();
+    if (!ip) return { blocked: false, ip: null };
+    const { data } = await _sb.from('banned_ips').select('reason, expires_at').eq('ip', ip).maybeSingle();
+    if (data && (!data.expires_at || new Date(data.expires_at) > new Date())) {
+      return { blocked: true, ip, reason: data.reason, expires_at: data.expires_at };
+    }
+    return { blocked: false, ip };
+  }
+
+  async function checkHandleBanned(handle) {
+    const { data } = await _sb.from('bans').select('action_type, reason, expires_at').eq('banned_handle', handle).maybeSingle();
+    if (data && (!data.expires_at || new Date(data.expires_at) > new Date())) {
+      return { blocked: true, mode: data.action_type, reason: data.reason, expires_at: data.expires_at };
+    }
+    return { blocked: false };
+  }
+
+  function banMessage(mode, reason, expiresAt) {
+    const label = mode === 'pause' ? 'paused' : 'banned';
+    const until = expiresAt ? (' until ' + new Date(expiresAt).toLocaleDateString()) : ' permanently';
+    return `Your account has been ${label}${until}.` + (reason ? ` Reason: ${reason}` : '');
+  }
+
+  async function recordLoginIp(handle) {
+    const ip = await getClientIp();
+    if (!ip || !handle) return;
+    await _sb.from('login_ips').upsert(
+      [{ handle, ip, created_at: new Date().toISOString() }],
+      { onConflict: 'handle,ip' }
+    );
+  }
+
   // ── Popup dimensions ──────────────────────────────────────────
   const POPUP_W = 500, POPUP_H = 650;
 
-  function openOAuthPopup(provider, mode) {
+  async function openOAuthPopup(provider, mode) {
     // mode: 'signup' | 'login'
+    const ipCheck = await checkIpBanned();
+    if (ipCheck.blocked) {
+      showStatus(banMessage('ban', ipCheck.reason, ipCheck.expires_at), 'error');
+      return;
+    }
+
     // We'll store the intent so the auth state handler knows what to do
     sessionStorage.setItem('oauth_intent', mode);
 
@@ -743,7 +800,19 @@
       // Brand new user signing up — show completion overlay
       showOAuthCompletionOverlay(user);
     } else {
-      // Returning user — save profile and redirect
+      // Returning user — check ban/pause status before letting them in
+      const handleBan = await checkHandleBanned(existing.handle);
+      if (handleBan.blocked) {
+        await _sb.auth.signOut();
+        _oauthHandled = false;
+        showStatus(banMessage(handleBan.mode, handleBan.reason, handleBan.expires_at), 'error');
+        toggle('login');
+        return;
+      }
+
+      await recordLoginIp(existing.handle);
+
+      // Save profile and redirect
       localStorage.setItem('user_profile', JSON.stringify({
         ...existing, permanent_id: user.id, email: user.email
       }));
@@ -860,6 +929,8 @@
         pic, banner: '', bio: '', socials: {}, settings: {}
       }));
 
+      await recordLoginIp(handle);
+
       window.location.href = 'index.html';
     } catch (err) {
       ocErr(err.message);
@@ -957,6 +1028,9 @@
     if (!isOldEnough(dob))             return showStatus('You must be 13 or older to join.', 'error');
     if (pass.length < 6)               return showStatus('Password must be at least 6 characters.', 'error');
 
+    const ipCheck = await checkIpBanned();
+    if (ipCheck.blocked) return showStatus(banMessage('ban', ipCheck.reason, ipCheck.expires_at), 'error');
+
     const { data: existing } = await _sb.from('profiles').select('handle').eq('handle', handle).maybeSingle();
     if (existing) return showStatus('That username is already taken. Try another.', 'error');
 
@@ -1000,6 +1074,9 @@
 
     if (!email || !pass) return showStatus('Please enter your email and password.', 'error');
 
+    const ipCheck = await checkIpBanned();
+    if (ipCheck.blocked) return showStatus(banMessage('ban', ipCheck.reason, ipCheck.expires_at), 'error');
+
     const loginBtn = document.querySelector('#c-login .btn-primary');
     loginBtn.disabled = true;
     loginBtn.innerHTML = '<span class="spinner"></span> Signing in…';
@@ -1029,6 +1106,16 @@
 
         profile = { handle: pendingHandle, permanent_id: user.id, name: pendingHandle };
       }
+
+      const handleBan = await checkHandleBanned(profile.handle);
+      if (handleBan.blocked) {
+        await _sb.auth.signOut();
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = 'Sign In →';
+        return showStatus(banMessage(handleBan.mode, handleBan.reason, handleBan.expires_at), 'error');
+      }
+
+      await recordLoginIp(profile.handle);
 
       localStorage.setItem('user_profile', JSON.stringify(
         { ...profile, permanent_id: user.id, email: user.email }
