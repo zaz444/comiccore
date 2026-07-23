@@ -1884,7 +1884,7 @@
     <div class="ts-handle"></div>
     <div style="padding:0 0 16px;">
         <div class="ts-title">
-            <span>Transform</span>
+            <span>Edit</span>
             <button onclick="closeTransformSheet()" style="background:none;border:none;color:#555;font-size:16px;cursor:pointer;">✕</button>
         </div>
         <div id="ts-preview-box"><div id="ts-preview-content"></div></div>
@@ -1901,6 +1901,9 @@
 
         <!-- Text options (shown only for text/bubble layers) -->
         <div id="text-settings" class="ts-text-section" style="display:none;">
+            <div id="subtitle-name-row" style="display:none;">
+                <input type="text" id="subtitle-name-input" class="pub-input" placeholder="Character…" maxlength="24" oninput="updateTextProp('characterName',this.value)" style="margin-bottom:8px;">
+            </div>
             <input type="text" id="text-content-input" class="pub-input" placeholder="Edit text..." oninput="updateTextProp('content',this.value)" style="margin-bottom:8px;">
             <select id="font-family-select" class="pub-input" onchange="updateTextProp('fontFamily',this.value)" style="margin-bottom:8px;">
                 <option value="'Inter', sans-serif">Standard</option>
@@ -2529,6 +2532,13 @@ function syncTransformSheet() {
 
     if (isText) {
         document.getElementById('text-content-input').value = activeLayer.content || '';
+        const subNameRow = document.getElementById('subtitle-name-row');
+        if (subNameRow) {
+            subNameRow.style.display = activeLayer.type === 'subtitle' ? 'block' : 'none';
+            if (activeLayer.type === 'subtitle') {
+                document.getElementById('subtitle-name-input').value = activeLayer.characterName || '';
+            }
+        }
         if (activeLayer.fontFamily) document.getElementById('font-family-select').value = activeLayer.fontFamily;
         if (activeLayer.fontSize) {
             document.getElementById('font-size-slider').value = activeLayer.fontSize;
@@ -2555,7 +2565,7 @@ function syncTransformSheet() {
     const swapBtn = document.getElementById('ts-swap-btn');
     if (swapBtn) swapBtn.style.display = (activeLayer.type === 'img' && activeLayer.packData) ? 'inline-flex' : 'none';
 
-    if (activeLayer.type === 'img' && activeLayer.packData) {
+    if (activeLayer.type === 'img') {
         document.getElementById('sprite-nametag-input').value = activeLayer.nameTag || '';
     }
 
