@@ -7890,10 +7890,13 @@ async function finalPublish() {
         const payload = { data: dataField, storage_path: storagePathField, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: getFrameRatio(frames[0]), age_rating: pubSelectedRating };
         let error, publishedId;
         if (editingComicId) {
-            ({ error } = await _supabase.from('comics').update({ ...payload, owner_handle: pubHandle }).eq('id', editingComicId));
+            // owner_handle is intentionally NOT touched here — it's set once at creation.
+            // Updating it on every save meant an accepted collaborator saving edits would
+            // silently reassign ownership of the comic to themselves.
+            ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
             publishedId = editingComicId;
         } else {
-            const res = await _supabase.from('comics').insert([{ id: newComicId, ...payload, owner_name: pubHandle, owner_handle: pubHandle }]).select('id').single();
+            const res = await _supabase.from('comics').insert([{ id: newComicId, ...payload, owner_name: pubHandle, owner_handle: pubHandle, owner_handles: [pubHandle] }]).select('id').single();
             error = res.error;
             publishedId = res.data?.id;
         }
@@ -8584,6 +8587,18 @@ window.onload = async function() {
         maybeShowCollabBtn();
         _supabase.from('comics').select('*').eq('id', editComicId).single().then(async ({data,error}) => {
             if (error||!data) { alert('Could not load comic.'); return; }
+            // Access check: comics have no single "owner" once a collab is accepted —
+            // everyone in owner_handles is an equal co-owner with full edit rights.
+            const owners = (data.owner_handles && data.owner_handles.length) ? data.owner_handles : (data.owner_handle ? [data.owner_handle] : []);
+            if (!owners.includes(myHandle)) {
+                const { data: collab } = await _supabase.from('comic_collaborators')
+                    .select('id').eq('comic_id', editComicId).eq('invitee_handle', myHandle).eq('status', 'accepted').maybeSingle();
+                if (!collab) {
+                    alert("You don't have permission to edit this comic.");
+                    location.href = 'my-comics.html';
+                    return;
+                }
+            }
             loadedComicStoragePath = data.storage_path || null;
             const resolved = await resolveFramesFromRow(data);
             if (!resolved || !resolved.length) { alert('Could not load comic frames.'); return; }
@@ -8674,8 +8689,19 @@ window.onload = async function() {
         editingComicId = editSourceId;
         document.getElementById('publish-btn').innerText = 'REPUBLISH';
         maybeShowCollabBtn();
-        _supabase.from('comics').select('title,tags,description,cover,storage_path,age_rating,age_rating_locked').eq('id', editSourceId).single().then(({ data }) => {
+        _supabase.from('comics').select('owner_handle,owner_handles,title,tags,description,cover,storage_path,age_rating,age_rating_locked').eq('id', editSourceId).single().then(async ({ data }) => {
             if (!data) return;
+            // Same co-owner check as the edit_comic_id path above.
+            const owners = (data.owner_handles && data.owner_handles.length) ? data.owner_handles : (data.owner_handle ? [data.owner_handle] : []);
+            if (!owners.includes(myHandle)) {
+                const { data: collab } = await _supabase.from('comic_collaborators')
+                    .select('id').eq('comic_id', editSourceId).eq('invitee_handle', myHandle).eq('status', 'accepted').maybeSingle();
+                if (!collab) {
+                    alert("You don't have permission to edit this comic.");
+                    location.href = 'my-comics.html';
+                    return;
+                }
+            }
             loadedComicStoragePath = data.storage_path || null;
             document.getElementById('pub-title').value = data.title || '';
             document.getElementById('pub-tags').value = (data.tags||[]).join(', ');

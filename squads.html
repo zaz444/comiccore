@@ -2072,12 +2072,25 @@
         if (error) { btn.disabled = false; alert(error.message); return; }
 
         if (response === 'accepted') {
+            await grantCoOwnership(comicId, myHandle);
             // Store comic ID for the editor to load, then navigate
             localStorage.setItem('edit_comic_id', comicId);
             // Try mobile first (check screen width), then desktop
             location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
         } else {
             await loadCollabInvites(); // refresh list to show Declined state
+        }
+    }
+
+    // Comics have no single "owner" once a collab is accepted — everyone in
+    // owner_handles is an equal co-owner with identical edit/delete rights.
+    async function grantCoOwnership(comicId, handle) {
+        const { data: comic } = await _sb.from('comics').select('owner_handle, owner_handles').eq('id', comicId).maybeSingle();
+        if (!comic) return;
+        const current = (comic.owner_handles && comic.owner_handles.length) ? [...comic.owner_handles] : (comic.owner_handle ? [comic.owner_handle] : []);
+        if (!current.includes(handle)) {
+            current.push(handle);
+            await _sb.from('comics').update({ owner_handles: current }).eq('id', comicId);
         }
     }
     // ── END COLLAB ───────────────────────────────────────────────────────────

@@ -457,8 +457,8 @@ async function loadPublished() {
   let data, error;
   try {
     ({ data, error } = await _sb.from('comics')
-      .select('id,title,description,cover,tags,stars,data,storage_path,canvas_ratio,created_at,owner_handle')
-      .eq('owner_handle', myHandle)
+      .select('id,title,description,cover,tags,stars,data,storage_path,canvas_ratio,created_at,owner_handle,owner_handles')
+      .contains('owner_handles', [myHandle])
       .order('id', { ascending: false }));
   } catch (e) {
     error = e;
@@ -601,8 +601,21 @@ async function acceptCollabInvite(inviteId, comicId) {
   await _sb.from('comic_collaborators').update({ status: 'accepted' }).eq('id', inviteId);
   const inv = collabInvites.find(i => i.id === inviteId);
   if (inv) inv.status = 'accepted';
+  await grantCoOwnership(comicId, myHandle);
   renderCollab();
   openCollabComic(comicId);
+}
+
+// Comics have no single "owner" once a collab is accepted — everyone in
+// owner_handles is an equal co-owner with identical edit/delete rights.
+async function grantCoOwnership(comicId, handle) {
+  const { data: comic } = await _sb.from('comics').select('owner_handle, owner_handles').eq('id', comicId).maybeSingle();
+  if (!comic) return;
+  const current = (comic.owner_handles && comic.owner_handles.length) ? [...comic.owner_handles] : (comic.owner_handle ? [comic.owner_handle] : []);
+  if (!current.includes(handle)) {
+    current.push(handle);
+    await _sb.from('comics').update({ owner_handles: current }).eq('id', comicId);
+  }
 }
 
 async function declineCollabInvite(inviteId) {
@@ -716,6 +729,8 @@ function makePublishedRow(c) {
     ? `<img src="${c.cover}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
     : `<div class="no-cover">📖</div>`;
 
+  const isCollab = Array.isArray(c.owner_handles) && c.owner_handles.length > 1;
+
   card.innerHTML = `
     <div class="comic-card-cover">
       <div style="width:100%;height:100%;position:relative;">
@@ -725,7 +740,7 @@ function makePublishedRow(c) {
     </div>
     <div class="comic-card-info">
       <div class="comic-card-title">${escHtml(c.title || 'Untitled')}</div>
-      <div class="comic-card-sub">⭐ ${stars} · ${pages} page${pages!==1?'s':''}</div>
+      <div class="comic-card-sub">⭐ ${stars} · ${pages} page${pages!==1?'s':''}${isCollab ? ' · <i class="fi fi-rs-palette"></i> Co-created' : ''}</div>
     </div>
   `;
   card.onclick = () => openPublishedPopup(c);
