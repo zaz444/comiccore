@@ -7816,9 +7816,38 @@ async function _loadCollabMembers(squadId) {
 async function _sendCollabInvite(inviteeHandle, squadId, btn) {
     const myHandle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
     const comicTitle = document.getElementById('pub-title')?.value || 'Untitled';
+    btn.disabled = true; btn.textContent = '…';
+
+    // ── Guard 1: must have a handle from localStorage ──────────────────────
+    if (!myHandle) {
+        btn.disabled = false; btn.textContent = '+ Invite';
+        alert('Could not read your handle. Please refresh and try again.');
+        return;
+    }
+
+    // ── Guard 2: verify the Supabase auth session is still live ────────────
+    // RLS policies check auth.uid(), so if the session has expired the insert
+    // will be blocked with a row-level-security error regardless of the data.
+    const { data: { session: _inviteSession } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+    if (!_inviteSession) {
+        btn.disabled = false; btn.textContent = '+ Invite';
+        alert('Your session has expired. Please reload the page and sign in again.');
+        return;
+    }
+
+    // ── Guard 3: ensure the comic/draft id exists before inserting ─────────
+    // If the auto-save above in openCollabPanel() failed, targetId could be
+    // null, which violates NOT NULL and the RLS comic-ownership check.
+    if (!editingComicId && !activeDraftId) {
+        await saveOffline(true);
+    }
     const targetId = _collabTargetId();
     const targetIsDraft = _collabTargetIsDraft();
-    btn.disabled = true; btn.textContent = '…';
+    if (!targetId) {
+        btn.disabled = false; btn.textContent = '+ Invite';
+        alert('Could not save a draft to attach the invite to. Check your connection and try again.');
+        return;
+    }
 
     const { data: inviteRow, error } = await _supabase.from('comic_collaborators').insert([{
         comic_id:       targetId,
@@ -7832,7 +7861,13 @@ async function _sendCollabInvite(inviteeHandle, squadId, btn) {
 
     if (error) {
         btn.disabled = false; btn.textContent = '+ Invite';
-        alert('Error: ' + error.message);
+        // Surface a clearer message for the two most common RLS failure modes
+        const msg = error.message || '';
+        if (msg.includes('row-level security') || error.code === '42501') {
+            alert('Permission denied: your session may have expired, or you don\'t have permission to invite collaborators to this comic. Try reloading the page.');
+        } else {
+            alert('Error: ' + msg);
+        }
         return;
     }
 
