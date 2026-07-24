@@ -41,6 +41,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'PURGE_STORAGE_PATH' && event.data.path) {
+    event.waitUntil(purgeCachedPath(event.data.path));
+  }
+});
+
+async function purgeCachedPath(path) {
+  const cache = await caches.open(CACHE_NAME);
+  const keys = await cache.keys();
+  await Promise.all(
+    keys.filter((req) => req.url.includes(path)).map((req) => cache.delete(req))
+  );
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);

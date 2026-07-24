@@ -1111,6 +1111,7 @@ async function bulkDeleteDrafts() {
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
   if (storagePaths.length) {
     await _sb.storage.from('comiccore-assets').remove(storagePaths).catch(() => {});
+    storagePaths.forEach(purgeCachedAsset);
   }
 
   drafts = drafts.filter(d => !ids.includes(String(d.id)));
@@ -1119,6 +1120,12 @@ async function bulkDeleteDrafts() {
   renderStats();
   exitDraftSelectMode();
   toast(`${count} draft${count !== 1 ? 's' : ''} deleted`);
+}
+
+function purgeCachedAsset(path) {
+  if (path && navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'PURGE_STORAGE_PATH', path });
+  }
 }
 
 // ── Delete ────────────────────────────────────────────────
@@ -1146,6 +1153,7 @@ async function confirmDelete() {
     if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
     if (draftToDelete?.storage_path) {
       await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
+      purgeCachedAsset(draftToDelete.storage_path);
     }
     drafts = drafts.filter(d => String(d.id) !== String(deleteId));
     document.getElementById('drafts-count').innerText = drafts.length;
