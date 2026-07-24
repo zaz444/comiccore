@@ -228,7 +228,6 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
   <button class="select-toggle-btn" id="select-toggle-btn" onclick="toggleDraftSelectMode()">Select</button>
   <button class="new-btn" onclick="openNewSheet()">+ New</button>
 </div>
-
 <!-- Tabs -->
 <div class="tabs">
   <button class="tab active" id="tab-drafts" onclick="switchTab('drafts')">
@@ -437,6 +436,10 @@ window.onload = async () => {
   const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
   myHandle = profile.handle || null;
   myName = profile.name || 'Creator';
+
+  // Initialize auth session — without this the Supabase client has no active
+  // token and all write/delete operations are rejected as unauthenticated.
+  await _sb.auth.getSession().catch(() => {});
 
   // Default tab is drafts — show Select button
   document.getElementById('select-toggle-btn').classList.add('visible');
@@ -1099,10 +1102,10 @@ async function bulkDeleteDrafts() {
   const ids = [...selectedDraftIds];
   const toDelete = drafts.filter(d => ids.includes(String(d.id)));
 
-  // Delete from DB — owner_handle filter is required for RLS policy to permit the delete
-  const { data: delData, error } = await _sb.from('drafts').delete().in('id', ids).eq('owner_handle', myHandle).select('id');
+  // Delete from DB
+  const { data: delData, error } = await _sb.from('drafts').delete().in('id', ids).select('id');
   if (error) { toast('⚠ Delete failed: ' + error.message, 'var(--danger)'); return; }
-  if (!delData || !delData.length) { toast('⚠ Could not delete these drafts', 'var(--danger)'); return; }
+  if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
 
   // Remove any storage files
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
@@ -1138,9 +1141,9 @@ async function confirmDelete() {
   closeDelSheet();
   if (deleteType === 'draft') {
     const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
-    const { data: delData, error: delErr } = await _sb.from('drafts').delete().eq('id', deleteId).eq('owner_handle', myHandle).select('id');
+    const { data: delData, error: delErr } = await _sb.from('drafts').delete().eq('id', deleteId).select('id');
     if (delErr) { toast('⚠ Could not delete: ' + delErr.message, 'var(--danger)'); return; }
-    if (!delData || !delData.length) { toast('⚠ Could not delete this draft', 'var(--danger)'); return; }
+    if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
     if (draftToDelete?.storage_path) {
       await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
     }
