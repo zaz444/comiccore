@@ -1069,6 +1069,7 @@
             }
             if (msgs.length) lastSeenMsgId = msgs[msgs.length - 1].id;
             if (initial) container.scrollTop = container.scrollHeight;
+            syncCollabInviteStatuses(msgs);
         } catch (err) {
             console.error('[ComicCore] loadMessages failed:', err.message);
             const skeleton = document.getElementById('msgSkeleton');
@@ -1137,6 +1138,7 @@
             if (!hasMoreMsgs && btn) btn.remove();
             else if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
             container.scrollTop = prevS + (container.scrollHeight - prevH);
+            syncCollabInviteStatuses(olderMsgs);
         } catch (err) {
             console.error('[ComicCore] loadOlderMessages failed:', err?.code || err, err?.message || err);
             if (btn) { btn.innerText = 'Load older messages'; btn.disabled = false; }
@@ -1256,12 +1258,20 @@
     async function respondCollabFromChat(inviteId, comicId, response, btn, isDraft) {
         const wrap = document.getElementById(`collab-chat-btns-${inviteId}`);
         if (wrap) { wrap.innerHTML = '<div style="font-size:11px;color:var(--text-dim);font-weight:700;">Updating…</div>'; }
-        const { error } = await _sb
+        const { data: updated, error } = await _sb
             .from('comic_collaborators')
             .update({ status: response })
-            .eq('id', inviteId);
+            .eq('id', inviteId)
+            .select('id');
         if (error) {
             if (wrap) wrap.innerHTML = `<div style="font-size:11px;color:#ff453a;">Error: ${error.message}</div>`;
+            return;
+        }
+        // error is null even when RLS silently blocks the write and 0 rows
+        // change — .select() is the only way to tell that apart from a real
+        // success, which is why this invite kept re-appearing as pending.
+        if (!updated || !updated.length) {
+            if (wrap) wrap.innerHTML = `<div style="font-size:11px;color:#ff453a;">Permission denied — try reloading the page.</div>`;
             return;
         }
         if (response === 'accepted') {
@@ -1276,6 +1286,37 @@
         } else {
             if (wrap) wrap.innerHTML = '<div style="font-size:11px;color:var(--text-dim);font-weight:700;">Declined</div>';
         }
+    }
+
+    // The Accept/Decline buttons in a [COLLAB_INVITE] bubble are built from the
+    // static JSON payload baked into the message text at send time — they don't
+    // know if the invite was already answered. Every time a batch of messages
+    // renders (initial load, pagination, reconnect catch-up), call this to
+    // reconcile those bubbles against the real comic_collaborators status so an
+    // already-accepted/declined invite doesn't keep showing "Accept" again.
+    async function syncCollabInviteStatuses(msgs) {
+        const inviteIds = [];
+        for (const m of msgs) {
+            const c = m.content || '';
+            if (!c.startsWith('[COLLAB_INVITE]:')) continue;
+            try {
+                const payload = JSON.parse(c.replace('[COLLAB_INVITE]:', '').trim());
+                if (payload.invite_id) inviteIds.push(payload.invite_id);
+            } catch (e) { /* malformed payload, skip */ }
+        }
+        if (!inviteIds.length) return;
+        const { data, error } = await _sb.from('comic_collaborators').select('id,status').in('id', inviteIds);
+        if (error || !data) return;
+        data.forEach(applyCollabInviteStatus);
+    }
+
+    function applyCollabInviteStatus(row) {
+        if (row.status === 'pending') return;
+        const wrap = document.getElementById(`collab-chat-btns-${row.id}`);
+        if (!wrap) return;
+        wrap.innerHTML = row.status === 'accepted'
+            ? '<div style="font-size:11px;color:#32d74b;font-weight:800;"><i class="fi fi-rs-check"></i> Accepted</div>'
+            : '<div style="font-size:11px;color:var(--text-dim);font-weight:700;">Declined</div>';
     }
 
     // Same idea as grantCoOwnership, but for a still-unpublished draft.
@@ -1520,6 +1561,12 @@
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'team_messages' }, payload => {
                 const row = document.getElementById(`row-${payload.old.id}`); if (row) row.remove();
             })
+            // Live-update an invite bubble the instant someone accepts/declines,
+            // for anyone else with this chat open — no reload needed.
+            .on('postgres_changes', {
+                event: 'UPDATE', schema: 'public', table: 'comic_collaborators',
+                filter: `squad_id=eq.${activeSquadId}`
+            }, payload => applyCollabInviteStatus(payload.new))
             .subscribe(status => {
                 console.log('[ComicCore] realtime status:', status);
                 // The socket can silently drop (backgrounded tab/app, brief network
@@ -1560,6 +1607,7 @@
                 await appendMessage(m);
                 lastSeenMsgId = m.id;
             }
+            syncCollabInviteStatuses(ordered);
         } catch (err) {
             console.error('[ComicCore] catchUpMessages failed:', err);
         }

@@ -661,7 +661,7 @@
     const body = document.getElementById('inbox-panel-body');
     body.innerHTML = '<div class="empty-panel">Loading…</div>';
 
-    const [{ data: invites }, { data: mentions }, { data: collabs }] = await Promise.all([
+    const [{ data: invites }, { data: allMentions }, { data: collabs }] = await Promise.all([
       supabaseClient.from('squad_invites').select('*')
         .eq('to_handle', _myHandle).eq('status', 'pending')
         .order('created_at', { ascending: false }),
@@ -674,11 +674,18 @@
         .order('created_at', { ascending: false })
     ]);
 
-    const hasInvites  = invites  && invites.length;
-    const hasMentions = mentions && mentions.length;
-    const hasCollabs  = collabs  && collabs.length;
+    // "made changes to a comic" notifications ride on the mentions table (same
+    // to_handle/is_read plumbing) but get their own themed section below rather
+    // than living under "Mentions" — they're not a mention.
+    const collabEdits = (allMentions || []).filter(m => m.type === 'collab_edit');
+    const mentions    = (allMentions || []).filter(m => m.type !== 'collab_edit');
 
-    if (!hasInvites && !hasMentions && !hasCollabs) {
+    const hasInvites    = invites    && invites.length;
+    const hasMentions   = mentions   && mentions.length;
+    const hasCollabs    = collabs    && collabs.length;
+    const hasCollabEdits = collabEdits && collabEdits.length;
+
+    if (!hasInvites && !hasMentions && !hasCollabs && !hasCollabEdits) {
       body.innerHTML = '<div class="empty-panel">Your mailbox is empty.. <span style="display:inline-block; transform:rotate(90deg);">:(</span></div>';
       return;
     }
@@ -712,6 +719,28 @@
       });
     }
 
+    // ── Comic Updates (a co-creator made changes) ──
+    if (hasCollabEdits) {
+      const hdr = document.createElement('div');
+      hdr.className = 'panel-section-hdr';
+      hdr.innerHTML = '<i class="fi fi-rs-pencil"></i> Comic Updates';
+      body.appendChild(hdr);
+
+      collabEdits.forEach(m => {
+        const time = new Date(m.created_at).toLocaleDateString();
+        const item = document.createElement('div');
+        item.className = 'inbox-item';
+        item.innerHTML = `
+          <div class="inbox-item-icon"><i class="fi fi-rs-pencil"></i></div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">@${escHtml(m.from_handle)} made changes to "${escHtml(m.message_text || 'Untitled Comic')}"</div>
+            <span class="inbox-read-toggle" onclick="openCollabEditFromInbox('${m.comic_id}', ${m.is_draft === false ? 'false' : 'true'})">See changes</span>
+            <div class="inbox-item-time">${time}</div>
+          </div>`;
+        body.appendChild(item);
+      });
+    }
+
     // ── Mentions ──
     if (hasMentions) {
       const hdr = document.createElement('div');
@@ -720,8 +749,10 @@
       body.appendChild(hdr);
 
       // Mark all as read
-      supabaseClient.from('mentions').update({ is_read: true })
-        .eq('to_handle', _myHandle).eq('is_read', false).then(() => checkInboxCount());
+      if (allMentions && allMentions.length) {
+        supabaseClient.from('mentions').update({ is_read: true })
+          .eq('to_handle', _myHandle).eq('is_read', false).then(() => checkInboxCount());
+      }
 
       mentions.forEach(m => {
         const time = new Date(m.created_at).toLocaleDateString();
@@ -806,7 +837,24 @@
   async function respondCollabFromInbox(inviteId, comicId, response, btn) {
     btn.disabled = true;
     const row = btn.closest('.inbox-item');
-    await supabaseClient.from('comic_collaborators').update({ status: response }).eq('id', inviteId);
+    // .select() forces Supabase to return the rows it actually changed. Without
+    // it, a blocked RLS policy fails SILENTLY — error is null and 0 rows update,
+    // so the invite just sits there as "pending" forever and keeps re-asking.
+    const { data: updated, error } = await supabaseClient
+      .from('comic_collaborators')
+      .update({ status: response })
+      .eq('id', inviteId)
+      .select('id');
+    if (error) {
+      btn.disabled = false;
+      alert('Could not update invite: ' + error.message);
+      return;
+    }
+    if (!updated || !updated.length) {
+      btn.disabled = false;
+      alert("That didn't go through — you may not have permission to respond to this invite (try reloading the page). If this keeps happening, the comic_collaborators UPDATE policy likely needs to allow the invitee to change their own row.");
+      return;
+    }
     if (response === 'accepted') {
       localStorage.setItem('edit_comic_id', comicId);
       closeInboxPanel();
@@ -957,6 +1005,12 @@
     const isOpen = bodyEl.style.display === 'block';
     bodyEl.style.display = isOpen ? 'none' : 'block';
     el.textContent = isOpen ? 'Read Comment' : 'Hide Comment';
+  }
+
+  function openCollabEditFromInbox(comicId, isDraft) {
+    localStorage.setItem(isDraft ? 'edit_draft_id' : 'edit_comic_id', comicId);
+    closeInboxPanel();
+    location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
   }
 
   function escHtml(str) {

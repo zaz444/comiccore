@@ -2243,6 +2243,11 @@ let draftRowExists = false; // true once a 'drafts' row is known to exist for ac
 let _draftLoadPending = false;
 let myHandle = null; // BUGFIX: was referenced in saveOffline() but never declared at this scope
 let editingComicId = null;
+// The other co-owner handles of the draft/comic currently open, if it's a
+// collab — populated when a collab draft/comic is loaded, used purely so
+// saveOffline()/finalPublish() know who to send a "made changes" inbox
+// notification to. Not a permissions source of truth (RLS/owner_handles is).
+let _collabOwnerHandles = [];
 // Tracks the out-of-line frame-data blob path (comics.storage_path) for the
 // comic currently loaded into the editor, if any — lets a republish clean up
 // the old blob once it's superseded (edited down under the inline limit, or
@@ -7647,6 +7652,7 @@ async function saveOffline(silent = false) {
         const dot2 = document.getElementById('unsaved-dot');
         if (dot2) dot2.style.display = 'none';
         if (!silent) showMobSaveBadge('✓ Saved', false);
+        notifyCollabEdit(activeDraftId, true, document.getElementById('pub-title')?.value || row.title);
     } catch(e) {
         console.warn('Draft save failed:', e);
         // The cloud write didn't land, but localBackupSave() above already ran, so this
@@ -7784,6 +7790,34 @@ async function openCollabPanel() {
 // should currently attach to — a draft while unpublished, the comic id once live.
 function _collabTargetId() { return editingComicId || activeDraftId; }
 function _collabTargetIsDraft() { return !editingComicId; }
+
+// Tells a co-creator's Inbox "X made changes to <title>" after a save, instead
+// of them only finding out by reopening the draft/comic. Debounced: if they
+// already have an unread notification for this comic from you, this just bumps
+// its timestamp instead of piling up a fresh row every autosave.
+async function notifyCollabEdit(comicId, isDraft, comicTitle) {
+    const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+    const others = (_collabOwnerHandles || []).filter(h => h && h !== handle);
+    if (!others.length || !comicId) return;
+    for (const h of others) {
+        try {
+            const { data: existing } = await _supabase.from('mentions')
+                .select('id')
+                .eq('to_handle', h).eq('from_handle', handle)
+                .eq('comic_id', String(comicId)).eq('type', 'collab_edit').eq('is_read', false)
+                .maybeSingle();
+            if (existing) {
+                await _supabase.from('mentions').update({ created_at: new Date().toISOString() }).eq('id', existing.id);
+            } else {
+                await _supabase.from('mentions').insert([{
+                    to_handle: h, from_handle: handle, type: 'collab_edit',
+                    comic_id: String(comicId), is_draft: isDraft,
+                    message_text: comicTitle || 'Untitled Comic', is_read: false
+                }]);
+            }
+        } catch(e) { console.warn('notifyCollabEdit failed for', h, e); }
+    }
+}
 
 function closeCollabPanel() {
     document.getElementById('collab-panel').style.display = 'none';
@@ -8075,6 +8109,7 @@ async function finalPublish() {
             // silently reassign ownership of the comic to themselves.
             ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
             publishedId = editingComicId;
+            if (!error) notifyCollabEdit(editingComicId, false, title);
         } else {
             // If this comic was being co-created as a draft, carry its collaborators
             // over instead of quietly dropping back to solo ownership on publish.
@@ -8788,6 +8823,7 @@ window.onload = async function() {
             // Access check: comics have no single "owner" once a collab is accepted —
             // everyone in owner_handles is an equal co-owner with full edit rights.
             const owners = (data.owner_handles && data.owner_handles.length) ? data.owner_handles : (data.owner_handle ? [data.owner_handle] : []);
+            _collabOwnerHandles = owners;
             if (!owners.includes(myHandle)) {
                 const { data: collab } = await _supabase.from('comic_collaborators')
                     .select('id').eq('comic_id', editComicId).eq('invitee_handle', myHandle).eq('status', 'accepted').maybeSingle();
@@ -8830,6 +8866,7 @@ window.onload = async function() {
             // no single "owner" once someone accepts; everyone in owner_handles (or an
             // accepted comic_collaborators row) has full edit rights.
             const owners = (data.owner_handles && data.owner_handles.length) ? data.owner_handles : (data.owner_handle ? [data.owner_handle] : []);
+            _collabOwnerHandles = owners;
             if (!owners.includes(myHandle)) {
                 const { data: collab } = await _supabase.from('comic_collaborators')
                     .select('id').eq('comic_id', editDraftId).eq('is_draft', true).eq('invitee_handle', myHandle).eq('status', 'accepted').maybeSingle();
@@ -8884,17 +8921,18 @@ window.onload = async function() {
                 frames = parsedFrames;
                 // BUGFIX: .single() returns a PostgrestBuilder (thenable-only) — .catch() chained
                 // directly on it throws "catch is not a function" instead of falling back.
-                const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio, title').eq('id', resumeId).single()).catch(() => ({ data: null }));
+                const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
                 const r = row?.canvas_ratio || { w:1, h:1 };
                 setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
                 document.getElementById('pub-title').value = row?.title || '';
+                _collabOwnerHandles = row?.owner_handles || [];
                 applyPendingBg(pendingBg, pendingBgId);
                 loaded = true;
             } catch(e) { console.error('Bucket draft load failed:', e); }
         } else {
             // BUGFIX: same PostgrestBuilder .catch() issue — wrap in Promise.resolve() first
             const { data: sbDraft } = await Promise.resolve(_supabase.from('drafts')
-                .select('data, storage_path, canvas_ratio, title').eq('id', resumeId).single()).catch(() => ({ data: null }));
+                .select('data, storage_path, canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
             if (sbDraft) {
                 let draftFrames = sbDraft.data;
                 if (!draftFrames && sbDraft.storage_path) {
@@ -8908,6 +8946,7 @@ window.onload = async function() {
                     const r = sbDraft.canvas_ratio || { w:1, h:1 };
                     setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
                     document.getElementById('pub-title').value = sbDraft.title || '';
+                    _collabOwnerHandles = sbDraft.owner_handles || [];
                     applyPendingBg(pendingBg, pendingBgId);
                     loaded = true;
                 }

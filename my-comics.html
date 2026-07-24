@@ -690,7 +690,16 @@ function renderInviteCard(inv) {
 }
 
 async function acceptCollabInvite(inviteId, comicId, isDraft) {
-  await _sb.from('comic_collaborators').update({ status: 'accepted' }).eq('id', inviteId);
+  // .select() surfaces which rows actually changed. A blocked RLS policy on
+  // this UPDATE returns error:null + 0 rows — no exception — so without this
+  // check the invite silently stays "pending" and keeps re-asking to accept.
+  const { data: updated, error } = await _sb.from('comic_collaborators')
+    .update({ status: 'accepted' }).eq('id', inviteId).select('id');
+  if (error || !updated || !updated.length) {
+    alert(error ? ('Could not accept invite: ' + error.message)
+      : "That didn't go through — you may not have permission to accept this invite. Try reloading the page.");
+    return;
+  }
   const inv = collabInvites.find(i => i.id === inviteId);
   if (inv) inv.status = 'accepted';
   if (isDraft) {
@@ -729,7 +738,13 @@ async function grantDraftCoOwnership(draftId, handle) {
 }
 
 async function declineCollabInvite(inviteId) {
-  await _sb.from('comic_collaborators').update({ status: 'declined' }).eq('id', inviteId);
+  const { data: updated, error } = await _sb.from('comic_collaborators')
+    .update({ status: 'declined' }).eq('id', inviteId).select('id');
+  if (error || !updated || !updated.length) {
+    alert(error ? ('Could not decline invite: ' + error.message)
+      : "That didn't go through — you may not have permission to decline this invite. Try reloading the page.");
+    return;
+  }
   const inv = collabInvites.find(i => i.id === inviteId);
   if (inv) inv.status = 'declined';
   renderCollab();
