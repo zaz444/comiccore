@@ -178,6 +178,26 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 
 /* ── Toast ── */
 .toast-el{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:14px;font-weight:900;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;transition:opacity .4s;}
+
+/* ── Draft select mode ── */
+.select-dot-draft{position:absolute;top:8px;left:8px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.55);border:2px solid var(--text-dim);display:none;align-items:center;justify-content:center;color:transparent;font-size:12px;z-index:2;}
+.comic-card.select-mode .select-dot-draft{display:flex;}
+.comic-card.selected .select-dot-draft{background:var(--teal);border-color:var(--teal);color:#000;}
+.comic-card.select-mode{cursor:default;}
+.comic-card.selected{border-color:var(--teal);background:rgba(0,201,177,0.08);}
+
+/* ── Draft select bar (bottom) ── */
+.draft-select-bar{position:fixed;left:0;right:0;bottom:-100px;z-index:300;background:#161618;border-top:1px solid var(--border);padding:12px 14px;display:flex;align-items:center;gap:10px;transition:bottom .25s ease;max-width:100%;}
+.draft-select-bar.open{bottom:0;}
+.draft-select-bar .dsel-count{font-size:12px;font-weight:800;color:var(--text-muted);flex-shrink:0;}
+.draft-select-bar .dsel-spacer{flex:1;}
+.dsel-btn{display:flex;align-items:center;gap:6px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;}
+.dsel-btn.danger{color:var(--danger);border-color:rgba(255,59,48,0.35);background:rgba(255,59,48,0.08);}
+
+/* ── Select toggle btn in topbar ── */
+.select-toggle-btn{height:36px;padding:0 14px;background:var(--card2);border:1px solid var(--border);color:var(--text-muted);border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;display:none;}
+.select-toggle-btn.visible{display:block;}
+.select-toggle-btn.active{background:var(--orange);color:#000;border-color:var(--orange);}
 </style>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#ff7a00">
@@ -203,6 +223,7 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
     <div class="topbar-title">My Comics</div>
     <div class="topbar-sub" id="topbar-sub">Loading…</div>
   </div>
+  <button class="select-toggle-btn" id="select-toggle-btn" onclick="toggleDraftSelectMode()">Select</button>
   <button class="new-btn" onclick="openNewSheet()">+ New</button>
 </div>
 
@@ -254,6 +275,14 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 </div>
 
 <!-- Bottom Nav -->
+
+<!-- ── Draft Select Bar ── -->
+<div class="draft-select-bar" id="draft-select-bar">
+  <div class="dsel-count" id="draft-select-count">0 selected</div>
+  <div class="dsel-spacer"></div>
+  <button class="dsel-btn" onclick="selectAllDrafts()">Select All</button>
+  <button class="dsel-btn danger" onclick="bulkDeleteDrafts()">🗑 Delete</button>
+</div>
 
 <!-- ── Detail Popup (same structure as discover.html) ── -->
 <div class="popup-overlay" id="popup-overlay" onclick="if(event.target===this)closePopup()">
@@ -380,6 +409,10 @@ let renameTargetId = null;
 let selectedRatio = { w: 9, h: 13 };
 let startFromCollabTab = false;
 
+// Draft select mode
+let draftSelectMode = false;
+let selectedDraftIds = new Set();
+
 // "Co" badge — same rounded-square style as Discover's orange "E" episode badge,
 // used everywhere Collab shows up instead of an emoji.
 const CO_BADGE_XS = '<svg width="12" height="12" viewBox="0 0 26 26" style="display:inline-block;vertical-align:-2px;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg>';
@@ -401,6 +434,9 @@ window.onload = async () => {
   const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
   myHandle = profile.handle || null;
   myName = profile.name || 'Creator';
+
+  // Default tab is drafts — show Select button
+  document.getElementById('select-toggle-btn').classList.add('visible');
 
   await loadDrafts();
   await loadPublished();
@@ -513,6 +549,9 @@ function renderStats() {
 
 // ── Tab switching ─────────────────────────────────────────
 function switchTab(tab) {
+  // Exit select mode when leaving drafts tab
+  if (draftSelectMode && tab !== 'drafts') exitDraftSelectMode();
+
   currentTab = tab;
   document.getElementById('tab-drafts').classList.toggle('active', tab==='drafts');
   document.getElementById('tab-published').classList.toggle('active', tab==='published');
@@ -523,6 +562,11 @@ function switchTab(tab) {
   document.getElementById('pub-stats').style.display = (tab==='published'&&published.length) ? 'flex' : 'none';
   document.getElementById('list-container').style.display = tab === 'collab' ? 'none' : '';
   document.getElementById('collab-container').style.display = tab === 'collab' ? '' : 'none';
+
+  // Show Select button only on drafts tab
+  const selBtn = document.getElementById('select-toggle-btn');
+  selBtn.classList.toggle('visible', tab === 'drafts');
+
   if (tab === 'drafts') renderDrafts();
   else if (tab === 'published') renderPublished();
   else renderCollab();
@@ -730,7 +774,10 @@ function renderDrafts() {
 
 function makeDraftRow(d) {
   const card = document.createElement('div');
-  card.className = 'comic-card';
+  const isSelected = selectedDraftIds.has(String(d.id));
+  card.className = 'comic-card'
+    + (draftSelectMode ? ' select-mode' : '')
+    + (isSelected ? ' selected' : '');
   card.dataset.id = d.id;
   card.dataset.type = 'draft';
   const pages = d.data?.length || 0;
@@ -743,6 +790,7 @@ function makeDraftRow(d) {
       <div style="width:100%;height:100%;position:relative;">
         ${thumbInner}
         <div class="cover-status-pill cover-status-draft">Draft</div>
+        <div class="select-dot-draft">✓</div>
       </div>
     </div>
     <div class="comic-card-info">
@@ -751,7 +799,13 @@ function makeDraftRow(d) {
       <div class="comic-card-sub">${pages} page${pages!==1?'s':''} · ${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}${isCollab ? ' · ' + CO_BADGE_XS + ' Co-created' : ''}</div>
     </div>
   `;
-  card.onclick = () => openDraftPopup(d);
+  card.onclick = () => {
+    if (draftSelectMode) {
+      toggleDraftSelect(String(d.id), card);
+    } else {
+      openDraftPopup(d);
+    }
+  };
   return card;
 }
 
@@ -976,6 +1030,75 @@ function readComic(id) {
   location.href = `reader.html?id=${id}`;
 }
 
+// ── Draft Select Mode ─────────────────────────────────────
+function toggleDraftSelectMode() {
+  if (draftSelectMode) {
+    exitDraftSelectMode();
+  } else {
+    draftSelectMode = true;
+    selectedDraftIds.clear();
+    document.getElementById('select-toggle-btn').classList.add('active');
+    renderDrafts();
+    updateDraftSelectBar();
+  }
+}
+
+function exitDraftSelectMode() {
+  draftSelectMode = false;
+  selectedDraftIds.clear();
+  document.getElementById('select-toggle-btn').classList.remove('active');
+  document.getElementById('draft-select-bar').classList.remove('open');
+  renderDrafts();
+}
+
+function toggleDraftSelect(id, cardEl) {
+  if (selectedDraftIds.has(id)) selectedDraftIds.delete(id);
+  else selectedDraftIds.add(id);
+  cardEl.classList.toggle('selected', selectedDraftIds.has(id));
+  updateDraftSelectBar();
+}
+
+function updateDraftSelectBar() {
+  const bar = document.getElementById('draft-select-bar');
+  document.getElementById('draft-select-count').textContent = selectedDraftIds.size + ' selected';
+  bar.classList.toggle('open', selectedDraftIds.size > 0);
+}
+
+function selectAllDrafts() {
+  const q = document.getElementById('draft-search').value.toLowerCase();
+  const sort = document.getElementById('draft-sort').value;
+  let list = drafts.filter(d => !q || d.title?.toLowerCase().includes(q));
+  list.forEach(d => selectedDraftIds.add(String(d.id)));
+  updateDraftSelectBar();
+  renderDrafts();
+}
+
+async function bulkDeleteDrafts() {
+  if (!selectedDraftIds.size) return;
+  const count = selectedDraftIds.size;
+  if (!confirm(`Delete ${count} draft${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+
+  const ids = [...selectedDraftIds];
+  const toDelete = drafts.filter(d => ids.includes(String(d.id)));
+
+  // Delete from DB
+  const { error } = await _sb.from('drafts').delete().in('id', ids);
+  if (error) { toast('⚠ Delete failed: ' + error.message, 'var(--danger)'); return; }
+
+  // Remove any storage files
+  const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
+  if (storagePaths.length) {
+    await _sb.storage.from('comiccore-assets').remove(storagePaths).catch(() => {});
+  }
+
+  drafts = drafts.filter(d => !ids.includes(String(d.id)));
+  document.getElementById('drafts-count').innerText = drafts.length;
+  document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+  renderStats();
+  exitDraftSelectMode();
+  toast(`${count} draft${count !== 1 ? 's' : ''} deleted`);
+}
+
 // ── Delete ────────────────────────────────────────────────
 function askDelete(id, type, title) {
   pendingDeleteId = id;
@@ -996,7 +1119,8 @@ async function confirmDelete() {
   closeDelSheet();
   if (deleteType === 'draft') {
     const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
-    await _sb.from('drafts').delete().eq('id', deleteId);
+    const { error: delErr } = await _sb.from('drafts').delete().eq('id', deleteId);
+    if (delErr) { toast('⚠ Could not delete: ' + delErr.message, 'var(--danger)'); return; }
     if (draftToDelete?.storage_path) {
       await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
     }
