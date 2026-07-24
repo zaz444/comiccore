@@ -1093,13 +1093,17 @@ async function bulkDeleteDrafts() {
   const count = selectedDraftIds.size;
   if (!confirm(`Delete ${count} draft${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
 
+  // Refresh session so RLS auth.uid() check has a valid token
+  const { data: { session } } = await _sb.auth.getSession().catch(() => ({ data: { session: null } }));
+  if (!session) { toast('⚠ Not logged in — please reload and try again', 'var(--danger)'); return; }
+
   const ids = [...selectedDraftIds];
   const toDelete = drafts.filter(d => ids.includes(String(d.id)));
 
   // Delete from DB
   const { data: delData, error } = await _sb.from('drafts').delete().in('id', ids).select('id');
   if (error) { toast('⚠ Delete failed: ' + error.message, 'var(--danger)'); return; }
-  if (!delData || !delData.length) { toast('⚠ Delete blocked — you may not have permission', 'var(--danger)'); return; }
+  if (!delData || !delData.length) { toast('⚠ Delete failed — try reloading the page', 'var(--danger)'); return; }
 
   // Remove any storage files
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
@@ -1133,11 +1137,16 @@ async function confirmDelete() {
   const deleteId = pendingDeleteId;
   const deleteType = pendingDeleteType;
   closeDelSheet();
+
+  // Refresh session so RLS auth.uid() check has a valid token
+  const { data: { session } } = await _sb.auth.getSession().catch(() => ({ data: { session: null } }));
+  if (!session) { toast('⚠ Not logged in — please reload and try again', 'var(--danger)'); return; }
+
   if (deleteType === 'draft') {
     const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
     const { data: delData, error: delErr } = await _sb.from('drafts').delete().eq('id', deleteId).select('id');
     if (delErr) { toast('⚠ Could not delete: ' + delErr.message, 'var(--danger)'); return; }
-    if (!delData || !delData.length) { toast('⚠ Delete blocked — you may not have permission', 'var(--danger)'); return; }
+    if (!delData || !delData.length) { toast('⚠ Delete failed — try reloading the page', 'var(--danger)'); return; }
     if (draftToDelete?.storage_path) {
       await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
     }
