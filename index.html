@@ -669,7 +669,7 @@
         .eq('to_handle', _myHandle).eq('is_read', false)
         .order('created_at', { ascending: false }),
       supabaseClient.from('comic_collaborators')
-        .select('id,comic_id,comic_title,inviter_handle,status,created_at')
+        .select('id,comic_id,comic_title,inviter_handle,status,is_draft,created_at')
         .eq('invitee_handle', _myHandle).eq('status', 'pending')
         .order('created_at', { ascending: false })
     ]);
@@ -711,8 +711,8 @@
             <div class="inbox-item-sub">@${escHtml(inv.inviter_handle)} invited you to co-create</div>
             <div class="inbox-item-time">${time}</div>
             <div class="inbox-item-actions">
-              <button class="inbox-accept-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','accepted',this)"><i class="fi fi-rs-check"></i> Co-create</button>
-              <button class="inbox-decline-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','declined',this)">Decline</button>
+              <button class="inbox-accept-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','accepted',this,${inv.is_draft === false ? 'false' : 'true'})"><i class="fi fi-rs-check"></i> Co-create</button>
+              <button class="inbox-decline-btn" onclick="respondCollabFromInbox('${inv.id}','${inv.comic_id}','declined',this,${inv.is_draft === false ? 'false' : 'true'})">Decline</button>
             </div>
           </div>`;
         body.appendChild(item);
@@ -834,7 +834,7 @@
     checkInboxCount();
   }
 
-  async function respondCollabFromInbox(inviteId, comicId, response, btn) {
+  async function respondCollabFromInbox(inviteId, comicId, response, btn, isDraft) {
     btn.disabled = true;
     const row = btn.closest('.inbox-item');
     // .select() forces Supabase to return the rows it actually changed. Without
@@ -856,7 +856,10 @@
       return;
     }
     if (response === 'accepted') {
-      localStorage.setItem('edit_comic_id', comicId);
+      // A pending draft's comic_id points at a row in `drafts`, not `comics` —
+      // routing it through edit_comic_id sent create-mobile.html to look it up
+      // in the wrong table, which is why it showed "Could not load comic."
+      localStorage.setItem(isDraft ? 'edit_draft_id' : 'edit_comic_id', comicId);
       closeInboxPanel();
       location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
     } else {
