@@ -9,7 +9,7 @@
 //    refreshed in the background — this is what actually makes comic
 //    *artwork* viewable offline, not just metadata.
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `comiccore-${CACHE_VERSION}`;
 
 // Small "app shell" — safe, fast things to have ready before first paint.
@@ -86,7 +86,7 @@ self.addEventListener('fetch', (event) => {
 
   if (isHTML) {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
           const clone = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
