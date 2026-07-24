@@ -785,10 +785,15 @@
     const row = btn.closest('.inbox-item');
     await supabaseClient.from('squad_invites').update({ status }).eq('id', inviteId);
     if (status === 'accepted') {
-      // Add them to squad_members
+      // Grant membership via team_requests (the table squads.html actually reads)
       const { data: inv } = await supabaseClient.from('squad_invites').select('squad_id').eq('id', inviteId).maybeSingle();
       if (inv?.squad_id) {
-        await supabaseClient.from('squad_members').upsert([{ squad_id: inv.squad_id, handle: _myHandle }]);
+        const { data: existing } = await supabaseClient.from('team_requests').select('id').eq('ticket_id', inv.squad_id).eq('sender_handle', _myHandle).maybeSingle();
+        if (existing) {
+          await supabaseClient.from('team_requests').update({ status: 'accepted' }).eq('id', existing.id);
+        } else {
+          await supabaseClient.from('team_requests').insert([{ ticket_id: inv.squad_id, sender_handle: _myHandle, status: 'accepted' }]);
+        }
       }
       row.innerHTML = `<div class="inbox-item-icon"><i class="fi fi-rs-check"></i></div><div class="inbox-item-body"><div class="inbox-item-title">Joined!</div><div class="inbox-item-sub">Squad invite accepted</div></div>`;
     } else {

@@ -881,7 +881,7 @@
         .report-submit-btn { width: 100%; padding: 13px; border: none; border-radius: 12px; background: var(--accent); color: #000; font-size: 14px; font-weight: 900; cursor: pointer; font-family: 'Inter', sans-serif; margin-bottom: 8px; }
         .report-submit-btn:disabled { opacity: .45; cursor: not-allowed; }
 
-        .invite-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 5000; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(10px); }
+        .invite-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 5000; display: none; align-items: flex-end; justify-content: center; }
         .invite-overlay.open { display: flex; }
         .invite-sheet { background: #0f0f14; border: 1px solid var(--glass-b); border-radius: 24px 24px 0 0; width: 100%; max-width: 500px; padding: 24px 20px calc(28px + env(safe-area-inset-bottom)); max-height: 70vh; overflow-y: auto; animation: slideUp .25s cubic-bezier(.4,0,.2,1); }
         .squad-invite-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -2039,14 +2039,21 @@
 
         async function loadMySquadsForInvite(targetHandle) {
             const list = document.getElementById('invite-squads-list');
-            const { data: memberships } = await _supabase.from('squad_members').select('squad_id').eq('handle', myProfile.handle);
-            const { data: ownedSquads } = await _supabase.from('squads').select('id, name, member_count').eq('owner_handle', myProfile.handle);
-            const memberSquadIds = (memberships || []).map(m => m.squad_id);
-            let allSquads = ownedSquads || [];
-            if (memberSquadIds.length) { const { data: memberSquads } = await _supabase.from('squads').select('id, name, member_count').in('id', memberSquadIds); allSquads = [...allSquads, ...(memberSquads || [])]; }
+            const [{ data: owned }, { data: myReqs }, { data: allAccepted }] = await Promise.all([
+                _supabase.from('team_tickets').select('id, team_name').eq('owner_handle', myProfile.handle),
+                _supabase.from('team_requests').select('ticket_id').eq('sender_handle', myProfile.handle).eq('status', 'accepted'),
+                _supabase.from('team_requests').select('ticket_id').eq('status', 'accepted')
+            ]);
+            const joinedIds = (myReqs || []).map(r => String(r.ticket_id));
+            let allSquads = owned || [];
+            if (joinedIds.length) { const { data: joined } = await _supabase.from('team_tickets').select('id, team_name').in('id', joinedIds); allSquads = [...allSquads, ...(joined || [])]; }
             const seen = new Set(); allSquads = allSquads.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
             if (!allSquads.length) { list.innerHTML = '<div style="text-align:center;color:#555;padding:20px;">You\'re not in any squads yet.</div>'; return; }
-            list.innerHTML = allSquads.map(s => `<div class="squad-invite-item"><div><div class="squad-invite-name">${s.name}</div><div class="squad-invite-sub">${s.member_count || '?'} members</div></div><button class="squad-invite-btn" id="inv-btn-${s.id}" onclick="sendSquadInvite('${s.id}','${s.name}','${targetHandle}')">Invite</button></div>`).join('');
+            list.innerHTML = allSquads.map(s => {
+                const memberCount = (allAccepted || []).filter(r => String(r.ticket_id) === String(s.id)).length + 1;
+                const safeName = String(s.team_name || 'Squad').replace(/'/g, "\\'");
+                return `<div class="squad-invite-item"><div><div class="squad-invite-name">${s.team_name}</div><div class="squad-invite-sub">${memberCount} member${memberCount === 1 ? '' : 's'}</div></div><button class="squad-invite-btn" id="inv-btn-${s.id}" onclick="sendSquadInvite('${s.id}','${safeName}','${targetHandle}')">Invite</button></div>`;
+            }).join('');
         }
 
         async function sendSquadInvite(squadId, squadName, targetHandle) {
