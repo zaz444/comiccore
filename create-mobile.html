@@ -7861,6 +7861,12 @@ async function _sendCollabInvite(inviteeHandle, squadId, btn) {
 
     if (error) {
         btn.disabled = false; btn.textContent = '+ Invite';
+        // DEBUG: log the raw Supabase/Postgres error — code/details/hint pinpoint
+        // exactly which RLS policy (or missing GRANT) rejected the insert, which
+        // the generic alert below deliberately hides from the end user.
+        console.error('comic_collaborators insert failed:', {
+            code: error.code, message: error.message, details: error.details, hint: error.hint
+        });
         // Surface a clearer message for the two most common RLS failure modes
         const msg = error.message || '';
         if (msg.includes('row-level security') || error.code === '42501') {
