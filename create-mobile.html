@@ -2318,19 +2318,71 @@ function computeCanvasSize(w, h) {
     else { ch = vpH; cw = Math.round(vpH * w / h); }
     return { cw, ch };
 }
-function setRatio(w, h) {
-    canvasRatio = { w, h };
-    lsSet('cc-active-ratio', JSON.stringify({ w, h }));
-    const { cw, ch } = computeCanvasSize(w, h);
-    canvas.style.width = cw + 'px';
-    canvas.style.height = ch + 'px';
-    onionCanvas.width = cw; onionCanvas.height = ch;
-    render();
-}
 // Ratio to use for a given frame — falls back to the live canvasRatio for
 // frames created before per-frame ratio existed, so old drafts keep working.
 function getFrameRatio(f) {
     return (f && f.ratio && f.ratio.w && f.ratio.h) ? f.ratio : canvasRatio;
+}
+
+// ── KEEP LAYERS IN SYNC WITH THE CANVAS'S ACTUAL PIXEL SIZE ──
+// Every layer's x/y/w/h is stored in absolute canvas-pixel units, valid only
+// for whatever pixel size computeCanvasSize() returned at the moment it was
+// placed. That size isn't constant per ratio — it's fit to the *current*
+// viewport, which on mobile changes constantly (keyboard open/close while
+// editing bubble text, Android gesture bar show/hide, rotation). setRatio()
+// used to be called on every one of those viewport wobbles (see the
+// visualViewport 'resize' listener below) purely to keep the canvas visually
+// fitted — but it only ever resized the canvas element itself, never the
+// layers sitting inside it, so every sprite/bubble silently drifted out of
+// place relative to where it was actually dropped. That drift then got baked
+// in permanently the moment the comic was saved/published, since
+// getStampedFrames() stamps _editorW/_editorH from whatever the viewport
+// happens to be at that exact instant — this is the "sprites end up
+// misplaced after publishing" bug.
+// Fix: remember the last on-screen pixel size computed for each ratio, and
+// whenever it's asked for again but the viewport has produced a different
+// size, proportionally rescale every layer on every frame of that ratio so
+// they stay exactly where they visually were.
+let _lastCanvasSizeByRatio = {};
+function _ratioKey(w, h) { return w + ':' + h; }
+// Prefers this session's own last-known size for the ratio; falls back to a
+// frame's persisted _editorW/_editorH stamp (e.g. a draft just reopened on a
+// different-sized screen/browser-chrome state) so even the first activation
+// of that ratio this session can catch layers up to the current viewport.
+function _knownCanvasSizeForRatio(w, h) {
+    const cached = _lastCanvasSizeByRatio[_ratioKey(w, h)];
+    if (cached) return cached;
+    const stamped = frames.find(f => {
+        const fr = getFrameRatio(f);
+        return fr.w === w && fr.h === h && f._editorW && f._editorH;
+    });
+    return stamped ? { cw: stamped._editorW, ch: stamped._editorH } : null;
+}
+function setRatio(w, h) {
+    canvasRatio = { w, h };
+    lsSet('cc-active-ratio', JSON.stringify({ w, h }));
+    const { cw, ch } = computeCanvasSize(w, h);
+
+    const prev = _knownCanvasSizeForRatio(w, h);
+    if (prev && prev.cw > 0 && prev.ch > 0 && (Math.abs(prev.cw - cw) > 0.5 || Math.abs(prev.ch - ch) > 0.5)) {
+        const scale = cw / prev.cw; // aspect is always preserved, so this equals ch/prev.ch too
+        frames.forEach(f => {
+            const fr = getFrameRatio(f);
+            if (fr.w !== w || fr.h !== h) return;
+            (f.layers || []).forEach(l => {
+                if (l.x != null) l.x *= scale;
+                if (l.y != null) l.y *= scale;
+                if (l.w != null) l.w *= scale;
+                if (l.h != null) l.h *= scale;
+            });
+        });
+    }
+    _lastCanvasSizeByRatio[_ratioKey(w, h)] = { cw, ch };
+
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    onionCanvas.width = cw; onionCanvas.height = ch;
+    render();
 }
 // Switches currentIdx to frame i AND resizes the canvas to that frame's own
 // ratio (if it has one) before rendering — this is what makes mid-comic
@@ -2401,8 +2453,12 @@ function pickFrameRatio(w, h) {
 }
 function commitFrameRatioChange(idx, w, h) {
     saveState();
-    frames[idx].ratio = { w, h };
+    // Resize first, while frames[idx] still reports its OLD ratio — this
+    // frame's layers belong to the old coordinate space, not the new one, so
+    // setRatio's same-ratio rescale (for viewport-driven refits) must not
+    // treat them as already-placed content of ratio (w,h).
     if (idx === currentIdx) setRatio(w, h);
+    frames[idx].ratio = { w, h };
     hasUnsavedChanges = true;
     const dot = document.getElementById('unsaved-dot');
     if (dot) dot.style.display = 'block';
