@@ -29,12 +29,12 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
 html,body{height:100%;overscroll-behavior:none;}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column;position:relative;overflow-x:hidden;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;position:relative;overflow-x:hidden;}
 body::before{content:'';position:fixed;top:-100px;left:-80px;width:480px;height:480px;background:radial-gradient(circle,rgba(255,122,0,0.09) 0%,transparent 70%);pointer-events:none;z-index:0;}
 body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;height:380px;background:radial-gradient(circle,rgba(0,201,177,0.06) 0%,transparent 70%);pointer-events:none;z-index:0;}
 
 /* ── Top bar ── */
-.topbar{position:sticky;top:0;z-index:100;height:56px;background:rgba(15,15,17,0.88);display:flex;align-items:center;padding:0 16px;gap:10px;backdrop-filter:blur(20px);}
+.topbar{height:56px;background:rgba(15,15,17,0.95);display:flex;align-items:center;padding:0 16px;gap:10px;}
 .back-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0;text-decoration:none;transition:.15s;}
 .back-btn:hover{background:#303038;color:var(--text);}
 .topbar-center{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0;}
@@ -44,8 +44,8 @@ body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;heigh
 .new-btn:hover{background:var(--orange-light);}
 
 /* ── Tabs ── */
-.sticky-header{position:sticky;top:0;z-index:100;background:rgba(15,15,17,0.88);backdrop-filter:blur(20px);}
-.tabs{display:flex;border-bottom:1px solid var(--border);background:transparent;}
+.sticky-header{position:sticky;top:0;z-index:100;background:rgba(15,15,17,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.tabs{display:flex;}
 .tab{flex:1;padding:14px 8px;text-align:center;font-size:11px;font-weight:900;letter-spacing:.8px;color:var(--text-dim);cursor:pointer;border:none;background:none;text-transform:uppercase;border-bottom:2.5px solid transparent;transition:.12s;font-family:'Inter',sans-serif;}
 .tab:hover{color:var(--text-muted);}
 .tab.active{color:var(--orange);border-bottom-color:var(--orange);}
@@ -1096,9 +1096,12 @@ async function bulkDeleteDrafts() {
   const count = selectedDraftIds.size;
   if (!confirm(`Delete ${count} draft${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
 
-  // Refresh session so RLS auth.uid() check has a valid token
-  const { data: { session } } = await _sb.auth.getSession().catch(() => ({ data: { session: null } }));
-  if (!session) { toast('⚠ Not logged in — please reload and try again', 'var(--danger)'); return; }
+  // Force token refresh before RLS-gated delete
+  const { data: refreshData } = await _sb.auth.refreshSession().catch(() => ({ data: {} }));
+  if (!refreshData?.session) {
+    toast('⚠ Session expired — please reload the page and try again', 'var(--danger)');
+    return;
+  }
 
   const ids = [...selectedDraftIds];
   const toDelete = drafts.filter(d => ids.includes(String(d.id)));
@@ -1106,7 +1109,7 @@ async function bulkDeleteDrafts() {
   // Delete from DB
   const { data: delData, error } = await _sb.from('drafts').delete().in('id', ids).select('id');
   if (error) { toast('⚠ Delete failed: ' + error.message, 'var(--danger)'); return; }
-  if (!delData || !delData.length) { toast('⚠ Delete failed — try reloading the page', 'var(--danger)'); return; }
+  if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
 
   // Remove any storage files
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
@@ -1141,15 +1144,19 @@ async function confirmDelete() {
   const deleteType = pendingDeleteType;
   closeDelSheet();
 
-  // Refresh session so RLS auth.uid() check has a valid token
-  const { data: { session } } = await _sb.auth.getSession().catch(() => ({ data: { session: null } }));
-  if (!session) { toast('⚠ Not logged in — please reload and try again', 'var(--danger)'); return; }
+  // Force a token refresh so RLS auth.uid() has a valid JWT — getSession() alone
+  // can return a stale/expired token without triggering autoRefresh in time.
+  const { data: refreshData } = await _sb.auth.refreshSession().catch(() => ({ data: {} }));
+  if (!refreshData?.session) {
+    toast('⚠ Session expired — please reload the page and try again', 'var(--danger)');
+    return;
+  }
 
   if (deleteType === 'draft') {
     const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
     const { data: delData, error: delErr } = await _sb.from('drafts').delete().eq('id', deleteId).select('id');
     if (delErr) { toast('⚠ Could not delete: ' + delErr.message, 'var(--danger)'); return; }
-    if (!delData || !delData.length) { toast('⚠ Delete failed — try reloading the page', 'var(--danger)'); return; }
+    if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
     if (draftToDelete?.storage_path) {
       await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
     }
