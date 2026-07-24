@@ -242,25 +242,6 @@
             padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
         }
 
-        .chat-reaction-picker {
-            position: absolute; bottom: 100%; left: 0; right: 0;
-            background: var(--bg-elevated); backdrop-filter: blur(20px);
-            border-top: 1px solid var(--border);
-            display: none; flex-direction: column; max-height: 250px; z-index: 20;
-        }
-        .chat-reaction-picker.open { display: flex; }
-        .chat-reaction-label { font-size: 9px; font-weight: 900; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; padding: 10px 14px 6px; }
-        .chat-reaction-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; padding: 0 12px 12px; overflow-y: auto; }
-        .chat-reaction-img-btn { aspect-ratio: 1; background: var(--card); border-radius: 10px; overflow: hidden; border: 1.5px solid transparent; cursor: pointer; transition: .14s; padding: 0; }
-        .chat-reaction-img-btn:hover { border-color: var(--accent); }
-        .chat-reaction-img-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-        .reaction-preview { display: none; align-items: center; gap: 8px; padding: 0 2px 8px; }
-        .reaction-preview.show { display: flex; }
-        .reaction-preview img { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; }
-        .reaction-preview-label { font-size: 11px; font-weight: 700; color: var(--text-muted); flex: 1; }
-        .reaction-preview-cancel { background: none; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; padding: 0; }
-
         .input-row { display: flex; align-items: flex-end; gap: 8px; }
 
         .input-icon-btn {
@@ -585,24 +566,12 @@
     <div id="chatContainer"></div>
 
     <div class="input-wrap">
-        <div class="chat-reaction-picker" id="chatReactionPicker">
-            <div class="chat-reaction-label">Reactions</div>
-            <div class="chat-reaction-grid" id="chatReactionGrid"></div>
-        </div>
-        <div class="reaction-preview" id="reactionPreview">
-            <img id="reactionPreviewImg" src="" alt="">
-            <span class="reaction-preview-label">Reaction ready — send or cancel</span>
-            <button class="reaction-preview-cancel" onclick="cancelReaction()">✕</button>
-        </div>
         <div class="input-row">
             <div class="input-icon-btn" onclick="document.getElementById('imgUploadInput').click()" title="Send image">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             </div>
             <input type="file" id="imgUploadInput" hidden accept="image/*" onchange="handleImageUpload(this)">
             <textarea class="msg-input" id="msgInput" placeholder="Message the squad…" autocomplete="off" rows="1" oninput="autoResize(this);handleTyping()"></textarea>
-            <div class="input-icon-btn" id="chatReactionBtn" onclick="toggleChatReactionPicker()" title="Reaction images">
-                <i class="fi fi-rs-smile"></i>
-            </div>
             <button class="send-btn" onclick="sendMessage()">
                 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
@@ -792,19 +761,6 @@
     const ROLE_COLORS = { owner: '#ff7a00', mod: '#32d74b', member: '#8e8ea0' };
     const ROLE_LABELS = { owner: 'Owner', mod: 'Mod', member: 'Member' };
 
-    const BASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/reactions/';
-    const ALL_REACTIONS = [
-        { name: 'nuke the whole generation', src: BASE_URL + 'IMG_1823.webp' },
-        { name: 'who is this',               src: BASE_URL + 'IMG_1824.webp' },
-        { name: 'sipping lex luthor',        src: BASE_URL + 'IMG_1825.webp' },
-        { name: 'read',                      src: BASE_URL + 'IMG_1826.webp' },
-        { name: 'sobbing man',               src: BASE_URL + 'IMG_1827.webp' },
-        { name: 'thinking',                  src: BASE_URL + 'IMG_1829.webp' },
-        { name: 'gem found',                 src: BASE_URL + 'IMG_1831.webp' },
-        { name: 'flight interested',         src: BASE_URL + 'IMG_1832.webp' },
-        { name: 'spongebob phone',           src: BASE_URL + 'IMG_1833.webp' },
-    ];
-
     // Universal image URL formatter to prevent Frankenstein URLs
     function formatImageUrl(pic) {
         if (!pic) return 'https://via.placeholder.com/62x62?text=Avatar';
@@ -821,7 +777,6 @@
         return formatImageUrl(pic);
     }
 
-    let pendingReactionSrc = null;
     let isSquadOwner       = false;
     let squadData          = null;
     let memberList         = [];
@@ -1112,6 +1067,7 @@
                 }
                 await appendMessage(m, false, anchor);
             }
+            if (msgs.length) lastSeenMsgId = msgs[msgs.length - 1].id;
             if (initial) container.scrollTop = container.scrollHeight;
         } catch (err) {
             console.error('[ComicCore] loadMessages failed:', err.message);
@@ -1261,31 +1217,27 @@
     function isImg(text) {
         if (!text) return false;
         if (text.startsWith('data:image')) return true;
-        if (text.startsWith('[IMG_REACTION]:')) return false;
         return /\.(jpeg|jpg|gif|png|webp|svg)(\?|$)/i.test(text) && (text.startsWith('http') || text.startsWith('blob:'));
     }
 
     function buildBubble(m) {
         const content = m.content || '';
-        if (content.startsWith('[IMG_REACTION]:')) {
-            const src = content.replace('[IMG_REACTION]:','').trim();
-            return `<div class="bubble bubble-img"><img src="${esc(src)}" loading="lazy" onerror="this.style.display='none'" onclick="openLightbox('${esc(src)}')"></div>`;
-        }
         if (content.startsWith('[COLLAB_INVITE]:')) {
             try {
                 const payload = JSON.parse(content.replace('[COLLAB_INVITE]:','').trim());
                 const isMine = m.sender_handle === myHandle;
+                const isDraft = !!payload.is_draft;
                 return `<div class="bubble" style="background:rgba(255,122,0,0.10);border:1.5px solid rgba(255,122,0,0.3);padding:12px 14px;min-width:200px;">
-                    <div style="font-size:11px;font-weight:900;color:var(--accent);letter-spacing:.4px;margin-bottom:6px;display:flex;align-items:center;gap:5px;"><i class="fi fi-rs-palette"></i> CO-CREATE INVITE</div>
+                    <div style="font-size:11px;font-weight:900;color:var(--accent);letter-spacing:.4px;margin-bottom:6px;display:flex;align-items:center;gap:5px;"><svg width="14" height="14" viewBox="0 0 26 26" style="display:block;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg> CO-CREATE INVITE${isDraft ? ' · DRAFT' : ''}</div>
                     <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:3px;">${esc(payload.comic_title || 'Untitled Comic')}</div>
                     <div style="font-size:11px;color:var(--text-dim);font-weight:700;margin-bottom:10px;">@${esc(payload.inviter_handle)} invited @${esc(payload.invitee_handle)} to co-create</div>
                     ${!isMine && payload.invitee_handle === myHandle && payload.invite_id ? `
                     <div style="display:flex;gap:6px;" id="collab-chat-btns-${payload.invite_id}">
-                        <button onclick="respondCollabFromChat('${payload.invite_id}','${payload.comic_id}','accepted',this)"
+                        <button onclick="respondCollabFromChat('${payload.invite_id}','${payload.comic_id}','accepted',this,${isDraft ? 'true' : 'false'})"
                             style="flex:1;background:var(--accent);border:none;color:#1a1a1a;font-size:11px;font-weight:900;border-radius:8px;padding:7px;cursor:pointer;font-family:inherit;">
                             Accept
                         </button>
-                        <button onclick="respondCollabFromChat('${payload.invite_id}','${payload.comic_id}','declined',this)"
+                        <button onclick="respondCollabFromChat('${payload.invite_id}','${payload.comic_id}','declined',this,${isDraft ? 'true' : 'false'})"
                             style="background:var(--card-2);border:1px solid var(--border);color:var(--text-muted);font-size:11px;font-weight:700;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:inherit;">
                             Decline
                         </button>
@@ -1301,7 +1253,7 @@
         return `<div class="bubble">${esc(content)}</div>`;
     }
 
-    async function respondCollabFromChat(inviteId, comicId, response, btn) {
+    async function respondCollabFromChat(inviteId, comicId, response, btn, isDraft) {
         const wrap = document.getElementById(`collab-chat-btns-${inviteId}`);
         if (wrap) { wrap.innerHTML = '<div style="font-size:11px;color:var(--text-dim);font-weight:700;">Updating…</div>'; }
         const { error } = await _sb
@@ -1313,11 +1265,27 @@
             return;
         }
         if (response === 'accepted') {
-            await grantCoOwnership(comicId, myHandle);
-            localStorage.setItem('edit_comic_id', comicId);
+            if (isDraft) {
+                await grantDraftCoOwnership(comicId, myHandle);
+                localStorage.setItem('edit_draft_id', comicId);
+            } else {
+                await grantCoOwnership(comicId, myHandle);
+                localStorage.setItem('edit_comic_id', comicId);
+            }
             location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
         } else {
             if (wrap) wrap.innerHTML = '<div style="font-size:11px;color:var(--text-dim);font-weight:700;">Declined</div>';
+        }
+    }
+
+    // Same idea as grantCoOwnership, but for a still-unpublished draft.
+    async function grantDraftCoOwnership(draftId, handle) {
+        const { data: draft } = await _sb.from('drafts').select('owner_handle, owner_handles').eq('id', draftId).maybeSingle();
+        if (!draft) return;
+        const current = (draft.owner_handles && draft.owner_handles.length) ? [...draft.owner_handles] : (draft.owner_handle ? [draft.owner_handle] : []);
+        if (!current.includes(handle)) {
+            current.push(handle);
+            await _sb.from('drafts').update({ owner_handles: current }).eq('id', draftId);
         }
     }
 
@@ -1334,16 +1302,14 @@
     }
 
     // ── Send ──────────────────────────────────────────────
-    async function sendMessage() {
-        const input = document.getElementById('msgInput');
-        const val   = input.value.trim();
-        if (!val && !pendingReactionSrc) return;
+    async function sendMessage(retryContent) {
+        const input   = document.getElementById('msgInput');
+        const content = retryContent !== undefined ? retryContent : input.value.trim();
+        if (!content) return;
 
-        let content = val;
-        if (pendingReactionSrc) content = `[IMG_REACTION]:${pendingReactionSrc}`;
-
-        input.value = ''; input.style.height = '38px'; input.focus();
-        cancelReaction(); closeChatReactionPicker();
+        if (retryContent === undefined) {
+            input.value = ''; input.style.height = '38px'; input.focus();
+        }
 
         const tempId = 'temp-' + Date.now();
         await appendMessage({ id: tempId, sender_handle: myHandle, content, created_at: new Date().toISOString() });
@@ -1363,6 +1329,7 @@
                     const rcpt = tempRow.querySelector('.read-receipt');
                     if (rcpt) { rcpt.innerText = '\u203a\u203a'; rcpt.classList.add('delivered'); }
                 }
+                lastSeenMsgId = data.id;
                 await processMentions(content, activeSquadId, squadData?.team_name || '');
             } else {
                 throw error || new Error('Unknown sendMessage error');
@@ -1370,7 +1337,12 @@
         } catch (err) {
             console.error('[ComicCore] sendMessage failed:', err);
             const tempRow = document.getElementById(`row-${tempId}`);
-            if (tempRow) { tempRow.style.opacity = '0.5'; tempRow.title = 'Failed to send'; }
+            if (tempRow) {
+                tempRow.style.opacity = '0.5';
+                tempRow.style.cursor  = 'pointer';
+                tempRow.title = 'Failed to send — tap to retry';
+                tempRow.onclick = () => { tempRow.remove(); sendMessage(content); };
+            }
         }
     }
 
@@ -1465,9 +1437,6 @@
     document.addEventListener('click', e => {
         const pop = document.getElementById('emojiPopover');
         if (pop && !pop.contains(e.target)) { pop.classList.remove('open'); activeReactMsgId = null; }
-        const picker = document.getElementById('chatReactionPicker');
-        const btn    = document.getElementById('chatReactionBtn');
-        if (picker && !picker.contains(e.target) && btn && !btn.contains(e.target)) closeChatReactionPicker();
     });
 
     // ── Image upload ──────────────────────────────────────
@@ -1526,18 +1495,74 @@
     }
 
     // ── Realtime ──────────────────────────────────────────
+    let realtimeChannel    = null;
+    let realtimeRetryTimer = null;
+    let lastSeenMsgId      = null;
+
     function setupRealtime() {
-        _sb.channel(`squad_chat_${activeSquadId}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, payload => {
+        // Tear down any existing channel first so reconnects/re-inits never
+        // stack duplicate subscriptions (which would double-fire inserts).
+        if (realtimeChannel) {
+            _sb.removeChannel(realtimeChannel);
+            realtimeChannel = null;
+        }
+        clearTimeout(realtimeRetryTimer);
+
+        realtimeChannel = _sb.channel(`squad_chat_${activeSquadId}`)
+            .on('postgres_changes', {
+                event: 'INSERT', schema: 'public', table: 'team_messages',
+                filter: `ticket_id=eq.${activeSquadId}`
+            }, payload => {
                 const m = payload.new;
-                if (String(m.ticket_id) === String(activeSquadId) && m.sender_handle !== myHandle) {
-                    appendMessage(m);
-                }
+                if (m.sender_handle !== myHandle) appendMessage(m);
+                lastSeenMsgId = m.id;
             })
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'team_messages' }, payload => {
                 const row = document.getElementById(`row-${payload.old.id}`); if (row) row.remove();
             })
-            .subscribe();
+            .subscribe(status => {
+                console.log('[ComicCore] realtime status:', status);
+                // The socket can silently drop (backgrounded tab/app, brief network
+                // blip, Supabase-side timeout) without ever calling our callbacks
+                // again. Without a retry, the chat looks "broken" — no new messages
+                // arrive until a manual refresh. Reconnect automatically instead.
+                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    realtimeRetryTimer = setTimeout(setupRealtime, 2000);
+                }
+            });
+    }
+
+    // Mobile browsers frequently suspend WebSocket connections when the tab/app
+    // is backgrounded. When the user comes back, force a fresh subscription and
+    // pull anything sent while we were away, instead of waiting on a socket that
+    // may never tell us it died.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && activeSquadId && myHandle) {
+            console.log('[ComicCore] tab visible again — refreshing realtime + catching up');
+            setupRealtime();
+            catchUpMessages();
+        }
+    });
+
+    async function catchUpMessages() {
+        try {
+            let query = _sb.from('team_messages').select('*').eq('ticket_id', activeSquadId).order('created_at', { ascending: true });
+            if (lastSeenMsgId) {
+                const { data: anchor } = await _sb.from('team_messages').select('created_at').eq('id', lastSeenMsgId).maybeSingle();
+                if (anchor?.created_at) query = query.gt('created_at', anchor.created_at);
+            } else {
+                query = query.order('created_at', { ascending: false }).limit(PAGE_SIZE);
+            }
+            const { data, error } = await sbFetch(query, 10000);
+            if (error || !data?.length) return;
+            const ordered = lastSeenMsgId ? data : [...data].reverse();
+            for (const m of ordered) {
+                await appendMessage(m);
+                lastSeenMsgId = m.id;
+            }
+        } catch (err) {
+            console.error('[ComicCore] catchUpMessages failed:', err);
+        }
     }
 
     function setupTypingRealtime() {
@@ -1572,39 +1597,6 @@
     }
 
     function autoResize(el) { el.style.height = '38px'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
-
-    function buildChatReactionGrid() {
-        document.getElementById('chatReactionGrid').innerHTML = ALL_REACTIONS.map(r =>
-            `<button class="chat-reaction-img-btn" title="${esc(r.name)}" onclick="selectChatReaction('${esc(r.src)}')">
-                <img src="${esc(r.src)}" alt="${esc(r.name)}" loading="lazy">
-             </button>`
-        ).join('');
-    }
-
-    function toggleChatReactionPicker() {
-        const picker = document.getElementById('chatReactionPicker');
-        const btn    = document.getElementById('chatReactionBtn');
-        const isOpen = picker.classList.toggle('open');
-        btn.classList.toggle('active', isOpen);
-        if (isOpen && !document.getElementById('chatReactionGrid').children.length) buildChatReactionGrid();
-    }
-    function closeChatReactionPicker() {
-        document.getElementById('chatReactionPicker').classList.remove('open');
-        document.getElementById('chatReactionBtn').classList.remove('active');
-    }
-    function selectChatReaction(src) {
-        pendingReactionSrc = src; closeChatReactionPicker();
-        document.getElementById('chatReactionBtn').classList.add('active');
-        document.getElementById('reactionPreviewImg').src = src;
-        document.getElementById('reactionPreview').classList.add('show');
-    }
-    function cancelReaction() {
-        pendingReactionSrc = null;
-        document.getElementById('chatReactionBtn').classList.remove('active');
-        document.getElementById('reactionPreview').classList.remove('show');
-        document.getElementById('reactionPreviewImg').src = '';
-        document.getElementById('msgInput').placeholder = 'Message the squad…';
-    }
 
     // ── Member Sheet ────────────────────────────────────────
     async function openMemberSheet() {

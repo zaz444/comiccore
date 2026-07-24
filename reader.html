@@ -740,6 +740,16 @@ function getCachedFrameCount(id) {
 }
 
 let comic = null, frames = [], idx = 0, comicId = null, isStarred = false;
+
+// A collab comic has no single "owner" once an invite is accepted — everyone in
+// owner_handles is an equal co-owner. Falls back to the single owner_handle for
+// comics that were never collaborated on.
+function comicOwners(c) {
+  return (c?.owner_handles && c.owner_handles.length) ? c.owner_handles : (c?.owner_handle ? [c.owner_handle] : []);
+}
+function isComicOwner(c, handle) {
+  return !!handle && comicOwners(c).includes(handle);
+}
 let snapshotMap = {}; // frame_idx → public URL — populated after load
 let uiOn = true, hideTimer = null;
 let swipeDir = 'horizontal';
@@ -975,7 +985,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     const yOff = s.y ?? 0;
     const filterCSS = (s.filter && s.filter !== 'none') ? s.filter : '';
 
-    // Background FX (blur/filter chip/opacity/blend/lighting) — mirrors bgFx handling in create-mobile.html
+    // Background FX (blur/filter chip/opacity/blend/color FX) — mirrors bgFx handling in create-mobile.html
     const bgFx = f.bgFx || {};
     const bgFxCSS = getSpriteFilterCSS(bgFx);
     const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
@@ -1038,7 +1048,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         bgLayer.style.background = bg;
     }
 
-    applyLightingToDOM(bgLayer, bgFx);
+    applyColorFxToDOM(bgLayer, bgFx);
     frameEl.appendChild(bgLayer);
 
     // Layers
@@ -1104,7 +1114,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
                     el.appendChild(img);
                 }
             }
-            applyLightingToDOM(el, l);
+            applyColorFxToDOM(el, l);
         } else if (l.type === 'bubble' || l.type === 'thinking') {
             const fs = (l.fontSize || 28) * sx;
             const ff = l.fontFamily || "'Inter', sans-serif";
@@ -1328,17 +1338,22 @@ async function boot() {
   if (comicId && frames.length > 0) localStorage.setItem('cc-frame-count-' + comicId, frames.length);
   document.title = (data.title || 'Comic') + ' — ComicCore';
   document.getElementById('top-title').innerText = data.title || 'Untitled';
-  document.getElementById('top-author').innerText = 'by @' + (data.owner_handle || 'unknown');
+  const owners = comicOwners(data);
+  if (owners.length > 1) {
+    document.getElementById('top-author').innerHTML = '<svg width="12" height="12" viewBox="0 0 26 26" style="display:inline-block;vertical-align:-2px;margin-right:3px;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg>' + owners.map(h => '@' + esc(h)).join(' + ');
+  } else {
+    document.getElementById('top-author').innerText = 'by @' + (data.owner_handle || 'unknown');
+  }
   const userSwipePref = localStorage.getItem('cc-swipe-dir') || 'creator';
   swipeDir = (userSwipePref === 'creator')
     ? (data.swipe_dir || 'horizontal')
     : userSwipePref;
   setSwipeDir(swipeDir);
 
-  if (myP.handle && myP.handle !== 'guest' && myP.handle === data.owner_handle) {
+  if (myP.handle && myP.handle !== 'guest' && isComicOwner(data, myP.handle)) {
     document.getElementById('edit-btn').style.display = 'flex';
   }
-  if (myP.handle && myP.handle === data.owner_handle) {
+  if (myP.handle && isComicOwner(data, myP.handle)) {
     document.getElementById('star-btn').style.display = 'none';
   }
 
@@ -1698,63 +1713,52 @@ function getSpriteFilterCSS(layer) {
   return '';
 }
 
-// Light style presets — must stay in sync with LIGHT_STYLES in create-mobile.html.
-// Each is just a { blend, brightness, radius } combo fed into the same radial
-// gradient below, picked by the layer's saved `lighting.style` key.
-const LIGHT_STYLES = {
-  glow:      { blend: 'screen',      brightness: 130, radius: 70  },
-  spotlight: { blend: 'screen',      brightness: 170, radius: 35  },
-  wash:      { blend: 'overlay',     brightness: 115, radius: 100 },
-  neon:      { blend: 'color-dodge', brightness: 150, radius: 55  },
-  lensflare: { blend: 'screen',      brightness: 160, radius: 65, flare: true },
-};
+// Color FX overlay — Lightness + Color Balance. Brightness/Contrast/Hue/
+// Saturation are native CSS filter functions and already flow through
+// layer.fxFilter / bgFx.fxFilter as a plain string (see getSpriteFilterCSS
+// usage below), so they need no special handling here. Lightness and Color
+// Balance aren't native CSS filter primitives, so they're rendered as flat,
+// alpha-blended color tints stacked on top of the element — must stay in
+// sync with colorFxOverlayLayers()/applyColorFxToDOM() in create-mobile.html.
+function colorFxOverlayLayers(cf) {
+  const layers = [];
+  if (!cf) return layers;
+  const L = cf.lightness || 0;
+  if (L > 0)      layers.push({ color: '255,255,255', alpha: Math.min(0.85, (L / 100) * 0.85) });
+  else if (L < 0) layers.push({ color: '0,0,0',        alpha: Math.min(0.85, (-L / 100) * 0.85) });
 
-// Paints a layer's (or the background's) light effect as a radial-gradient
-// overlay — must stay in sync with applyLightingToDOM() in create-mobile.html.
-function applyLightingToDOM(el, layer) {
-  const old = el.querySelector('.layer-light-overlay');
+  const cr = cf.cr || 0;
+  if (cr > 0)      layers.push({ color: '255,40,40',   alpha: Math.min(0.5, (cr / 100) * 0.5) });
+  else if (cr < 0) layers.push({ color: '40,220,220',  alpha: Math.min(0.5, (-cr / 100) * 0.5) });
+
+  const mg = cf.mg || 0;
+  if (mg > 0)      layers.push({ color: '40,220,90',   alpha: Math.min(0.5, (mg / 100) * 0.5) });
+  else if (mg < 0) layers.push({ color: '230,40,220',  alpha: Math.min(0.5, (-mg / 100) * 0.5) });
+
+  const yb = cf.yb || 0;
+  if (yb > 0)      layers.push({ color: '50,90,240',   alpha: Math.min(0.5, (yb / 100) * 0.5) });
+  else if (yb < 0) layers.push({ color: '245,215,40',  alpha: Math.min(0.5, (-yb / 100) * 0.5) });
+
+  return layers;
+}
+
+function applyColorFxToDOM(el, layer) {
+  const old = el.querySelector('.layer-colorfx-overlay');
   if (old) old.remove();
-  if (!layer || !layer.lighting || !layer.lighting.enabled) return;
+  if (!layer || !layer.colorFx || !layer.colorFx.enabled) return;
+  const layers = colorFxOverlayLayers(layer.colorFx);
+  if (!layers.length) return;
 
-  const L = layer.lighting;
-  const brightness = (L.brightness || 130) / 100;
-  const x = L.x != null ? L.x : 50;
-  const y = L.y != null ? L.y : 30;
-  const r = L.radius || 70;
-  const c = L.color || '255,220,120';
-  const style = LIGHT_STYLES[L.style] || LIGHT_STYLES.glow;
-  const blend = style.blend;
-  const alpha1 = Math.min(0.85, (brightness - 1) * 1.6 + 0.15).toFixed(3);
-  const alpha2 = Math.min(0.4,  (brightness - 1) * 0.7).toFixed(3);
-
-  const background = style.flare
-    ? `radial-gradient(circle at ${x}% ${y}%,
-         rgba(255,255,255,${alpha1}) 0%,
-         rgba(${c},${alpha1}) ${r * 0.1}%,
-         rgba(${c},0) ${r * 0.25}%),
-       radial-gradient(circle at ${x}% ${y}%,
-         rgba(${c},0) ${r * 0.35}%,
-         rgba(${c},${alpha2}) ${r * 0.48}%,
-         rgba(${c},0) ${r * 0.6}%),
-       radial-gradient(circle at ${x}% ${y}%,
-         rgba(${c},0) ${r * 0.75}%,
-         rgba(${c},${alpha2 * 0.55}) ${r * 0.85}%,
-         rgba(${c},0) ${r * 0.98}%)`
-    : `radial-gradient(circle at ${x}% ${y}%,
-         rgba(${c},${alpha1}) 0%,
-         rgba(${c},${alpha2}) ${r * 0.45}%,
-         rgba(${c},0) ${r}%)`;
-
-  const ov = document.createElement('div');
-  ov.className = 'layer-light-overlay';
-  ov.style.cssText = `
-    position:absolute;inset:0;pointer-events:none;border-radius:inherit;
-    background:${background};
-    mix-blend-mode:${blend};z-index:999;
-  `;
-  el.style.position = 'relative';
-  el.style.overflow = 'visible';
-  el.appendChild(ov);
+  const wrap = document.createElement('div');
+  wrap.className = 'layer-colorfx-overlay';
+  wrap.style.cssText = 'position:absolute;inset:0;pointer-events:none;border-radius:inherit;';
+  layers.forEach(L => {
+    const d = document.createElement('div');
+    d.style.cssText = `position:absolute;inset:0;background:rgba(${L.color},${L.alpha});`;
+    wrap.appendChild(d);
+  });
+  el.style.position = el.style.position || 'relative';
+  el.appendChild(wrap);
 }
 
 // ── Preload all images across all frames ─────────────────────
@@ -2030,7 +2034,7 @@ function _renderFrameDOM(f, next, cw, ch) {
   const filter = s.filter || 'none';
   const filterCSS = filter === 'none' ? '' : filter;
 
-  // Background FX (blur/filter chip/opacity/blend/lighting) — mirrors bgFx handling in create-mobile.html
+  // Background FX (blur/filter chip/opacity/blend/color FX) — mirrors bgFx handling in create-mobile.html
   const bgFx = f.bgFx || {};
   const bgFxCSS = getSpriteFilterCSS(bgFx);
   const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
@@ -2099,7 +2103,7 @@ function _renderFrameDOM(f, next, cw, ch) {
     next.style.backgroundColor = bg;
   }
 
-  applyLightingToDOM(bgLayer, bgFx);
+  applyColorFxToDOM(bgLayer, bgFx);
   next.appendChild(bgLayer);
 
   // 4. Add this frame's layers (buffer was already fully cleared above)
@@ -2174,8 +2178,8 @@ function _renderFrameDOM(f, next, cw, ch) {
           el.appendChild(img);
         }
       }
-      // Lighting overlay — sprite layers only, matches create.html
-      applyLightingToDOM(el, l);
+      // Color FX overlay — sprite layers only, matches create.html
+      applyColorFxToDOM(el, l);
 
     } else if (l.type === 'bubble' || l.type === 'thinking') {
       const fs = (l.fontSize || 28) * sx;
@@ -2379,7 +2383,7 @@ function isFinished() {
 // ── Star ──────────────────────────────────────────────────
 async function checkStar() {
   if (!myP.handle || myP.handle === 'guest') return;
-  if (myP.handle === comic?.owner_handle) return;
+  if (isComicOwner(comic, myP.handle)) return;
   const { data } = await _sb
     .from('messages')
     .select('content')
@@ -2416,7 +2420,7 @@ let userRating = 0;
 
 function openRatingModal() {
   if (!myP.handle || myP.handle === 'guest') return showToast('Log in to rate!');
-  if (myP.handle === comic?.owner_handle) return showToast('You can\'t rate your own comic');
+  if (isComicOwner(comic, myP.handle)) return showToast('You can\'t rate your own comic');
   document.getElementById('rating-modal').style.display = 'flex';
   // Load existing rating
   loadUserRating();
@@ -2572,8 +2576,8 @@ function extractMentions(text) {
   return [...new Set(matches.map(m => m.slice(1)))];
 }
 
-function canPinOrDelete() { return isModOrAdmin || comic?.owner_handle === myP.handle; }
-function canHeart()       { return comic?.owner_handle === myP.handle; }
+function canPinOrDelete() { return isModOrAdmin || isComicOwner(comic, myP.handle); }
+function canHeart()       { return isComicOwner(comic, myP.handle); }
 function findCommentById(id) {
   return commentsCache.find(c => c.id === id) ||
     Object.values(repliesCache).flat().find(c => c.id === id);
@@ -2898,8 +2902,8 @@ async function postComment() {
   const { data, error } = await _sb.from('comments').insert([row]).select().single();
   if (error) { showToast('Error posting comment'); return; }
 
-  const ownerHandle = comic?.owner_handle;
-  if (ownerHandle && ownerHandle !== myP.handle) {
+  const notifyOwners = comicOwners(comic).filter(h => h !== myP.handle);
+  notifyOwners.forEach(ownerHandle => {
     _sb.from('mentions').insert([{
       to_handle: ownerHandle,
       from_handle: myP.handle,
@@ -2909,7 +2913,7 @@ async function postComment() {
       content: text,
       is_read: false
     }]).then(({ error: notifErr }) => { if (notifErr) console.warn('Comment notification insert failed:', notifErr); });
-  }
+  });
 
   if (!profileCache[myP.handle]) profileCache[myP.handle] = { pic: myP.pic, name: myP.name };
 
@@ -3003,7 +3007,7 @@ function goBack() {
 function openShare() {
   if (!shareUrl) buildShareUrl();
   const title   = comic?.title || 'this comic';
-  const author  = comic?.owner_handle ? ` by @${comic.owner_handle}` : '';
+  const author  = comicOwners(comic).length ? ` by ${comicOwners(comic).map(h => '@' + h).join(' + ')}` : '';
   const framesN = frames.length;
   document.getElementById('sh-title').innerText = `Share "${title}"`;
   document.getElementById('sh-sub').innerText   = `${framesN} frame${framesN !== 1 ? 's' : ''} · Anyone with this link can read it`;

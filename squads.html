@@ -581,7 +581,7 @@
     <button class="sq-sort-btn"    id="sort-active"  onclick="setSort('active')">Active</button>
     <button class="sq-sort-btn"    id="sort-members" onclick="setSort('members')">Members</button>
     <button class="sq-sort-btn"    id="sort-collab"  onclick="openCollabInvitesSheet()">
-        <i class="fi fi-rs-palette"></i> Co-create<span id="collab-invite-badge" style="display:none;background:var(--accent);color: #1a1a1a;border-radius:6px;font-size:9px;font-weight:900;padding:1px 5px;margin-left:4px;vertical-align:middle;"></span>
+        <svg width="13" height="13" viewBox="0 0 26 26" style="display:inline-block;vertical-align:-2px;margin-right:2px;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg> Co-create<span id="collab-invite-badge" style="display:none;background:var(--accent);color: #1a1a1a;border-radius:6px;font-size:9px;font-weight:900;padding:1px 5px;margin-left:4px;vertical-align:middle;"></span>
     </button>
 </div>
 
@@ -680,7 +680,7 @@
 <div class="sq-overlay" id="collab-invites-overlay">
     <div class="sq-sheet" style="max-height:80vh;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <div class="sq-sheet-title" style="display:flex;align-items:center;gap:8px;"><i class="fi fi-rs-palette" style="font-size:16px;color:var(--accent);"></i> Co-create Invites</div>
+            <div class="sq-sheet-title" style="display:flex;align-items:center;gap:8px;"><svg width="18" height="18" viewBox="0 0 26 26" style="display:block;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg> Co-create Invites</div>
             <span onclick="closeCollabInvitesSheet()" style="cursor:pointer;color:var(--text-dim);font-size:20px;line-height:1;"><i class="fi fi-rs-cross-small"></i></span>
         </div>
         <div style="font-size:11px;color:var(--text-dim);font-weight:700;margin-bottom:14px;">Comics you've been invited to co-create</div>
@@ -1936,8 +1936,8 @@
     }
 
     function startNewCollabComic() {
-        // Go to the right editor (mobile or desktop) — the user will publish first,
-        // then use the Co-create button to invite squad members
+        // Go to the right editor (mobile or desktop) — collaborators can now be
+        // invited on a draft too, no need to publish first.
         closeCollabComicSheet();
         const dest = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
         // Store squad hint so create.html can pre-select this squad in the invite panel
@@ -1968,12 +1968,12 @@
             // Find accepted collab comics involving any squad member
             const { data: collabs } = await _sb
                 .from('comic_collaborators')
-                .select('comic_id, comic_title, inviter_handle, invitee_handle, status')
+                .select('comic_id, comic_title, inviter_handle, invitee_handle, status, is_draft')
                 .in('invitee_handle', memberHandles)
                 .eq('status', 'accepted');
 
             if (!collabs || !collabs.length) {
-                listEl.innerHTML = '<div style="font-size:12px;color:var(--text-dim);font-weight:700;padding:8px 0;">No co-created comics yet.<br><span style="opacity:.6;">Publish a comic, then invite squad members from the Members button.</span></div>';
+                listEl.innerHTML = '<div style="font-size:12px;color:var(--text-dim);font-weight:700;padding:8px 0;">No co-created comics yet.<br><span style="opacity:.6;">Start one above, or invite squad members from the Members button.</span></div>';
                 return;
             }
 
@@ -1984,15 +1984,15 @@
             listEl.innerHTML = unique.map(c => `
                 <div style="background: var(--card);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
                     <div style="min-width:0;">
-                        <div style="font-size:13px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;"><i class="fi fi-rs-book-open" style="font-size:11px;color:var(--text-dim);"></i> ${esc(c.comic_title || 'Untitled')}</div>
+                        <div style="font-size:13px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;"><i class="fi fi-rs-book-open" style="font-size:11px;color:var(--text-dim);"></i> ${esc(c.comic_title || 'Untitled')}${c.is_draft ? ' <span style="font-size:9px;font-weight:900;color:var(--accent);background:rgba(255,122,0,.15);border-radius:5px;padding:1px 6px;margin-left:2px;flex-shrink:0;">DRAFT</span>' : ''}</div>
                         <div style="font-size:11px;color:var(--text-dim);font-weight:700;margin-top:2px;">@${esc(c.inviter_handle)} + @${esc(c.invitee_handle)}</div>
                     </div>
                     <div style="display:flex;gap:6px;flex-shrink:0;">
-                        <button onclick="location.href='reader.html?id=${esc(c.comic_id)}'"
+                        ${c.is_draft ? '' : `<button onclick="location.href='reader.html?id=${esc(c.comic_id)}'"
                             style="background:var(--card-2);border:1px solid var(--border);color:var(--text);font-size:11px;font-weight:700;border-radius:8px;padding:6px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">
                             <i class="fi fi-rs-book-open"></i> Read
-                        </button>
-                        <button onclick="editCollabComic('${esc(c.comic_id)}')"
+                        </button>`}
+                        <button onclick="editCollabComic('${esc(c.comic_id)}', ${c.is_draft ? 'true' : 'false'})"
                             style="background:var(--accent);border:none;color: #1a1a1a;font-size:11px;font-weight:900;border-radius:8px;padding:6px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">
                             <i class="fi fi-rs-pencil"></i> Edit
                         </button>
@@ -2003,8 +2003,8 @@
         }
     }
 
-    function editCollabComic(comicId) {
-        localStorage.setItem('edit_comic_id', comicId);
+    function editCollabComic(comicId, isDraft) {
+        localStorage.setItem(isDraft ? 'edit_draft_id' : 'edit_comic_id', comicId);
         closeCollabComicSheet();
         location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
     }
@@ -2017,7 +2017,7 @@
 
         const { data, error } = await _sb
             .from('comic_collaborators')
-            .select('id,comic_id,comic_title,inviter_handle,status,created_at')
+            .select('id,comic_id,comic_title,inviter_handle,status,is_draft,created_at')
             .eq('invitee_handle', myHandle)
             .order('created_at', { ascending: false });
 
@@ -2040,18 +2040,18 @@
         listEl.innerHTML = data.map(inv => `
             <div style="background: var(--card);border-radius:12px;padding:14px;margin-bottom:10px;">
                 <div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:6px;">
-                    <i class="fi fi-rs-book-open" style="font-size:11px;color:var(--text-dim);"></i> ${inv.comic_title || 'Untitled Comic'}
+                    <i class="fi fi-rs-book-open" style="font-size:11px;color:var(--text-dim);"></i> ${inv.comic_title || 'Untitled Comic'}${inv.is_draft ? ' <span style="font-size:9px;font-weight:900;color:var(--accent);background:rgba(255,122,0,.15);border-radius:5px;padding:1px 6px;margin-left:2px;">DRAFT</span>' : ''}
                 </div>
                 <div style="font-size:11px;color:var(--text-dim);font-weight:700;margin-bottom:10px;">
                     Invited by @${inv.inviter_handle}
                 </div>
                 ${inv.status === 'pending' ? `
                 <div style="display:flex;gap:8px;">
-                    <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','accepted',this)"
+                    <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','accepted',this,${inv.is_draft ? 'true' : 'false'})"
                         style="flex:1;background:var(--accent);border:none;color: #1a1a1a;font-weight:900;font-size:12px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
                         <i class="fi fi-rs-check"></i> Accept &amp; Co-create
                     </button>
-                    <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','declined',this)"
+                    <button onclick="respondCollabInvite('${inv.id}','${inv.comic_id}','declined',this,${inv.is_draft ? 'true' : 'false'})"
                         style="background:var(--card-2);border:1px solid var(--border);color:var(--text-dim);font-weight:700;font-size:12px;border-radius:10px;padding:10px 16px;cursor:pointer;font-family:inherit;white-space:nowrap;">
                         Decline
                     </button>
@@ -2062,7 +2062,7 @@
             </div>`).join('');
     }
 
-    async function respondCollabInvite(inviteId, comicId, response, btn) {
+    async function respondCollabInvite(inviteId, comicId, response, btn, isDraft) {
         btn.disabled = true;
         const { error } = await _sb
             .from('comic_collaborators')
@@ -2072,9 +2072,13 @@
         if (error) { btn.disabled = false; alert(error.message); return; }
 
         if (response === 'accepted') {
-            await grantCoOwnership(comicId, myHandle);
-            // Store comic ID for the editor to load, then navigate
-            localStorage.setItem('edit_comic_id', comicId);
+            if (isDraft) {
+                await grantDraftCoOwnership(comicId, myHandle);
+                localStorage.setItem('edit_draft_id', comicId);
+            } else {
+                await grantCoOwnership(comicId, myHandle);
+                localStorage.setItem('edit_comic_id', comicId);
+            }
             // Try mobile first (check screen width), then desktop
             location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
         } else {
@@ -2091,6 +2095,17 @@
         if (!current.includes(handle)) {
             current.push(handle);
             await _sb.from('comics').update({ owner_handles: current }).eq('id', comicId);
+        }
+    }
+
+    // Same idea as grantCoOwnership, but for a still-unpublished draft.
+    async function grantDraftCoOwnership(draftId, handle) {
+        const { data: draft } = await _sb.from('drafts').select('owner_handle, owner_handles').eq('id', draftId).maybeSingle();
+        if (!draft) return;
+        const current = (draft.owner_handles && draft.owner_handles.length) ? [...draft.owner_handles] : (draft.owner_handle ? [draft.owner_handle] : []);
+        if (!current.includes(handle)) {
+            current.push(handle);
+            await _sb.from('drafts').update({ owner_handles: current }).eq('id', draftId);
         }
     }
     // ── END COLLAB ───────────────────────────────────────────────────────────
