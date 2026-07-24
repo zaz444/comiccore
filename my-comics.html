@@ -34,7 +34,7 @@ body::before{content:'';position:fixed;top:-100px;left:-80px;width:480px;height:
 body::after{content:'';position:fixed;bottom:-80px;right:-60px;width:380px;height:380px;background:radial-gradient(circle,rgba(0,201,177,0.06) 0%,transparent 70%);pointer-events:none;z-index:0;}
 
 /* ── Top bar ── */
-.topbar{height:56px;background:rgba(15,15,17,0.95);display:flex;align-items:center;padding:0 16px;gap:10px;}
+.topbar{height:56px;background:transparent;display:flex;align-items:center;padding:0 16px;gap:10px;}
 .back-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:16px;cursor:pointer;flex-shrink:0;text-decoration:none;transition:.15s;}
 .back-btn:hover{background:#303038;color:var(--text);}
 .topbar-center{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0;}
@@ -1096,20 +1096,13 @@ async function bulkDeleteDrafts() {
   const count = selectedDraftIds.size;
   if (!confirm(`Delete ${count} draft${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
 
-  // Force token refresh before RLS-gated delete
-  const { data: refreshData } = await _sb.auth.refreshSession().catch(() => ({ data: {} }));
-  if (!refreshData?.session) {
-    toast('⚠ Session expired — please reload the page and try again', 'var(--danger)');
-    return;
-  }
-
   const ids = [...selectedDraftIds];
   const toDelete = drafts.filter(d => ids.includes(String(d.id)));
 
-  // Delete from DB
-  const { data: delData, error } = await _sb.from('drafts').delete().in('id', ids).select('id');
+  // Delete from DB — owner_handle filter is required for RLS policy to permit the delete
+  const { data: delData, error } = await _sb.from('drafts').delete().in('id', ids).eq('owner_handle', myHandle).select('id');
   if (error) { toast('⚠ Delete failed: ' + error.message, 'var(--danger)'); return; }
-  if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
+  if (!delData || !delData.length) { toast('⚠ Could not delete these drafts', 'var(--danger)'); return; }
 
   // Remove any storage files
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
@@ -1143,20 +1136,11 @@ async function confirmDelete() {
   const deleteId = pendingDeleteId;
   const deleteType = pendingDeleteType;
   closeDelSheet();
-
-  // Force a token refresh so RLS auth.uid() has a valid JWT — getSession() alone
-  // can return a stale/expired token without triggering autoRefresh in time.
-  const { data: refreshData } = await _sb.auth.refreshSession().catch(() => ({ data: {} }));
-  if (!refreshData?.session) {
-    toast('⚠ Session expired — please reload the page and try again', 'var(--danger)');
-    return;
-  }
-
   if (deleteType === 'draft') {
     const draftToDelete = drafts.find(d => String(d.id) === String(deleteId));
-    const { data: delData, error: delErr } = await _sb.from('drafts').delete().eq('id', deleteId).select('id');
+    const { data: delData, error: delErr } = await _sb.from('drafts').delete().eq('id', deleteId).eq('owner_handle', myHandle).select('id');
     if (delErr) { toast('⚠ Could not delete: ' + delErr.message, 'var(--danger)'); return; }
-    if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
+    if (!delData || !delData.length) { toast('⚠ Could not delete this draft', 'var(--danger)'); return; }
     if (draftToDelete?.storage_path) {
       await _sb.storage.from('comiccore-assets').remove([draftToDelete.storage_path]).catch(() => {});
     }
