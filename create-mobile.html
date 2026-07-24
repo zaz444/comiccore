@@ -1206,7 +1206,7 @@
         </button>
         <button onclick="saveChoiceSaveToMyComics()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
             <span style="font-size:22px;">💾</span>
-            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--teal);">Save to My Comics</div><div style="font-size:11px;color:#666;margin-top:2px;">Keep it as a private draft</div></div>
+            <div style="text-align:left;"><div id="save-choice-label" style="font-size:13px;font-weight:900;color:var(--teal);">Save to My Comics</div><div id="save-choice-sub" style="font-size:11px;color:#666;margin-top:2px;">Keep it as a private draft</div></div>
         </button>
         <button onclick="saveChoiceExport()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
             <span style="font-size:22px;">⬆</span>
@@ -7752,7 +7752,14 @@ function exitCancelLeave() {
 
 // ── PUBLISH ──
 // ── Save-choice modal (💾 icon in top bar) ──
-function openSaveChoiceModal() { document.getElementById('save-choice-modal').style.display = 'flex'; }
+function openSaveChoiceModal() {
+    const isCollab = _collabOwnerHandles && _collabOwnerHandles.length > 1;
+    const lbl = document.getElementById('save-choice-label');
+    const sub = document.getElementById('save-choice-sub');
+    if (lbl) lbl.textContent = isCollab ? 'Save to CoCreate' : 'Save to My Comics';
+    if (sub) sub.textContent = isCollab ? 'Save progress on this co-created comic' : 'Keep it as a private draft';
+    document.getElementById('save-choice-modal').style.display = 'flex';
+}
 function closeSaveChoiceModal() { document.getElementById('save-choice-modal').style.display = 'none'; }
 function saveChoicePublish() { closeSaveChoiceModal(); openPublishModal(); }
 function saveChoiceSaveToMyComics() { closeSaveChoiceModal(); saveOffline(false); }
