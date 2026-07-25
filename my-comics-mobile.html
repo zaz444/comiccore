@@ -1163,8 +1163,13 @@ async function bulkDeleteDrafts() {
     storagePaths.forEach(purgeCachedAsset);
   }
 
-  drafts = drafts.filter(d => !ids.includes(String(d.id)));
-  document.getElementById('drafts-count').innerText = drafts.length;
+  // BUGFIX: same class of bug as confirmDelete()'s draft branch — bulk delete
+  // used to only trim the in-memory `drafts` array, leaving the CCOffline
+  // fallback cache (read whenever a later load fails/is offline) with its old
+  // snapshot still containing these drafts. That let bulk-deleted drafts
+  // reappear after an offline reload. loadDrafts() re-fetches from Supabase
+  // and re-caches via CCOffline, keeping the two in sync.
+  await loadDrafts();
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
   renderStats();
   exitDraftSelectMode();
