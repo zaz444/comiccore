@@ -494,11 +494,31 @@
        the gap can't silently get lost on older WebView engines */
     #mob-gal-grid,
     #mob-gal-tagsections-grid {
-        gap: 16px !important;
-        row-gap: 16px !important;
-        column-gap: 16px !important;
-        grid-row-gap: 16px !important;
-        grid-column-gap: 16px !important;
+        gap: 20px !important;
+        row-gap: 20px !important;
+        column-gap: 20px !important;
+        grid-row-gap: 20px !important;
+        grid-column-gap: 20px !important;
+    }
+    /* Both gallery grids were using `aspect-ratio` to size a CSS Grid item
+       with an auto-sized row track. That combination has a known WebKit/
+       Safari bug: the implicit row track can be sized before aspect-ratio is
+       resolved, so rows overlap instead of stacking with a gap — which is
+       exactly what was happening here (every row overlapped except the very
+       last one, which had nothing below it to overlap with). The background
+       grid elsewhere in this file already avoids this with a padding-bottom
+       trick instead of aspect-ratio; both gallery grids now use that same,
+       Safari-safe technique instead. */
+    #mob-gal-grid .mob-sprite-card {
+        aspect-ratio: unset !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding-bottom: 100% !important; /* 1:1 square, via padding instead of aspect-ratio (no in-flow content, so height:auto collapses to 0 first) */
+        display: block !important;
+    }
+    #mob-gal-grid .mob-sprite-card img {
+        position: absolute !important; inset: 0 !important;
+        width: 100% !important; height: 100% !important;
     }
     /* Tag Sections cover cards — 1 per row, ideally 1800x1200 (3:2) source art.
        object-fit:contain (not cover) so cards whose source image isn't exactly
@@ -510,14 +530,19 @@
         grid-template-columns: 1fr !important;
     }
     .mob-tagsection-card {
-        aspect-ratio: 3 / 2 !important;
+        aspect-ratio: unset !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding-bottom: 66.666% !important; /* 3:2 ratio, via padding instead of aspect-ratio (no in-flow content, so height:auto collapses to 0 first) */
         margin-bottom: 10px; /* fallback spacing in case grid gap is ever unsupported */
         border: 2px solid var(--border) !important;
         border-radius: 12px !important;
         overflow: hidden !important;
         background: #0a0a0a;
+        display: block !important;
     }
     .mob-tagsection-card img {
+        position: absolute !important; inset: 0 !important;
         width: 100% !important;
         height: 100% !important;
         object-fit: contain !important;
