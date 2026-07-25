@@ -835,7 +835,11 @@
             });
             if (authRes.ok) {
                 const authUser = await authRes.json();
-                if (authUser?.id) isAdmin = authUser.id === ADMIN_ID;
+                if (authUser?.id) {
+                    // Admin if UUID matches OR if this is the verified jeffyplays session
+                    isAdmin = authUser.id === ADMIN_ID ||
+                              (myHandle && myHandle.toLowerCase().replace('@','') === 'jeffyplays' && !!authUser.id);
+                }
             }
         } catch(e) {}
         if (isAdmin) {
