@@ -1154,12 +1154,15 @@ async function bulkDeleteDrafts() {
   // Delete from DB
   const { data: delData, error } = await _sb.rpc('delete_drafts_bulk', { draft_ids: ids });
   if (error) {
+    const details = `message: ${error.message}\ncode: ${error.code || 'n/a'}\ndetails: ${error.details || 'n/a'}\nhint: ${error.hint || 'n/a'}`;
     console.error('delete_drafts_bulk RPC error:', { message: error.message, code: error.code, details: error.details, hint: error.hint, ids });
+    alert('Bulk delete failed:\n\n' + details); // TEMP DEBUG — remove once diagnosed
     toast('⚠ Delete failed: ' + error.message, 'var(--danger)');
     return;
   }
   if (!delData || !delData.length) {
     console.error('delete_drafts_bulk returned no rows (delete may not have run):', { delData, ids });
+    alert('Bulk delete returned no rows.\n\nids sent: ' + JSON.stringify(ids) + '\ndelData: ' + JSON.stringify(delData)); // TEMP DEBUG — remove once diagnosed
     toast('⚠ Delete failed — please reload and try again', 'var(--danger)');
     return;
   }
