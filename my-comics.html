@@ -584,13 +584,20 @@ let collabInvites = [];
 async function loadCollab() {
   if (!myHandle) return;
   try {
+    // BUGFIX: this used to filter by invitee_handle only, so if you sent an
+    // invite (you're the inviter, not the invitee) you'd never see it here —
+    // not as pending, not after it was accepted. An .or() pulls both sides;
+    // `_role` records which one you are so rendering/actions stay correct.
     const { data } = await _sb
       .from('comic_collaborators')
-      .select('id,comic_id,comic_title,inviter_handle,status,is_draft,created_at')
-      .eq('invitee_handle', myHandle)
+      .select('id,comic_id,comic_title,inviter_handle,invitee_handle,status,is_draft,created_at')
+      .or(`invitee_handle.eq.${myHandle},inviter_handle.eq.${myHandle}`)
       .order('created_at', { ascending: false });
-    collabInvites = data || [];
-    const pending = collabInvites.filter(i => i.status === 'pending').length;
+    collabInvites = (data || []).map(i => ({
+      ...i,
+      _role: i.invitee_handle === myHandle ? 'invitee' : 'inviter'
+    }));
+    const pending = collabInvites.filter(i => i.status === 'pending' && i._role === 'invitee').length;
     const badge = document.getElementById('collab-count');
     if (pending > 0) {
       badge.textContent = pending;
@@ -614,8 +621,9 @@ function renderCollab() {
   // owner — drafts and published already carry owner_handles, so no extra fetch.
   const collabDrafts = drafts.filter(d => Array.isArray(d.ownerHandles) && d.ownerHandles.length > 1);
   const collabComics = published.filter(c => Array.isArray(c.owner_handles) && c.owner_handles.length > 1);
-  const pendingInvites = collabInvites.filter(i => i.status === 'pending');
-  const historyInvites = collabInvites.filter(i => i.status !== 'pending');
+  const pendingInvites = collabInvites.filter(i => i._role === 'invitee' && i.status === 'pending');
+  const sentInvites = collabInvites.filter(i => i._role === 'inviter');
+  const historyInvites = collabInvites.filter(i => i._role === 'invitee' && i.status !== 'pending');
 
   let html = `
     <div style="background:linear-gradient(135deg,rgba(255,122,0,.12),rgba(255,122,0,.04));border:1.5px solid rgba(255,122,0,.25);border-radius:16px;padding:16px;margin-bottom:18px;display:flex;align-items:center;gap:14px;">
@@ -644,6 +652,11 @@ function renderCollab() {
       </div>`;
   }
 
+  if (sentInvites.length) {
+    html += `<div style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:.8px;margin:18px 0 8px;">Sent Invites</div>`;
+    html += sentInvites.map(renderInviteCard).join('');
+  }
+
   if (historyInvites.length) {
     html += `<div style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:.8px;margin:18px 0 8px;">Past Invites</div>`;
     html += historyInvites.map(renderInviteCard).join('');
@@ -666,12 +679,25 @@ function renderInviteCard(inv) {
     pending: '<i class="fi fi-rs-clock"></i> Pending'
   };
   const draftTag = inv.is_draft ? ' <span style="font-size:9px;font-weight:900;color:var(--teal);background:rgba(0,201,177,.15);border-radius:5px;padding:1px 6px;margin-left:4px;vertical-align:middle;">DRAFT</span>' : '';
+  const isSent = inv._role === 'inviter';
+  const subline = isSent
+    ? `Sent to @${escHtml(inv.invitee_handle)}`
+    : `Invited by @${escHtml(inv.inviter_handle)}`;
   return `
     <div style="background:#1c1c1e;border-radius:14px;padding:14px;margin-bottom:12px;opacity:${inv.status==='declined'?0.45:1};">
       <div style="font-size:14px;font-weight:900;color:#f5f5f7;margin-bottom:3px;">📖 ${escHtml(inv.comic_title || 'Untitled Comic')}${draftTag}</div>
-      <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:6px;">Invited by @${escHtml(inv.inviter_handle)}</div>
+      <div style="font-size:11px;color:#444;font-weight:700;margin-bottom:6px;">${subline}</div>
       <div style="font-size:12px;font-weight:800;color:${statusColor[inv.status]||'#555'};margin-bottom:${inv.status==='pending'?'10px':'0'};">${statusLabel[inv.status]||inv.status}</div>
-      ${inv.status === 'pending' ? `
+      ${isSent ? `
+        ${inv.status === 'pending' ? `
+        <div style="font-size:11px;color:#555;font-weight:700;">Waiting for @${escHtml(inv.invitee_handle)} to respond…</div>` : inv.status === 'accepted' ? `
+        <div style="display:flex;gap:8px;">
+          <button onclick="${inv.is_draft ? `openCollabDraft('${inv.comic_id}')` : `openCollabComic('${inv.comic_id}')`}"
+            style="flex:1;background:#ff7a00;border:none;color:#000;font-weight:900;font-size:13px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
+            ✏️ Open Editor
+          </button>
+        </div>` : ''}
+      ` : inv.status === 'pending' ? `
         <div style="display:flex;gap:8px;">
           <button onclick="acceptCollabInvite('${inv.id}','${inv.comic_id}',${inv.is_draft?'true':'false'})"
             style="flex:1;background:#ff7a00;border:none;color:#000;font-weight:900;font-size:13px;border-radius:10px;padding:10px;cursor:pointer;font-family:inherit;">
@@ -722,13 +748,31 @@ async function acceptCollabInvite(inviteId, comicId, isDraft) {
 
 // Comics have no single "owner" once a collab is accepted — everyone in
 // owner_handles is an equal co-owner with identical edit/delete rights.
+//
+// BUGFIX: this UPDATE is run by the invitee, who is (by definition, at this
+// point) not yet in owner_handles. If the comics table's RLS UPDATE policy
+// only allows current owners to modify a row, this write is silently
+// rejected — error:null, 0 rows changed, same class of bug documented in
+// acceptCollabInvite() above. Nothing threw, so nobody noticed: the invitee
+// could still open the comic (create-mobile's access check has a separate
+// fallback that also accepts anyone with an accepted comic_collaborators
+// row), which made it *look* like collab worked. But owner_handles itself
+// never actually grew, so anything that keys off owner_handles.length > 1
+// — like the "Your Collab Comics" list on the inviter's side — never
+// showed the comic, for either person. The .select() here is what makes
+// that failure visible instead of silent.
 async function grantCoOwnership(comicId, handle) {
   const { data: comic } = await _sb.from('comics').select('owner_handle, owner_handles').eq('id', comicId).maybeSingle();
   if (!comic) return;
   const current = (comic.owner_handles && comic.owner_handles.length) ? [...comic.owner_handles] : (comic.owner_handle ? [comic.owner_handle] : []);
   if (!current.includes(handle)) {
     current.push(handle);
-    await _sb.from('comics').update({ owner_handles: current }).eq('id', comicId);
+    const { data: updated, error } = await _sb.from('comics')
+      .update({ owner_handles: current }).eq('id', comicId).select('id');
+    if (error || !updated || !updated.length) {
+      console.error('grantCoOwnership blocked:', error || '0 rows updated — likely an RLS policy rejecting the write');
+      alert("You can edit this comic, but it may not appear as a collab comic for the person who invited you — this needs a database permissions fix. Let them know.");
+    }
   }
 }
 
@@ -739,7 +783,12 @@ async function grantDraftCoOwnership(draftId, handle) {
   const current = (draft.owner_handles && draft.owner_handles.length) ? [...draft.owner_handles] : (draft.owner_handle ? [draft.owner_handle] : []);
   if (!current.includes(handle)) {
     current.push(handle);
-    await _sb.from('drafts').update({ owner_handles: current }).eq('id', draftId);
+    const { data: updated, error } = await _sb.from('drafts')
+      .update({ owner_handles: current }).eq('id', draftId).select('id');
+    if (error || !updated || !updated.length) {
+      console.error('grantDraftCoOwnership blocked:', error || '0 rows updated — likely an RLS policy rejecting the write');
+      alert("You can edit this draft, but it may not appear as a collab comic for the person who invited you — this needs a database permissions fix. Let them know.");
+    }
   }
 }
 
@@ -1104,8 +1153,16 @@ async function bulkDeleteDrafts() {
 
   // Delete from DB
   const { data: delData, error } = await _sb.rpc('delete_drafts_bulk', { draft_ids: ids });
-  if (error) { toast('⚠ Delete failed: ' + error.message, 'var(--danger)'); return; }
-  if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
+  if (error) {
+    console.error('delete_drafts_bulk RPC error:', { message: error.message, code: error.code, details: error.details, hint: error.hint, ids });
+    toast('⚠ Delete failed: ' + error.message, 'var(--danger)');
+    return;
+  }
+  if (!delData || !delData.length) {
+    console.error('delete_drafts_bulk returned no rows (delete may not have run):', { delData, ids });
+    toast('⚠ Delete failed — please reload and try again', 'var(--danger)');
+    return;
+  }
 
   // Remove any storage files
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
@@ -1114,8 +1171,13 @@ async function bulkDeleteDrafts() {
     storagePaths.forEach(purgeCachedAsset);
   }
 
-  drafts = drafts.filter(d => !ids.includes(String(d.id)));
-  document.getElementById('drafts-count').innerText = drafts.length;
+  // BUGFIX: same class of bug as confirmDelete()'s draft branch — bulk delete
+  // used to only trim the in-memory `drafts` array, leaving the CCOffline
+  // fallback cache (read whenever a later load fails/is offline) with its old
+  // snapshot still containing these drafts. That let bulk-deleted drafts
+  // reappear after an offline reload. loadDrafts() re-fetches from Supabase
+  // and re-caches via CCOffline, keeping the two in sync.
+  await loadDrafts();
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
   renderStats();
   exitDraftSelectMode();
@@ -1158,6 +1220,12 @@ async function confirmDelete() {
     drafts = drafts.filter(d => String(d.id) !== String(deleteId));
     document.getElementById('drafts-count').innerText = drafts.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+    // BUGFIX: deleting used to only update the in-memory `drafts` array. The
+    // CCOffline fallback cache (read whenever a later load fails/is offline)
+    // kept its old snapshot, which still had this draft in it — so a deleted
+    // draft could reappear after an offline reload. loadDrafts() re-fetches
+    // from Supabase and re-caches via CCOffline, keeping the two in sync.
+    await loadDrafts();
     renderStats(); renderDrafts();
     toast('Draft deleted');
   } else {
@@ -1166,6 +1234,9 @@ async function confirmDelete() {
     published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
+    // BUGFIX: same issue as the draft branch above — resync the CCOffline
+    // cache so a deleted comic can't reappear from a stale fallback snapshot.
+    await loadPublished();
     renderStats(); renderPublished();
     toast('Comic removed from Discover');
   }
