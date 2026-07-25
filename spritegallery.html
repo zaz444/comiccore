@@ -830,16 +830,11 @@
         myHandle = user.handle || null;
 
         try {
-            const authRes = await fetch(supabaseUrl + '/auth/v1/user', {
-                headers: { 'apikey': supabaseKey }
-            });
-            if (authRes.ok) {
-                const authUser = await authRes.json();
-                if (authUser?.id) {
-                    // Admin if UUID matches OR if this is the verified jeffyplays session
-                    isAdmin = authUser.id === ADMIN_ID ||
-                              (myHandle && myHandle.toLowerCase().replace('@','') === 'jeffyplays' && !!authUser.id);
-                }
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (session?.user?.id) {
+                // Admin if UUID matches OR if the verified session belongs to jeffyplays
+                isAdmin = session.user.id === ADMIN_ID ||
+                          (myHandle && myHandle.toLowerCase().replace('@','') === 'jeffyplays');
             }
         } catch(e) {}
         if (isAdmin) {
