@@ -779,7 +779,7 @@
     const supabaseUrl = 'https://mmycqeejhguzhtzkyjaj.supabase.co';
     const supabaseKey = 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE';
     const _supabase = supabase.createClient(supabaseUrl, supabaseKey, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
     });
 
     // Raw REST fetch — bypasses the Supabase JS client entirely for gallery queries
@@ -829,9 +829,10 @@
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         myHandle = user.handle || null;
 
-        // persistSession is false so getSession() won't have a token.
-        // Instead, verify admin by checking the DB with the stored handle —
-        // the profiles table is the source of truth for who jeffyplays is.
+        // This client now persists the real login session (storageKey 'cc-auth'), so
+        // auth.uid() is populated for RLS on the server. This check just controls whether
+        // the admin button shows up client-side; the actual delete permission is enforced
+        // by the DB's RLS policy on auth.uid(), matching discover.html's pattern.
         const handleClean = (myHandle || '').toLowerCase().replace('@', '');
         if (handleClean === 'jeffyplays') {
             try {
@@ -1322,8 +1323,19 @@
     // ── Admin Delete ──
     async function deleteGallerySprite(id) {
         if (!confirm('Delete this sprite from the gallery?')) return;
-        const { error } = await _supabase.from(GALLERY_TABLE).delete().eq('id', id);
+        // BUGFIX: a delete blocked by Row Level Security doesn't come back as an `error` —
+        // Supabase just matches zero rows and reports success either way. Without .select()
+        // there's no way to tell "deleted 1 row" from "deleted 0 rows (RLS blocked it)", so a
+        // blocked delete looked identical to a real one: toast said "Sprite deleted", the row
+        // vanished from the local array, but it never left the database — the next fetchGallery()
+        // brought it right back. Requesting the deleted row back and checking it's non-empty
+        // is the only way to catch this.
+        const { data, error } = await _supabase.from(GALLERY_TABLE).delete().eq('id', id).select('id');
         if (error) { showToast('Delete failed: ' + error.message); return; }
+        if (!data || !data.length) {
+            showToast("Couldn't delete — you may not have permission to remove this sprite.");
+            return;
+        }
         allGallerySprites = allGallerySprites.filter(s => s.id !== id);
         saveGalleryCache(allGallerySprites);
         imgCache.delete(id);
