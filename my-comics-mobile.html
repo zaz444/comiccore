@@ -483,18 +483,31 @@ async function loadDrafts() {
   } catch(e) {
     console.error('Failed to load drafts:', e);
 
-    // OFFLINE FALLBACK — show whatever drafts were cached locally last time
-    const cached = window.CCOffline ? await CCOffline.getCachedMyDrafts(myHandle) : [];
-    if (cached.length) {
-      drafts = cached.map(d => ({
-        id: d.id, title: d.title || 'Untitled', data: d.data,
-        storage_path: d.storage_path || null,
-        ratio: d.canvas_ratio || { w:1, h:1 },
-        lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
-        _source: 'cache'
-      }));
-      document.getElementById('drafts-count').innerText = drafts.length;
-      return;
+    // Only trust the offline cache when we are ACTUALLY offline — a real
+    // network failure (fetch can't even reach the server) or the browser
+    // itself reporting no connection. A structured API error (bad query,
+    // RLS denial, etc.) means we reached the server just fine and got a real
+    // response — that should surface as a real error, not get masked by a
+    // stale local snapshot. Silently falling back to cache on ANY error is
+    // what caused drafts that were already deleted from the database to
+    // keep reappearing even while online with a working connection.
+    const genuinelyOffline = !navigator.onLine || (e instanceof TypeError);
+
+    if (genuinelyOffline) {
+      const cached = window.CCOffline ? await CCOffline.getCachedMyDrafts(myHandle) : [];
+      if (cached.length) {
+        drafts = cached.map(d => ({
+          id: d.id, title: d.title || 'Untitled', data: d.data,
+          storage_path: d.storage_path || null,
+          ratio: d.canvas_ratio || { w:1, h:1 },
+          lastModified: d.updated_at ? new Date(d.updated_at).toLocaleString() : '',
+          _source: 'cache'
+        }));
+        document.getElementById('drafts-count').innerText = drafts.length;
+        return;
+      }
+    } else {
+      toast('⚠ Could not load drafts: ' + (e?.message || 'unknown error'), 'var(--danger)');
     }
 
     drafts = [];
