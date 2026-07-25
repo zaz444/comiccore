@@ -490,6 +490,16 @@
     #mob-effect-grid .mob-sprite-name {
         font-size: 10px; padding: 5px 6px;
     }
+    /* Tag Sections cover cards — full-bleed cover art instead of padded icons */
+    .mob-tagsection-card img {
+        object-fit: cover; padding: 0;
+    }
+    .mob-tagsection-card .mob-sprite-name {
+        font-size: 11px; padding: 6px 4px; letter-spacing: 0.4px;
+    }
+    .mob-tagsection-exit {
+        grid-column: 1 / -1; aspect-ratio: unset; height: 90px;
+    }
 
     /* ── BACKGROUND GRID CARDS ── */
     #mob-bg-grid {
@@ -1433,13 +1443,14 @@
                 <option value="oldest">Oldest</option>
                 <option value="az">A → Z</option>
                 <option value="za">Z → A</option>
-                <option value="lastused">Last Used</option>
+                <option value="tagsections">Tag Sections</option>
             </select>
         </div>
         <div id="mob-gal-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
         <div id="mob-gal-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;overflow-y:auto;max-height:58vh;align-content:start;padding:4px 2px;">
             <div style="color:#555;font-size:13px;text-align:center;padding:20px;grid-column:span 3;">Tap to load gallery...</div>
         </div>
+        <div id="mob-gal-tagsections-grid" style="display:none;grid-template-columns:repeat(2,1fr);gap:12px;overflow-y:auto;max-height:58vh;align-content:start;padding:4px 2px;"></div>
     </div>
 </div>
 
@@ -9873,12 +9884,74 @@ function filterMobGallery() {
     if (!mobGallerySprites) return;
     const q    = (document.getElementById('mob-gal-search')?.value || '').toLowerCase().trim();
     const sort = document.getElementById('mob-gal-sort')?.value || 'newest';
+
+    const searchEl = document.getElementById('mob-gal-search');
+    const chipsEl  = document.getElementById('mob-gal-tag-chips');
+    const gridEl   = document.getElementById('mob-gal-grid');
+    const tagSecEl = document.getElementById('mob-gal-tagsections-grid');
+
+    // Tag Sections mode: show cover cards instead of the regular sprite grid
+    if (sort === 'tagsections') {
+        if (searchEl) searchEl.style.display = 'none';
+        if (chipsEl)  chipsEl.style.display  = 'none';
+        if (gridEl)   gridEl.style.display   = 'none';
+        if (tagSecEl) { tagSecEl.style.display = 'grid'; renderMobGalTagSections(); }
+        return;
+    }
+    if (searchEl) searchEl.style.display = '';
+    if (chipsEl)  chipsEl.style.display  = 'flex';
+    if (gridEl)   gridEl.style.display   = 'grid';
+    if (tagSecEl) tagSecEl.style.display = 'none';
+
     let filtered = mobGallerySprites.filter(s =>
         (!q || s.name.toLowerCase().includes(q) || (s.tags||[]).some(t => t.includes(q))) &&
         (!mobGalActiveTag || (s.tags||[]).includes(mobGalActiveTag))
     );
     filtered = sortSpriteList(filtered, sort);
     renderMobGallery(filtered);
+}
+
+// ── Tag Sections — cover cards that jump straight into a filtered tag ──
+// NOTE: confirm this base URL matches your actual Supabase storage path for
+// the "tag_sections" folder shown in your screenshot — update if different.
+const MOB_TAG_SECTIONS_BASE = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/tag_sections/';
+const MOB_TAG_SECTIONS = [
+    { tag: 'avengers',     label: 'Avengers',      img: 'avengers.png' },
+    { tag: 'marvel',       label: 'Marvel',        img: 'marvel.png' },
+    { tag: 'x-men',        label: 'X-Men',         img: 'x-men.png' },
+    { tag: 'spider-man',   label: 'Spider-Man',    img: 'spider-man.png' },
+    { tag: 'superhero',    label: 'Superhero',     img: 'superhero.png' },
+    { tag: 'dc',           label: 'DC',            img: 'dc.png' },
+    { tag: 'dbz',          label: 'Dragon Ball Z', img: 'dbz.png' },
+    { tag: 'saiyan',       label: 'Saiyan',        img: 'saiyan.png' },
+    { tag: 'fighter',      label: 'Fighters',      img: 'fighter.png' },
+    { tag: 'supervillian', label: 'Supervillain',  img: 'supervillian.png' },
+    { tag: 'villian',      label: 'Villain',       img: 'villian.png' },
+];
+const MOB_TAG_SECTIONS_EXIT = { label: 'All Sprites', img: 'allsprites.png' };
+
+function renderMobGalTagSections() {
+    const grid = document.getElementById('mob-gal-tagsections-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    MOB_TAG_SECTIONS.forEach(sec => grid.appendChild(buildMobTagSectionCard(sec, false)));
+    grid.appendChild(buildMobTagSectionCard(MOB_TAG_SECTIONS_EXIT, true));
+}
+
+function buildMobTagSectionCard(sec, isExit) {
+    const card = document.createElement('div');
+    card.className = 'mob-sprite-card mob-tagsection-card' + (isExit ? ' mob-tagsection-exit' : '');
+    card.innerHTML = `<img src="${MOB_TAG_SECTIONS_BASE}${sec.img}" loading="lazy" alt="${sec.label}"><div class="mob-sprite-name">${isExit ? '↩ ' : ''}${sec.label}</div>`;
+    card.onclick = () => {
+        // Tapping a tag card jumps into that filtered section; tapping the
+        // "All Sprites" exit card clears the filter and goes back to Newest.
+        mobGalActiveTag = isExit ? null : sec.tag;
+        const sortEl = document.getElementById('mob-gal-sort');
+        if (sortEl) sortEl.value = 'newest';
+        buildMobGalTagChips(mobGallerySprites);
+        filterMobGallery();
+    };
+    return card;
 }
 
 async function mobGalFetchFull(id) {
