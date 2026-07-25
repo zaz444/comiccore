@@ -1,2 +1,10 @@
 # ComicCore
-ComicCore is a comic creator with characters from Marvel, DC, DBZ, DC, and more to make stories alongside with so much editing options that let you manage your comic. You can manage frames, make your own characters, and share your creations. Squads in ComicCore let you make your own groups for making comics together and chatting together.
+If you are curious about development or the community here are our Discord servers:
+
+Community Server:
+https://discord.gg/KrsV498DEx
+
+Development Updates Server: https://discord.gg/KcazwTNezk
+
+
+Feel free to ask any questions, seek more information on what the web app can do, and be part of the community!
