@@ -1320,25 +1320,44 @@
     }
 
     // Same idea as grantCoOwnership, but for a still-unpublished draft.
+    //
+    // BUGFIX: same silent-RLS-failure class as respondCollabFromChat's status
+    // update above. This UPDATE is run by the invitee, who isn't yet in
+    // owner_handles — if the drafts table's RLS only lets current owners
+    // modify a row, this write is quietly rejected (error:null, 0 rows). The
+    // invitee can still open the draft via the separate accepted-invite
+    // fallback check in create-mobile.html, so nothing looked broken from
+    // their side — but owner_handles never actually grew, so the draft never
+    // shows up under "Your Collab Comics" for the person who sent the invite.
     async function grantDraftCoOwnership(draftId, handle) {
         const { data: draft } = await _sb.from('drafts').select('owner_handle, owner_handles').eq('id', draftId).maybeSingle();
         if (!draft) return;
         const current = (draft.owner_handles && draft.owner_handles.length) ? [...draft.owner_handles] : (draft.owner_handle ? [draft.owner_handle] : []);
         if (!current.includes(handle)) {
             current.push(handle);
-            await _sb.from('drafts').update({ owner_handles: current }).eq('id', draftId);
+            const { data: updated, error } = await _sb.from('drafts')
+                .update({ owner_handles: current }).eq('id', draftId).select('id');
+            if (error || !updated || !updated.length) {
+                console.error('grantDraftCoOwnership blocked:', error || '0 rows updated — likely an RLS policy rejecting the write');
+            }
         }
     }
 
     // Comics have no single "owner" once a collab is accepted — everyone in
     // owner_handles is an equal co-owner with identical edit/delete rights.
+    // BUGFIX: same silent-RLS-failure class as above — see comment on
+    // grantDraftCoOwnership.
     async function grantCoOwnership(comicId, handle) {
         const { data: comic } = await _sb.from('comics').select('owner_handle, owner_handles').eq('id', comicId).maybeSingle();
         if (!comic) return;
         const current = (comic.owner_handles && comic.owner_handles.length) ? [...comic.owner_handles] : (comic.owner_handle ? [comic.owner_handle] : []);
         if (!current.includes(handle)) {
             current.push(handle);
-            await _sb.from('comics').update({ owner_handles: current }).eq('id', comicId);
+            const { data: updated, error } = await _sb.from('comics')
+                .update({ owner_handles: current }).eq('id', comicId).select('id');
+            if (error || !updated || !updated.length) {
+                console.error('grantCoOwnership blocked:', error || '0 rows updated — likely an RLS policy rejecting the write');
+            }
         }
     }
 

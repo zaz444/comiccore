@@ -32,6 +32,25 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// The app posts { type: 'PURGE_STORAGE_PATH', path } (see purgeCachedAsset() in
+// my-comics-mobile.html) whenever a comic/draft's storage asset is deleted.
+// Without this listener that message went nowhere, so the old cached image
+// kept being served cache-first even after the underlying file was gone.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'PURGE_STORAGE_PATH' && event.data.path) {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const reqs = await cache.keys();
+        await Promise.all(
+          reqs
+            .filter((req) => req.url.includes(event.data.path))
+            .map((req) => cache.delete(req))
+        );
+      })
+    );
+  }
+});
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -40,20 +59,6 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
-
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'PURGE_STORAGE_PATH' && event.data.path) {
-    event.waitUntil(purgeCachedPath(event.data.path));
-  }
-});
-
-async function purgeCachedPath(path) {
-  const cache = await caches.open(CACHE_NAME);
-  const keys = await cache.keys();
-  await Promise.all(
-    keys.filter((req) => req.url.includes(path)).map((req) => cache.delete(req))
-  );
-}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;

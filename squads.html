@@ -2064,12 +2064,22 @@
 
     async function respondCollabInvite(inviteId, comicId, response, btn, isDraft) {
         btn.disabled = true;
-        const { error } = await _sb
+        // BUGFIX: this update lacked the .select()+row-count check present in
+        // the other two copies of this flow (my-comics-mobile.html,
+        // squad_chat.html) — a blocked RLS policy returns error:null + 0 rows
+        // changed here too, which without this check looks identical to a
+        // real success.
+        const { data: updated, error } = await _sb
             .from('comic_collaborators')
             .update({ status: response })
-            .eq('id', inviteId);
+            .eq('id', inviteId)
+            .select('id');
 
-        if (error) { btn.disabled = false; alert(error.message); return; }
+        if (error || !updated || !updated.length) {
+            btn.disabled = false;
+            alert(error ? error.message : "That didn't go through — you may not have permission to respond to this invite. Try reloading the page.");
+            return;
+        }
 
         if (response === 'accepted') {
             if (isDraft) {
@@ -2088,13 +2098,21 @@
 
     // Comics have no single "owner" once a collab is accepted — everyone in
     // owner_handles is an equal co-owner with identical edit/delete rights.
+    // BUGFIX: RLS can silently block this UPDATE since it's run by the
+    // invitee, who isn't yet in owner_handles — see the detailed comment on
+    // this same function in my-comics-mobile.html. Logging the failure here
+    // at least surfaces it instead of leaving owner_handles quietly stuck.
     async function grantCoOwnership(comicId, handle) {
         const { data: comic } = await _sb.from('comics').select('owner_handle, owner_handles').eq('id', comicId).maybeSingle();
         if (!comic) return;
         const current = (comic.owner_handles && comic.owner_handles.length) ? [...comic.owner_handles] : (comic.owner_handle ? [comic.owner_handle] : []);
         if (!current.includes(handle)) {
             current.push(handle);
-            await _sb.from('comics').update({ owner_handles: current }).eq('id', comicId);
+            const { data: updated, error } = await _sb.from('comics')
+                .update({ owner_handles: current }).eq('id', comicId).select('id');
+            if (error || !updated || !updated.length) {
+                console.error('grantCoOwnership blocked:', error || '0 rows updated — likely an RLS policy rejecting the write');
+            }
         }
     }
 
@@ -2105,7 +2123,11 @@
         const current = (draft.owner_handles && draft.owner_handles.length) ? [...draft.owner_handles] : (draft.owner_handle ? [draft.owner_handle] : []);
         if (!current.includes(handle)) {
             current.push(handle);
-            await _sb.from('drafts').update({ owner_handles: current }).eq('id', draftId);
+            const { data: updated, error } = await _sb.from('drafts')
+                .update({ owner_handles: current }).eq('id', draftId).select('id');
+            if (error || !updated || !updated.length) {
+                console.error('grantDraftCoOwnership blocked:', error || '0 rows updated — likely an RLS policy rejecting the write');
+            }
         }
     }
     // ── END COLLAB ───────────────────────────────────────────────────────────
