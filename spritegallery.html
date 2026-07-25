@@ -829,14 +829,20 @@
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         myHandle = user.handle || null;
 
-        try {
-            const { data: { session } } = await _supabase.auth.getSession();
-            if (session?.user?.id) {
-                // Admin if UUID matches OR if the verified session belongs to jeffyplays
-                isAdmin = session.user.id === ADMIN_ID ||
-                          (myHandle && myHandle.toLowerCase().replace('@','') === 'jeffyplays');
-            }
-        } catch(e) {}
+        // persistSession is false so getSession() won't have a token.
+        // Instead, verify admin by checking the DB with the stored handle —
+        // the profiles table is the source of truth for who jeffyplays is.
+        const handleClean = (myHandle || '').toLowerCase().replace('@', '');
+        if (handleClean === 'jeffyplays') {
+            try {
+                const { data: ownerCheck } = await _supabase
+                    .from('profiles')
+                    .select('handle, permanent_id')
+                    .eq('handle', 'jeffyplays')
+                    .maybeSingle();
+                if (ownerCheck?.handle === 'jeffyplays') isAdmin = true;
+            } catch(e) {}
+        }
         if (isAdmin) {
             const syncBtn = document.getElementById('admin-sync-btn');
             if (syncBtn) syncBtn.style.display = '';
