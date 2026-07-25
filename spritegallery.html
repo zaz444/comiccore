@@ -1978,9 +1978,21 @@
 
         document.getElementById('mapper-sprite-name').textContent = item.name + ' · ' + item.id;
         document.getElementById('action-mapper-overlay').style.display = 'flex';
-        mapperPath = '';
-        await mapperBrowse('');
         renderMapperStaged();
+
+        // Try to auto-navigate to a folder matching the sprite's name
+        const safeName = (item.name || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        const candidates = ['sprites/' + safeName, safeName, 'gallery/' + safeName];
+        let landed = false;
+        for (const path of candidates) {
+            const { data, error } = await _supabase.storage.from('sprites').list(path, { limit: 1 });
+            if (!error && data && data.length > 0) {
+                await mapperBrowse(path);
+                landed = true;
+                break;
+            }
+        }
+        if (!landed) await mapperBrowse('');
     }
 
     function closeActionMapper() {
