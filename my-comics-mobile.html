@@ -1153,8 +1153,16 @@ async function bulkDeleteDrafts() {
 
   // Delete from DB
   const { data: delData, error } = await _sb.rpc('delete_drafts_bulk', { draft_ids: ids });
-  if (error) { toast('⚠ Delete failed: ' + error.message, 'var(--danger)'); return; }
-  if (!delData || !delData.length) { toast('⚠ Delete failed — please reload and try again', 'var(--danger)'); return; }
+  if (error) {
+    console.error('delete_drafts_bulk RPC error:', { message: error.message, code: error.code, details: error.details, hint: error.hint, ids });
+    toast('⚠ Delete failed: ' + error.message, 'var(--danger)');
+    return;
+  }
+  if (!delData || !delData.length) {
+    console.error('delete_drafts_bulk returned no rows (delete may not have run):', { delData, ids });
+    toast('⚠ Delete failed — please reload and try again', 'var(--danger)');
+    return;
+  }
 
   // Remove any storage files
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
