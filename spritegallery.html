@@ -14,8 +14,9 @@
 
         :root {
             --orange: #ff7a00;
+            --orange-rgb: 255,122,0;
             --orange-light: #ff9a3c;
-            --orange-glow: rgba(255,122,0,0.22);
+            --orange-glow: rgba(var(--orange-rgb),0.22);
             --bg: #0f0f11;
             --bg2: #18181b;
             --card: #1e1e22;
@@ -61,7 +62,7 @@
         .top-bar-logo span { color: var(--orange); }
         .top-bar-badge {
             font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
-            background: var(--orange-glow); border: 1px solid rgba(255,122,0,0.35);
+            background: var(--orange-glow); border: 1px solid rgba(var(--orange-rgb),0.35);
             color: var(--orange-light); padding: 3px 10px; border-radius: 20px;
             display: flex; align-items: center; gap: 5px;
         }
@@ -304,12 +305,12 @@
         }
         .pack-card-count { font-size: 10px; font-weight: 800; color: var(--orange-light); }
         .pack-card-use {
-            background: var(--orange-glow); border: 1px solid rgba(255,122,0,0.35); color: var(--orange-light);
+            background: var(--orange-glow); border: 1px solid rgba(var(--orange-rgb),0.35); color: var(--orange-light);
             font-size: 10px; font-weight: 800; padding: 5px 12px; border-radius: 20px;
             cursor: pointer; font-family: inherit; transition: 0.15s;
             display: flex; align-items: center; gap: 5px;
         }
-        .pack-card-use:hover { background: rgba(255,122,0,0.25); }
+        .pack-card-use:hover { background: rgba(var(--orange-rgb),0.25); }
 
         /* Preview image loading shimmer */
         .prev-img-wrap {
@@ -824,10 +825,30 @@
     let activePackTagFilter = null;
     let packsFetched = false;
 
+    // ── Accent color (mirrors settings.html / profile.html) ──
+    function hexToRgb(hex) {
+        const clean = (hex || '').replace('#', '');
+        const r = parseInt(clean.slice(0,2), 16);
+        const g = parseInt(clean.slice(2,4), 16);
+        const b = parseInt(clean.slice(4,6), 16);
+        return { r, g, b };
+    }
+    function applyAccentColor(hex) {
+        const color = hex || '#ff7a00';
+        const { r, g, b } = hexToRgb(color);
+        const light = `rgb(${Math.round(r+(255-r)*0.35)},${Math.round(g+(255-g)*0.35)},${Math.round(b+(255-b)*0.35)})`;
+        document.documentElement.style.setProperty('--orange', color);
+        document.documentElement.style.setProperty('--orange-rgb', `${r},${g},${b}`);
+        document.documentElement.style.setProperty('--orange-light', light);
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.content = color;
+    }
+
     // ── Init ──
     window.addEventListener('load', async () => {
         const user = JSON.parse(localStorage.getItem('user_profile') || '{}');
         myHandle = user.handle || null;
+        applyAccentColor(user.settings?.accent_color);
 
         // This client now persists the real login session (storageKey 'cc-auth'), so
         // auth.uid() is populated for RLS on the server. This check just controls whether
