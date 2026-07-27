@@ -75,18 +75,15 @@ word-wrap:break-word;line-height:1.35;
 
 /* ── Style 1: Classic Round ── */
 .bubble-style-round{border:3.5px solid var(--bubble-border,#000);border-radius:999px;box-shadow:3px 3px 0 var(--bubble-border,#000);}
-.bubble-style-round .bubble-tail{position:absolute;bottom:-20px;left:28px;width:0;height:0;border-left:12px solid transparent;border-right:4px solid transparent;border-top:20px solid var(--bubble-border,#000);}
-.bubble-style-round .bubble-tail::after{content:'';position:absolute;top:-19px;left:-9px;width:0;height:0;border-left:8px solid transparent;border-right:2px solid transparent;border-top:16px solid var(--bubble-bg,#fff);}
+
 
 /* ── Style 2: Chat ── */
 .bubble-style-chat{border:3px solid var(--bubble-border,#000);border-radius:18px;box-shadow:3px 3px 0 var(--bubble-border,#000);}
-.bubble-style-chat .bubble-tail{position:absolute;bottom:-18px;right:24px;width:0;height:0;border-left:14px solid transparent;border-right:0px solid transparent;border-top:18px solid var(--bubble-border,#000);}
-.bubble-style-chat .bubble-tail::after{content:'';position:absolute;top:-17px;left:-11px;width:0;height:0;border-left:10px solid transparent;border-top:14px solid var(--bubble-bg,#fff);}
+
 
 /* ── Style 3: Rect ── */
 .bubble-style-rect{border:3px solid var(--bubble-border,#000);border-radius:4px;box-shadow:4px 4px 0 var(--bubble-border,#000);}
-.bubble-style-rect .bubble-tail{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:18px solid var(--bubble-border,#000);}
-.bubble-style-rect .bubble-tail::after{content:'';position:absolute;top:-17px;left:-9px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid var(--bubble-bg,#fff);}
+
 
 /* ── Style 4: Spiky / Burst ── */
 .bubble-style-spiky{background:var(--bubble-border,#000);border:none;clip-path:polygon(50% 0%,58.28% 19.09%,75% 6.7%,72.63% 27.37%,93.3% 25%,80.91% 41.72%,100% 50%,80.91% 58.28%,93.3% 75%,72.63% 72.63%,75% 93.3%,58.28% 80.91%,50% 100%,41.72% 80.91%,25% 93.3%,27.37% 72.63%,6.7% 75%,19.09% 58.28%,0% 50%,19.09% 41.72%,6.7% 25%,27.37% 27.37%,25% 6.7%,41.72% 19.09%);padding:6px;box-shadow:none;}
@@ -105,8 +102,7 @@ word-wrap:break-word;line-height:1.35;
 
 /* ── Style 7: Whisper ── */
 .bubble-style-whisper{border:3px dashed var(--bubble-border,#000);border-radius:999px;background:var(--bubble-bg,rgba(255,255,255,0.92));box-shadow:none;font-style:italic;}
-.bubble-style-whisper .bubble-tail{position:absolute;bottom:-16px;left:36px;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:16px solid var(--bubble-border,#000);}
-.bubble-style-whisper .bubble-tail::after{content:'';position:absolute;top:-15px;left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:12px solid var(--bubble-bg,#fff);}
+
 
 /* ── Style 8: Electric ── */
 .bubble-style-electric{border:3.5px solid var(--bubble-border,#000);background:var(--bubble-bg,#fff);clip-path:polygon(8% 0%,92% 0%,100% 8%,100% 92%,92% 100%,65% 100%,60% 115%,52% 100%,8% 100%,0% 92%,0% 8%);padding:14px 18px 24px;box-shadow:none;}
@@ -1687,16 +1683,70 @@ function getEditorDimensions(frame) {
   return { ew, eh };
 }
 
-// Tail position is stored as a 0-100% point along the bubble's bottom edge
-// (l.tailPos), set by dragging the tail handle in create.html. Older saves
-// only have the legacy `tailFlip` boolean, so fall back to each style's
-// default base position, mirrored to the right side when flipped. This must
-// stay in sync with getBubbleTailPos() in create-mobile.html.
+// Tail position is stored as an edge ('top'|'bottom'|'left'|'right', l.tailEdge)
+// plus a 0-100% point along that edge (l.tailPos), set by dragging the tail
+// handle anywhere around the bubble's perimeter in create-mobile.html. Older
+// saves only have the legacy `tailFlip` boolean, so fall back to each style's
+// default bottom-edge base position, mirrored to the right side when flipped.
+// This must stay in sync with getBubbleTailEdge()/getBubbleTailPos() in
+// create-mobile.html.
 const MOB_BUBBLE_TAIL_BASE = { round: 20, chat: 80, rect: 50, whisper: 25 };
+function getBubbleTailEdge(layer) {
+  return (layer.tailEdge === 'top' || layer.tailEdge === 'left' || layer.tailEdge === 'right')
+    ? layer.tailEdge : 'bottom';
+}
 function getBubbleTailPos(layer, bStyle) {
   if (layer.tailPos != null) return Math.max(4, Math.min(96, layer.tailPos));
   const base = MOB_BUBBLE_TAIL_BASE[bStyle] ?? 50;
   return layer.tailFlip ? (100 - base) : base;
+}
+
+// ── TAIL SHAPE ENGINE (ported from create-mobile.html) ──
+// Each tail-capable style's triangle, as it looks glued to the BOTTOM edge
+// (outer solid/a/b border sizes, plus an optional inner "keyline" triangle in
+// the bubble's fill color). The same numbers drive all four edges — rotating
+// a rigid triangle doesn't change its size, only which physical CSS sides
+// it uses. Keep these numbers identical to MOB_TAIL_SHAPE in
+// create-mobile.html so a bubble looks the same in the reader as it did
+// while authoring it.
+const MOB_TAIL_SHAPE = {
+  round:   { solid: 20, a: 12, b: 4,  inner: { solid: 16, a: 8,  b: 2,  gapMain: -19, gapCross: -9  } },
+  chat:    { solid: 18, a: 14, b: 0,  inner: { solid: 14, a: 10, b: 0,  gapMain: -17, gapCross: -11 } },
+  rect:    { solid: 18, a: 12, b: 12, inner: { solid: 14, a: 9,  b: 9,  gapMain: -17, gapCross: -9  } },
+  whisper: { solid: 16, a: 8,  b: 8,  inner: null },
+};
+const MOB_TAIL_SOLID_SIDE = { bottom: 'top', top: 'bottom', left: 'right', right: 'left' };
+
+// Builds a `<div class="bubble-tail edge-...">` (with its inner keyline div,
+// if the style has one) for a tail sitting on `edge` at `pos` (0-100%) along
+// it, scaled uniformly by `sx` to match the bubble/font scale the reader
+// renders this frame at. All border widths and offsets are pre-multiplied by
+// sx rather than using a CSS transform:scale(), so the tail's own edge/pos
+// positioning (which relies on percentages of the *unscaled* bubble) isn't
+// thrown off by a second, independent scale layer.
+function bubbleTailEl(bStyle, edge, pos, bubBorder, bubBg, sx) {
+  const shape = MOB_TAIL_SHAPE[bStyle];
+  if (!shape) return null;
+  const alongEdge   = (edge === 'top' || edge === 'bottom');
+  const solidSide   = MOB_TAIL_SOLID_SIDE[edge];
+  const crossSides  = alongEdge ? ['left', 'right'] : ['top', 'bottom'];
+  const alongProp   = alongEdge ? 'left' : 'top';
+  const mirrorFn    = alongEdge ? 'scaleX' : 'scaleY';
+  const translateFn = alongEdge ? 'translateX' : 'translateY';
+  const flip = pos >= 50 ? ` ${mirrorFn}(-1)` : '';
+  const px = n => (Math.round(n * sx * 100) / 100) + 'px';
+
+  const tail = document.createElement('div');
+  tail.className = `bubble-tail edge-${edge}`;
+  tail.style.cssText = `position:absolute;${edge}:-${px(shape.solid)};${alongProp}:${pos}%;transform:${translateFn}(-50%)${flip};width:0;height:0;border-${crossSides[0]}:${px(shape.a)} solid transparent;border-${crossSides[1]}:${px(shape.b)} solid transparent;border-${solidSide}:${px(shape.solid)} solid ${bubBorder};`;
+
+  if (shape.inner) {
+    const s = shape.inner;
+    const inner = document.createElement('div');
+    inner.style.cssText = `position:absolute;${solidSide}:${px(s.gapMain)};${alongProp}:${px(s.gapCross)};width:0;height:0;border-${crossSides[0]}:${px(s.a)} solid transparent;border-${crossSides[1]}:${px(s.b)} solid transparent;border-${solidSide}:${px(s.solid)} solid ${bubBg};`;
+    tail.appendChild(inner);
+  }
+  return tail;
 }
 
 function getSpriteFilterCSS(layer) {
@@ -2240,26 +2290,17 @@ function _renderFrameDOM(f, next, cw, ch) {
         bubble.appendChild(document.createTextNode(l.content || ''));
       }
 
-      // Tail: shown only for styles that use one (same logic as create.html)
+      // Tail: shown only for styles that use one (same logic as create-mobile.html).
+      // Uses the continuous drag position + edge saved by the creator
+      // (l.tailEdge / l.tailPos), falling back to the legacy bottom-edge-only
+      // tailFlip toggle for older saves that predate the draggable-to-any-edge
+      // tail (same logic as create-mobile.html's getBubbleTailEdge()/getBubbleTailPos()).
       const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
       if (showTail) {
-        const tail = document.createElement('div');
-        tail.className = 'bubble-tail';
-        // Use the continuous drag position saved by the creator (l.tailPos),
-        // falling back to the legacy left/right tailFlip toggle for older
-        // saves that predate the draggable tail (same logic as create.html's
-        // getBubbleTailPos()).
-        const tailPos = getBubbleTailPos(l, bStyle);
-        tail.style.left = tailPos + '%';
-        tail.style.right = 'auto';
-        // Scale the tail triangle to match the bubble/font scale (sx), same
-        // ratio create.html renders at, and mirror it horizontally once past
-        // the midpoint so it reads as a natural reflection rather than the
-        // same lean relocated to the other side (matches create.html).
-        const tailMirror = tailPos >= 50 ? -1 : 1;
-        tail.style.transform = `translateX(-50%) scale(${tailMirror * sx}, ${sx})`;
-        tail.style.transformOrigin = 'top center';
-        bubble.appendChild(tail);
+        const tailEdge = getBubbleTailEdge(l);
+        const tailPos  = getBubbleTailPos(l, bStyle);
+        const tail = bubbleTailEl(bStyle, tailEdge, tailPos, bubBorder, bubBg, sx);
+        if (tail) bubble.appendChild(tail);
       }
 
       // Thought dots: shown for cloud/thinking bubbles
