@@ -6439,30 +6439,21 @@ function handleActionSelect(img, pack, isEditing) {
                     return;
                 }
 
-                // Different poses are naturally different shapes (a crouch is
-                // short and wide, a stand is tall and narrow) — forcing every
-                // pose to the same locked height stretched/ballooned poses
-                // that weren't meant to be that tall. Instead, derive the true
-                // display scale (px shown per px of source content) from the
-                // CURRENTLY visible pose, then apply that same scale to the
-                // new pose's own trimmed content so it renders at its real
-                // relative size.
-                const probeCur = new Image();
-                probeCur.crossOrigin = 'anonymous';
-                probeCur.onload = () => {
-                    if (probeCur.naturalWidth && probeCur.naturalHeight) {
-                        const scale = oldH / probeCur.naturalHeight;
-                        finish(Math.round(croppedNew.w * scale), Math.round(croppedNew.h * scale));
-                    } else {
-                        const ar = croppedNew.w / croppedNew.h;
-                        finish(Math.round(oldH * ar), oldH);
-                    }
-                };
-                probeCur.onerror = () => {
-                    const ar = croppedNew.w / croppedNew.h;
-                    finish(Math.round(oldH * ar), oldH);
-                };
-                probeCur.src = layer.src;
+                // Use the stored charHeight as the canonical reference height.
+                // charHeight is set once when the sprite is first placed and
+                // represents the intended display height in canvas pixels.
+                // Re-loading layer.src to measure it fails for data URLs
+                // (CORS error on canvas reads), which caused the onerror
+                // fallback to use oldH — the user's current (possibly resized)
+                // height — making every action switch compound any prior resize
+                // and produce wildly inconsistent sizes. By anchoring to
+                // charHeight instead, all poses render at the same consistent
+                // scale regardless of how many times actions have been swapped.
+                {
+                    const canonH = layer.charHeight;
+                    const scale  = canonH / croppedNew.h;
+                    finish(Math.round(croppedNew.w * scale), canonH);
+                }
             } else {
                 // Effect / plain image: scale proportionally from current width
                 const scale = oldW / croppedNew.w;
