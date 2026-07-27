@@ -1295,9 +1295,9 @@
         <div id="mob-bubble-tail-row" style="display:flex;gap:8px;align-items:center;margin:10px 0 4px;">
             <span style="font-size:10px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;">Tail</span>
             <button id="mob-bpick-tail-left"  onclick="mobBubbleTailFlip=false; document.getElementById('mob-bpick-tail-left').style.background='rgba(255,122,0,.18)'; document.getElementById('mob-bpick-tail-left').style.borderColor='var(--accent)'; document.getElementById('mob-bpick-tail-left').style.color='var(--accent)'; document.getElementById('mob-bpick-tail-right').style.background='#111'; document.getElementById('mob-bpick-tail-right').style.borderColor='#333'; document.getElementById('mob-bpick-tail-right').style.color='#666';"
-                style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.18);color:var(--accent);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">◀ Left</button>
+                style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,122,0,.18);color:var(--accent);font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;">◀</button>
             <button id="mob-bpick-tail-right" onclick="mobBubbleTailFlip=true; document.getElementById('mob-bpick-tail-right').style.background='rgba(255,122,0,.18)'; document.getElementById('mob-bpick-tail-right').style.borderColor='var(--accent)'; document.getElementById('mob-bpick-tail-right').style.color='var(--accent)'; document.getElementById('mob-bpick-tail-left').style.background='#111'; document.getElementById('mob-bpick-tail-left').style.borderColor='#333'; document.getElementById('mob-bpick-tail-left').style.color='#666';"
-                style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Right ▶</button>
+                style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #333;background:#111;color:#666;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;">▶</button>
         </div>
         <!-- Bubble width row -->
         <div style="display:flex;gap:8px;align-items:center;margin:10px 0 4px;">
@@ -6683,9 +6683,22 @@ function openBubblePicker(mode) {
 // so what you pick is exactly what you get instead of a generic icon.
 function mountBubbleStyleThumb(container, styleId, label) {
     container.innerHTML = '';
-    const dummy = { type: styleId === 'cloud' ? 'thinking' : 'bubble', bubbleStyle: styleId, content: label || '', fontSize: 12, w: 100 };
+    const dummy = { type: styleId === 'cloud' ? 'thinking' : 'bubble', bubbleStyle: styleId, content: label || '', fontSize: 12 };
     const bub = buildLayerPreviewElement(dummy);
     bub.style.pointerEvents = 'none';
+    // Let plain-box bubbles grow to whatever width their one-line label
+    // needs instead of wrapping/breaking inside a fixed width — the whole
+    // shape then gets scaled down as one piece to fit the tile, so long
+    // labels like "Mangabox" always render as one clean line rather than
+    // splitting mid-word. Burst/Shout keep their tuned fixed width so their
+    // star-shaped clip-path isn't stretched by a long label.
+    bub.style.whiteSpace = 'nowrap';
+    const fill = bub.querySelector('.bubble-clip-fill');
+    if (fill) {
+        fill.style.whiteSpace = 'nowrap';
+    } else {
+        bub.style.width = 'max-content';
+    }
     container.appendChild(bub);
     requestAnimationFrame(() => {
         if (!container.isConnected) return;
