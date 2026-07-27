@@ -206,19 +206,19 @@
     }
 
     /* ── TAIL SCROLLER ── */
-    /* Track + drag handle below a selected bubble — drag left/right along
-       the bottom edge to reposition the tail directly, instead of picking
-       Left/Right from a menu. */
+    /* Dashed outline + drag puck around a selected bubble — drag the puck
+       anywhere around the bubble's full perimeter to send the tail to
+       whichever edge (top/bottom/left/right) and position it's released
+       nearest to, instead of only sliding left/right under one fixed edge. */
     .tail-scroller-track {
-        position: absolute; left: 6px; right: 6px; bottom: -46px; height: 4px;
-        background: rgba(255,255,255,0.15); border-radius: 2px;
-        z-index: 199; pointer-events: none;
+        position: absolute; inset: -14px; border: 1.5px dashed rgba(255,255,255,0.28);
+        border-radius: 18px; z-index: 199; pointer-events: none;
     }
     .tail-scroller-handle {
-        position: absolute; bottom: -55px; width: 22px; height: 22px;
-        transform: translateX(-50%); z-index: 200;
+        position: absolute; width: 22px; height: 22px; z-index: 200;
         background: #1c1c1e; border: 2px solid var(--accent); border-radius: 50%;
         touch-action: none; cursor: grab;
+        /* top/bottom/left/right + transform are set inline in JS per edge */
     }
     .tail-scroller-handle:active { cursor: grabbing; background: var(--accent); }
 
@@ -226,13 +226,10 @@
     .speech-bubble { padding: 12px 16px; background: #fff; color: #000; font-weight: 800; text-align: center; min-width: 50px; position: relative; word-wrap: break-word; line-height: 1.35; }
     .bubble-style-round { border: 3.5px solid var(--bubble-border, #000); border-radius: 999px; box-shadow: 3px 3px 0 var(--bubble-border, #000); }
     .bubble-style-round .bubble-tail { position: absolute; bottom: -20px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 4px solid transparent; border-top: 20px solid var(--bubble-border, #000); }
-    .bubble-style-round .bubble-tail::after { content: ''; position: absolute; top: -19px; left: -9px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 2px solid transparent; border-top: 16px solid var(--bubble-bg, #fff); }
     .bubble-style-chat { border: 3px solid var(--bubble-border, #000); border-radius: 18px; box-shadow: 3px 3px 0 var(--bubble-border, #000); }
     .bubble-style-chat .bubble-tail { position: absolute; bottom: -18px; width: 0; height: 0; border-left: 14px solid transparent; border-top: 18px solid var(--bubble-border, #000); }
-    .bubble-style-chat .bubble-tail::after { content: ''; position: absolute; top: -17px; left: -11px; width: 0; height: 0; border-left: 10px solid transparent; border-top: 14px solid var(--bubble-bg, #fff); }
     .bubble-style-rect { border: 3px solid var(--bubble-border, #000); border-radius: 4px; box-shadow: 4px 4px 0 var(--bubble-border, #000); }
     .bubble-style-rect .bubble-tail { position: absolute; bottom: -18px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 18px solid var(--bubble-border, #000); }
-    .bubble-style-rect .bubble-tail::after { content: ''; position: absolute; top: -17px; left: -9px; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 14px solid var(--bubble-bg, #fff); }
     .bubble-style-spiky { background: var(--bubble-border, #000); border: none; clip-path: polygon(50% 0%, 58.28% 19.09%, 75% 6.7%, 72.63% 27.37%, 93.3% 25%, 80.91% 41.72%, 100% 50%, 80.91% 58.28%, 93.3% 75%, 72.63% 72.63%, 75% 93.3%, 58.28% 80.91%, 50% 100%, 41.72% 80.91%, 25% 93.3%, 27.37% 72.63%, 6.7% 75%, 19.09% 58.28%, 0% 50%, 19.09% 41.72%, 6.7% 25%, 27.37% 27.37%, 25% 6.7%, 41.72% 19.09%); padding: 6px; }
     .bubble-style-spiky .bubble-clip-fill { display: block; background: var(--bubble-bg, #fff); width: 100%; box-sizing: border-box; clip-path: polygon(50% 0%, 58.28% 19.09%, 75% 6.7%, 72.63% 27.37%, 93.3% 25%, 80.91% 41.72%, 100% 50%, 80.91% 58.28%, 93.3% 75%, 72.63% 72.63%, 75% 93.3%, 58.28% 80.91%, 50% 100%, 41.72% 80.91%, 25% 93.3%, 27.37% 72.63%, 6.7% 75%, 19.09% 58.28%, 0% 50%, 19.09% 41.72%, 6.7% 25%, 27.37% 27.37%, 25% 6.7%, 41.72% 19.09%); padding: 22px 28px; }
     .bubble-style-spiky .bubble-tail { display: none; }
@@ -844,13 +841,20 @@
     #bubble-style-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
     .bubble-preview-btn {
         background: #111; border: 2px solid #333; border-radius: 12px;
-        padding: 12px 6px; cursor: pointer; text-align: center;
-        display: flex; flex-direction: column; align-items: center; gap: 6px;
-        transition: 0.15s;
+        padding: 6px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        height: 74px; overflow: hidden; transition: 0.15s;
     }
     .bubble-preview-btn:active, .bubble-preview-btn.selected { border-color: var(--accent); background: rgba(255,122,0,0.1); }
-    .bubble-preview-btn .bpico { font-size: 22px; }
-    .bubble-preview-btn span { font-size: 9px; font-weight: 800; color: #888; text-transform: uppercase; }
+    .bubble-preview-thumb { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .bubble-preview-thumb .speech-bubble { pointer-events: none; }
+    .bubble-mini-btn {
+        background: #1a1a1a; border: 1.5px solid #333; border-radius: 8px;
+        padding: 4px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        height: 54px; overflow: hidden; transition: 0.15s;
+    }
+    .bubble-mini-btn:active, .bubble-mini-btn.selected { border-color: var(--accent); background: rgba(255,122,0,0.15); }
 
     /* Sprite action modal */
     .action-selector-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 12px; }
@@ -3279,15 +3283,65 @@ function cpCancelEyedrop() {
     });
 })();
 
-// Tail position is stored as a 0-100% point along the bubble's bottom edge
-// (so it can sit anywhere, including dead-center) instead of a left/right
-// toggle. Older saved layers only have `tailFlip` — this derives an
-// equivalent percentage for those so existing bubbles don't jump around.
+// Tail position is stored as an edge ('top' | 'bottom' | 'left' | 'right',
+// defaulting to 'bottom') plus a 0-100% point along that edge — so the tail
+// can sit anywhere around the whole bubble, not just slide left-right under
+// it. Older saved layers only have `tailFlip` — this derives an equivalent
+// bottom-edge percentage for those so existing bubbles don't jump around.
 const MOB_BUBBLE_TAIL_BASE = { round: 20, chat: 80, rect: 50, whisper: 25 };
+function getBubbleTailEdge(layer) {
+    return (layer.tailEdge === 'top' || layer.tailEdge === 'left' || layer.tailEdge === 'right')
+        ? layer.tailEdge : 'bottom';
+}
 function getBubbleTailPos(layer, bStyle) {
     if (layer.tailPos != null) return Math.max(4, Math.min(96, layer.tailPos));
     const base = MOB_BUBBLE_TAIL_BASE[bStyle] ?? 50;
     return layer.tailFlip ? (100 - base) : base;
+}
+
+// ── TAIL SHAPE ENGINE ──
+// Each tail-capable style's triangle is defined once, as it looks glued to
+// the BOTTOM edge (outer solid/a/b border sizes, plus an optional inner
+// "keyline" triangle in the bubble's fill color). The exact same numbers are
+// reused unchanged for the other three edges — rotating a rigid triangle
+// doesn't change its size, only which physical CSS sides it uses — so one
+// table drives all four orientations instead of four hand-tuned copies.
+const MOB_TAIL_SHAPE = {
+    round:   { solid: 20, a: 12, b: 4,  inner: { solid: 16, a: 8,  b: 2,  gapMain: -19, gapCross: -9  } },
+    chat:    { solid: 18, a: 14, b: 0,  inner: { solid: 14, a: 10, b: 0,  gapMain: -17, gapCross: -11 } },
+    rect:    { solid: 18, a: 12, b: 12, inner: { solid: 14, a: 9,  b: 9,  gapMain: -17, gapCross: -9  } },
+    whisper: { solid: 16, a: 8,  b: 8,  inner: null },
+};
+// The physical CSS side that becomes the colored "base" of the triangle
+// (and, for the inner triangle, the side it's nudged back from) for a tail
+// pointing away from the bubble on the given edge.
+const MOB_TAIL_SOLID_SIDE = { bottom: 'top', top: 'bottom', left: 'right', right: 'left' };
+
+// Builds a complete `<div class="bubble-tail edge-...">` (with its inner
+// keyline div, if the style has one) for a bubble tail sitting on `edge`
+// ('bottom' | 'top' | 'left' | 'right') at `pos` (0-100%) along that edge.
+// `pos` runs left→right along the top/bottom edges, and top→bottom along
+// the left/right edges. Returns '' for styles with no tail (spiky, shout,
+// electric, narrator, cloud).
+function bubbleTailHTML(bStyle, edge, pos, bubBorder, bubBg) {
+    const shape = MOB_TAIL_SHAPE[bStyle];
+    if (!shape) return '';
+    const alongEdge   = (edge === 'top' || edge === 'bottom');
+    const solidSide   = MOB_TAIL_SOLID_SIDE[edge];
+    const crossSides  = alongEdge ? ['left', 'right'] : ['top', 'bottom'];
+    const alongProp   = alongEdge ? 'left' : 'top';
+    const mirrorFn    = alongEdge ? 'scaleX' : 'scaleY';
+    const translateFn = alongEdge ? 'translateX' : 'translateY';
+    const flip = pos >= 50 ? ` ${mirrorFn}(-1)` : '';
+
+    const outerBorders = `border-${crossSides[0]}:${shape.a}px solid transparent;border-${crossSides[1]}:${shape.b}px solid transparent;border-${solidSide}:${shape.solid}px solid ${bubBorder};`;
+    let inner = '';
+    if (shape.inner) {
+        const s = shape.inner;
+        const innerBorders = `border-${crossSides[0]}:${s.a}px solid transparent;border-${crossSides[1]}:${s.b}px solid transparent;border-${solidSide}:${s.solid}px solid ${bubBg};`;
+        inner = `<div style="position:absolute;${solidSide}:${s.gapMain}px;${alongProp}:${s.gapCross}px;width:0;height:0;${innerBorders}"></div>`;
+    }
+    return `<div class="bubble-tail edge-${edge}" style="position:absolute;${edge}:-${shape.solid}px;${alongProp}:${pos}%;transform:${translateFn}(-50%)${flip};width:0;height:0;${outerBorders}">${inner}</div>`;
 }
 
 function attachResizeHandles(el, layer) {
@@ -3401,9 +3455,11 @@ function attachResizeHandles(el, layer) {
     el.appendChild(rh);
 }
 
-// Draggable scroller below a selected bubble/thinking layer — track + puck
-// you drag left-right to slide the tail anywhere along the bottom edge,
-// instead of picking from Left/Center/Right buttons in a menu.
+// Draggable puck around a selected bubble/thinking layer's full perimeter —
+// drag it anywhere around the bubble (top, bottom, either side) and it snaps
+// the tail to whichever edge + position along that edge it's nearest to,
+// instead of only sliding left-right under one fixed edge.
+const MOB_TAIL_HANDLE_GAP = 28; // how far outside the bubble's own edge the puck floats
 function attachTailHandle(el, layer) {
     el.querySelectorAll('.tail-scroller-track, .tail-scroller-handle').forEach(h => h.remove());
     const bStyle = layer.bubbleStyle || 'round';
@@ -3416,29 +3472,69 @@ function attachTailHandle(el, layer) {
 
     const handle = document.createElement('div');
     handle.className = 'tail-scroller-handle';
-    handle.style.left = getBubbleTailPos(layer, bStyle) + '%';
+
+    // Positions the puck using the same edge-relative convention as the tail
+    // itself: an offset outside whichever physical side is the bubble's own
+    // edge, and a 0-100% position along the perpendicular (along-edge) axis.
+    function placeHandle(edge, pos) {
+        handle.style.top = handle.style.bottom = handle.style.left = handle.style.right = '';
+        const alongEdge = (edge === 'top' || edge === 'bottom');
+        handle.style[edge] = '-' + MOB_TAIL_HANDLE_GAP + 'px';
+        handle.style[alongEdge ? 'left' : 'top'] = pos + '%';
+        handle.style.transform = alongEdge ? 'translateX(-50%)' : 'translateY(-50%)';
+    }
+    // Given a touch point in `el`'s own unrotated box (0,0 top-left to w,h
+    // bottom-right), finds the nearest edge + 0-100% position along it —
+    // comparing how far outside each axis the touch sits, scaled by that
+    // axis's own half-size so a wide, short bubble doesn't unfairly favor
+    // top/bottom (or a tall, narrow one favor left/right).
+    function nearestEdgePos(w, h, x, y) {
+        const dx = x - w / 2, dy = y - h / 2;
+        const favorSide = Math.abs(dx) / Math.max(1, w / 2) > Math.abs(dy) / Math.max(1, h / 2);
+        if (favorSide) {
+            return { edge: dx < 0 ? 'left' : 'right', pos: Math.max(4, Math.min(96, Math.round((y / h) * 100))) };
+        }
+        return { edge: dy < 0 ? 'top' : 'bottom', pos: Math.max(4, Math.min(96, Math.round((x / w) * 100))) };
+    }
+
+    placeHandle(getBubbleTailEdge(layer), getBubbleTailPos(layer, bStyle));
+
     handle.addEventListener('touchstart', (ev) => {
         ev.preventDefault(); ev.stopPropagation();
         saveState();
+        let lastEdge = getBubbleTailEdge(layer);
+        const bubBorder = layer.bubbleBorderColor || '#000';
+        const bubBg = layer.bubbleBg || '#fff';
         const onMove = (mv) => {
             if (mv.touches.length > 1) return;
             mv.preventDefault(); mv.stopPropagation();
             const t = mv.touches[0];
             const elRect = el.getBoundingClientRect();
-            let pct = ((t.clientX - elRect.left) / elRect.width) * 100;
-            pct = Math.max(4, Math.min(96, Math.round(pct)));
-            layer.tailPos = pct;
-            handle.style.left = pct + '%';
+            if (!elRect.width || !elRect.height) return;
+            const { edge, pos } = nearestEdgePos(elRect.width, elRect.height, t.clientX - elRect.left, t.clientY - elRect.top);
+            layer.tailEdge = edge;
+            layer.tailPos = pos;
+            placeHandle(edge, pos);
             const tailEl = el.querySelector('.bubble-tail');
             if (tailEl) {
-                tailEl.style.left = pct + '%';
-                tailEl.style.transform = 'translateX(-50%)' + (pct >= 50 ? ' scaleX(-1)' : '');
+                if (edge !== lastEdge) {
+                    // Crossed onto a different edge — the shape itself (which
+                    // physical borders are solid vs. transparent) changes, so
+                    // rebuild it rather than trying to patch it in place.
+                    tailEl.outerHTML = bubbleTailHTML(bStyle, edge, pos, bubBorder, bubBg);
+                    lastEdge = edge;
+                } else {
+                    const alongEdge = (edge === 'top' || edge === 'bottom');
+                    const mirrorFn = alongEdge ? 'scaleX' : 'scaleY';
+                    tailEl.style[alongEdge ? 'left' : 'top'] = pos + '%';
+                    tailEl.style.transform = (alongEdge ? 'translateX(-50%)' : 'translateY(-50%)') + (pos >= 50 ? ` ${mirrorFn}(-1)` : '');
+                }
             }
         };
         const onUp = () => {
             handle.removeEventListener('touchmove', onMove);
             handle.removeEventListener('touchend', onUp);
-            delete layer.tailFlip; // superseded by the dragged position
+            delete layer.tailFlip; // superseded by the dragged edge/position
             render();
         };
         handle.addEventListener('touchmove', onMove, { passive: false });
@@ -3715,12 +3811,7 @@ function _renderNow() {
             }
             const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
             if (showTail) {
-                const tail = document.createElement('div');
-                const tailPos = getBubbleTailPos(layer, bStyle);
-                tail.className = 'bubble-tail';
-                tail.style.left = tailPos + '%';
-                tail.style.transform = 'translateX(-50%)' + (tailPos >= 50 ? ' scaleX(-1)' : '');
-                bub.appendChild(tail);
+                bub.insertAdjacentHTML('beforeend', bubbleTailHTML(bStyle, getBubbleTailEdge(layer), getBubbleTailPos(layer, bStyle), bubBorder, bubBg));
             }
             if (layer.type === 'thinking') {
                 [1,2,3].forEach(n => { const dot = document.createElement('div'); dot.className = 'thought-dot-' + n; bub.appendChild(dot); });
@@ -3987,6 +4078,8 @@ function renderSqaFontPopover() {
     if (!pop || !activeLayer) return;
     const l = activeLayer;
     const isBubble = ['bubble', 'thinking'].includes(l.type);
+    const bStyleForTail = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
+    const hasTail = isBubble && !['spiky', 'shout', 'electric', 'narrator', 'cloud'].includes(bStyleForTail);
     const fontSelectHtml = document.getElementById('font-family-select') ? document.getElementById('font-family-select').innerHTML : '';
     const anyStyleActive = !!(l.bold || l.italic || l.underline || l.outline);
     pop.innerHTML = `
@@ -3994,7 +4087,7 @@ function renderSqaFontPopover() {
             <select onchange="event.stopPropagation();mobSqaSetFont(this.value)" style="flex:1;min-width:0;background:#111;border:1px solid #333;color:var(--text);border-radius:8px;padding:8px;font-size:12px;font-family:inherit;box-sizing:border-box;">
                 ${fontSelectHtml}
             </select>
-            ${isBubble ? `<button class="sqa-btn" onclick="event.stopPropagation();mobQuickFlipTail();renderSqaFontPopover();" title="Flip tail" style="flex-shrink:0;">◀▶</button>` : ''}
+            ${hasTail ? `<button class="sqa-btn" onclick="event.stopPropagation();mobQuickFlipTailV();renderSqaFontPopover();" title="Flip tail vertically" style="flex-shrink:0;">▲▼</button><button class="sqa-btn" onclick="event.stopPropagation();mobQuickFlipTail();renderSqaFontPopover();" title="Flip tail horizontally" style="flex-shrink:0;">◀▶</button>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
             <button onclick="event.stopPropagation();mobSqaBumpSize(-2)" style="width:30px;height:30px;border-radius:8px;border:1px solid #333;background:#111;color:var(--text);font-weight:900;cursor:pointer;">−</button>
@@ -5238,12 +5331,7 @@ function buildLayerPreviewElement(layer) {
         }
         const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
         if (showTail) {
-            const tail = document.createElement('div');
-            const tailPos = getBubbleTailPos(layer, bStyle);
-            tail.className = 'bubble-tail';
-            tail.style.left = tailPos + '%';
-            tail.style.transform = 'translateX(-50%)' + (tailPos >= 50 ? ' scaleX(-1)' : '');
-            el.appendChild(tail);
+            el.insertAdjacentHTML('beforeend', bubbleTailHTML(bStyle, getBubbleTailEdge(layer), getBubbleTailPos(layer, bStyle), bubBorder, bubBg));
         }
         if (layer.type === 'thinking') [1,2,3].forEach(n => { const d = document.createElement('div'); d.className = 'thought-dot-' + n; el.appendChild(d); });
     } else if (layer.type === 'text') {
@@ -6528,15 +6616,15 @@ function addSubtitle() {
 
 // ── BUBBLE PICKER ──
 const BUBBLE_STYLES = [
-    { id: 'round',    label: 'Classic',  ico: '💬' },
-    { id: 'chat',     label: 'Modern',   ico: '🗨'  },
-    { id: 'rect',     label: 'Sharp',    ico: '⬜'  },
-    { id: 'whisper',  label: 'Whisper',  ico: '🤫'  },
-    { id: 'shout',    label: 'Shout',    ico: '📢'  },
-    { id: 'spiky',    label: 'Burst',    ico: '💥'  },
-    { id: 'electric', label: 'Electric', ico: '⚡'  },
-    { id: 'narrator', label: 'Narrator', ico: '📋'  },
-    { id: 'cloud',    label: 'Cloud',    ico: '💭'  },
+    { id: 'round',    label: 'Classic',   ico: '💬' },
+    { id: 'chat',     label: 'Modern',    ico: '🗨'  },
+    { id: 'rect',     label: 'Box',       ico: '⬜'  },
+    { id: 'whisper',  label: 'Whisper',   ico: '🤫'  },
+    { id: 'shout',    label: 'Shout',     ico: '📢'  },
+    { id: 'spiky',    label: 'Burst',     ico: '💥'  },
+    { id: 'electric', label: 'Mangabox',  ico: '⚡'  },
+    { id: 'narrator', label: 'Narrator',  ico: '📋'  },
+    { id: 'cloud',    label: 'Cloud',     ico: '💭'  },
 ];
 let selectedBubbleStyle = 'round';
 let currentBubbleMode = 'speech';
@@ -6572,7 +6660,10 @@ function openBubblePicker(mode) {
     BUBBLE_STYLES.forEach(s => {
         const btn = document.createElement('button');
         btn.className = 'bubble-preview-btn' + (s.id === selectedBubbleStyle ? ' selected' : '');
-        btn.innerHTML = `<span class="bpico">${s.ico}</span><span>${s.label}</span>`;
+        const thumb = document.createElement('div');
+        thumb.className = 'bubble-preview-thumb';
+        btn.appendChild(thumb);
+        mountBubbleStyleThumb(thumb, s.id, s.label);
         btn.onclick = () => {
             selectedBubbleStyle = s.id;
             grid.querySelectorAll('.bubble-preview-btn').forEach(b => b.classList.remove('selected'));
@@ -6585,6 +6676,26 @@ function openBubblePicker(mode) {
         grid.appendChild(btn);
     });
     document.getElementById('bubble-picker-modal').style.display = 'flex';
+}
+
+// Renders a small, real (non-emoji) preview of a bubble style — an actual
+// empty bubble built the same way a live one would be, scaled down to fit —
+// so what you pick is exactly what you get instead of a generic icon.
+function mountBubbleStyleThumb(container, styleId, label) {
+    container.innerHTML = '';
+    const dummy = { type: styleId === 'cloud' ? 'thinking' : 'bubble', bubbleStyle: styleId, content: label || '', fontSize: 12, w: 100 };
+    const bub = buildLayerPreviewElement(dummy);
+    bub.style.pointerEvents = 'none';
+    container.appendChild(bub);
+    requestAnimationFrame(() => {
+        if (!container.isConnected) return;
+        const availW = container.clientWidth - 6, availH = container.clientHeight - 6;
+        const rect = bub.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0 && availW > 0 && availH > 0) {
+            const scale = Math.min(1, availW / rect.width, availH / rect.height);
+            bub.style.transform = `scale(${scale})`;
+        }
+    });
 }
 function closeBubblePicker() { document.getElementById('bubble-picker-modal').style.display = 'none'; }
 function confirmBubblePicker() {
@@ -6605,29 +6716,62 @@ function renderBubbleMiniGrid() {
     grid.innerHTML = '';
     BUBBLE_STYLES.forEach(s => {
         const btn = document.createElement('button');
-        btn.style.cssText = `padding:6px 4px;background:${activeLayer?.bubbleStyle===s.id?'rgba(255,122,0,0.2)':'#1a1a1a'};border:1.5px solid ${activeLayer?.bubbleStyle===s.id?'var(--accent)':'#333'};border-radius:8px;cursor:pointer;text-align:center;font-size:9px;font-family:inherit;color:#aaa;`;
-        btn.innerHTML = `<div style="font-size:16px;">${s.ico}</div>${s.label}`;
+        btn.className = 'bubble-mini-btn' + (activeLayer && (activeLayer.bubbleStyle || 'round') === s.id ? ' selected' : '');
+        const thumb = document.createElement('div');
+        thumb.className = 'bubble-preview-thumb';
+        btn.appendChild(thumb);
+        mountBubbleStyleThumb(thumb, s.id, s.label);
         btn.onclick = () => { if (activeLayer) { saveState(); activeLayer.bubbleStyle = s.id; render(); renderBubbleMiniGrid(); renderTransformPreview(); } };
         grid.appendChild(btn);
     });
 }
 
-function mobSetBubbleTailPos(pos) {
+// Two mirror operations for the tail, each aware of which of the 4 edges
+// it's currently sitting on. Think of them as reflecting the tail's anchor
+// point across the bubble's vertical or horizontal center line:
+//  - On the top/bottom edges, a HORIZONTAL flip slides the tail to the
+//    mirrored spot along that same edge (as it always did); a VERTICAL flip
+//    instead sends it to the opposite edge (top<->bottom), same spot along it.
+//  - On the left/right edges it's the other way around: a HORIZONTAL flip
+//    sends it to the opposite side (left<->right), same height; a VERTICAL
+//    flip mirrors it up/down along that same side (so a tail sitting high on
+//    the right edge ends up low on the right edge, and vice versa).
+// In both cases the tail shape itself is mirrored too (via bubbleTailHTML's
+// scaleX/scaleY(-1) once past the 50% midpoint) so it reads as a natural
+// reflection rather than the same lean just relocated.
+function mobQuickFlipTail() { // horizontal (◀▶)
     if (!activeLayer) return;
     saveState();
-    activeLayer.tailPos = Math.max(4, Math.min(96, Math.round(+pos)));
-    delete activeLayer.tailFlip; // superseded by the continuous position
+    const bStyle = activeLayer.bubbleStyle || 'round';
+    const edge = getBubbleTailEdge(activeLayer);
+    const pos = getBubbleTailPos(activeLayer, bStyle);
+    if (edge === 'left' || edge === 'right') {
+        activeLayer.tailEdge = (edge === 'left') ? 'right' : 'left';
+        activeLayer.tailPos = pos;
+    } else {
+        activeLayer.tailEdge = edge;
+        activeLayer.tailPos = 100 - pos;
+    }
+    delete activeLayer.tailFlip; // superseded by the edge/position pair
     render();
     renderTransformPreview();
 }
-// Quick mirror-flip for the on-canvas quick-actions bar: sends the tail's
-// anchor point to the mirrored spot on the other side, and the tail shape
-// itself is mirrored (via scaleX(-1) once past the 50% midpoint) so it
-// looks like a natural reflection rather than the same lean relocated.
-function mobQuickFlipTail() {
+function mobQuickFlipTailV() { // vertical (▲▼)
     if (!activeLayer) return;
+    saveState();
     const bStyle = activeLayer.bubbleStyle || 'round';
-    mobSetBubbleTailPos(100 - getBubbleTailPos(activeLayer, bStyle));
+    const edge = getBubbleTailEdge(activeLayer);
+    const pos = getBubbleTailPos(activeLayer, bStyle);
+    if (edge === 'top' || edge === 'bottom') {
+        activeLayer.tailEdge = (edge === 'bottom') ? 'top' : 'bottom';
+        activeLayer.tailPos = pos;
+    } else {
+        activeLayer.tailEdge = edge;
+        activeLayer.tailPos = 100 - pos;
+    }
+    delete activeLayer.tailFlip;
+    render();
+    renderTransformPreview();
 }
 
 // ── BACKGROUND ──
@@ -8547,15 +8691,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
 
                 let tailHtml = '';
                 if (showTail) {
-                    const tailPos = getBubbleTailPos(layer, bStyle);
-                    const tailTransform = 'translateX(-50%)' + (tailPos >= 50 ? ' scaleX(-1)' : '');
-                    if (bStyle === 'round' || bStyle === 'whisper') {
-                        tailHtml = `<div style="position:absolute;bottom:-20px;left:${tailPos}%;transform:${tailTransform};width:0;height:0;border-left:12px solid transparent;border-right:4px solid transparent;border-top:20px solid ${bubBorder};"><div style="position:absolute;top:-19px;left:-9px;width:0;height:0;border-left:8px solid transparent;border-right:2px solid transparent;border-top:16px solid ${bubBg};"></div></div>`;
-                    } else if (bStyle === 'chat') {
-                        tailHtml = `<div style="position:absolute;bottom:-18px;left:${tailPos}%;transform:${tailTransform};width:0;height:0;border-left:14px solid transparent;border-top:18px solid ${bubBorder};"><div style="position:absolute;top:-17px;left:-11px;width:0;height:0;border-left:10px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
-                    } else if (bStyle === 'rect') {
-                        tailHtml = `<div style="position:absolute;bottom:-18px;left:${tailPos}%;transform:${tailTransform};width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:18px solid ${bubBorder};"><div style="position:absolute;top:-17px;left:-9px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid ${bubBg};"></div></div>`;
-                    }
+                    tailHtml = bubbleTailHTML(bStyle, getBubbleTailEdge(layer), getBubbleTailPos(layer, bStyle), bubBorder, bubBg);
                 }
 
                 const clipPaths = {
