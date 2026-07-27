@@ -1322,7 +1322,7 @@
             <button class="export-tab" onclick="switchExportTab('gif')">🎞 GIF</button>
         </div>
         <div id="export-frames" class="export-section active">
-            <div style="font-size:11px;color:#666;margin-bottom:12px;font-weight:700;">Tap a frame to download. On iOS long-press the image to save.</div>
+            <div style="font-size:11px;color:#666;margin-bottom:12px;font-weight:700;">Tap a frame to save. On iOS the share sheet will open — choose Save to Photos or Files.</div>
             <div id="export-frames-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:55vh;overflow-y:auto;"></div>
         </div>
         <div id="export-strip" class="export-section">
@@ -1336,13 +1336,13 @@
             </div>
             <div id="strip-preview-wrap" style="margin:12px 0;text-align:center;display:none;">
                 <img id="strip-preview-img" style="max-width:100%;border-radius:8px;border:1px solid #333;">
-                <div style="font-size:10px;color:#555;margin-top:6px;">Long-press image to save on iOS</div>
+                <div style="font-size:10px;color:#555;margin-top:6px;">iOS: share sheet will open after generating. Long-press the preview as a backup.</div>
             </div>
             <div id="strip-status" style="font-size:11px;color:#888;margin-bottom:10px;"></div>
             <button onclick="exportStrip()" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">GENERATE STRIP</button>
         </div>
         <div id="export-gif" class="export-section">
-            <div style="font-size:11px;color:#888;margin-bottom:10px;font-weight:700;">GIF works best on desktop. On mobile, long-press the preview to save.</div>
+            <div style="font-size:11px;color:#888;margin-bottom:10px;font-weight:700;">GIF works best on desktop. On mobile, tap "Save GIF" to open the share sheet.</div>
             <div class="export-row">
                 <span>Frame Speed</span>
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -1362,8 +1362,8 @@
             <div id="gif-status" style="font-size:11px;color:var(--teal);margin-bottom:10px;font-weight:800;"></div>
             <div id="gif-result-wrap" style="display:none;text-align:center;margin-bottom:10px;">
                 <img id="gif-result-img" style="max-width:100%;border-radius:8px;border:1px solid #333;">
-                <div style="font-size:10px;color:#555;margin-top:6px;">Long-press to save on iOS</div>
-                <a id="gif-download-link" style="display:inline-block;margin-top:8px;padding:10px 20px;background:var(--teal);color:#000;border-radius:10px;font-weight:900;font-size:12px;text-decoration:none;">Download GIF</a>
+                <div style="font-size:10px;color:#555;margin-top:6px;">Tap "Save GIF" below, or long-press the preview as a backup.</div>
+                <button id="gif-download-link" onclick="if(this.dataset.url)mobileDownload(this.dataset.url,'comic.gif')" style="display:inline-block;margin-top:8px;padding:10px 20px;background:var(--teal);color:#000;border:none;border-radius:10px;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit;">Save GIF</button>
             </div>
             <button onclick="exportGIF()" id="gif-generate-btn" style="width:100%;padding:12px;background:var(--teal);color:#000;border:none;border-radius:12px;font-weight:900;cursor:pointer;">GENERATE GIF</button>
         </div>
@@ -2447,6 +2447,10 @@ function setRatio(w, h) {
                 if (l.y != null) l.y *= scale;
                 if (l.w != null) l.w *= scale;
                 if (l.h != null) l.h *= scale;
+                // charHeight is the canonical action-switch reference height —
+                // it must scale with the layer or every subsequent pose swap
+                // will size against a stale canvas-pixel value.
+                if (l.charHeight != null) l.charHeight *= scale;
             });
         });
     }
@@ -8821,12 +8825,33 @@ async function renderFrameToCanvas(frame, cw, ch) {
     return tmp;
 }
 
-function mobileDownload(dataUrl, filename) {
+async function mobileDownload(dataUrl, filename) {
+    // iOS Safari silently ignores <a download> and window.open(dataUrl) just
+    // opens a raw blob tab with no save option. The only reliable path on iOS
+    // is navigator.share({ files }) which triggers the native share sheet
+    // (Save to Photos / Files / AirDrop etc.).
+    // Android Chrome supports <a download> natively, so we fall back to that.
+    // Last resort: open the data URL in a new tab so the user can long-press.
+    try {
+        const res  = await fetch(dataUrl);
+        const blob = await res.blob();
+        const ext  = filename.split('.').pop() || 'png';
+        const mime = blob.type || ('image/' + ext);
+        const file = new File([blob], filename, { type: mime });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: filename });
+            return;
+        }
+    } catch(shareErr) { /* share cancelled or not supported — fall through */ }
+    // Android / desktop: anchor-click download
     try {
         var a = document.createElement('a');
-        a.href=dataUrl; a.download=filename;
+        a.href = dataUrl; a.download = filename;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    } catch(e) { window.open(dataUrl,'_blank'); }
+        return;
+    } catch(e) {}
+    // Final fallback: open in new tab so user can long-press to save
+    window.open(dataUrl, '_blank');
 }
 
 async function exportGIF() {
@@ -8839,13 +8864,37 @@ async function exportGIF() {
     statusEl.innerText='Rendering frames...'; btn.disabled=true; btn.innerText='GENERATING...';
     var fps=parseInt(document.getElementById('gif-fps').value);
     var quality=parseInt(document.getElementById('gif-quality').value);
+    // Use the currently-active frame's on-screen pixel size as the GIF output
+    // dimensions. renderFrameToCanvas recomputes its own scaleX/scaleY from
+    // each frame's stored ratio, so every frame's content renders correctly
+    // regardless of which frame is active — but all frames share one output
+    // size so the GIF encoder gets consistent canvas dimensions.
     var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
     try {
         var renderedFrames=[];
         for (var i=0;i<frames.length;i++) {
             statusEl.innerText='Rendering frame '+(i+1)+' / '+frames.length;
             fillEl.style.width=(i/frames.length*40)+'%';
-            renderedFrames.push(await renderFrameToCanvas(frames[i],cw,ch));
+            // Render at this frame's own natural pixel size, then composite
+            // it centred onto the shared output canvas so mixed-ratio comics
+            // don't get squashed/stretched in the output GIF.
+            var _fr=getFrameRatio(frames[i]);
+            var _fs=computeCanvasSize(_fr.w,_fr.h);
+            var _fcw=_fs.cw||cw, _fch=_fs.ch||ch;
+            var rawFrame=await renderFrameToCanvas(frames[i],_fcw,_fch);
+            if (_fcw===cw && _fch===ch) {
+                renderedFrames.push(rawFrame);
+            } else {
+                // Letterbox/pillarbox onto the shared output size
+                var padded=document.createElement('canvas');
+                padded.width=cw; padded.height=ch;
+                var pctx=padded.getContext('2d');
+                pctx.fillStyle='#000';
+                pctx.fillRect(0,0,cw,ch);
+                var ox=Math.round((cw-_fcw)/2), oy=Math.round((ch-_fch)/2);
+                pctx.drawImage(rawFrame,ox,oy);
+                renderedFrames.push(padded);
+            }
         }
         var gif=new GIF({workers:2,quality:quality,width:cw,height:ch,workerScript:'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'});
         for (var ri=0;ri<renderedFrames.length;ri++) gif.addFrame(renderedFrames[ri],{delay:Math.round(1000/fps),copy:true});
@@ -8854,9 +8903,11 @@ async function exportGIF() {
         gif.on('finished',function(blob){
             var url=URL.createObjectURL(blob);
             document.getElementById('gif-result-img').src=url;
-            var dl=document.getElementById('gif-download-link'); dl.href=url; dl.download='comic.gif';
+            // Store the object URL on the button so mobileDownload can fetch
+            // it as a Blob and share it via the native iOS share sheet.
+            var dl=document.getElementById('gif-download-link'); dl.dataset.url=url;
             resultWrap.style.display='block'; barEl.style.display='none';
-            statusEl.innerText='Done! Long-press image to save on iOS.';
+            statusEl.innerText='Done! Tap "Save GIF" below (or long-press the preview on iOS).';
             btn.disabled=false; btn.innerText='REGENERATE';
         });
         gif.on('error',function(err){statusEl.innerText='GIF failed: '+err;barEl.style.display='none';btn.disabled=false;btn.innerText='GENERATE GIF';});
@@ -8870,16 +8921,27 @@ async function exportStrip() {
     var previewWrap=document.getElementById('strip-preview-wrap');
     statusEl.innerText='Rendering...';
     try {
-        var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
+        // Compute per-frame pixel sizes so each frame renders at its own
+        // natural ratio, then pick the largest width/height as the cell size
+        // so mixed-ratio frames don't get squashed. Frames smaller than the
+        // cell are centred (letterbox/pillarbox) rather than stretched.
+        var frameSizes=frames.map(function(f){var _fr=getFrameRatio(f);var _fs=computeCanvasSize(_fr.w,_fr.h);return{cw:_fs.cw||400,ch:_fs.ch||400};});
+        var cw=Math.max.apply(null,frameSizes.map(function(s){return s.cw;}))||400;
+        var ch=Math.max.apply(null,frameSizes.map(function(s){return s.ch;}))||400;
         var rows=Math.ceil(frames.length/cols), pad=10;
         var sw=(cw+pad)*cols+pad, sh=(ch+pad)*rows+pad;
         var sc=document.createElement('canvas'); sc.width=sw; sc.height=sh;
         var ctx2=sc.getContext('2d'); ctx2.fillStyle='#111'; ctx2.fillRect(0,0,sw,sh);
         for (var i=0;i<frames.length;i++) {
             statusEl.innerText='Frame '+(i+1)+' / '+frames.length;
-            var fc=await renderFrameToCanvas(frames[i],cw,ch);
+            var _fcw=frameSizes[i].cw, _fch=frameSizes[i].ch;
+            var fc=await renderFrameToCanvas(frames[i],_fcw,_fch);
             var row=Math.floor(i/cols), col=i%cols;
-            ctx2.drawImage(fc,pad+col*(cw+pad),pad+row*(ch+pad));
+            var cellX=pad+col*(cw+pad), cellY=pad+row*(ch+pad);
+            // Fill cell background then centre the frame inside it
+            ctx2.fillStyle='#111'; ctx2.fillRect(cellX,cellY,cw,ch);
+            var ox=Math.round((cw-_fcw)/2), oy=Math.round((ch-_fch)/2);
+            ctx2.drawImage(fc,cellX+ox,cellY+oy);
             ctx2.fillStyle='rgba(255,122,0,0.9)'; ctx2.fillRect(pad+col*(cw+pad),pad+row*(ch+pad),22,18);
             ctx2.fillStyle='#000'; ctx2.font='bold 10px Inter'; ctx2.textAlign='center';
             ctx2.fillText(i+1,pad+col*(cw+pad)+11,pad+row*(ch+pad)+13);
@@ -8887,8 +8949,10 @@ async function exportStrip() {
         var dataUrl=sc.toDataURL('image/png');
         document.getElementById('strip-preview-img').src=dataUrl;
         previewWrap.style.display='block';
-        statusEl.innerText='Done! Long-press image to save on iOS.';
-        mobileDownload(dataUrl,'comic-strip.png');
+        // mobileDownload: share sheet on iOS, anchor-download on Android/desktop
+        statusEl.innerText='Saving…';
+        await mobileDownload(dataUrl,'comic-strip.png');
+        statusEl.innerText='Done! If the save dialog didn\'t appear, long-press the preview image.';
     } catch(err) {
         statusEl.innerText='Error: '+(err && err.message ? err.message : err);
     }
@@ -8897,10 +8961,14 @@ async function exportStrip() {
 async function openExportFramesTab() {
     var grid=document.getElementById('export-frames-grid');
     grid.innerHTML='<div style="color:#555;font-size:12px;padding:10px;">Rendering...</div>';
-    var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
     var built=document.createDocumentFragment();
     for (var i=0;i<frames.length;i++) {
         try {
+            // Each frame is exported at its own ratio's natural pixel size so
+            // mixed-ratio frames are never squashed into the active frame's shape.
+            var _fr=getFrameRatio(frames[i]);
+            var _fs=computeCanvasSize(_fr.w,_fr.h);
+            var cw=_fs.cw||canvas.offsetWidth||400, ch=_fs.ch||canvas.offsetHeight||400;
             var fc=await renderFrameToCanvas(frames[i],cw,ch);
             var dataUrl=fc.toDataURL('image/png');
             var wrap=document.createElement('div');
@@ -8909,9 +8977,11 @@ async function openExportFramesTab() {
             img.src=dataUrl; img.style.cssText='width:100%;display:block;';
             var label=document.createElement('div');
             label.style.cssText='position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:var(--accent);font-size:10px;font-weight:900;padding:5px 8px;text-align:center;';
-            label.innerText='FRAME '+(i+1)+' - TAP TO SAVE';
+            label.innerText='FRAME '+(i+1)+' — TAP TO SAVE';
             wrap.appendChild(img); wrap.appendChild(label);
-            (function(url,idx){ wrap.onclick=function(){mobileDownload(url,'frame-'+idx+'.png');}; })(dataUrl,i+1);
+            // mobileDownload is now async: uses share sheet on iOS,
+            // anchor-click on Android/desktop, window.open as last resort.
+            (function(url,n){ wrap.onclick=function(){ mobileDownload(url,'frame-'+n+'.png'); }; })(dataUrl,i+1);
             built.appendChild(wrap);
         } catch(e) {
             var errBox=document.createElement('div');
