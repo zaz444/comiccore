@@ -1314,14 +1314,13 @@
 
 <!-- text editor modal -->
 <div id="camc-text-editor-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.92);flex-direction:column;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(10px);" onclick="if(event.target===this)camcCancelEdit()">
-    <div onclick="event.stopPropagation()" style="background:#0d0d0f;width:100%;max-width:440px;border-radius:18px;padding:0;box-sizing:border-box;border:1px solid rgba(255,122,0,0.25);box-shadow:0 20px 60px rgba(0,0,0,0.8),0 0 0 1px rgba(255,122,0,0.1);overflow:hidden;">
+    <div onclick="event.stopPropagation()" style="background:#0d0d0f;width:100%;max-width:440px;border-radius:18px;padding:0;box-sizing:border-box;border:1px solid rgba(255,255,255,0.12);box-shadow:0 20px 60px rgba(0,0,0,0.8),0 0 0 1px rgba(255,255,255,0.05);overflow:hidden;">
         <!-- title -->
         <div style="padding:18px 22px 0;font-size:15px;font-weight:900;color:#f5f5f7;letter-spacing:-0.2px;text-align:center;">CAMC TEXT EDITOR</div>
 
         <!-- text input -->
         <div style="padding:16px 20px 0;">
-            <div style="font-size:9px;font-weight:900;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Enter text for speech bubble</div>
-            <textarea id="camc-text-input" placeholder="Type here..." style="width:100%;min-height:90px;padding:12px 14px;background:#0a0a0c;border:1.5px solid rgba(255,122,0,0.2);color:#f5f5f7;border-radius:10px;font-size:15px;font-family:'Bangers',cursive;font-weight:400;outline:none;resize:none;box-sizing:border-box;letter-spacing:0.5px;line-height:1.4;transition:border-color 0.2s;" onfocus="this.style.borderColor='rgba(255,122,0,0.55)'" onblur="this.style.borderColor='rgba(255,122,0,0.2)'"></textarea>
+            <textarea id="camc-text-input" placeholder="Type here..." style="width:100%;min-height:90px;padding:12px 14px;background:#0a0a0c;border:1.5px solid rgba(255,255,255,0.12);color:#f5f5f7;border-radius:10px;font-size:15px;font-family:'Bangers',cursive;font-weight:400;outline:none;resize:none;box-sizing:border-box;letter-spacing:0.5px;line-height:1.4;transition:border-color 0.2s;" onfocus="this.style.borderColor='rgba(255,255,255,0.3)'" onblur="this.style.borderColor='rgba(255,255,255,0.12)'"></textarea>
         </div>
 
         <!-- divider -->
@@ -1340,19 +1339,13 @@
         </div>
 
         <!-- font dropdown -->
-        <div id="camc-font-dropdown" style="display:none;margin:10px 20px 0;background:#0a0a0c;border:1.5px solid rgba(255,122,0,0.25);border-radius:10px;overflow:hidden;">
+        <div id="camc-font-dropdown" style="display:none;margin:10px 20px 0;background:#0a0a0c;border:1.5px solid rgba(255,255,255,0.12);border-radius:10px;overflow:hidden;">
             <div style="max-height:160px;overflow-y:auto;" id="camc-font-list"></div>
             <select id="camc-font-select" style="display:none;"></select>
         </div>
 
-        <!-- stroke row -->
-        <div style="display:flex;gap:8px;align-items:center;padding:12px 20px 0;">
-            <button id="camc-clear-stroke-btn" data-has-stroke="0" onclick="camcToggleStroke()" style="flex:1;padding:11px;background:#111;border:1.5px solid #333;color:#666;border-radius:10px;font-weight:900;font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;transition:all 0.15s;letter-spacing:0.3px;">No Stroke</button>
-            <button onclick="document.getElementById('camc-text-input').focus();document.getElementById('camc-text-input').select();" style="flex:1;padding:11px;background:#111;border:1.5px solid rgba(255,255,255,0.1);color:#aaa;border-radius:10px;font-weight:900;font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;transition:all 0.15s;letter-spacing:0.3px;">Edit Text</button>
-        </div>
-
         <!-- current selection -->
-        <div style="padding:10px 20px 18px;text-align:center;">
+        <div style="padding:16px 20px 18px;text-align:center;">
             <div id="camc-current-label" style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.3);letter-spacing:0.3px;"></div>
         </div>
     </div>
@@ -2875,22 +2868,12 @@ function openTextEdit(layer) {
     const modal = document.getElementById('camc-text-editor-modal');
     if (!modal) return;
     const textarea = document.getElementById('camc-text-input');
-    const outlineBtn = document.getElementById('camc-clear-stroke-btn');
 
     // fill textarea
     textarea.value = layer.content || '';
     // reset textarea font
     textarea.style.fontFamily = layer.fontFamily || "'Bangers', cursive";
     textarea.style.fontSize = (layer.fontSize || 18) + 'px';
-
-    // update stroke button
-    if (outlineBtn) {
-        outlineBtn.dataset.hasStroke = layer.outline ? '1' : '0';
-        outlineBtn.textContent = layer.outline ? 'Clear Stroke' : 'No Stroke';
-        outlineBtn.style.background = layer.outline ? 'rgba(255,122,0,0.15)' : '#111';
-        outlineBtn.style.borderColor = layer.outline ? 'var(--accent)' : '#333';
-        outlineBtn.style.color = layer.outline ? 'var(--accent)' : '#666';
-    }
 
     // store layer ref
     modal.dataset.layerId = layer.id;
@@ -2926,7 +2909,7 @@ function openTextEdit(layer) {
     if (fontList) {
         fontList.innerHTML = camcFonts.map(f => {
             const isSelected = f.value === currentFont;
-            return `<div onclick="camcSelectFont(this)" data-font-val="${f.value}" data-font-label="${f.label}" style="padding:11px 14px;font-size:13px;font-weight:700;font-family:${f.value};color:${isSelected ? 'var(--accent)' : '#ccc'};background:${isSelected ? 'rgba(255,122,0,0.12)' : 'transparent'};cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.12s;-webkit-tap-highlight-color:transparent;">${f.label}</div>`;
+            return `<div onclick="camcSelectFont(this)" data-font-val="${f.value}" data-font-label="${f.label}" style="padding:11px 14px;font-size:13px;font-weight:700;font-family:${f.value};color:${isSelected ? '#fff' : '#ccc'};background:${isSelected ? 'rgba(255,255,255,0.1)' : 'transparent'};cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.12s;-webkit-tap-highlight-color:transparent;">${f.label}</div>`;
         }).join('');
     }
 
@@ -2956,8 +2939,8 @@ function camcSelectFont(el) {
     if (list) {
         Array.from(list.children).forEach(c => {
             const isSelected = c.dataset.fontVal === val;
-            c.style.color = isSelected ? 'var(--accent)' : '#ccc';
-            c.style.background = isSelected ? 'rgba(255,122,0,0.12)' : 'transparent';
+            c.style.color = isSelected ? '#fff' : '#ccc';
+            c.style.background = isSelected ? 'rgba(255,255,255,0.1)' : 'transparent';
         });
     }
     // live preview
@@ -3008,7 +2991,6 @@ function camcUpdateLabel() {
 function camcConfirmEdit() {
     const modal = document.getElementById('camc-text-editor-modal');
     const textarea = document.getElementById('camc-text-input');
-    const outlineBtn = document.getElementById('camc-clear-stroke-btn');
     if (!modal || !activeLayer) { camcCancelEdit(); return; }
 
     saveState();
@@ -3020,9 +3002,6 @@ function camcConfirmEdit() {
     if (modal.dataset.selectedSize) {
         activeLayer.fontSize = parseInt(modal.dataset.selectedSize);
     }
-    if (outlineBtn) {
-        activeLayer.outline = outlineBtn.dataset.hasStroke === '1';
-    }
     render();
     camcCancelEdit();
 }
@@ -3030,21 +3009,6 @@ function camcConfirmEdit() {
 function camcCancelEdit() {
     const modal = document.getElementById('camc-text-editor-modal');
     if (modal) modal.style.display = 'none';
-}
-
-function camcToggleStroke() {
-    if (!activeLayer) return;
-    const btn = document.getElementById('camc-clear-stroke-btn');
-    const hasStroke = btn.dataset.hasStroke === '1';
-    const newState = !hasStroke;
-    btn.dataset.hasStroke = newState ? '1' : '0';
-    btn.textContent = newState ? 'Clear Stroke' : 'No Stroke';
-    btn.style.background = newState ? 'rgba(255,122,0,0.15)' : '#111';
-    btn.style.borderColor = newState ? 'var(--accent)' : '#333';
-    btn.style.color = newState ? 'var(--accent)' : '#666';
-    // instant preview
-    activeLayer.outline = newState;
-    render();
 }
 
 // debounced render — prevents excessive redraws during touch
