@@ -9181,79 +9181,18 @@ window.onload = async function() {
         return;
     }
 
-    // After edit_comic_id is cleared, check for active draft
-    const resumeId = localStorage.getItem('active_draft_id');
-    if (resumeId) {
-        activeDraftId = resumeId;
-        draftRowExists = true; // row already exists in Supabase — don't reset title on next save
-        // CRITICAL SAFETY NET: block autosave/exit-save for the entire duration of this
-        // fetch. `frames` still holds the default blank placeholder at this point — if a
-        // slow connection let the 60s autosave timer or an exit-save fire before this
-        // resolved, that placeholder would get upserted straight over the real draft,
-        // wiping it. This is the exact bug that was destroying people's unpublished drafts.
-        _draftLoadPending = true;
-        let loaded = false;
-        const storagePath = localStorage.getItem('active_draft_storage_path');
-        if (storagePath) {
-            try {
-                const { data: blob, error: dlErr } = await _supabase.storage.from('comiccore-assets').download(storagePath);
-                if (dlErr) throw dlErr;
-                const parsedFrames = JSON.parse(await blob.text());
-                if (!parsedFrames || !parsedFrames.length) throw new Error('Draft file downloaded but contained no frames');
-                frames = parsedFrames;
-                // BUGFIX: .single() returns a PostgrestBuilder (thenable-only) — .catch() chained
-                // directly on it throws "catch is not a function" instead of falling back.
-                const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
-                const r = row?.canvas_ratio || { w:1, h:1 };
-                setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
-                document.getElementById('pub-title').value = row?.title || '';
-                _collabOwnerHandles = row?.owner_handles || [];
-                applyPendingBg(pendingBg, pendingBgId);
-                loaded = true;
-            } catch(e) { console.error('Bucket draft load failed:', e); }
-        } else {
-            // BUGFIX: same PostgrestBuilder .catch() issue — wrap in Promise.resolve() first
-            const { data: sbDraft } = await Promise.resolve(_supabase.from('drafts')
-                .select('data, storage_path, canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
-            if (sbDraft) {
-                let draftFrames = sbDraft.data;
-                if (!draftFrames && sbDraft.storage_path) {
-                    try {
-                        const { data: blob } = await _supabase.storage.from('comiccore-assets').download(sbDraft.storage_path);
-                        draftFrames = JSON.parse(await blob.text());
-                    } catch(e) { console.error('Bucket fallback failed:', e); }
-                }
-                if (draftFrames && draftFrames.length) {
-                    frames = draftFrames;
-                    const r = sbDraft.canvas_ratio || { w:1, h:1 };
-                    setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
-                    document.getElementById('pub-title').value = sbDraft.title || '';
-                    _collabOwnerHandles = sbDraft.owner_handles || [];
-                    applyPendingBg(pendingBg, pendingBgId);
-                    loaded = true;
-                }
-            }
-        }
-        _draftLoadPending = false;
-        if (loaded) {
-            // activateFrame() above triggers a render, which unconditionally sets
-            // hasUnsavedChanges = true — just opening a draft shouldn't count as an edit.
-            hasUnsavedChanges = false;
-            return;
-        }
-        // BUGFIX: this used to fall through into the "fresh comic" init below, which
-        // re-renders the default blank frame. That blank render also set
-        // hasUnsavedChanges = true, and the next autosave (or an exit-save) would then
-        // silently push that blank canvas over the real draft in Supabase — permanently
-        // deleting it with no error ever shown to the person. Now a failed/empty load
-        // stops here, leaves the draft row untouched, and tells the person plainly so
-        // they can retry instead of unknowingly starting a fresh blank comic under the
-        // same draft id.
-        showDraftLoadError();
-        return;
-    }
-
-    // Edit-published-via-draft flow from my-comics-mobile
+    // Edit-published-via-draft flow from my-comics-mobile.
+    // BUGFIX: this used to run AFTER the active_draft_id ("resumeId") block below, but
+    // editPublished() in my-comics.html always sets active_draft_id together with
+    // edit_source_comic_id — and every branch of the resumeId block below returns
+    // unconditionally. That meant this check was unreachable dead code, editingComicId
+    // was never set for a republish, and finalPublish() (which does
+    // `editingComicId ? update() : insert()`) always fell into the insert branch —
+    // silently creating a brand-new duplicate row in `comics` on every single republish
+    // instead of updating the original. Running this first, before the resumeId block
+    // that returns, is what actually lets a republish update in place. It's kept as a
+    // fire-and-forget fetch (not awaited) so it doesn't delay frame loading below; the
+    // resumeId block's own title-set is guarded so it doesn't fight this fetch's title.
     const editSourceId = localStorage.getItem('edit_source_comic_id');
     if (editSourceId) {
         editingComicId = editSourceId;
@@ -9280,6 +9219,81 @@ window.onload = async function() {
             pubRatingLocked   = !!data.age_rating_locked;
             if (data.cover) { finalCoverBase64=data.cover; const img=document.getElementById('final-cover-img'); if(img){ img.src=data.cover; img.style.display='block'; } }
         });
+    }
+
+    // After edit_comic_id is cleared, check for active draft
+    const resumeId = localStorage.getItem('active_draft_id');
+    if (resumeId) {
+        activeDraftId = resumeId;
+        draftRowExists = true; // row already exists in Supabase — don't reset title on next save
+        // CRITICAL SAFETY NET: block autosave/exit-save for the entire duration of this
+        // fetch. `frames` still holds the default blank placeholder at this point — if a
+        // slow connection let the 60s autosave timer or an exit-save fire before this
+        // resolved, that placeholder would get upserted straight over the real draft,
+        // wiping it. This is the exact bug that was destroying people's unpublished drafts.
+        _draftLoadPending = true;
+        let loaded = false;
+        const storagePath = localStorage.getItem('active_draft_storage_path');
+        if (storagePath) {
+            try {
+                const { data: blob, error: dlErr } = await _supabase.storage.from('comiccore-assets').download(storagePath);
+                if (dlErr) throw dlErr;
+                const parsedFrames = JSON.parse(await blob.text());
+                if (!parsedFrames || !parsedFrames.length) throw new Error('Draft file downloaded but contained no frames');
+                frames = parsedFrames;
+                // BUGFIX: .single() returns a PostgrestBuilder (thenable-only) — .catch() chained
+                // directly on it throws "catch is not a function" instead of falling back.
+                const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
+                const r = row?.canvas_ratio || { w:1, h:1 };
+                setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
+                // Don't stomp the real title with the draft's "(edit)"-suffixed one when this
+                // draft is standing in for a republish — the editSourceId fetch above owns the
+                // title in that case (and skips the ugly " (edit)" suffix entirely).
+                if (!editSourceId) document.getElementById('pub-title').value = row?.title || '';
+                _collabOwnerHandles = row?.owner_handles || [];
+                applyPendingBg(pendingBg, pendingBgId);
+                loaded = true;
+            } catch(e) { console.error('Bucket draft load failed:', e); }
+        } else {
+            // BUGFIX: same PostgrestBuilder .catch() issue — wrap in Promise.resolve() first
+            const { data: sbDraft } = await Promise.resolve(_supabase.from('drafts')
+                .select('data, storage_path, canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
+            if (sbDraft) {
+                let draftFrames = sbDraft.data;
+                if (!draftFrames && sbDraft.storage_path) {
+                    try {
+                        const { data: blob } = await _supabase.storage.from('comiccore-assets').download(sbDraft.storage_path);
+                        draftFrames = JSON.parse(await blob.text());
+                    } catch(e) { console.error('Bucket fallback failed:', e); }
+                }
+                if (draftFrames && draftFrames.length) {
+                    frames = draftFrames;
+                    const r = sbDraft.canvas_ratio || { w:1, h:1 };
+                    setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
+                    if (!editSourceId) document.getElementById('pub-title').value = sbDraft.title || '';
+                    _collabOwnerHandles = sbDraft.owner_handles || [];
+                    applyPendingBg(pendingBg, pendingBgId);
+                    loaded = true;
+                }
+            }
+        }
+        _draftLoadPending = false;
+        if (loaded) {
+            // activateFrame() above triggers a render, which unconditionally sets
+            // hasUnsavedChanges = true — just opening a draft shouldn't count as an edit.
+            hasUnsavedChanges = false;
+            return;
+        }
+        // BUGFIX: this used to fall through into the "fresh comic" init below, which
+        // re-renders the default blank frame. That blank render also set
+        // hasUnsavedChanges = true, and the next autosave (or an exit-save) would then
+        // silently push that blank canvas over the real draft in Supabase — permanently
+        // deleting it with no error ever shown to the person. Now a failed/empty load
+        // stops here, leaves the draft row untouched, and tells the person plainly so
+        // they can retry instead of unknowingly starting a fresh blank comic under the
+        // same draft id.
+        showDraftLoadError();
+        return;
     }
 
     // ── Apply correct ratio and re-render after all async paths complete ──
