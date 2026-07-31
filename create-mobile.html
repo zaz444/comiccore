@@ -1268,18 +1268,34 @@
     <div style="background:var(--card);border-radius:20px;padding:22px;width:92%;max-width:380px;border:1px solid var(--border);display:flex;flex-direction:column;gap:14px;cursor:default;" onclick="event.stopPropagation()">
         <div style="font-size:13px;font-weight:900;color:var(--accent);text-align:center;letter-spacing:2px;text-transform:uppercase;">Save Comic</div>
         <button onclick="saveChoicePublish()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
-            <span style="font-size:22px;">📢</span>
-            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--accent);">Publish</div><div style="font-size:11px;color:#666;margin-top:2px;">Post it to Discover for others to read</div></div>
+            <span style="font-size:22px;color:var(--accent);"><i class="fi fi-rs-megaphone"></i></span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--accent);">Publish</div></div>
         </button>
         <button onclick="saveChoiceSaveToMyComics()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
-            <span style="font-size:22px;">💾</span>
-            <div style="text-align:left;"><div id="save-choice-label" style="font-size:13px;font-weight:900;color:var(--teal);">Save to My Comics</div><div id="save-choice-sub" style="font-size:11px;color:#666;margin-top:2px;">Keep it as a private draft</div></div>
+            <span style="font-size:22px;color:var(--teal);"><i class="fi fi-rs-disk"></i></span>
+            <div style="text-align:left;"><div id="save-choice-label" style="font-size:13px;font-weight:900;color:var(--teal);">Save to My Comics</div></div>
         </button>
         <button onclick="saveChoiceExport()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
-            <span style="font-size:22px;">⬆</span>
-            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;">Export</div><div style="font-size:11px;color:#666;margin-top:2px;">Download frames as images or GIF</div></div>
+            <span style="font-size:22px;"><i class="fi fi-rs-cloud-upload"></i></span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;">Export</div></div>
         </button>
         <button onclick="closeSaveChoiceModal()" style="padding:11px;background:#111;color:#555;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+    </div>
+</div>
+
+<!-- save destination (collab only) -->
+<div id="save-dest-modal" class="overlay-full" style="display:none;" onclick="if(event.target===this) closeSaveDestModal()">
+    <div style="background:var(--card);border-radius:20px;padding:22px;width:92%;max-width:380px;border:1px solid var(--border);display:flex;flex-direction:column;gap:14px;cursor:default;" onclick="event.stopPropagation()">
+        <div style="font-size:13px;font-weight:900;color:var(--teal);text-align:center;letter-spacing:2px;text-transform:uppercase;">Save Where?</div>
+        <button onclick="saveDestCoCreate()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
+            <span style="font-size:22px;color:var(--accent);"><i class="fi fi-rs-palette"></i></span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--accent);">Save to CoCreate</div></div>
+        </button>
+        <button onclick="saveDestMyDrafts()" style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:2px solid #2c2c2e;border-radius:12px;cursor:pointer;color:white;font-family:inherit;width:100%;">
+            <span style="font-size:22px;color:var(--teal);"><i class="fi fi-rs-archive"></i></span>
+            <div style="text-align:left;"><div style="font-size:13px;font-weight:900;color:var(--teal);">My Drafts</div></div>
+        </button>
+        <button onclick="closeSaveDestModal()" style="padding:11px;background:#111;color:#555;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
     </div>
 </div>
 
@@ -8025,14 +8041,19 @@ async function saveOffline(silent = false) {
         // non-uuid id was causing duplicate rows on save
         const row = {
             id: activeDraftId,
-            owner_handle: handle,
-            user_id: user.id,
             canvas_ratio: ratio,
             updated_at: now,
             ...rowPatch
         };
         if (!draftRowExists) {
             row.title = 'Untitled Draft'; // only stamp default title on first creation
+            // owner_handle/user_id back the "Enable update for users based on user_id" RLS
+            // policy — rewriting them on every save meant whichever collaborator saved
+            // most recently silently locked everyone else out of that policy. Stamp once,
+            // same as title/owner_handles, and let the separate collaborator RLS policy
+            // (comic_collaborators-based) cover everyone else from then on.
+            row.owner_handle = handle;
+            row.user_id = user.id;
             // owner_handles seeds the co-owner list a collab invite grows later — like
             // title, only stamped once so an accepted collaborator's save never resets it.
             row.owner_handles = [handle];
@@ -8145,19 +8166,81 @@ function exitCancelLeave() {
 }
 
 // publish
-// save-choice modal (💾 icon in top bar)
+// save-choice modal (disk icon in top bar)
 function openSaveChoiceModal() {
     const isCollab = _collabOwnerHandles && _collabOwnerHandles.length > 1;
     const lbl = document.getElementById('save-choice-label');
-    const sub = document.getElementById('save-choice-sub');
     if (lbl) lbl.textContent = isCollab ? 'Save to CoCreate' : 'Save to My Comics';
-    if (sub) sub.textContent = isCollab ? 'Save progress on this co-created comic' : 'Keep it as a private draft';
     document.getElementById('save-choice-modal').style.display = 'flex';
 }
 function closeSaveChoiceModal() { document.getElementById('save-choice-modal').style.display = 'none'; }
 function saveChoicePublish() { closeSaveChoiceModal(); openPublishModal(); }
-function saveChoiceSaveToMyComics() { closeSaveChoiceModal(); saveOffline(false); }
+// on a solo draft there's only one place to save, so save straight away.
+// on a collab draft, hand off to the destination picker instead of assuming
+// CoCreate — the person might want a private fork in My Drafts instead.
+function saveChoiceSaveToMyComics() {
+    const isCollab = _collabOwnerHandles && _collabOwnerHandles.length > 1;
+    closeSaveChoiceModal();
+    if (isCollab) openSaveDestModal();
+    else saveOffline(false);
+}
 function saveChoiceExport() { closeSaveChoiceModal(); openExportModal(); }
+
+// save-destination modal (collab drafts only) — CoCreate (shared) vs My Drafts (private fork)
+function openSaveDestModal() { document.getElementById('save-dest-modal').style.display = 'flex'; }
+function closeSaveDestModal() { document.getElementById('save-dest-modal').style.display = 'none'; }
+function saveDestCoCreate() { closeSaveDestModal(); saveOffline(false); }
+function saveDestMyDrafts() { closeSaveDestModal(); forkToMyDrafts(); }
+
+// forks the current frames into a brand-new, solely-owned draft row — the
+// shared collab draft (activeDraftId) is left completely untouched.
+async function forkToMyDrafts() {
+    const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
+    if (!handle) { showMobSaveBadge('Log in to save', true); return; }
+    showMobSaveBadge('Saving a copy to My Drafts…', false);
+    try {
+        const { data: { session } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+        const user = session?.user ?? null;
+        if (!user) { showMobSaveBadge('Log in to save', true); return; }
+
+        const newId = crypto.randomUUID();
+        const now   = new Date().toISOString();
+        const ratio = getFrameRatio(frames[0]) || { w:1, h:1 };
+        const stampedRaw = getStampedFrames();
+        const stamped = await ensureLayerImagesUploaded(stampedRaw);
+        const payload = JSON.stringify(stamped);
+
+        let rowPatch;
+        if (payload.length > _INLINE_LIMIT) {
+            const path = `${_DRAFT_PREFIX}${newId}.json`;
+            const { error: upErr } = await _supabase.storage
+                .from(_DRAFT_BUCKET)
+                .upload(path, new Blob([payload], { type: 'application/json' }), { upsert: true });
+            if (upErr) throw upErr;
+            rowPatch = { data: null, storage_path: path };
+        } else {
+            rowPatch = { data: stamped, storage_path: null };
+        }
+
+        const baseTitle = document.getElementById('pub-title')?.value || 'Untitled Draft';
+        const row = {
+            id: newId,
+            title: baseTitle + ' (copy)',
+            canvas_ratio: ratio,
+            updated_at: now,
+            owner_handle: handle,
+            user_id: user.id,
+            owner_handles: [handle], // solo owner — not part of the collab's owner_handles
+            ...rowPatch
+        };
+        const { error: insErr } = await _supabase.from('drafts').insert(row);
+        if (insErr) throw insErr;
+        showMobSaveBadge('✓ Saved a copy to My Drafts', false);
+    } catch(e) {
+        console.error('forkToMyDrafts failed:', e);
+        showMobSaveBadge('✗ Could not save a copy: ' + ((e && e.message) || ''), true);
+    }
+}
 
 function openPublishModal() { document.getElementById('publish-modal').style.display='flex'; renderPubRatingPicker(); }
 function closePublish() { document.getElementById('publish-modal').style.display='none'; }
