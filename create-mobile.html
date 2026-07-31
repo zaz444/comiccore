@@ -9672,6 +9672,7 @@ async function openDraftsModal() {
                         localStorage.removeItem('active_draft_id');
                         localStorage.removeItem('active_draft_storage_path');
                         activeDraftId = null;
+                        draftRowExists = false; // that row is gone — next save is a fresh one
                     }
                     item.remove();
                     if (!document.querySelectorAll('.draft-item').length) {
@@ -9697,6 +9698,10 @@ async function openDraftsModal() {
                 }
                 frames = JSON.parse(JSON.stringify(loadedFrames || [{ layers:[], background:'#ffffff' }]));
                 activeDraftId = draft.id;
+                draftRowExists = true; // this row is a real, already-saved draft —
+                // without this, saving right after switching would think it's brand
+                // new and both stomp its title back to 'Untitled Draft' and skip
+                // owner_handle (fine here since it's an UPDATE, but wrong regardless).
                 lsSet('active_draft_id', String(draft.id));
                 if (draft.storage_path) lsSet('active_draft_storage_path', draft.storage_path);
                 else localStorage.removeItem('active_draft_storage_path');
@@ -9726,6 +9731,9 @@ function startNewDraft() {
     if (hasUnsavedChanges) { if (!confirm('Save current work first?')) return; saveOffline(true); }
     frames = [{ layers: [], background: '#ffffff' }];
     activeDraftId = null;
+    draftRowExists = false; // fresh comic, no row yet — without this, the next save
+    // reused the previous draft's "row already exists" state and skipped owner_handle,
+    // which then hit the NOT NULL constraint since this id truly is brand new.
     localStorage.removeItem('active_draft_id');
     localStorage.removeItem('active_draft_storage_path');
     currentIdx = 0;
