@@ -2370,6 +2370,18 @@ let editingComicId = null;
 // so save functions know who to notify
 // not auth, just notifications
 let _collabOwnerHandles = [];
+// owner_handle/user_id as loaded from the server for the active draft — always
+// non-null once a draft has been loaded. saveOffline() sends these on every
+// save (never omits them), falling back to the current user only when these
+// are still null, i.e. a draft that's truly never been saved before. This
+// replaces gating owner_handle/user_id on draftRowExists — that flag tracks
+// what the client *believes* about the row, and every NOT NULL crash so far
+// traced back to a case where that belief was wrong (stale state, a failed
+// load, or an update RLS falling through to an insert under the hood). Using
+// a real cached value instead of a boolean guess closes off that whole class
+// of bug regardless of which specific path produced the mismatch.
+let _draftOwnerHandle = null;
+let _draftUserId = null;
 // tracks the blob path for current comic
 // so republish can clean up the old blob
 // once its been replaced
@@ -8042,25 +8054,30 @@ async function saveOffline(silent = false) {
             id: activeDraftId,
             canvas_ratio: ratio,
             updated_at: now,
+            // owner_handle/user_id/owner_handles back the drafts RLS policies, which
+            // enforce NOT NULL on owner_handle. Gating these on draftRowExists (skip if
+            // "already exists") turned out fragile — every NOT NULL crash so far traced
+            // back to draftRowExists being true while the row didn't actually exist yet
+            // (stale state after switching/deleting drafts, a failed load, or an update
+            // RLS check silently falling through to an insert). Sending real, cached
+            // values on every save — the row's actual owner if we loaded one, the
+            // current user only if we never did — is safe whether this upsert resolves
+            // as an insert or an update, and can never be null.
+            owner_handle: _draftOwnerHandle || handle,
+            user_id: _draftUserId || user.id,
+            owner_handles: (_collabOwnerHandles && _collabOwnerHandles.length) ? _collabOwnerHandles : [handle],
             ...rowPatch
         };
         if (!draftRowExists) {
             row.title = 'Untitled Draft'; // only stamp default title on first creation
-            // owner_handle/user_id back the "Enable update for users based on user_id" RLS
-            // policy — rewriting them on every save meant whichever collaborator saved
-            // most recently silently locked everyone else out of that policy. Stamp once,
-            // same as title/owner_handles, and let the separate collaborator RLS policy
-            // (comic_collaborators-based) cover everyone else from then on.
-            row.owner_handle = handle;
-            row.user_id = user.id;
-            // owner_handles seeds the co-owner list a collab invite grows later — like
-            // title, only stamped once so an accepted collaborator's save never resets it.
-            row.owner_handles = [handle];
         }
 
         const { error: saveErr } = await _supabase.from('drafts').upsert(row, { onConflict: 'id' });
         if (saveErr) throw saveErr;
         draftRowExists = true;
+        _draftOwnerHandle = row.owner_handle;
+        _draftUserId = row.user_id;
+        _collabOwnerHandles = row.owner_handles;
 
         hasUnsavedChanges = false;
         const dot2 = document.getElementById('unsaved-dot');
@@ -8144,8 +8161,11 @@ async function restoreLocalBackupAndContinue() {
     // Check instead of guessing.
     showMobSaveBadge('Restored from device backup — checking sync status…', false);
     try {
-        const { data } = await _supabase.from('drafts').select('id').eq('id', activeDraftId).maybeSingle();
+        const { data } = await _supabase.from('drafts').select('id, owner_handle, owner_handles, user_id').eq('id', activeDraftId).maybeSingle();
         draftRowExists = !!data;
+        _draftOwnerHandle = data?.owner_handle || null;
+        _draftUserId = data?.user_id || null;
+        _collabOwnerHandles = data?.owner_handles || [];
     } catch(e) {
         draftRowExists = false; // can't confirm — safer to re-stamp ownership than risk another NOT NULL crash
     }
@@ -9420,6 +9440,8 @@ window.onload = async function() {
             // accepted comic_collaborators row) has full edit rights.
             const owners = (data.owner_handles && data.owner_handles.length) ? data.owner_handles : (data.owner_handle ? [data.owner_handle] : []);
             _collabOwnerHandles = owners;
+            _draftOwnerHandle = data.owner_handle || null;
+            _draftUserId = data.user_id || null;
             if (!owners.includes(myHandle)) {
                 const { data: collab } = await _supabase.from('comic_collaborators')
                     .select('id').eq('comic_id', editDraftId).eq('is_draft', true).eq('invitee_handle', myHandle).eq('status', 'accepted').maybeSingle();
@@ -9511,7 +9533,7 @@ window.onload = async function() {
                 frames = parsedFrames;
                 // fixed: .single() thenable-only
                 // direct .catch() throws, needs Promise.resolve() first
-                const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
+                const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio, title, owner_handle, owner_handles, user_id').eq('id', resumeId).single()).catch(() => ({ data: null }));
                 const r = row?.canvas_ratio || { w:1, h:1 };
                 setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
                 // don't overwrite title with draft's edit suffix
@@ -9519,13 +9541,15 @@ window.onload = async function() {
                 // title in that case (and skips the ugly " (edit)" suffix entirely).
                 if (!editSourceId) document.getElementById('pub-title').value = row?.title || '';
                 _collabOwnerHandles = row?.owner_handles || [];
+                _draftOwnerHandle = row?.owner_handle || null;
+                _draftUserId = row?.user_id || null;
                 applyPendingBg(pendingBg, pendingBgId);
                 loaded = true;
             } catch(e) { console.error('Bucket draft load failed:', e); }
         } else {
             // fixed: same thenable issue
             const { data: sbDraft } = await Promise.resolve(_supabase.from('drafts')
-                .select('data, storage_path, canvas_ratio, title, owner_handles').eq('id', resumeId).single()).catch(() => ({ data: null }));
+                .select('data, storage_path, canvas_ratio, title, owner_handle, owner_handles, user_id').eq('id', resumeId).single()).catch(() => ({ data: null }));
             if (sbDraft) {
                 let draftFrames = sbDraft.data;
                 if (!draftFrames && sbDraft.storage_path) {
@@ -9540,6 +9564,8 @@ window.onload = async function() {
                     setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
                     if (!editSourceId) document.getElementById('pub-title').value = sbDraft.title || '';
                     _collabOwnerHandles = sbDraft.owner_handles || [];
+                    _draftOwnerHandle = sbDraft.owner_handle || null;
+                    _draftUserId = sbDraft.user_id || null;
                     applyPendingBg(pendingBg, pendingBgId);
                     loaded = true;
                 }
@@ -9626,7 +9652,7 @@ async function openDraftsModal() {
 
     try {
         const { data: drafts, error } = await _supabase.from('drafts')
-            .select('id, title, data, storage_path, canvas_ratio, updated_at')
+            .select('id, title, data, storage_path, canvas_ratio, updated_at, owner_handle, owner_handles, user_id')
             .eq('owner_handle', handle)
             .order('updated_at', { ascending: false });
 
@@ -9685,6 +9711,8 @@ async function openDraftsModal() {
                         localStorage.removeItem('active_draft_storage_path');
                         activeDraftId = null;
                         draftRowExists = false; // that row is gone — next save is a fresh one
+                        _draftOwnerHandle = null;
+                        _draftUserId = null;
                     }
                     item.remove();
                     if (!document.querySelectorAll('.draft-item').length) {
@@ -9710,10 +9738,10 @@ async function openDraftsModal() {
                 }
                 frames = JSON.parse(JSON.stringify(loadedFrames || [{ layers:[], background:'#ffffff' }]));
                 activeDraftId = draft.id;
-                draftRowExists = true; // this row is a real, already-saved draft —
-                // without this, saving right after switching would think it's brand
-                // new and both stomp its title back to 'Untitled Draft' and skip
-                // owner_handle (fine here since it's an UPDATE, but wrong regardless).
+                draftRowExists = true; // this row is a real, already-saved draft
+                _draftOwnerHandle = draft.owner_handle || null;
+                _draftUserId = draft.user_id || null;
+                _collabOwnerHandles = draft.owner_handles || [];
                 lsSet('active_draft_id', String(draft.id));
                 if (draft.storage_path) lsSet('active_draft_storage_path', draft.storage_path);
                 else localStorage.removeItem('active_draft_storage_path');
@@ -9746,6 +9774,8 @@ function startNewDraft() {
     draftRowExists = false; // fresh comic, no row yet — without this, the next save
     // reused the previous draft's "row already exists" state and skipped owner_handle,
     // which then hit the NOT NULL constraint since this id truly is brand new.
+    _draftOwnerHandle = null;
+    _draftUserId = null;
     localStorage.removeItem('active_draft_id');
     localStorage.removeItem('active_draft_storage_path');
     currentIdx = 0;
