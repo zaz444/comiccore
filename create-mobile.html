@@ -8125,18 +8125,30 @@ function showDraftLoadError() {
     document.body.appendChild(wrap);
 }
 function retryDraftLoad() { location.reload(); }
-function restoreLocalBackupAndContinue() {
+async function restoreLocalBackupAndContinue() {
     const backup = localBackupLoad(activeDraftId);
     if (!backup) return;
     frames = backup.frames;
-    draftRowExists = true;
     const modal = document.getElementById('_draft-load-error-modal');
     if (modal) modal.remove();
     const r = backup.ratio || { w:1, h:1 };
     setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
-    // from local backup, not cloud
-    // let the next save (auto or manual) push it back to the cloud normally.
     hasUnsavedChanges = true;
+    // we only get here because the real fetch failed, so we genuinely don't know
+    // whether this draft's row exists server-side — could be a network blip on a
+    // real, already-saved draft, or a draft that never made it past an earlier
+    // failed save and only ever existed as this local backup. Blindly assuming
+    // "true" crashed the next save with a NOT NULL error when the row turned out
+    // not to exist; blindly assuming "false" would've been just as wrong the other
+    // way, stomping a real draft's title/owner_handles back to fresh-draft state.
+    // Check instead of guessing.
+    showMobSaveBadge('Restored from device backup — checking sync status…', false);
+    try {
+        const { data } = await _supabase.from('drafts').select('id').eq('id', activeDraftId).maybeSingle();
+        draftRowExists = !!data;
+    } catch(e) {
+        draftRowExists = false; // can't confirm — safer to re-stamp ownership than risk another NOT NULL crash
+    }
     showMobSaveBadge('Restored from device backup — save to sync', false);
 }
 
