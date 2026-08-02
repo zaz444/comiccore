@@ -1468,6 +1468,23 @@ function setupRealtime() {
       // Only reload comments if reading a comic — don't re-fetch entire feed
       if (activeComicId) fetchComments();
     })
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'comics' }, ({ new: updated }) => {
+      // Live-patch view counts as they land — bypasses the 2-min feed cache entirely
+      const c = allComics.find(x => x.id === updated.id);
+      if (!c || c.views === updated.views) return;
+      c.views = updated.views;
+
+      const tile = document.querySelector(`.comic-card[data-id="${updated.id}"] .tile-views`);
+      if (tile) {
+        tile.textContent = `${updated.views} View${updated.views === 1 ? '' : 's'}`;
+        tile.style.display = 'block';
+      }
+
+      if (activePopupComic?.id === updated.id) {
+        const chip = document.getElementById('popup-views-chip');
+        if (chip) chip.innerText = `${updated.views} View${updated.views === 1 ? '' : 's'}`;
+      }
+    })
     .subscribe();
 }
 
@@ -1594,7 +1611,7 @@ function renderComics(comics, stars) {
     const badgeHtml  = isMine ? `<div class="tile-mine">MINE</div>`
       : (isNew ? `<div class="tile-new">NEW</div>` : '');
     const starsHtml  = avgRating > 0 ? `<div class="tile-stars" onclick="event.stopPropagation(); toggleStarExpand(this, ${starCount}, ${avgRating.toFixed(1)})">${starNumIcon(avgRating)}<span>(${starCount})</span></div>` : '';
-    const viewsHtml  = c.views > 0 ? `<div class="tile-views">${c.views} View${c.views === 1 ? '' : 's'}</div>` : '';
+    const viewsHtml  = `<div class="tile-views"${c.views > 0 ? '' : ' style="display:none"'}>${c.views} View${c.views === 1 ? '' : 's'}</div>`;
     const ownerHandle = esc(c.owner_handle || 'unknown');
     const coAuthors   = collabMap[c.id] || [];
     const allAuthors  = [c.owner_handle, ...coAuthors].filter(Boolean);
@@ -1746,19 +1763,10 @@ async function openPopup(id) {
   if (!c) return;
   activePopupComic = c;
 
-  // ── Views: count once per viewer per comic (skip the owner's own opens) ──
-  // Also clears this comic's NEW badge for this viewer, permanently.
+  // ── Clear this comic's NEW badge for this viewer, permanently. ──
+  // (Views are counted in reader.html now — opening this popup isn't reading the comic.)
   if (c.owner_handle !== myProfile.handle) {
-    const alreadySeen = !!localStorage.getItem('cc-seen-' + c.id);
     markComicSeen(c.id);
-    if (!alreadySeen) {
-      _sb.rpc('increment_comic_views', { comic_id: c.id }).then(({ data, error }) => {
-        if (error || typeof data !== 'number') return;
-        c.views = data;
-        const chip = document.getElementById('popup-views-chip');
-        if (chip) chip.innerText = `${data} View${data === 1 ? '' : 's'}`;
-      });
-    }
   }
 
   // Cover

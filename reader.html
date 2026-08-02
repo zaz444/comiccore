@@ -1340,6 +1340,22 @@ async function boot() {
   } else {
     document.getElementById('top-author').innerText = 'by @' + (data.owner_handle || 'unknown');
   }
+  // ── Views: count once per viewer per comic (skip owners/co-owners) ──
+  // This is the real "view" event — a discover.html popup peek doesn't count,
+  // and this covers direct/shared links that never touch discover.html at all.
+  if (!owners.includes(myP.handle)) {
+    const alreadyViewed = !!localStorage.getItem('cc-viewed-' + comicId);
+    if (!alreadyViewed) {
+      _sb.rpc('increment_comic_views', { comic_id: comicId }).then(({ data: viewCount, error }) => {
+        if (error || typeof viewCount !== 'number') {
+          console.error('increment_comic_views failed:', error);
+          return; // don't flag as viewed — retry next open
+        }
+        localStorage.setItem('cc-viewed-' + comicId, '1');
+      });
+    }
+  }
+
   const userSwipePref = localStorage.getItem('cc-swipe-dir') || 'creator';
   swipeDir = (userSwipePref === 'creator')
     ? (data.swipe_dir || 'horizontal')
