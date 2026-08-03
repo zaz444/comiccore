@@ -97,9 +97,7 @@
         display: none; width: 100%; height: 100%;
     }
     /* ── SPRITE QUICK-ACTIONS BAR ── */
-    /* Floats above the comic frame whenever an image layer is selected, so
-       common actions (pose swap, duplicate, front, delete) are one tap away
-       instead of requiring the full transform sheet. */
+    /* quick-actions pill for selected image layers — pose swap/duplicate/front/delete without opening the full transform sheet */
     #sprite-quick-actions {
         position: absolute; left: 50%; top: -46px; transform: translateX(-50%);
         display: none; align-items: center; gap: 5px;
@@ -111,9 +109,7 @@
     }
     #sprite-quick-actions.show { display: flex; }
     /* ── COMPACT POPOVER ── */
-    /* Small in-place panel for color/font, opened from the quick-actions bar —
-       same idea as iOS Markup's floating text toolbar, just dark-themed to
-       match the rest of the editor instead of white. */
+    /* dark-themed color/font popover off the quick-actions bar, same idea as iOS Markup's floating toolbar */
     #sqa-popover {
         position: absolute; left: 50%; top: 4px; transform: translateX(-50%);
         display: none; flex-direction: column; gap: 7px;
@@ -125,10 +121,7 @@
     }
     #sqa-popover.show { display: flex; }
     /* ── CORNER EDIT TOGGLE ── */
-    /* Small badge pinned at the top-right corner of a selected text/bubble
-       layer's bounding box (same spot a resize handle would sit) — reuses
-       the bottom bar's Edit icon. Tapping it toggles the font/style popover
-       directly, without needing to go through the quick-actions pill first. */
+    /* corner badge on selected text/bubble layers, jumps straight to the font/style popover (reuses bottom bar's Edit icon) */
     .sqa-corner-toggle {
         position: absolute; top: -14px; right: -14px; width: 28px; height: 28px;
         z-index: 210; padding: 0; margin: 0; touch-action: none;
@@ -160,11 +153,7 @@
     .layer { position: absolute; cursor: move; user-select: none; transform-origin: center; touch-action: none; z-index: 10; }
     .layer.active { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-    /* ── CRISP SPRITE RENDERING ──
-       Browsers default to smooth (bilinear) upscaling for <img>, which blurs
-       pixel-art sprites whenever they're scaled above their native resolution.
-       Force nearest-neighbor scaling everywhere sprites appear: on the live
-       canvas, and in the sprite library / gallery / favorites / pack thumbnails. */
+    /* ── CRISP SPRITE RENDERING ── force nearest-neighbor scaling everywhere sprites render, browsers default to blurry bilinear upscaling */
     .layer img,
     .mob-sprite-card img,
     .action-option img {
@@ -187,9 +176,7 @@
     .resize-handle.br { bottom: -13px; right: -13px; }
 
     /* ── ROTATE HANDLE ── */
-    /* Dial that floats above the bounding box, centered between the two top
-       resize handles, with a thin stem connecting it down to the top edge —
-       drag it to rotate the sprite without opening the transform sheet. */
+    /* rotate dial above the bbox, connected by a stem, drag to rotate without opening the transform sheet */
     .rotate-handle {
         position: absolute; top: -46px; left: 50%; transform: translateX(-50%);
         width: 26px; height: 26px; z-index: 200;
@@ -206,10 +193,7 @@
     }
 
     /* ── TAIL SCROLLER ── */
-    /* Dashed outline + drag puck around a selected bubble — drag the puck
-       anywhere around the bubble's full perimeter to send the tail to
-       whichever edge (top/bottom/left/right) and position it's released
-       nearest to, instead of only sliding left/right under one fixed edge. */
+    /* drag puck around bubble perimeter, snaps tail to whichever edge/position it's released nearest to */
     .tail-scroller-track {
         position: absolute; inset: -14px; border: 1.5px dashed rgba(255,255,255,0.28);
         border-radius: 18px; z-index: 199; pointer-events: none;
@@ -292,9 +276,7 @@
     .bot-btn.onion-on .bico { filter: drop-shadow(0 0 4px var(--teal)); }
 
     /* ── FRAME SWIPE ZONE ── */
-    /* a strip pinned to the bottom of the viewport (not the canvas itself),
-       so navigating frames while editing never fights with dragging/resizing a
-       sprite. its outside canvas-container so it doesn't pan/zoom with the frame. */
+    /* bottom swipe strip, outside canvas-container so frame nav never fights sprite drag/resize or pan/zoom */
     #frame-swipe-zone {
         position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
         z-index: 150; display: flex; align-items: center; justify-content: center;
@@ -338,8 +320,7 @@
         font-family: inherit; letter-spacing: 0.3px; min-width: 34px;
     }
     .cfb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
-    /* Color + delete slide in next to Duplicate when a text/bubble layer is
-       selected, so there's one duplicate button not two. */
+    /* color+delete slide in next to Duplicate for text/bubble layers instead of a second duplicate button */
     .cfb-extras {
         display: flex; align-items: center; gap: 1px; overflow: hidden;
         max-width: 0; opacity: 0;
@@ -487,8 +468,7 @@
     #mob-effect-grid .mob-sprite-name {
         font-size: 10px; padding: 5px 6px;
     }
-    /* Reinforced spacing for gallery grids — shorthand + legacy longhand so
-       the gap can't silently get lost on older WebView engines */
+    /* gap shorthand + legacy longhand so it can't silently drop on older webview engines */
     #mob-gal-grid,
     #mob-gal-tagsections-grid {
         gap: 20px !important;
@@ -497,15 +477,7 @@
         grid-row-gap: 20px !important;
         grid-column-gap: 20px !important;
     }
-    /* Both gallery grids were using `aspect-ratio` to size a CSS Grid item
-       with an auto-sized row track. That combination has a known WebKit/
-       Safari bug: the implicit row track can be sized before aspect-ratio is
-       resolved, so rows overlap instead of stacking with a gap — which is
-       exactly what was happening here (every row overlapped except the very
-       last one, which had nothing below it to overlap with). The background
-       grid elsewhere in this file already avoids this with a padding-bottom
-       trick instead of aspect-ratio; both gallery grids now use that same,
-       Safari-safe technique instead. */
+    /* aspect-ratio + auto row-track overlaps rows on WebKit/Safari, use the padding-bottom trick instead (same fix as the bg grid) */
     #mob-gal-grid .mob-sprite-card {
         aspect-ratio: unset !important;
         height: auto !important;
@@ -517,12 +489,7 @@
         position: absolute !important; inset: 0 !important;
         width: 100% !important; height: 100% !important;
     }
-    /* Tag Sections cover cards — 1 per row, ideally 1800x1200 (3:2) source art.
-       object-fit:contain (not cover) so cards whose source image isn't exactly
-       3:2 don't get zoom-cropped — that crop was what made adjacent characters
-       look like they overlapped. border/radius/overflow are repeated here with
-       !important so a dark card border never visually disappears against dark
-       source art and rows always show a clear gap. */
+    /* tag section covers, 3:2 art, object-fit:contain (not cover) so off-ratio art doesn't zoom-crop into overlap; border !important so it never disappears on dark art */
     #mob-gal-tagsections-grid {
         grid-template-columns: 1fr !important;
     }
@@ -2250,8 +2217,7 @@ const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.c
     auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
 });
 
-// upload bg image
-// returns url or null
+// upload bg image, returns url or null
 async function uploadBgToStorage(dataUrl) {
     try {
         const handle = JSON.parse(localStorage.getItem('user_profile') || '{}').handle || 'guest';
@@ -2296,11 +2262,7 @@ async function uploadCoverToStorage(dataUrl) {
     }
 }
 
-// upload sprite
-// separate from uploadBgToStorage because
-// sprites need png for transparency
-// so extension/contentType gotta match
-// bg defaults to jpg unless gif/webp
+// upload sprite, separate from bg upload since sprites need png for transparency (bg defaults to jpg unless gif/webp)
 async function uploadSpriteToStorage(dataUrl) {
     try {
         const handle = (typeof myHandle !== 'undefined' && myHandle)
@@ -2341,9 +2303,7 @@ function lsSet(key, value) {
 
 // state
 let frames = [{ layers: [], background: '#ffffff' }];
-// color swatches for pickers. some android
-// webview renders color input as dead swatch
-// so plain buttons it is
+// plain buttons not color input — android webview renders it as a dead swatch
 const MOB_COLOR_PRESETS = ['#ffffff', '#000000', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#00c7be', '#007aff', '#5856d6', '#af52de', '#ff2d55', '#8e8e93'];
 // true if fx is for background not sprite
 let fxEditingBg = false;
@@ -2356,35 +2316,16 @@ let currentImportType = null;
 let hasUnsavedChanges = false;
 let activeDraftId = null;
 let draftRowExists = false; // true once a 'drafts' row is known to exist for activeDraftId
-// safety net: loading flag
-// frames might be empty while this is true
-// dont autosave during load or
-// youll nuke the draft
-// this was the bug that deleted drafts
+// loading flag — don't autosave during load or you nuke the draft (this was the bug that deleted drafts)
 let _draftLoadPending = false;
 let myHandle = null; // BUGFIX: was referenced in saveOffline() but never declared at this scope
 let editingComicId = null;
-// collab co-owner handles
-// populated on load
-// so save functions know who to notify
-// not auth, just notifications
+// collab co-owner handles, populated on load, for notifications not auth
 let _collabOwnerHandles = [];
-// owner_handle/user_id as loaded from the server for the active draft — always
-// non-null once a draft has been loaded. saveOffline() sends these on every
-// save (never omits them), falling back to the current user only when these
-// are still null, i.e. a draft that's truly never been saved before. This
-// replaces gating owner_handle/user_id on draftRowExists — that flag tracks
-// what the client *believes* about the row, and every NOT NULL crash so far
-// traced back to a case where that belief was wrong (stale state, a failed
-// load, or an update RLS falling through to an insert under the hood). Using
-// a real cached value instead of a boolean guess closes off that whole class
-// of bug regardless of which specific path produced the mismatch.
+// cached owner_handle/user_id sent on every save instead of gating on draftRowExists — that flag lied whenever client state was stale
 let _draftOwnerHandle = null;
 let _draftUserId = null;
-// tracks the blob path for current comic
-// so republish can clean up the old blob
-// once its been replaced
-// see finalPublish
+// tracks blob path for current comic so republish can clean up the old one, see finalPublish
 let loadedComicStoragePath = null;
 let finalCoverBase64 = null;
 // age rating
@@ -2439,15 +2380,10 @@ const onionCanvas = document.getElementById('onion-skin-canvas');
 const onionCtx = onionCanvas.getContext('2d');
 onionCtx.imageSmoothingEnabled = false; // keep onion-skin sprite previews crisp, not blurred
 
-// ratio + canvas size
-// figure out canvas pixel size for ratio
-// shared by setRatio and save
-// both need same formula
-// so reader can scale layers back
+// canvas pixel size for ratio, shared by setRatio and save so reader scales layers back correctly
 function computeCanvasSize(w, h) {
     const vp = document.getElementById('viewport');
-    // use visualViewport if we have it
-    // fallback to clientWidth/Height
+    // use visualViewport if we have it, else clientWidth/Height
     const vpW = (window.visualViewport ? window.visualViewport.width : vp.clientWidth) - 24;
     const vpH = vp.clientHeight - 24;
     let cw, ch;
@@ -2455,37 +2391,15 @@ function computeCanvasSize(w, h) {
     else { ch = vpH; cw = Math.round(vpH * w / h); }
     return { cw, ch };
 }
-// get ratio for frame, fallback to live ratio
-// handles old drafts
+// ratio for frame, falls back to live ratio for old drafts
 function getFrameRatio(f) {
     return (f && f.ratio && f.ratio.w && f.ratio.h) ? f.ratio : canvasRatio;
 }
 
-// keep layers in sync with canvas size
-// layers store absolute pixel positions
-// based on canvas size at placement time
-// size changes with viewport
-// especially on mobile (keyboard, gesture bar)
-// setRatio used to get called on every resize
-// (see visualViewport listener)
-// just to keep canvas fitted
-// but it never moved the actual layers
-// so sprites would drift
-// and that drift got baked in on save
-// because
-// getStampedFrames stamps size from current viewport
-// this was the misplaced sprites bug
-// after publish
-// fix: track last size per ratio
-// if viewport changed
-// rescale all layers on that ratio
-// so they stay put visually
+// rescale layers per-ratio on viewport change instead of just refitting the canvas — fixes sprites drifting after publish (the misplaced-sprites bug)
 let _lastCanvasSizeByRatio = {};
 function _ratioKey(w, h) { return w + ':' + h; }
-// use session size, fallback to
-// persisted stamp from frame (reopened draft)
-// so first activation on new screen
-// still catches up layers to viewport
+// session size, falls back to frame's persisted stamp so a reopened draft catches up on first activation
 function _knownCanvasSizeForRatio(w, h) {
     const cached = _lastCanvasSizeByRatio[_ratioKey(w, h)];
     if (cached) return cached;
@@ -2511,9 +2425,7 @@ function setRatio(w, h) {
                 if (l.y != null) l.y *= scale;
                 if (l.w != null) l.w *= scale;
                 if (l.h != null) l.h *= scale;
-                // charHeight is the action switch ref height
-                // needs to scale with layer or pose swaps
-                // break against stale value
+                // charHeight ref needs to track pose/action swaps, don't use stale value
                 if (l.charHeight != null) l.charHeight *= scale;
             });
         });
@@ -2525,9 +2437,7 @@ function setRatio(w, h) {
     onionCanvas.width = cw; onionCanvas.height = ch;
     render();
 }
-// switch to frame i and resize canvas
-// to frames ratio before rendering
-// makes ratio changes work per frame
+// switch to frame i, resize canvas to its ratio first so per-frame ratios work
 function activateFrame(i) {
     currentIdx = i;
     activeLayer = null;
@@ -2569,8 +2479,7 @@ function renderFrameRatioPicker() {
     const curLbl = document.getElementById('frame-ratio-current');
     if (curLbl) curLbl.innerText = active.w + ':' + active.h;
 }
-// check if layer spills outside frame
-// at this ratio
+// check if layer spills outside frame at this ratio
 function checkRatioClipping(frame, w, h) {
     const { cw, ch } = computeCanvasSize(w, h);
     return (frame.layers || []).some(l => {
@@ -2594,10 +2503,7 @@ function pickFrameRatio(w, h) {
 }
 function commitFrameRatioChange(idx, w, h) {
     saveState();
-    // resize first while old ratio still reported
-    // layers are in old coords
-    // so same-ratio rescale must not
-    // treat them as already placed
+    // resize while old ratio still reported, so same-ratio rescale doesn't treat layers as already placed
     if (idx === currentIdx) setRatio(w, h);
     frames[idx].ratio = { w, h };
     hasUnsavedChanges = true;
@@ -2627,8 +2533,7 @@ function applyPendingRatioAnyway() {
     const panel = document.getElementById('frame-ratio-panel');
     if (panel) panel.style.display = 'none';
 }
-// jump to frame without applying ratio change
-// so user can move stuff first
+// jump to frame without applying ratio change, lets user move stuff first
 function viewPendingRatioFrame() {
     if (!pendingRatioChange) return;
     const { idx } = pendingRatioChange;
@@ -2638,8 +2543,7 @@ function viewPendingRatioFrame() {
     closeRatioClipModal();
     closeSheet('frames');
 }
-// flash outline on spilling layers
-// so its obvious what needs fixing
+// flash outline on spilling layers so it's obvious what needs fixing
 function flashClippingLayers(idx) {
     const frame = frames[idx];
     if (!frame) return;
@@ -2705,8 +2609,7 @@ function closeTransformSheet() {
 }
 function syncTransformSheet() {
     if (!activeLayer) return;
-    // cap sprite size to frame bounds
-    // text keeps old range
+    // cap sprite size to frame bounds, text keeps old range
     const sizeMax = activeLayer.type === 'img' ? getMaxSpriteSize() : 1600;
     const sizeSlider = document.getElementById('size-slider');
     const sizeNum = document.getElementById('size-num');
@@ -2787,11 +2690,7 @@ function toggleTextFmt(prop) {
     renderTransformPreview();
 }
 
-// text outline, scales with font size
-// but can be overridden
-// via stroke slider
-// paint-order fix for webkit
-// webkit/blink
+// text outline scales with font size (overridable via stroke slider), paint-order fix for webkit/blink
 function defaultOutlineWidth(fontSize) {
     if (!fontSize) fontSize = 24;
     return Math.max(1, Math.round(fontSize * 0.07 * 10) / 10);
@@ -3041,8 +2940,7 @@ function camcCancelEdit() {
 let _renderRaf = null;
 // build resize handles for sprite layer
 
-// instant tap-select on handles
-// require a full re-render (or a double-tap) to appear.
+// instant tap-select handles, used to need a re-render or double-tap to appear
 function mobToggleTextColorSwatches() {
     const w = document.getElementById('mob-text-color-swatches');
     if (!w) return;
@@ -3141,18 +3039,7 @@ function mobOpenAdvancedBubbleBorder() {
     });
 }
 
-// advanced color picker (spectrum + sliders)
-// reusable color picker modal
-// ios markup style color picker
-// a plain RGB-sliders tab, a hex field, a system eyedropper, and a small
-// row of up to 5 saved colors.
-//
-// openAdvancedColorPicker(hex, callback)
-// callback on every change
-// swatch tap, hex confirm, eyedropper result) — it should just assign the
-// property and render(). Callers are responsible for calling saveState()
-// called once before opening picker
-// into a single undo step instead of flooding history per-tick.
+// advanced color picker: spectrum + RGB sliders + hex + eyedropper + up to 5 saved swatches. openAdvancedColorPicker(hex, callback) fires callback on every change; caller owns saveState()/render()
 let _cpOnChange = null;
 let _cpHex = '#ffffff';
 const CP_RECENT_KEY = 'cc-recent-colors';
@@ -3190,9 +3077,7 @@ function _cpRgbToHue(r, g, b) {
     h *= 60;
     return h < 0 ? h + 360 : h;
 }
-// spectrum fraction to hex
-// y picks the hue (wraps top→bottom through the full rainbow); x blends
-// white→hue on the left half and hue→black on the right half.
+// spectrum fraction to hex — y picks hue, x blends white→hue then hue→black
 function _cpSpectrumColorAt(xFrac, yFrac) {
     xFrac = Math.max(0, Math.min(1, xFrac));
     yFrac = Math.max(0, Math.min(1, yFrac));
@@ -3207,10 +3092,7 @@ function _cpSpectrumColorAt(xFrac, yFrac) {
     }
     return _cpRgbToHex(r, g, b);
 }
-// hex to spectrum cursor position
-// arbitrary colors can miss the spectrum path
-// a hand-typed hex or an eyedropper pick, so this places the dot at the
-// closest point on path, not exact
+// hex to spectrum cursor position, nearest point on path for colors off it (typed hex/eyedropper)
 function _cpPositionForHex(hex) {
     const [r, g, b] = _cpHexToRgb(hex);
     const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
@@ -3247,8 +3129,7 @@ function cpSwitchTab(tab) {
     document.getElementById('cp-pane-sliders').style.display = tab === 'sliders' ? 'block' : 'none';
 }
 
-// push new color value everywhere
-// spectrum cursor, RGB sliders) without re-triggering each other.
+// push new color everywhere (spectrum/sliders/swatch) without re-triggering each other
 function _cpSyncUI(hex, opts) {
     opts = opts || {};
     _cpHex = hex;
@@ -3355,9 +3236,7 @@ function _cpWireHexField() {
     field.addEventListener('blur', commit);
     field.addEventListener('keydown', e => { if (e.key === 'Enter') { commit(); field.blur(); } });
 }
-// swatch button bridge for hidden input
-// bridges <input> for color swatches
-// existing callers unchanged
+// swatch button bridge for hidden color input, keeps old callers unchanged
 function openAdvColorPickerFor(inputId, swatchBtn) {
     const input = document.getElementById(inputId);
     const cur = (input && input.value) || '#ffffff';
@@ -3369,13 +3248,7 @@ function openAdvColorPickerFor(inputId, swatchBtn) {
         if (swatchBtn) swatchBtn.style.background = hex;
     });
 }
-// eyedropper only in desktop chrome/edge
-// implemented in Android Chrome, iOS Safari, or Firefox at all, which is
-// basically every mobile user, so use it
-// when it's actually there, otherwise fall back to an in-app eyedropper
-// that samples real pixels from a rasterized snapshot of the current frame
-// reuses renderFrameToCanvas pipeline
-// already relies on, so what you sample matches what you'll actually get).
+// native EyeDropper only exists on desktop chrome/edge, in-app fallback samples real pixels via renderFrameToCanvas for everyone else
 async function cpUseEyedropper() {
     if (window.EyeDropper) {
         try {
@@ -3489,11 +3362,7 @@ function cpCancelEyedrop() {
     });
 })();
 
-// tail: edge + position along it
-// tail: edge (default 'bottom') + 0-100% along it
-// tail can go anywhere around bubble
-// it. Older saved layers only have `tailFlip` — this derives an equivalent
-// bottom-edge % so bubbles dont jump
+// tail: edge (default bottom) + 0-100% position along it, derives an equivalent for legacy tailFlip-only layers
 const MOB_BUBBLE_TAIL_BASE = { round: 20, chat: 80, rect: 50, whisper: 25 };
 function getBubbleTailEdge(layer) {
     return (layer.tailEdge === 'top' || layer.tailEdge === 'left' || layer.tailEdge === 'right')
@@ -3505,30 +3374,17 @@ function getBubbleTailPos(layer, bStyle) {
     return layer.tailFlip ? (100 - base) : base;
 }
 
-// tail shape engine
-// triangle defined once per tail style
-// the BOTTOM edge (outer solid/a/b border sizes, plus an optional inner
-// keyline triangle in fill color
-// reused unchanged for the other three edges — rotating a rigid triangle
-// doesn't change size, just which css sides
-// table drives all four orientations instead of four hand-tuned copies.
+// tail shape engine: triangle defined once for the bottom edge, a table rotates it for the other three
 const MOB_TAIL_SHAPE = {
     round:   { solid: 20, a: 12, b: 4,  inner: { solid: 16, a: 8,  b: 2,  gapMain: -19, gapCross: -9  } },
     chat:    { solid: 18, a: 14, b: 0,  inner: { solid: 14, a: 10, b: 0,  gapMain: -17, gapCross: -11 } },
     rect:    { solid: 18, a: 12, b: 12, inner: { solid: 14, a: 9,  b: 9,  gapMain: -17, gapCross: -9  } },
     whisper: { solid: 16, a: 8,  b: 8,  inner: null },
 };
-// css side for triangle base
-// inner triangle nudge side
-// pointing away from the bubble on the given edge.
+// css side for triangle base + inner nudge, pointing away from the bubble on that edge
 const MOB_TAIL_SOLID_SIDE = { bottom: 'top', top: 'bottom', left: 'right', right: 'left' };
 
-// build bubble tail div
-// keyline div, if the style has one) for a bubble tail sitting on `edge`
-// edge + position along it
-// `pos` runs left→right along the top/bottom edges, and top→bottom along
-// the left/right edges. Returns '' for styles with no tail (spiky, shout,
-// electric, narrator, cloud
+// builds tail div (+ keyline) for edge/pos — pos runs left→right on top/bottom, top→bottom on left/right. '' for tailless styles
 function bubbleTailHTML(bStyle, edge, pos, bubBorder, bubBg) {
     const shape = MOB_TAIL_SHAPE[bStyle];
     if (!shape) return '';
@@ -3583,10 +3439,7 @@ function attachResizeHandles(el, layer) {
                 const newH = (origW ? Math.round(origH * newW / origW) : newW);
                 layer.h = newH;
                 layer.w = newW;
-                // lock non-dragged edges
-                // resizes in place instead of drifting — mirrors isLeft/x
-                // was missing for top handles previously
-                // which made resizing from tl/tr look like the sprite moved.
+                // lock non-dragged edges so resize doesn't drift — was missing for top handles, made tl/tr resize look like a move
                 if (isLeft) layer.x = origX + (origW - newW);
                 if (isTop)  layer.y = origY + (origH - newH);
                 // direct dom update
@@ -3616,9 +3469,7 @@ function attachResizeHandles(el, layer) {
         el.appendChild(h);
     });
 
-    // ── Rotate handle — dial above the bounding box, connected by a stem.
-    // drag around center to rotate
-    // magnetic snap to common angles (0/45/90/...) for easy alignment.
+    // rotate dial above bbox connected by a stem, drag around center to rotate, snaps to common angles
     const stem = document.createElement('div');
     stem.className = 'rotate-handle-stem';
     el.appendChild(stem);
@@ -3632,8 +3483,7 @@ function attachResizeHandles(el, layer) {
             if (mv.touches.length > 1) return;
             mv.preventDefault(); mv.stopPropagation();
             const t = mv.touches[0];
-            // re-measure center each move
-            // this doesn't need the _cScale correction the resize drag uses.
+            // re-measure center each move, doesn't need the _cScale correction the resize drag uses
             const elRect = el.getBoundingClientRect();
             const cx = elRect.left + elRect.width / 2;
             const cy = elRect.top + elRect.height / 2;
@@ -3661,10 +3511,7 @@ function attachResizeHandles(el, layer) {
     el.appendChild(rh);
 }
 
-// draggable tail puck around bubble perimeter
-// drag anywhere around bubble, snaps to edge
-// the tail to whichever edge + position along that edge it's nearest to,
-// instead of only sliding left-right under one fixed edge.
+// draggable tail puck, snaps to nearest edge+position instead of sliding under one fixed edge
 const MOB_TAIL_HANDLE_GAP = 28; // how far outside the bubble's own edge the puck floats
 function attachTailHandle(el, layer) {
     el.querySelectorAll('.tail-scroller-track, .tail-scroller-handle').forEach(h => h.remove());
@@ -3679,9 +3526,7 @@ function attachTailHandle(el, layer) {
     const handle = document.createElement('div');
     handle.className = 'tail-scroller-handle';
 
-    // puck position uses same convention as tail
-    // itself: an offset outside whichever physical side is the bubble's own
-    // edge, and a 0-100% position along the perpendicular (along-edge) axis.
+    // puck position: offset outside the bubble's physical edge + 0-100% along the perpendicular axis
     function placeHandle(edge, pos) {
         handle.style.top = handle.style.bottom = handle.style.left = handle.style.right = '';
         const alongEdge = (edge === 'top' || edge === 'bottom');
@@ -3689,11 +3534,7 @@ function attachTailHandle(el, layer) {
         handle.style[alongEdge ? 'left' : 'top'] = pos + '%';
         handle.style.transform = alongEdge ? 'translateX(-50%)' : 'translateY(-50%)';
     }
-    // touch point in element coords
-    // find nearest edge + position along it
-    // compare how far outside each axis
-    // scale by axis half-size so shape doesn't favor one axis
-    // top/bottom (or a tall, narrow one favor left/right).
+    // touch point → nearest edge+position, scaled by axis half-size so shape doesn't bias tall/wide bubbles
     function nearestEdgePos(w, h, x, y) {
         const dx = x - w / 2, dy = y - h / 2;
         const favorSide = Math.abs(dx) / Math.max(1, w / 2) > Math.abs(dy) / Math.max(1, h / 2);
@@ -3724,9 +3565,7 @@ function attachTailHandle(el, layer) {
             const tailEl = el.querySelector('.bubble-tail');
             if (tailEl) {
                 if (edge !== lastEdge) {
-                    // crossed to different edge
-                    // physical borders are solid vs. transparent) changes, so
-                    // rebuild it rather than trying to patch it in place.
+                    // rebuild tail div on edge change since borders differ per edge
                     tailEl.outerHTML = bubbleTailHTML(bStyle, edge, pos, bubBorder, bubBg);
                     lastEdge = edge;
                 } else {
@@ -3749,10 +3588,7 @@ function attachTailHandle(el, layer) {
     el.appendChild(handle);
 }
 
-// corner edit toggle
-// small badge on selected text/bubble
-// jumps straight to the font/style popover — same icon as the bottom bar's
-// edit tab scoped to this layer
+// corner badge on selected text/bubble, jumps to font/style popover (same icon as bottom bar's edit tab)
 function attachSqaEditToggle(el, layer) {
     el.querySelectorAll('.sqa-corner-toggle').forEach(h => h.remove());
     const btn = document.createElement('button');
@@ -3785,8 +3621,7 @@ function _renderNow() {
     const dragOverlay   = document.getElementById('bg-drag-overlay');
     if (onionCanvasEl && onionCanvasEl.parentNode === canvas) onionCanvasEl.remove();
     if (dragOverlay    && dragOverlay.parentNode    === canvas) dragOverlay.remove();
-    // pool img elements to avoid decode overhead
-    // re-decoding _fxSrc data-URLs on every RAF tick (the FX flicker source)
+    // pool img elements to avoid re-decoding _fxSrc data-urls every RAF tick (the fx flicker source)
     const _imgPool = new Map();
     canvas.querySelectorAll('img').forEach(img => {
         const k = img.src ? img.src.substring(0,120) : '';
@@ -3848,8 +3683,7 @@ function _renderNow() {
             wrapper.appendChild(img);
             bgLayer.appendChild(wrapper);
         } else {
-            // static image: cover fill, zoom from center
-            // pan via translate
+            // static image: cover fill, zoom from center, pan via translate
             const sv  = Math.max(1, typeof scale === 'number' ? scale : 1);
             const txPct = sv > 1 ? (xOff / 100) * (sv - 1) * 50 : 0;
             const tyPct = sv > 1 ? (yOff / 100) * (sv - 1) * 50 : 0;
@@ -3900,10 +3734,7 @@ function _renderNow() {
                 const img = new Image();
                 img.src = l.src;
                 const draw = () => {
-                    // get height from l.h or derive it
-                    // actual loaded naturalWidth/Height ratio — critical for
-                    // sprites like Balrog whose action frames are smaller than
-                    // their idle pose (l.h is null, ratio must come from the image)
+                    // height from l.h or actual naturalWidth/Height ratio — needed for sprites like Balrog whose action frames differ from idle
                     let h;
                     if (l.h != null) {
                         h = l.h;
@@ -3920,8 +3751,7 @@ function _renderNow() {
                     onionCtx.drawImage(img, -l.w / 2, -h / 2, l.w, h);
                     onionCtx.restore();
                 };
-                // wait for onload, img.complete can lie
-                // cross-origin or not-decoded images
+                // wait for onload, img.complete can lie for cross-origin/undecoded images
                 if (img.complete && img.naturalWidth > 0) {
                     draw();
                 } else {
@@ -3945,8 +3775,7 @@ function _renderNow() {
             const lfCSS      = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
             const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ') || '';
 
-            // ── Transform goes on EL, not img, so the selection outline
-            // tail always follows sprite flip
+            // transform goes on EL not img so selection outline + tail follow sprite flip
             const elTransform = `rotate(${layer.rotation||0}deg) scaleX(${layer.flipped ? -1 : 1})`;
 
             if (hasFxSrc && bStrength < 100) {
@@ -3970,9 +3799,7 @@ function _renderNow() {
                 if (combinedFilter) img.style.filter = combinedFilter;
                 if (layer.fxOpacity !== undefined) img.style.opacity = layer.fxOpacity / 100;
 
-                // fix legacy layers with bad h value
-                // fix layer.h if it doesn't match natural height on load
-                // correct outline if ar is off by >5%
+                // fix layer.h if it doesn't match natural height on load, or outline is off by >5%
                 img.onload = () => {
                     if (!img.naturalWidth || !img.naturalHeight) return;
                     const expectedH = Math.round(layer.w * img.naturalHeight / img.naturalWidth);
@@ -3993,12 +3820,7 @@ function _renderNow() {
             const bubBorder = layer.bubbleBorderColor || '#000';
             const bubBg     = layer.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
             const decoB = [layer.underline ? 'underline' : '', layer.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
-            // burst/shout bubbles clipped to jagged shape
-            // polygon. A plain CSS `border` on a clipped element only paints
-            // where the polygon touches the box's literal top/bottom/left/
-            // right edges, leaving the interior zigzag unbordered — so
-            // those styles render their text in a nested fill layer instead,
-            // consistent outline all the way around
+            // burst/shout: css border on a clip-path shape only paints the box's literal edges leaving the zigzag unbordered, render outline via a nested fill layer instead
             const isBurst = bStyle === 'spiky' || bStyle === 'shout';
             bub.className = 'speech-bubble bubble-style-' + bStyle;
             bub.style.cssText = `width:${layer.w||120}px;font-size:${layer.fontSize||18}px;font-family:${layer.fontFamily||'Inter, sans-serif'};--bubble-border:${bubBorder};--bubble-bg:${bubBg};${isBurst ? '' : `border-color:${bubBorder};background:${bubBg};`}`;
@@ -4096,9 +3918,7 @@ function _renderNow() {
             e.stopPropagation();
             if (layer.locked) return; // locked layers cannot be moved or selected
             selectLayerLight(layer);
-            // instant resize handles on tap
-            // a full re-render (previously they only appeared via double-tap
-            // or some other action that happened to trigger render()).
+            // instant resize handles on tap, used to need a re-render or double-tap first
             canvas.querySelectorAll('.resize-handle, .tail-scroller-track, .tail-scroller-handle, .sqa-corner-toggle').forEach(h => h.remove());
             if (layer.type === 'img') attachResizeHandles(el, layer);
             if (layer.type === 'bubble' || layer.type === 'thinking') attachTailHandle(el, layer);
@@ -4141,8 +3961,7 @@ function _renderNow() {
         canvas.appendChild(el);
     });
 
-    // flash clip warning outlines after ratio change
-    // outline spilled layers
+    // flash outline on spilling layers after ratio change
     f.layers.forEach(layer => {
         if (!layer._clipWarn) return;
         const lw = layer.w || 0;
@@ -4184,11 +4003,7 @@ function selectLayerLight(layer) {
     updateSpriteQuickBar(layer);
 }
 
-// sprite quick-actions bar
-// icon pill above frame for image layers
-// is selected, so pose-swap / duplicate / front / delete don't require
-// opening the full transform sheet first.
-// compact popover for color/font
+// sprite quick-actions bar: pill above frame for image layers (pose-swap/duplicate/front/delete) + compact color/font popover
 function mobToggleSqaPopover(kind) {
     const pop = document.getElementById('sqa-popover');
     if (!pop || !activeLayer) return;
@@ -4205,9 +4020,7 @@ function mobToggleSqaPopover(kind) {
     pop.classList.add('show');
     positionSqaPopover(activeLayer); // re-measure now that it's actually visible
 }
-// position popover above layer
-// opens below if no room above
-// fixed to top of canvas
+// position popover above layer, opens below if no room, clamped to canvas top
 function positionSqaPopover(layer) {
     const pop = document.getElementById('sqa-popover');
     if (!pop || !layer) return;
@@ -4364,11 +4177,7 @@ function updateSpriteQuickBar(layer) {
         if (pop) { pop.classList.remove('show'); pop.dataset.kind = ''; }
         return;
     }
-    // duplicate is in frame bar already
-    // so the rest of each type's actions slide in right next to it there
-    // instead of repeating a second pill on the canvas. Only fall back to a
-    // standalone floating pill (full action set, incl. its own Duplicate) if
-    // that bottom bar has been collapsed to its tab.
+    // duplicate lives in frame bar; rest of each type's actions slide in next to it there. standalone floating pill (with its own Duplicate) only if the bottom bar is collapsed
     const frameBar = document.getElementById('canvas-frame-bar');
     const frameBarHidden = !frameBar || frameBar.classList.contains('cfb-hidden');
     updateCfbExtras(frameBarHidden ? null : layer);
@@ -4402,8 +4211,7 @@ function updateSpriteQuickBar(layer) {
             bar.classList.remove('show');
             bar.innerHTML = '';
         }
-        // keep popover content fresh
-        // instead of just closing it out from under the person.
+        // keep popover content fresh instead of closing it out from under the user
         if (pop && pop.classList.contains('show')) {
             if (pop.dataset.kind === 'color') renderSqaColorPopover();
             else if (pop.dataset.kind === 'font') renderSqaFontPopover();
@@ -4411,10 +4219,7 @@ function updateSpriteQuickBar(layer) {
     }
 }
 
-// slide quick actions next to bottom bar
-// frame bar duplicate button
-// flip+delete for sprites, no duplicate here
-// since the frame bar already has one. Pass null to clear them.
+// slide flip+delete next to frame bar's duplicate button, no duplicate here since it's already there. null clears them
 function updateCfbExtras(layer) {
     const extras = document.getElementById('cfb-text-extras');
     if (!extras) return;
@@ -4453,9 +4258,7 @@ function startTouchDrag(e, layer) {
     var layerStartX = layer.x;
     var layerStartY = layer.y;
     var stateSaved = false;
-    // get touchstart element, attach move/end to it
-    // not document. On iOS, stopPropagation() on touchstart means document-level
-    // touchmove listeners added dynamically never fire for that touch sequence.
+    // attach move/end to the touchstart element not document — iOS drops document-level touchmove after stopPropagation() on touchstart
     var el = e.currentTarget;
 
     var cleanup = function() {
@@ -4465,8 +4268,7 @@ function startTouchDrag(e, layer) {
         if (_isDragging) render();
         setTimeout(function() { _isDragging = false; }, 60);
     };
-    // canvasRenderedScale: vpScale + device pixel diff
-    // ios/android twa: getBoundingClientRect = true css px
+    // canvasRenderedScale: vpScale + device pixel diff (getBoundingClientRect is true css px on ios/android twa)
     var canvasRect = canvas.getBoundingClientRect();
     var canvasRenderedScale = canvasRect.width / (canvas.offsetWidth || 1);
 
@@ -4493,12 +4295,7 @@ function startTouchDrag(e, layer) {
     el.addEventListener('touchcancel', up, { once: true });
 }
 
-// touch pinch resize (2-finger spread/pinch on active sprite)
-// ── Cap how large a sprite can be scaled relative to the current frame ──
-// used to allow 1000px which was too much
-// on a typical ~300-400px frame meant it was trivial to size a character
-// well past the frame edge. Cap it relative to the frame instead so "as big
-// as possible" still keeps most of the sprite reachable/visible.
+// cap sprite scale relative to frame — 1000px was too much on a ~300-400px frame, trivially blew past the frame edge
 function getMaxSpriteSize() {
     const cw = (canvas && canvas.offsetWidth) || 300;
     const ch = (canvas && canvas.offsetHeight) || 300;
@@ -4525,8 +4322,7 @@ function startTouchPinchResize(e, layer) {
         const scale = dist / startDist;
         const newPinchW = Math.max(30, Math.min(getMaxSpriteSize(), Math.round(origW * scale)));
         const newPinchH = origW ? Math.round(origH * newPinchW / origW) : newPinchW;
-        // keep center fixed while resizing
-        // in place instead of drifting toward the bottom-right corner.
+        // keep center fixed while resizing instead of drifting toward the bottom-right
         layer.x = origX - (newPinchW - origW) / 2;
         layer.y = origY - (newPinchH - origH) / 2;
         layer.w = newPinchW;
@@ -4669,10 +4465,7 @@ function updateFrameCounter() {
     renderFrameSwipeDots();
 }
 
-// page-dot / hint indicator inside the bottom swipe strip
-// near updateFrameCounter so they stay in sync
-// near init call so they stay together
-// together avoids a "not defined" error from call-before-declaration ordering.
+// page-dot indicator kept near updateFrameCounter/init calls to avoid call-before-declaration errors
 function renderFrameSwipeDots() {
     const zone = document.getElementById('frame-swipe-zone');
     if (!zone) return;
@@ -4693,9 +4486,7 @@ function toggleFramePillMenu(e) {
     if (!menu) return;
     const isOpen = menu.style.display !== 'none';
     if (isOpen) { closeFramePillMenu(); return; }
-    // position dropdown above frame bar
-    // bar is near bottom so menu opens upward
-    // upward instead of dropping below it off-screen).
+    // dropdown opens upward since the frame bar sits near the bottom
     const pill = document.getElementById('canvas-frame-bar');
     if (pill) {
         const rect = pill.getBoundingClientRect();
@@ -4726,8 +4517,7 @@ function collapseCanvasFrameBar() {
     const tab = document.getElementById('cfb-tab');
     if (!bar || !tab) return;
     bar.classList.add('cfb-hidden');
-    // wait for bar to fade before switching tab
-    // in, so the two never visually overlap mid-animation.
+    // wait for bar fade before switching tab so they don't overlap mid-animation
     setTimeout(() => { tab.style.display = 'flex'; }, 140);
     if (activeLayer) updateSpriteQuickBar(activeLayer);
 }
@@ -4753,11 +4543,7 @@ function toggleFrameStrip() {
     if (arrow) arrow.innerText = _frameStripVisible ? '▼' : '▲';
 }
 
-// toggle active frame highlight, not full rebuild
-// renderMobFrames() wipes and recreates all N DOM nodes on every call, which is
-// fine for few frames, janky at hundreds
-// plain nav = just move between frames
-// which thumbnail is highlighted, so it can skip the rebuild entirely.
+// nav just toggles active highlight instead of a full renderMobFrames() rebuild — rebuild is janky at hundreds of frames
 function updateActiveFrameThumb() {
     const scroll = document.getElementById('mob-frame-scroll');
     if (!scroll || scroll.children.length !== frames.length) return renderMobFrames(); // out of sync — fall back to a full rebuild
@@ -4784,8 +4570,7 @@ function renderMobFrames() {
             ab.innerText = '🔊';
             thumb.appendChild(ab);
         }
-        // ratio badge: only if frame's ratio differs from frame 1
-        // so it's obvious at a glance which frames have a custom shape.
+        // ratio badge only shown when a frame's ratio differs from frame 1
         const fr = getFrameRatio(f);
         const baseR = getFrameRatio(frames[0]);
         if (fr.w !== baseR.w || fr.h !== baseR.h) {
@@ -4804,13 +4589,7 @@ function renderMobFrames() {
     if (typeof renderFrameRatioPicker === 'function') renderFrameRatioPicker();
 }
 
-// frame audio (3-15s clip per frame, optionally spanning several frames)
-// frame audio fields
-// audio span fields
-// span frames share same audio pair on purpose
-// dedup key for reader audio sync
-// same audio pair = audio keeps playing across span
-// plays uninterrupted across swipes
+// frame audio: 3-15s clip, optionally spanning frames. span frames share the same audio pair (dedup key) so it plays uninterrupted across swipes
 let mobAudioMainTab   = 'library';
 let mobAudioLibLoaded = false;
 let mobAudioLib       = [];
@@ -4890,8 +4669,7 @@ function renderMobAudioSheet() {
     if (!mobAudioLibLoaded) loadMobAudioLibrary(); else renderMobAudioList();
 }
 
-// stepper: changing span updates existing clip too
-// re-applies across new range immediately
+// changing span re-applies to the existing clip immediately
 function adjustAudioSpan(delta) {
     const maxSpan = Math.max(1, frames.length - currentIdx);
     mobAudioSpanValue = Math.max(1, Math.min(maxSpan, mobAudioSpanValue + delta));
@@ -4988,8 +4766,7 @@ function applyAudioToFrame(url, name, start, end) {
     closeSheet('audio');
 }
 
-// preview across span, audio keeps playing
-// same dedup rule as reader.html
+// preview keeps playing across span, same dedup rule as reader.html
 let _audioPreviewSpanFrames = [];
 let _audioPreviewPos = 0;
 let _aspLastKey = null;
@@ -5220,8 +4997,7 @@ async function useUploadedAudioClip() {
 
         const saveToLib = document.getElementById('mob-audio-save-to-library').checked;
         if (saveToLib && handle && handle !== 'guest') {
-            // fixed: catch is not a function on .insert()
-            // wrap in Promise.resolve() to get .catch()
+            // fixed: .insert() has no .catch(), wrap in Promise.resolve()
             await Promise.resolve(_supabase.from('audio_library').insert([{
                 name: _mobAudioUploadFile.name, audio_url: url, duration: len,
                 uploaded_by: handle, created_at: new Date().toISOString()
@@ -5509,13 +5285,7 @@ function applyTransform() {
     renderTransformPreview();
 }
 
-// transform sheet live preview
-// sheet covers canvas so use transform sheet
-// sliders was invisible until you closed the sheet. This renders a live,
-// scaled-to-fit copy of the selected layer right inside the sheet, kept in
-// sync with every control that can change its appearance.
-// build preview element for layer
-// used by transform and fx preview
+// transform sheet covers the canvas, so this renders a live scaled-to-fit copy of the selected layer inside the sheet, kept synced to every control
 function buildLayerPreviewElement(layer) {
     let el = null;
 
@@ -5602,8 +5372,7 @@ function renderTransformPreview() {
     el.style.transform = (el.style.transform ? el.style.transform + ' ' : '') + `rotate(${layer.rotation||0}deg)`;
     box.appendChild(el);
 
-    // scale down to fit, never up
-    // preview box, no matter how large the layer's width/font-size is set.
+    // scale down to fit preview box, never up
     _fitPreviewBox(wrap, box);
 }
 
@@ -5617,10 +5386,7 @@ function renderFxPreview() {
 
     const layer = activeLayer;
 
-    // blend modes need something to blend against
-    // preview — mix-blend-mode needs real content underneath it, so a plain
-    // checkerboard makes fx look invisible
-    // blend mode active = show composited frame
+    // mix-blend-mode needs real content underneath — checkerboard when no blend mode is active, composited frame when one is
     if (layer.fxBlend && layer.fxBlend !== 'normal') {
         renderFxPreviewComposited(wrap, box, layer);
         return;
@@ -5674,11 +5440,7 @@ function renderFxPreview() {
     _fitPreviewBox(wrap, box);
 }
 
-// composited preview for blend modes
-// clone live canvas
-// with every FX change — instead of rebuilding the frame from scratch, so
-// the active layer's blend result shows against the real background and
-// other sprites exactly as it will look in the finished panel.
+// cloned live canvas, updated on every fx change, so blend result shows against the real bg/sprites as it'll actually look
 function renderFxPreviewComposited(wrap, box, layer) {
     wrap.style.display = 'flex';
     box.style.transform = 'none';
@@ -5700,8 +5462,7 @@ function renderFxPreviewComposited(wrap, box, layer) {
     const dragClone = clone.querySelector('#bg-drag-overlay');
     if (dragClone) dragClone.remove();
 
-    // subtle outline on highlighted layers
-    // layer is still identifiable without cluttering the preview
+    // subtle outline on highlighted layers so it stays identifiable without cluttering the preview
     clone.querySelectorAll('.layer.active').forEach(el => el.classList.remove('active'));
     const targetEl = clone.querySelector(`[data-layer-id="${layer.id}"]`);
     if (targetEl) targetEl.style.outline = '2px solid rgba(0,210,255,0.9)';
@@ -6616,11 +6377,7 @@ function handleActionSelect(img, pack, isEditing) {
             if (!probeNew.naturalWidth) { closeActionModal(); render(); return; }
             const croppedNew = cropSpriteToContent(probeNew);
 
-            // anchor bottom-center so feet stay grounded
-            // sprite doesn't drift sideways as its width changes between poses
-            // pure left-anchor lets wide pose creep
-            // next to it — this is what was showing up as sprites landing on
-            // top of each other's boxes after a pose swap).
+            // anchor bottom-center so feet stay grounded — pure left-anchor let wide poses creep, causing sprites to land on top of each other's box after a pose swap
             const oldW       = layer.w != null ? layer.w : layer.h;
             const oldH       = layer.h != null ? layer.h : layer.w;
             const oldBottom  = layer.y + oldH;
@@ -6642,22 +6399,12 @@ function handleActionSelect(img, pack, isEditing) {
                 if (!layer.charHeight) layer.charHeight = oldH; // backfill for legacy layers
 
                 if (corsBlockedNew) {
-                    // can't read pose pixels, best effort
-                    // keep the current box size, just swap the source.
+                    // can't read pose pixels, best effort — keep current box size, just swap source
                     finish(oldW, oldH);
                     return;
                 }
 
-                // charHeight = canonical reference height
-                // charHeight set on first placement
-                // represents the intended display height in canvas pixels.
-                // cant measure data urls by reloading
-                // cors error on canvas read
-                // fallback to oldH
-                // action switch would compound resize
-                // anchoring prevents size inconsistency
-                // charHeight makes all poses same height
-                // scale regardless of how many times actions have been swapped.
+                // charHeight = canonical reference height set on first placement; data-url can't be measured (cors), falls back to oldH — keeps all poses the same height regardless of action swaps
                 {
                     const canonH = layer.charHeight;
                     const scale  = canonH / croppedNew.h;
@@ -6734,13 +6481,10 @@ function addSpriteToCanvas(src, pack) {
     const ch = canvas.offsetHeight || 300;
     const isCharacter = !!(pack && pack.id); // library/gallery sprites have an id — effects don't
 
-    // default char height: 60% of canvas
-    // default_scale = character height on db
+    // default char height: 60% of canvas, default_scale = character height on db
     const targetH = (pack && pack.default_scale) ? pack.default_scale : Math.round(ch * 0.6);
 
-    // nl is built but NOT pushed to frames or set as activeLayer yet —
-    // we wait until probe.onload resolves the true aspect-ratio dimensions
-    // so the selection outline never renders with a square placeholder size.
+    // nl built but not pushed/set as activeLayer until probe.onload resolves the true ar, so the outline never renders at a placeholder square size
     const nl = { type: 'img', src, w: targetH, h: targetH, x: Math.round(cw * 0.3), y: Math.round(ch * 0.2), rotation: 0, flipped: false, packData: pack, id: Date.now() };
 
     function _commit() {
@@ -6756,8 +6500,7 @@ function addSpriteToCanvas(src, pack) {
         const cropped = cropSpriteToContent(probe);
 
         if (isCharacter) {
-            // character sprite: anchor to height so poses stay consistent
-            // width = crop ar * target height
+            // character sprite: anchor to height, width = crop ar * target height
             const aspectRatio = cropped.w / cropped.h;
             nl.h = targetH;
             nl.w = Math.round(targetH * aspectRatio);
@@ -6878,20 +6621,13 @@ function openBubblePicker(mode) {
     document.getElementById('bubble-picker-modal').style.display = 'flex';
 }
 
-// render real bubble style preview
-// scaled-down real bubble preview
-// so what you pick is exactly what you get instead of a generic icon.
+// scaled-down real bubble preview so the picker shows exactly what you get
 function mountBubbleStyleThumb(container, styleId, label) {
     container.innerHTML = '';
     const dummy = { type: styleId === 'cloud' ? 'thinking' : 'bubble', bubbleStyle: styleId, content: label || '', fontSize: 12 };
     const bub = buildLayerPreviewElement(dummy);
     bub.style.pointerEvents = 'none';
-    // let plain box auto-size to label width
-    // needs instead of wrapping/breaking inside a fixed width — the whole
-    // shape then gets scaled down as one piece to fit the tile, so long
-    // labels like "Mangabox" always render as one clean line rather than
-    // splitting mid-word. Burst/Shout keep their tuned fixed width so their
-    // star-shaped clip-path isn't stretched by a long label.
+    // plain box auto-sizes to label width then scales down as one piece, so long labels like "Mangabox" stay on one line. Burst/Shout keep fixed width since their clip-path can't stretch
     bub.style.whiteSpace = 'nowrap';
     const fill = bub.querySelector('.bubble-clip-fill');
     if (fill) {
@@ -6939,19 +6675,7 @@ function renderBubbleMiniGrid() {
     });
 }
 
-// two mirror ops, one per edge type
-// it's currently sitting on. Think of them as reflecting the tail's anchor
-// point across the bubble's vertical or horizontal center line:
-// top/bottom edges: horizontal flip slides tail
-// horizontal flip on left/right = mirrored spot
-// vertical flip on top/bottom = opposite edge
-// left/right edges: horizontal flip mirrors in place
-// vertical flip on left/right = opposite side
-// horizontal flip on top/bottom = slides tail
-// high-right becomes low-right etc
-// tail shape also mirrored via bubbleTailHTML
-// scaleX/scaleY(-1) once past the 50% midpoint) so it reads as a natural
-// reflection rather than the same lean just relocated.
+// tail mirror on flip: top/bottom edges use horizontal flip to slide the tail, vertical flip to swap edge; left/right edges are the reverse. shape also mirrored via bubbleTailHTML
 function mobQuickFlipTail() { // horizontal (◀▶)
     if (!activeLayer) return;
     saveState();
@@ -7049,8 +6773,7 @@ function resetBgSettings() {
     renderBgEditPreview();
 }
 
-// live bg edit preview
-// mirrors canvas compositing
+// live bg edit preview, mirrors canvas compositing
 function renderBgEditPreview() {
     const box = document.getElementById('mob-bg-edit-preview');
     if (!box) return;
@@ -7189,11 +6912,7 @@ function bgChoiceCrop() {
     if (cropper) { cropper.destroy(); cropper = null; }
     const r = canvasRatio || { w: 1, h: 1 };
     const initCropper = () => { cropper = new Cropper(t, { aspectRatio: r.w / r.h, viewMode: 1 }); };
-    // cropper measures img immediately on init
-    // right after setting .src, the browser hasn't decoded the image yet, so
-    // 0x0 image = cropper shows nothing
-    // wait for load, fallback to .complete
-    // image ready before cropper measures
+    // wait for image load (fallback .complete) before cropper measures — src is set but not decoded yet, so it'd measure 0x0
     t.onload = () => { t.onload = null; initCropper(); };
     t.src = _bgChoiceSrc;
     if (t.complete && t.naturalWidth) { t.onload = null; initCropper(); }
@@ -7230,45 +6949,26 @@ async function bgChoiceFixed() {
 
 // fx
 const MOB_FX_BLUR_TYPES = ['none','gaussian','motion','lens','frosted','zoom','radial','pixel'];
-// three filter groups, tap to expand
-// chip reveals sliders like ibis paint
-// tools work. Brightness/Contrast/Hue/Saturation map straight onto native CSS
-// filter functions in fxFilter
-// no changes needed at call sites
-// lightness/color balance not native css filters
-// colorFx renders as tint overlays
+// filter chips expand to sliders (ibis paint style). brightness/contrast/hue/sat map to native css filter, lightness/color balance render as tint overlays instead
 
-// layer blend mode via css mix-blend-mode
-// a single style assignment at render time (no pixel math needed). Kept to a
-// short, useful set rather than the full blend-mode list.
+// blend mode via css mix-blend-mode, kept to a short useful set not the full list
 const FX_BLEND_MODES = ['normal','multiply','screen','add','overlay','difference','color','luminosity'];
 const FX_BLEND_LABELS = ['None','Multiply','Screen','Add','Overlay','Difference','Color','Luminosity'];
 
-// 'add' blend mode isn't native in css or canvas
-// css calls it 'plus-lighter', canvas calls it 'lighter'
-// fx blend modes match both apis already
-// helpers only need to special-case 'add'.
+// 'add' isn't a native name in either api — css calls it plus-lighter, canvas calls it lighter — helpers special-case it
 function cssBlendMode(name) { return name === 'add' ? 'plus-lighter' : name; }
 function canvasBlendMode(name) { return name === 'add' ? 'lighter' : name; }
 
-// fx target: sprite layer vs frame background
-// fx sheet: sprite layer or bg
-// mirror current frame's bg fx
-// toolkit that sprites already have. `fxEditingBg` tracks which is active.
+// fx target: sprite layer or frame bg, mirrors the sprite fx toolkit. fxEditingBg tracks which is active
 function setFxTarget(target) {
     fxEditingBg = (target === 'bg');
     syncFxPanel();
 }
-// get fx target object
-// about to write, so a fresh bgFx object is created on the current frame if
-// one doesn't exist yet.
+// get fx target, creates a fresh bgFx object on the current frame if none exists yet
 function getFxTarget(create) {
     if (fxEditingBg) {
         const f = frames[currentIdx];
-        // background existence = f.background, not f.bgFx
-        // not `f.bgFx` (the FX settings applied to it) — those are separate. Checking
-        // bgFx was wrongly returning no-bg
-        // just because no effect had been applied to it yet.
+        // bg existence = f.background not f.bgFx (the fx settings) — checking bgFx wrongly reported no-bg when nothing had been applied yet
         if (!f || !f.background) return null;
         if (!f.bgFx && create) f.bgFx = {};
         return f.bgFx || {};
@@ -7386,9 +7086,7 @@ function setFxAdjustSlider(id, val, suffix) {
     if (lbl) lbl.innerText = (val > 0 ? '+' : '') + val + suffix;
 }
 
-// adjustable filter groups
-// tap chip to toggle sliders
-// panel shown at a time, but all three groups' values stay active together.
+// tap chip to toggle sliders, only one panel shown but all three groups' values stay active
 function setFxAdjustGroup(key) {
     const panelId = 'fx-adjust-' + key;
     const panel = document.getElementById(panelId);
@@ -7402,10 +7100,7 @@ function setFxAdjustGroup(key) {
     }
 }
 
-// read sliders, build css filter string
-// native filter functions into fxFilter
-// same field every render/export/reader path already reads — and stores
-// lightness + color balance in target.colorFx for the overlay renderer.
+// read sliders into fxFilter (same field every render/export/reader path reads), lightness+color balance go to colorFx for the overlay renderer
 function applyFxAdjust() {
     const target = getFxTarget(true);
     if (!target) return;
@@ -7540,9 +7235,7 @@ document.getElementById('img-input').addEventListener('change', (e) => {
             frames[currentIdx].layers.push(nl);
             activeLayer = nl;
             render();
-            // trim transparent edges from sprite
-            // uploads (unlike library sprites) skipped this before, so PNGs
-            // with baked-in whitespace threw off sizing/placement.
+            // trim transparent edges — uploads used to skip this unlike library sprites, so baked-in whitespace threw off sizing
             const probe = new Image();
             probe.onload = () => {
                 if (!probe.naturalWidth || !probe.naturalHeight) return;
@@ -7714,13 +7407,7 @@ function confirmMultiImport() {
         ratio: (f.w && f.h) ? { w: f.w, h: f.h } : undefined
     }));
     if (mode === 'replace') {
-        // fixed: saveState alone wasnt enough
-        // in-memory for whole session
-        // undo stack (and this backup) is gone on reload. This is the one action here
-        // that can wipe an entire comic in one tap, so it also gets a backup written
-        // to localStorage that survives leaving the editor entirely. Just one slot —
-        // it's overwritten on every replace, not a full history — checked on load via
-        // offer restore if backup found
+        // fixed: saveState alone wasn't enough — undo stack is in-memory, gone on reload. This action can wipe a whole comic in one tap so it also backs up to localStorage (one slot), checked on load to offer restore
         try {
             localStorage.setItem('cc-replace-backup', JSON.stringify({
                 draftId: activeDraftId, frames, ts: Date.now()
@@ -7741,10 +7428,7 @@ function confirmMultiImport() {
     updateFrameCounter();
 }
 
-// persisted "replace all frames" backup
-// check backup on load
-// matches the draft currently open (or there's no draft context to compare,
-// offer restore if recent backup found
+// check backup on load, offer restore if it matches the open draft (or there's no draft context to compare) and is recent
 function checkReplaceBackup() {
     let backup;
     try { backup = JSON.parse(localStorage.getItem('cc-replace-backup') || 'null'); } catch(e) { return; }
@@ -7796,24 +7480,7 @@ const _PUBLISH_PREFIX = 'comics/'; // out-of-line frame-data blobs for published
 const _INLINE_LIMIT = 900_000;
 const _SNAPSHOT_CHUNK = 300; // frame_snapshots upsert batch size — keeps each request's statement small at any comic size
 
-// stamp / strip editor canvas pixel dimensions on every frame
-// reader needs pixel size to scale correctly
-// scale layer coordinates correctly. Desktop always uses BASE_SIZE=900;
-// mobile uses a viewport-sized canvas (~330-400px). Without this stamp the
-// reader falls back to 900 and renders mobile-created layers far too small.
-// fixed: was mutating live frames in place
-// then strip stamp back off immediately
-// lazy build meant strip always won the race
-// reader was falling back to 900px guess
-// mismatch throws off layer positions
-// returns fresh array, never mutates live frames
-// fixed: was stamping all frames with live canvas size
-// wrong now that frames have own ratios
-// each frame has its own ratio
-// use editorW/H not live ratio at save time
-// frame recomputed from its stored ratio
-// same formula as setRatio()
-// always correct regardless of which frame was active when the user hit save.
+// stamp per-frame canvas pixel dims so reader can scale layers — fixed: was mutating live frames then stripping the stamp back off, losing the race with a lazy strip build (reader fell back to 900px, mismatched positions). Returns a fresh array, never mutates live frames, each frame recomputed from its own stored ratio (same formula as setRatio)
 function getStampedFrames() {
     return frames.map(f => {
         const r = getFrameRatio(f);
@@ -7822,18 +7489,7 @@ function getStampedFrames() {
     });
 }
 
-// safety net: no base64 reaches supabase on publish
-// sprites should upload on add but sometimes dont
-// re-rasterize sprites that need edge trimming
-// re-rasterizes to png, discards old url
-// base64 can leak even if upload succeeded
-// add-time upload can fail silently
-// back to base64, reader fallback handles it
-// snapshot skips non-http image src
-// base64 sprite is invisible in snapshots
-// upload anything that slipped through before save
-// guarantees real urls, returns fresh array
-// the live `frames` the user is editing.
+// safety net before publish: re-rasterize sprites needing edge trim, re-upload any base64 that slipped through (add-time upload can fail silently), skip non-http src in snapshots. Returns a fresh array, doesn't touch live frames
 async function ensureLayerImagesUploaded(frameList) {
     const out = [];
     let failCount = 0;
@@ -7859,12 +7515,7 @@ async function ensureLayerImagesUploaded(frameList) {
                 layers[i] = { ...l, ...patch };
             }
         }
-        // safety net for bg base64 too
-        // to Storage right after import (see uploadImportedBackgrounds()), but if
-        // last line of defense before publish
-        // base64 can be huge, strip before network
-        // supabase reinflates oversized payload
-        // net exists to prevent.
+        // same safety net for bg base64 — last line of defense before publish so an oversized payload never hits supabase
         let bgPatch = null;
         if (f.background && f.background.startsWith('data:')) {
             let url = await uploadBgToStorage(f.background);
@@ -7884,10 +7535,7 @@ async function ensureLayerImagesUploaded(frameList) {
     return out;
 }
 
-// ── Resolve a comics/drafts row's frame array, whether it's stored inline
-// data inline or in storage for big comics
-// size check in finalPublish(). Used wherever an existing comic is loaded
-// back to editor
+// resolve a comics/drafts row's frames whether inline or in storage — used in finalPublish's size check and whenever an existing comic loads back into the editor
 async function resolveFramesFromRow(row) {
     if (row.data) return row.data;
     if (row.storage_path) {
@@ -7903,12 +7551,7 @@ async function resolveFramesFromRow(row) {
     return row.frames || null;
 }
 
-// local backup, independent of supabase entirely
-// local copy in localstorage, separate from cloud
-// independent of network failures
-// the tab/app is killed before an autosave fires, or if some future bug ever
-// produces a bad write, this is a second, independent copy to recover from —
-// it never depends on the same round-trip that a network failure just broke.
+// local backup independent of supabase/network — a second copy to recover from if the tab dies or a future bug produces a bad write
 const _LOCAL_BACKUP_PREFIX = 'cc-local-backup-';
 function localBackupSave() {
     if (!activeDraftId) return;
@@ -7926,14 +7569,7 @@ function localBackupLoad(draftId) {
     } catch(e) { return null; }
 }
 
-// refuses to treat a near-empty canvas as equivalent to real content
-// tripwire before autosave overwrites
-// draft already exists in memory
-// the untouched default canvas, that's a strong signal something upstream
-// went wrong (a failed load, a race, a future bug) rather than the person
-// manual saves still go through
-// with a confirmation, since a person is allowed to blank out their own comic
-// on purpose — only *silent* saves are blocked outright.
+// tripwire: refuses to silently autosave a near-empty canvas over an existing draft (signals something upstream broke). Manual saves still go through with a confirmation
 function looksBlank(frameArr) {
     if (!frameArr || !frameArr.length) return true;
     if (frameArr.length > 1) return false;
@@ -7941,14 +7577,7 @@ function looksBlank(frameArr) {
     return (!f.layers || f.layers.length === 0) && (!f.background || f.background === '#ffffff');
 }
 
-// auto-retry cloud sync once connectivity returns
-// network failure already handled
-// leaves a full local backup via localBackupSave() below — but historically
-// the cloud copy just stayed out of sync until the person noticed the red
-// retry save on 'online' event
-// retry cloud save when back online
-// dropped connection mid-upload
-// resolves itself instead of requiring a manual retry.
+// auto-retry cloud sync on reconnect — local backup already has the data, this just gets the cloud copy back in sync without the user noticing
 let _pendingCloudSync = false;
 let _onlineRetryRegistered = false;
 function _scheduleCloudSyncRetry() {
@@ -7981,22 +7610,17 @@ async function saveOffline(silent = false) {
         }
         if (!confirm('This looks like a blank canvas, but a saved draft already exists here. Saving now will replace it with an empty comic. Continue?')) return;
     }
-    // local backup first, before network
-    // even if the request below fails or times out.
+    // local backup first, before network, so it happens even if the request below fails or times out
     localBackupSave();
 
-    // skip network if device knows it's offline
-    // offline — go straight to the calmer "saved locally, will sync" message
-    // instead of a scary fetch-failure error, and queue an automatic retry
-    // for when back online
+    // skip network if device knows it's offline — calmer "saved locally" message instead of a scary fetch error, queues a retry for reconnect
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         _scheduleCloudSyncRetry();
         if (!silent) showMobSaveBadge('Saved on this device — will sync when back online', false);
         return;
     }
 
-    // top-level ratio = frame 1's
-    // is only the back-compat/cover ratio, not a per-frame source of truth.
+    // top-level ratio is just the back-compat/cover ratio, not a per-frame source of truth
     const ratio  = getFrameRatio(frames[0]) || { w:1, h:1 };
     const now    = new Date().toISOString();
     const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
@@ -8011,20 +7635,11 @@ async function saveOffline(silent = false) {
         const user = _cm1?.user ?? null;
         if (!user) { if (!silent) showMobSaveBadge('Log in to save', true); return; }
 
-        // fixed: uuid generated once upfront
-        // same id is used whether this is the first save or the hundredth.
+        // fixed: uuid generated once upfront, same id whether it's the first save or the hundredth
         activeDraftId = activeDraftId || crypto.randomUUID();
         lsSet('active_draft_id', activeDraftId);
 
-        // stamp canvas dims for reader scaling
-        // getStampedFrames() returns a fresh array, never touching the live `frames`.
-        // fixed: draft saves were skipping base64 strip
-        // leftover base64 image gets caught here
-        // layer (e.g. layer._fxSrc from an FX re-render) could ride straight
-        // into the draft payload. Once that pushed the payload past
-        // _INLINE_LIMIT it was uploaded to Storage as a blob — and with
-        // base64 can exceed bucket file size limit
-        // size, producing "The object exceeded the maximum allowed size".
+        // stamp canvas dims for reader scaling (fresh array, doesn't touch live frames). fixed: draft saves were skipping the base64 strip, letting a leftover base64 layer (e.g. _fxSrc) push the payload past _INLINE_LIMIT and blow the bucket's max file size
         const stampedRaw = getStampedFrames();
         const stamped = await ensureLayerImagesUploaded(stampedRaw);
         if (ensureLayerImagesUploaded._lastFailCount > 0) {
@@ -8046,22 +7661,12 @@ async function saveOffline(silent = false) {
             localStorage.removeItem('active_draft_storage_path');
         }
 
-        // fixed: single upsert instead of insert/update split
-        // activeDraftId.includes('-') — that check broke as soon as Supabase ever
-        // non-uuid id was causing duplicate rows on save
+        // fixed: single upsert instead of an insert/update split on activeDraftId.includes('-') — that check broke once ids weren't guaranteed to contain a dash, causing duplicate rows
         const row = {
             id: activeDraftId,
             canvas_ratio: ratio,
             updated_at: now,
-            // owner_handle/user_id/owner_handles back the drafts RLS policies, which
-            // enforce NOT NULL on owner_handle. Gating these on draftRowExists (skip if
-            // "already exists") turned out fragile — every NOT NULL crash so far traced
-            // back to draftRowExists being true while the row didn't actually exist yet
-            // (stale state after switching/deleting drafts, a failed load, or an update
-            // RLS check silently falling through to an insert). Sending real, cached
-            // values on every save — the row's actual owner if we loaded one, the
-            // current user only if we never did — is safe whether this upsert resolves
-            // as an insert or an update, and can never be null.
+            // owner_handle/user_id/owner_handles back drafts RLS's NOT NULL check. Gating on draftRowExists was fragile (crashes traced back to stale state claiming a row existed when it didn't) — sending real cached values on every save is safe either way and can never be null
             owner_handle: _draftOwnerHandle || handle,
             user_id: _draftUserId || user.id,
             owner_handles: (_collabOwnerHandles && _collabOwnerHandles.length) ? _collabOwnerHandles : [handle],
@@ -8085,13 +7690,9 @@ async function saveOffline(silent = false) {
         notifyCollabEdit(activeDraftId, true, document.getElementById('pub-title')?.value || row.title);
     } catch(e) {
         console.warn('Draft save failed:', e);
-        // cloud failed but local backup saved
-        // browser has local copy separate from supabase
+        // cloud failed but local backup saved — browser has its own copy separate from supabase
         const msg = (e && e.message) || '';
-        // network error = no response
-        // all — a dropped connection, not a rejection from Supabase (bad payload, auth,
-        // quota, etc). Those are recoverable on their own once the connection is back,
-        // so queue a silent retry instead of treating it like a real failure.
+        // no response = a dropped connection, not a real supabase rejection (bad payload/auth/quota) — queue a silent retry instead of treating it as a failure
         const looksLikeConnectivity = /failed to fetch|networkerror|network request failed/i.test(msg)
             || (typeof navigator !== 'undefined' && navigator.onLine === false);
         if (looksLikeConnectivity) {
@@ -8113,12 +7714,7 @@ function showMobSaveBadge(msg, isErr) {
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2000);
 }
-// draft load failure — blocking recovery ui
-// show restore prompt instead of blank canvas
-// load failed, offer real error
-// retry, a restore from this device's independent local backup if one exists,
-// or a safe exit that does NOT save anything — so a temporary connection issue
-// can never silently wipe real draft
+// load failed: offer retry, restore from local backup if one exists, or a safe exit that saves nothing — so a connection blip can never silently wipe a real draft
 function showDraftLoadError() {
     const existing = document.getElementById('_draft-load-error-modal');
     if (existing) existing.remove();
@@ -8150,14 +7746,7 @@ async function restoreLocalBackupAndContinue() {
     const r = backup.ratio || { w:1, h:1 };
     setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
     hasUnsavedChanges = true;
-    // we only get here because the real fetch failed, so we genuinely don't know
-    // whether this draft's row exists server-side — could be a network blip on a
-    // real, already-saved draft, or a draft that never made it past an earlier
-    // failed save and only ever existed as this local backup. Blindly assuming
-    // "true" crashed the next save with a NOT NULL error when the row turned out
-    // not to exist; blindly assuming "false" would've been just as wrong the other
-    // way, stomping a real draft's title/owner_handles back to fresh-draft state.
-    // Check instead of guessing.
+    // can't tell if the row exists server-side after a real fetch failure — assuming true crashed on NOT NULL, assuming false would've stomped a real draft's owner. Check instead of guessing
     showMobSaveBadge('Restored from device backup — checking sync status…', false);
     try {
         const { data } = await _supabase.from('drafts').select('id, owner_handle, owner_handles, user_id').eq('id', activeDraftId).maybeSingle();
@@ -8195,21 +7784,17 @@ function exitCancelLeave() {
     document.getElementById('exit-confirm-modal').style.display = 'none';
 }
 
-// publish
 // save-choice modal (disk icon in top bar)
 function openSaveChoiceModal() {
     const isCollab = _collabOwnerHandles && _collabOwnerHandles.length > 1;
     const lbl = document.getElementById('save-choice-label');
-    // collab: this button opens a picker (CoCreate vs My Drafts), so it shouldn't
-    // name one destination up front. Solo: it saves straight to My Comics, so it can.
+    // collab: opens a destination picker (CoCreate vs My Drafts) since it shouldn't assume one. solo: saves straight to My Comics
     if (lbl) lbl.textContent = isCollab ? 'Save' : 'Save to My Comics';
     document.getElementById('save-choice-modal').style.display = 'flex';
 }
 function closeSaveChoiceModal() { document.getElementById('save-choice-modal').style.display = 'none'; }
 function saveChoicePublish() { closeSaveChoiceModal(); openPublishModal(); }
-// on a solo draft there's only one place to save, so save straight away.
-// on a collab draft, hand off to the destination picker instead of assuming
-// CoCreate — the person might want a private fork in My Drafts instead.
+// solo draft has one place to save. collab hands off to the picker instead of assuming CoCreate — might want a private fork instead
 function saveChoiceSaveToMyComics() {
     const isCollab = _collabOwnerHandles && _collabOwnerHandles.length > 1;
     closeSaveChoiceModal();
@@ -8224,8 +7809,7 @@ function closeSaveDestModal() { document.getElementById('save-dest-modal').style
 function saveDestCoCreate() { closeSaveDestModal(); saveOffline(false); }
 function saveDestMyDrafts() { closeSaveDestModal(); forkToMyDrafts(); }
 
-// forks the current frames into a brand-new, solely-owned draft row — the
-// shared collab draft (activeDraftId) is left completely untouched.
+// forks current frames into a new solely-owned draft, leaves the shared collab draft untouched
 async function forkToMyDrafts() {
     const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
     if (!handle) { showMobSaveBadge('Log in to save', true); return; }
@@ -8281,16 +7865,11 @@ function closePublish() { document.getElementById('publish-modal').style.display
 let _collabCurrentInvites = [];
 
 function maybeShowCollabBtn() {
-    // co button always visible now
-    // publishing first, so there's nothing left to gate here. Kept as a no-op so
-    // call sites unchanged
+    // co button always visible now, kept as a no-op so call sites don't need updating
 }
 
 async function openCollabPanel() {
-    // need a comic id to attach collabs to
-    // saved as a draft or published, save it as a draft now so there's an id to
-    // invite people onto — this is what lets a collab comic exist purely as a
-    // draft only, no publish
+    // saves as a draft first if unsaved, so there's an id to invite people onto — collab can exist as draft-only, no publish needed
     if (!editingComicId && !activeDraftId) {
         await saveOffline(true);
         if (!activeDraftId) {
@@ -8302,15 +7881,11 @@ async function openCollabPanel() {
     _loadCollabPanel();
 }
 
-// collab invite target id
-// attach to draft if unpublished, comic id if live
+// collab invite target: draft id if unpublished, comic id if live
 function _collabTargetId() { return editingComicId || activeDraftId; }
 function _collabTargetIsDraft() { return !editingComicId; }
 
-// notify co-creator on save
-// of them only finding out by reopening the draft/comic. Debounced: if they
-// already have an unread notification for this comic from you, this just bumps
-// its timestamp instead of piling up a fresh row every autosave.
+// notify co-creator on save, debounced — bumps timestamp on an existing unread notification instead of piling up new rows every autosave
 async function notifyCollabEdit(comicId, isDraft, comicTitle) {
     const handle = myHandle || JSON.parse(localStorage.getItem('user_profile') || '{}').handle;
     const others = (_collabOwnerHandles || []).filter(h => h && h !== handle);
@@ -8431,9 +8006,7 @@ async function _sendCollabInvite(inviteeHandle, squadId, btn) {
         return;
     }
 
-    // guard 2: verify the supabase auth session is still live
-    // rls checks uid, expired session = fail
-    // will be blocked with a row-level-security error regardless of the data.
+    // guard 2: verify supabase auth session is still live — rls checks uid, expired session fails regardless of data
     const { data: { session: _inviteSession } } = await _supabase.auth.getSession().catch(() => ({ data: { session: null } }));
     if (!_inviteSession) {
         btn.disabled = false; btn.textContent = '+ Invite';
@@ -8441,9 +8014,7 @@ async function _sendCollabInvite(inviteeHandle, squadId, btn) {
         return;
     }
 
-    // guard 3: ensure the comic/draft id exists before inserting
-    // autosave might have failed, targetId might be missing
-    // null, which violates NOT NULL and the RLS comic-ownership check.
+    // guard 3: ensure comic/draft id exists before insert — autosave failure could leave targetId null, violating NOT NULL + ownership check
     if (!editingComicId && !activeDraftId) {
         await saveOffline(true);
     }
@@ -8467,9 +8038,7 @@ async function _sendCollabInvite(inviteeHandle, squadId, btn) {
 
     if (error) {
         btn.disabled = false; btn.textContent = '+ Invite';
-        // debug: log supabase error
-        // tells you which rls policy rejected it
-        // the generic alert below deliberately hides from the end user.
+        // debug log: which rls policy rejected it, hidden from the generic user-facing alert below
         console.error('comic_collaborators insert failed:', {
             code: error.code, message: error.message, details: error.details, hint: error.hint
         });
@@ -8573,13 +8142,9 @@ async function finalPublish() {
             : (JSON.parse(localStorage.getItem('user_profile') || '{}').handle || user.email || 'unknown');
         const tags = document.getElementById('pub-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
         const desc = document.getElementById('pub-desc').value.trim();
-        // fixed: same stamp race as create.html
-        // fresh array, dont mutate live frames
-        // gets into published row before supabase serializes
+        // fixed: same stamp race as create.html — fresh array, never mutate live frames, before supabase serializes
         const stamped = getStampedFrames();
-        // catch leftover base64 image layers
-        // or crop re-rasterize discarding earlier upload
-        // before it becomes invisible in reader
+        // catch leftover base64 image layers (crop re-rasterize discarding an earlier upload) before it's invisible in reader
         const hasUnuploadedLayer = stamped.some(f => (f.layers || []).some(l =>
             l.type === 'img' && ((l.src && l.src.startsWith('data:')) || (l._fxSrc && l._fxSrc.startsWith('data:')))));
         if (hasUnuploadedLayer) btn.innerText = 'Uploading artwork…';
@@ -8588,15 +8153,7 @@ async function finalPublish() {
             showToast('⚠ ' + ensureLayerImagesUploaded._lastFailCount + ' image(s) failed to upload — re-save once your connection is stable');
         }
 
-        // large-comic safety net (same pattern saveoffline() already uses for drafts)
-        // publish used to inline all data in one row
-        // one Postgres statement carrying every frame's full layer data. Even at 100
-        // big comics blow past supabase's statement_timeout
-        // supabase times out at large frame counts
-        // bigger timeout wouldnt help here
-        // if over inline limit, ship to storage
-        // binary upload, not sql, so no timeout
-        // big comics go to storage, store path in row
+        // large-comic safety net (same pattern as saveOffline for drafts): publish used to inline everything in one statement, blows supabase's timeout past ~100 frames — ships to storage as a binary upload instead once over the inline limit
         const newComicId = editingComicId || crypto.randomUUID();
         const framesJson = JSON.stringify(finalFrames);
         let dataField = finalFrames, storagePathField = null;
@@ -8612,22 +8169,16 @@ async function finalPublish() {
             btn.innerText = editingComicId ? 'UPDATING...' : 'POSTING...';
         }
 
-        // canvas_ratio = cover ratio for discover/back-compat
-        // thumbnails and as the reader's last-resort fallback) — it should always be
-        // use frame 1's ratio not current frame
-        // publish tapped from any frame/ratio
+        // canvas_ratio = frame 1's ratio, used as cover/back-compat/fallback regardless of which frame publish was tapped from
         const payload = { data: dataField, storage_path: storagePathField, cover: finalCoverBase64, title, tags, description: desc, canvas_ratio: getFrameRatio(frames[0]), age_rating: pubSelectedRating };
         let error, publishedId;
         if (editingComicId) {
-            // owner_handle is intentionally NOT touched here — it's set once at creation.
-            // updating on every save would overwrite co-creator title
-            // silently reassign ownership of the comic to themselves.
+            // owner_handle intentionally untouched here (set once at creation) — updating on every save would silently reassign ownership
             ({ error } = await _supabase.from('comics').update(payload).eq('id', editingComicId));
             publishedId = editingComicId;
             if (!error) notifyCollabEdit(editingComicId, false, title);
         } else {
-            // carry collab draft collaborators to published comic
-            // over instead of quietly dropping back to solo ownership on publish.
+            // carry collab draft collaborators over to the published comic instead of dropping to solo
             let publishOwners = [pubHandle];
             if (activeDraftId) {
                 try {
@@ -8640,8 +8191,7 @@ async function finalPublish() {
             const res = await _supabase.from('comics').insert([{ id: newComicId, ...payload, owner_name: pubHandle, owner_handle: pubHandle, owner_handles: publishOwners }]).select('id').single();
             error = res.error;
             publishedId = res.data?.id;
-            // repoint draft invites to published comic
-            // so they keep working (and so my-comics' Collab tab doesn't show a dead link).
+            // repoint draft invites to the published comic so they keep working, and my-comics' Collab tab doesn't show a dead link
             if (!error && activeDraftId) {
                 await Promise.resolve(_supabase.from('comic_collaborators')
                     .update({ comic_id: publishedId, is_draft: false, comic_title: title })
@@ -8649,9 +8199,7 @@ async function finalPublish() {
             }
         }
         if (error) { alert('Error: ' + error.message); btn.disabled=false; btn.innerText=editingComicId?'UPDATE':'POST NOW'; return; }
-        // clean up stale blob from previous save
-        // delete old blob once superseded
-        // or replaced by the fresh blob written just above at (possibly) a new path.
+        // clean up stale blob once superseded/replaced by the fresh one written above
         if (loadedComicStoragePath && loadedComicStoragePath !== storagePathField) {
             await _supabase.storage.from(_DRAFT_BUCKET).remove([loadedComicStoragePath]).catch(() => {});
         }
@@ -8659,8 +8207,7 @@ async function finalPublish() {
         // clean up draft after publish
         if (activeDraftId) {
             const storagePath = localStorage.getItem('active_draft_storage_path');
-            // fixed: .delete() is thenable-only, wrap in Promise.resolve()
-            // needs Promise.resolve() wrapping
+            // fixed: .delete() is thenable-only, needs Promise.resolve() wrapping
             await Promise.resolve(_supabase.from('drafts').delete().eq('id', activeDraftId)).catch(() => {});
             if (storagePath) await _supabase.storage.from('comiccore-assets').remove([storagePath]).catch(() => {});
             localStorage.removeItem('active_draft_id');
@@ -8668,17 +8215,7 @@ async function finalPublish() {
         }
         localStorage.removeItem('edit_source_comic_id');
         hasUnsavedChanges = false;
-        // fixed: wasnt awaiting _generateFrameSnapshots
-        // location.href aborts in-flight requests
-        // the in-flight canvas→blob→Storage-upload work before it finishes. Snapshots
-        // essentially never completed. Awaiting it here means they actually land.
-        //
-        // alert used to fire too early
-        // the frozen-looking delay after publish
-        // on a few-hundred-frame comic. Now the alert (and navigation) waits until the
-        // work is actually done, and a small corner widget — cover thumbnail + progress
-        // tiktok-style progress ring + eta
-        // meantime instead of the page just sitting there.
+        // fixed: wasn't awaiting _generateFrameSnapshots — location.href aborted the in-flight upload before it finished. Alert used to fire too early too (looked frozen on big comics); now waits for real completion and shows a corner progress ring/eta instead
         if (publishedId) {
             const showWidget = frames.length > 20;
             const startTime = Date.now();
@@ -8688,12 +8225,7 @@ async function finalPublish() {
             }).catch(() => {});
             if (showWidget) hidePublishProgressWidget();
         }
-        // fixed: was using alert() + redirect
-        // alert() blocks all JS until the person taps OK, and on some mobile
-        // native dialog is flaky on mobile
-        // as "the app is stuck after saving" even though the redirect really was
-        // just waiting on that tap. A toast doesn't block anything — it shows
-        // nav happens right after
+        // fixed: alert()+redirect looked frozen on mobile (native dialog is flaky, alert() blocks JS until tapped). Toast + nav right after doesn't block anything
         showToast(editingComicId ? 'Comic updated!' : 'Published to Discover!');
         setTimeout(() => { location.href = 'discover.html'; }, 700);
     } catch (err) {
@@ -8705,24 +8237,14 @@ async function finalPublish() {
     }
 }
 
-// frame snapshot generation (mobile)
-// render frames, upload jpegs, save urls
-// reader uses these for instant frame flips
+// frame snapshot generation (mobile): render frames, upload jpegs, save urls — reader uses these for instant frame flips
 async function _generateFrameSnapshots(comicId, onProgress) {
     const SNAP_SIZE = 1200;
-    // snapshot dims computed per frame
-    // own ratio now) rather than once here for the whole comic.
+    // snapshot dims computed per frame (own ratio now) instead of once for the whole comic
     let upsertRows = [];
     let completed = 0;
 
-    // flush in chunks not all at once
-    // single big upsert = timeout
-    // same timeout issue as the frames jsonb
-    // chunking = huge comics never held fully in memory
-    // safe to call concurrently
-    // grab-and-clear is atomic in js
-    // threaded event loop, so no row is ever double-flushed or dropped even if two
-    // both can trip size check before first flush
+    // flush in chunks not one big upsert (same timeout issue as the frames jsonb) — grab-and-clear is atomic in JS's single-threaded loop so it's safe to call concurrently, no row double-flushed or dropped
     async function flushSnapshotRows() {
         if (!upsertRows.length) return;
         const rows = upsertRows;
@@ -8732,11 +8254,7 @@ async function _generateFrameSnapshots(comicId, onProgress) {
             .upsert(rows, { onConflict: 'comic_id,frame_idx' })).catch((e) => console.warn('Snapshot batch upsert failed:', e));
     }
 
-    // render+upload in parallel batches
-    // mostly i/o per frame, run concurrently
-    // small batch in flight together cuts wall-clock time substantially — fully
-    // sequential, a several-hundred-frame comic could leave the user staring at
-    // an apparently-frozen app for minutes after the "Published!" alert.
+    // render+upload in small parallel batches — mostly i/o, fully sequential would leave the app looking frozen for minutes on a several-hundred-frame comic
     const CONCURRENT_LIMIT = 6;
     async function processFrame(i) {
         try {
@@ -8770,8 +8288,7 @@ async function _generateFrameSnapshots(comicId, onProgress) {
 
     await flushSnapshotRows();
 }
-// end frame snapshots
-// export
+// end frame snapshots / export
 function openExportModal() { document.getElementById('export-modal').style.display='flex'; openExportFramesTab(); }
 function closeExportModal() { document.getElementById('export-modal').style.display='none'; }
 function switchExportTab(tab) {
@@ -8795,28 +8312,13 @@ async function renderFrameToCanvas(frame, cw, ch) {
     const isImg  = bg.startsWith('http') || bg.startsWith('data:image');
     const isGrad = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
 
-    // fixed: layer coords are per-frame
-    // canvas size = viewport fit at edit time
-    // size that depends on that frame's own ratio (see setRatio/computeCanvasSize),
-    // not a fixed reference like desktop's BASE_SIZE=900.
-    // fixed: was dividing by live frame size
-    // size (canvas.offsetWidth/Height) — correct only for whichever frame happens
-    // to be open in the editor right now. Snapshot generation calls this for every
-    // loop frames while live canvas stays put
-    // other frames might have different ratios
-    // ratio got the wrong scale factor and its sprites landed in the wrong place/
-    // size. Recomputing each frame's own source size from ITS OWN stored ratio
-    // fixes single-frame and batch export
-    // matches canvas.offsetWidth exactly, same as before) and the cross-frame
-    // batch snapshot
+    // fixed: layer coords are per-frame canvas size (own ratio), not a fixed reference like desktop's BASE_SIZE=900. Was dividing by the live/open frame's size, wrong for every other frame in a batch export — now recomputes each frame's own source size from its stored ratio
     const _r = getFrameRatio(frame);
     const _src = computeCanvasSize(_r.w, _r.h);
     const scaleX = cw / (_src.cw || cw);
     const scaleY = ch / (_src.ch || ch);
 
-    // background
-    // bgFx mirrors sprite fx
-    // combined with bg sheet filter chip
+    // background: bgFx mirrors sprite fx, combined with the bg sheet filter chip
     const bgFx = frame.bgFx || {};
     const bgFxCSS = getSpriteFilterCSS(bgFx);
     const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
@@ -9003,12 +8505,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                 const extraBorder   = bStyle === 'narrator' ? `border-left:6px solid ${bubBorder};` : '';
 
                 if (isBurst) {
-                    // two-layer outline: outer border + inner shape
-                    // inner shape inset by outline width
-                    // thickness) painted in the bubble color on top — a plain
-                    // `border` on a clipped element only paints the box's
-                    // literal edges, so this keeps the outline consistent
-                    // outline around every spike
+                    // two-layer outline for clipped shapes: outer border + inset inner shape painted in bubble color, since a plain border only paints literal box edges not the zigzag
                     innerHtml = `<div style="background:${bubBorder};${clipStyle}padding:6px;width:${bw}px;box-sizing:border-box;"><div style="font-family:${ff};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};text-decoration:${deco};color:${textColor};text-align:${alignS};background:${bubBg};${clipStyle}padding:14px 18px;box-sizing:border-box;width:100%;${outlineS}">${layer.content || ''}</div></div>`;
                 } else {
                     innerHtml = `<div style="font-family:${ff};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};text-decoration:${deco};color:${textColor};text-align:${alignS};background:${bubBg};border:3.5px solid ${bubBorder};border-radius:${borderRadius};padding:14px 18px;position:relative;overflow:visible;word-wrap:break-word;line-height:1.35;box-sizing:border-box;width:${bw}px;${clipStyle}${extraBorder}${outlineS}">${layer.content || ''}${tailHtml}${thoughtDots}</div>`;
@@ -9033,9 +8530,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                 if (cur) lines.push(cur);
                 return lines.length ? lines : [''];
             };
-            // draw text box on canvas directly
-            // the SVG foreignObject trick silently fails to rasterize (a known,
-            // long-standing WebKit/Safari limitation, especially on iOS).
+            // draw text box on canvas directly — SVG foreignObject silently fails to rasterize on WebKit/Safari (known iOS limitation)
             const drawFallback = () => {
                 ctx.save();
                 ctx.textBaseline = 'top';
@@ -9085,9 +8580,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     if (url) URL.revokeObjectURL(url);
                     res();
                 };
-                // safety net: svg might not fire onload
-                // ios safari can stall, dont hang
-                // fall back to plain canvas after timeout
+                // safety net: svg might not fire onload, ios safari can stall — fall back to plain canvas after timeout
                 const timer = setTimeout(() => { if (!settled) { drawFallback(); finish(); } }, 1800);
                 try {
                     const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${bw + 60}" height="${ch}">
@@ -9116,12 +8609,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
 }
 
 async function mobileDownload(dataUrl, filename) {
-    // iOS Safari silently ignores <a download> and window.open(dataUrl) just
-    // opens a raw blob tab with no save option. The only reliable path on iOS
-    // is navigator.share({ files }) which triggers the native share sheet
-    // save to photos/files/airdrop etc
-    // android chrome does <a download> natively
-    // last resort: open data url in new tab
+    // iOS Safari ignores <a download> and window.open(dataUrl) just opens a raw blob tab — navigator.share({files}) is the only reliable save path there. Android uses <a download> natively; data-url-in-new-tab is the last resort
     try {
         const res  = await fetch(dataUrl);
         const blob = await res.blob();
@@ -9154,20 +8642,14 @@ async function exportGIF() {
     statusEl.innerText='Rendering frames...'; btn.disabled=true; btn.innerText='GENERATING...';
     var fps=parseInt(document.getElementById('gif-fps').value);
     var quality=parseInt(document.getElementById('gif-quality').value);
-    // gif output = current frame's on-screen px size
-    // renderFrameToCanvas recomputes its own scale
-    // use frame's stored ratio
-    // regardless of which frame is active — but all frames share one output
-    // size so the GIF encoder gets consistent canvas dimensions.
+    // gif output uses the frame's stored ratio regardless of which frame is active, but all frames share one output size so the encoder gets consistent dims
     var cw=canvas.offsetWidth||400, ch=canvas.offsetHeight||400;
     try {
         var renderedFrames=[];
         for (var i=0;i<frames.length;i++) {
             statusEl.innerText='Rendering frame '+(i+1)+' / '+frames.length;
             fillEl.style.width=(i/frames.length*40)+'%';
-            // render at frame's natural size then composite
-            // it centred onto the shared output canvas so mixed-ratio comics
-            // keep aspect ratio in gif output
+            // render each frame at its natural size, composite centered onto the shared output canvas so mixed-ratio comics keep aspect ratio in the gif
             var _fr=getFrameRatio(frames[i]);
             var _fs=computeCanvasSize(_fr.w,_fr.h);
             var _fcw=_fs.cw||cw, _fch=_fs.ch||ch;
@@ -9193,8 +8675,7 @@ async function exportGIF() {
         gif.on('finished',function(blob){
             var url=URL.createObjectURL(blob);
             document.getElementById('gif-result-img').src=url;
-            // store object url on button
-            // it as a Blob and share it via the native iOS share sheet.
+            // store object url on button, shared via native iOS share sheet as a Blob
             var dl=document.getElementById('gif-download-link'); dl.dataset.url=url;
             resultWrap.style.display='block'; barEl.style.display='none';
             statusEl.innerText='Done! Tap "Save GIF" below (or long-press the preview on iOS).';
@@ -9211,10 +8692,7 @@ async function exportStrip() {
     var previewWrap=document.getElementById('strip-preview-wrap');
     statusEl.innerText='Rendering...';
     try {
-        // compute pixel size per frame
-        // natural ratio, then pick the largest width/height as the cell size
-        // so mixed-ratio frames don't get squashed. Frames smaller than the
-        // cells are letterboxed not stretched
+        // pixel size per frame from natural ratio, largest width/height picked as cell size, smaller frames letterboxed not stretched
         var frameSizes=frames.map(function(f){var _fr=getFrameRatio(f);var _fs=computeCanvasSize(_fr.w,_fr.h);return{cw:_fs.cw||400,ch:_fs.ch||400};});
         var cw=Math.max.apply(null,frameSizes.map(function(s){return s.cw;}))||400;
         var ch=Math.max.apply(null,frameSizes.map(function(s){return s.ch;}))||400;
@@ -9254,8 +8732,7 @@ async function openExportFramesTab() {
     var built=document.createDocumentFragment();
     for (var i=0;i<frames.length;i++) {
         try {
-            // export each frame at its own ratio size
-            // mixed-ratio frames are never squashed into the active frame's shape.
+            // export each frame at its own ratio size so mixed-ratio frames aren't squashed into the active frame's shape
             var _fr=getFrameRatio(frames[i]);
             var _fs=computeCanvasSize(_fr.w,_fr.h);
             var cw=_fs.cw||canvas.offsetWidth||400, ch=_fs.ch||canvas.offsetHeight||400;
@@ -9269,8 +8746,7 @@ async function openExportFramesTab() {
             label.style.cssText='position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:var(--accent);font-size:10px;font-weight:900;padding:5px 8px;text-align:center;';
             label.innerText='FRAME '+(i+1)+' — TAP TO SAVE';
             wrap.appendChild(img); wrap.appendChild(label);
-            // mobileDownload is now async: uses share sheet on iOS,
-            // anchor click or window.open fallback
+            // mobileDownload is async: share sheet on iOS, anchor click/window.open fallback elsewhere
             (function(url,n){ wrap.onclick=function(){ mobileDownload(url,'frame-'+n+'.png'); }; })(dataUrl,i+1);
             built.appendChild(wrap);
         } catch(e) {
@@ -9319,14 +8795,9 @@ async function goToMySprites() {
 
 // auto save
 setInterval(() => { if (hasUnsavedChanges) saveOffline(true); }, 60000);
-// local backup runs more often than cloud
-// localstorage write only, no network. shrinks lost work window
-// catches what cloud autosave missed
-// outright — down to a few seconds instead of up to a minute.
+// local backup runs more often than cloud (localstorage only, no network) — shrinks the lost-work window to a few seconds, catches what cloud autosave missed
 setInterval(() => { if (hasUnsavedChanges && !_draftLoadPending) localBackupSave(); }, 8000);
-// mobile can kill tab with no warning
-// visibilitychange fires right before tab dies
-// best last chance for local backup
+// visibilitychange fires right before mobile kills the tab — best last chance for a local backup
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && hasUnsavedChanges && !_draftLoadPending) localBackupSave();
 });
@@ -9348,8 +8819,7 @@ function applyPendingBg(pendingBg, pendingBgId) {
 }
 
 window.onload = async function() {
-    // size and render the canvas immediately — before any async work
-    // show canvas even if supabase is slow
+    // size and render canvas immediately, before any async work, so it shows up even if supabase is slow
     (function initCanvas() {
         const storedNew    = localStorage.getItem('cc-new-comic-ratio');
         const storedActive = localStorage.getItem('cc-active-ratio');
@@ -9392,8 +8862,7 @@ window.onload = async function() {
         maybeShowCollabBtn();
         _supabase.from('comics').select('*').eq('id', editComicId).single().then(async ({data,error}) => {
             if (error||!data) { alert('Could not load comic.'); return; }
-            // no single owner on collab comics
-            // all owner_handles = equal co-owners
+            // no single owner on collab comics, all owner_handles are equal co-owners
             const owners = (data.owner_handles && data.owner_handles.length) ? data.owner_handles : (data.owner_handle ? [data.owner_handle] : []);
             _collabOwnerHandles = owners;
             if (!owners.includes(myHandle)) {
@@ -9434,9 +8903,7 @@ window.onload = async function() {
                 location.href = 'my-comics.html';
                 return;
             }
-            // same co-owner check
-            // no single "owner" once someone accepts; everyone in owner_handles (or an
-            // accepted comic_collaborators row) has full edit rights.
+            // same co-owner check — no single owner once accepted, everyone in owner_handles (or accepted comic_collaborators) has full edit rights
             const owners = (data.owner_handles && data.owner_handles.length) ? data.owner_handles : (data.owner_handle ? [data.owner_handle] : []);
             _collabOwnerHandles = owners;
             _draftOwnerHandle = data.owner_handle || null;
@@ -9473,18 +8940,7 @@ window.onload = async function() {
         return;
     }
 
-    // edit published comic via draft flow
-    // fixed: was running after resumeId block
-    // editPublished() in my-comics.html always sets active_draft_id together with
-    // every branch of resumeId returns
-    // was unreachable dead code before
-    // was never set for a republish, and finalPublish() (which does
-    // `editingComicId ? update() : insert()`) always fell into the insert branch —
-    // was silently creating duplicate comic rows on republish
-    // run this first so republish updates in place
-    // what makes republish actually update
-    // fire and forget, dont delay frame load
-    // resumeId title-set is guarded so it doesn't conflict
+    // fixed: active_draft_id was only set after the resumeId block returned, so republish's editPublished() flag was unreachable dead code and finalPublish() always fell into insert, silently duplicating comic rows. Runs first now so republish updates in place; title-set stays fire-and-forget so it doesn't delay frame load
     const editSourceId = localStorage.getItem('edit_source_comic_id');
     if (editSourceId) {
         editingComicId = editSourceId;
@@ -9530,14 +8986,11 @@ window.onload = async function() {
                 const parsedFrames = JSON.parse(await blob.text());
                 if (!parsedFrames || !parsedFrames.length) throw new Error('Draft file downloaded but contained no frames');
                 frames = parsedFrames;
-                // fixed: .single() thenable-only
-                // direct .catch() throws, needs Promise.resolve() first
+                // fixed: .single() is thenable-only, needs Promise.resolve() wrapping before .catch()
                 const { data: row } = await Promise.resolve(_supabase.from('drafts').select('canvas_ratio, title, owner_handle, owner_handles, user_id').eq('id', resumeId).single()).catch(() => ({ data: null }));
                 const r = row?.canvas_ratio || { w:1, h:1 };
                 setRatio(r.w, r.h); activateFrame(0); renderMobFrames(); updateFrameCounter();
-                // don't overwrite title with draft's edit suffix
-                // this is a republish draft
-                // title in that case (and skips the ugly " (edit)" suffix entirely).
+                // don't overwrite title with the draft's edit suffix when this is a republish draft
                 if (!editSourceId) document.getElementById('pub-title').value = row?.title || '';
                 _collabOwnerHandles = row?.owner_handles || [];
                 _draftOwnerHandle = row?.owner_handle || null;
@@ -9572,25 +9025,16 @@ window.onload = async function() {
         }
         _draftLoadPending = false;
         if (loaded) {
-            // activateFrame() above triggers a render, which unconditionally sets
-            // opening draft shouldn't set unsaved
+            // activateFrame() above triggers a render that unconditionally sets unsaved — opening a draft shouldn't count as unsaved
             hasUnsavedChanges = false;
             return;
         }
-        // fixed: was falling into fresh comic init
-        // re-renders the default blank frame. That blank render also set
-        // next autosave would save over real draft
-        // silently push that blank canvas over the real draft in Supabase — permanently
-        // failed load used to silently delete draft
-        // stops here, leaves the draft row untouched, and tells the person plainly so
-        // they can retry instead of unknowingly starting a fresh blank comic under the
-        // same draft id.
+        // fixed: failed load used to fall into fresh-comic init, which re-rendered a blank frame and set unsaved — next autosave would silently overwrite the real draft in supabase. Now it stops, leaves the draft row untouched, and tells the user to retry
         showDraftLoadError();
         return;
     }
 
-    // apply correct ratio and re-render after all async paths complete
-    // fresh comic, failed fetch, or from bg source
+    // apply correct ratio and re-render once all async paths (fresh comic / failed fetch / bg source) complete
     const pendingFrames = localStorage.getItem('cc-pending-frames');
     if (pendingFrames) { localStorage.removeItem('cc-pending-frames'); const saved=JSON.parse(pendingFrames); frames=saved.frames; currentIdx=saved.currentIdx; }
     const storedNew = localStorage.getItem('cc-new-comic-ratio');
@@ -9771,8 +9215,7 @@ function startNewDraft() {
     frames = [{ layers: [], background: '#ffffff' }];
     activeDraftId = null;
     draftRowExists = false; // fresh comic, no row yet — without this, the next save
-    // reused the previous draft's "row already exists" state and skipped owner_handle,
-    // which then hit the NOT NULL constraint since this id truly is brand new.
+    // reused the previous draft's row-exists state and skipped owner_handle — hit NOT NULL since this id is actually brand new
     _draftOwnerHandle = null;
     _draftUserId = null;
     localStorage.removeItem('active_draft_id');
@@ -9912,10 +9355,7 @@ async function computeLayerFx(layer) {
     layer._fxSrc = c.toDataURL('image/png');
 }
 
-// same blur pipeline, different source
-// bgFx._fxSrc from frame's bg. only applies
-// when the background is an image — gradients/solid colors skip canvas
-// skip canvas compute, use css fx only
+// same blur pipeline, different source (bgFx._fxSrc) — only runs for image backgrounds, gradients/solid colors skip canvas and use css fx only
 async function computeBgFx() {
     const f = frames[currentIdx];
     const bgFx = f && f.bgFx;
@@ -10008,10 +9448,7 @@ function vpZoomReset() {
     _showZoomIndicator();
 }
 
-// swipe on the dedicated strip below the canvas to switch frames
-// outside comic-frame to avoid drag confusion
-// resizing, or repositioning a sprite/layer while editing — swiping to move
-// frame nav and edit use separate touch targets
+// swipe on the strip below canvas to switch frames — separate touch target from the canvas itself, so it never conflicts with dragging/resizing a layer
 (function() {
     const zone = document.getElementById('frame-swipe-zone');
     if (!zone) return;
@@ -10025,9 +9462,7 @@ function vpZoomReset() {
         const dx = x - startX, dy = y - startY, dt = Date.now() - startT;
         if (dt > MAX_TIME) return;
         if (Math.abs(dx) > THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
-            // swipe only navigates, never adds frames
-            // the "add new frame?" flow that nextFrame() shows when you're on
-            // the last frame. That flow is reserved for the explicit ▶ button.
+            // swipe only navigates, never triggers the "add new frame?" flow — that's reserved for the explicit ▶ button
             if (dx < 0) { if (currentIdx < frames.length - 1) nextFrame(); }
             else { prevFrame(); }
         }
@@ -10118,8 +9553,7 @@ _vpViewport.addEventListener('touchend', (e) => {
 // init
 _applyVpTransform();
 
-// block browser zoom on ui chrome
-// viewport does its own pinch
+// block browser zoom on ui chrome, viewport does its own pinch
 document.addEventListener('touchstart', function(e) {
     if (e.touches.length > 1 && !_vpViewport.contains(e.target)) {
         e.preventDefault();
@@ -10487,9 +9921,7 @@ function filterMobGallery() {
     renderMobGallery(filtered);
 }
 
-// tag sections — cover cards that jump straight into a filtered tag
-// NOTE: check this url matches supabase path for
-// tag_sections folder - update if wrong
+// tag section cover cards — NOTE: verify this url still matches the supabase tag_sections folder path
 const MOB_TAG_SECTIONS_BASE = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/tag_sections/';
 const MOB_TAG_SECTIONS = [
     { tag: 'avengers',     label: 'Avengers',      img: 'avengers.png' },
@@ -10598,9 +10030,7 @@ function renderMobGallery(sprites) {
     });
 }
 
-// my sprites
-// toast for my sprites
-// mobile favorites
+// my sprites: toast + mobile favorites
 const MOB_FAV_SPRITE_KEY = 'cc_fav_sprites_v1';
 const MOB_FAV_PACK_KEY   = 'cc_fav_packs_v1';
 
@@ -10766,11 +10196,7 @@ function showToast(msg) {
     el._t = setTimeout(() => el.style.opacity = '0', 2400);
 }
 
-// publish progress widget
-// shows while exporting frames
-// blocks nav until done
-// so it doesnt look frozen
-// thumbnail + progress ring + eta
+// publish progress widget: thumbnail + progress ring + eta, blocks nav until export finishes so it doesn't look frozen
 const _PPW_RADIUS = 28;
 const _PPW_CIRC = 2 * Math.PI * _PPW_RADIUS;
 function showPublishProgressWidget(coverUrl) {
@@ -11077,20 +10503,10 @@ document.getElementById('new-frame-popup').addEventListener('click', function(e)
 <!-- color fx -->
 <script>
 
-// color fx overlay renderer
-// brightness/contrast etc are native css filters
-// live in fxFilter
-// no special handling needed
-// just applied as css filter string
-// lightness/color balance not native css
-// so we fake them with color tints
-// one tint per slider
-// works same in dom and canvas
-// so preview matches export
+// color fx overlay: brightness/contrast etc stay native css filters (fxFilter), lightness/color balance aren't native so faked with one tint per slider — same tint list used by dom and canvas so preview matches export
 
 
-// convert fx config to color/alpha tint list
-// used by dom and canvas
+// fx config → color/alpha tint list, shared by dom and canvas
 function colorFxOverlayLayers(cf) {
     const layers = [];
     if (!cf) return layers;
