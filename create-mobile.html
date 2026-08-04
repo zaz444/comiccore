@@ -2427,6 +2427,7 @@ function setRatio(w, h) {
                 if (l.h != null) l.h *= scale;
                 // charHeight ref needs to track pose/action swaps, don't use stale value
                 if (l.charHeight != null) l.charHeight *= scale;
+                if (l.charScale != null) l.charScale *= scale;
             });
         });
     }
@@ -3422,6 +3423,7 @@ function attachResizeHandles(el, layer) {
             saveState();
             const t0 = ev.touches[0];
             const origW = layer.w, origH = (layer.h != null ? layer.h : layer.w), origX = layer.x, origY = layer.y;
+            const origCharScale = layer.charScale;
             const startClientX = t0.clientX;
             const startClientY = t0.clientY;
             const isLeft = (corner === 'tl' || corner === 'bl');
@@ -3443,6 +3445,11 @@ function attachResizeHandles(el, layer) {
                 const newH = (origW ? Math.round(origH * newW / origW) : newW);
                 layer.h = newH;
                 layer.w = newW;
+                // keep canonical pose-swap reference in sync with manual resizes, otherwise the next
+                // action/pose swap snaps back to a stale charHeight/charScale from before this drag
+                // (this path was missing this sync, unlike pinch-resize — see handleActionSelect)
+                if (layer.charHeight != null) layer.charHeight = newH;
+                if (origCharScale != null && origH) layer.charScale = origCharScale * (newH / origH);
                 // lock non-dragged edges so resize doesn't drift — was missing for top handles, made tl/tr resize look like a move
                 if (isLeft) layer.x = origX + (origW - newW);
                 if (isTop)  layer.y = origY + (origH - newH);
@@ -3807,16 +3814,21 @@ function _renderNow() {
                 img.onload = () => {
                     if (!img.naturalWidth || !img.naturalHeight) return;
                     // a CORS-blocked pose swap deliberately kept the old box paired with an
-                    // untrimmed src (see handleActionSelect) — skip the one-time aspect mismatch
-                    // this causes instead of "fixing" layer.h/charHeight to the padded image's ratio
-                    if (layer._suppressAutoFit) { layer._suppressAutoFit = false; return; }
+                    // untrimmed src (see handleActionSelect) — this src's own aspect ratio is
+                    // padding-inflated and not trustworthy, so skip auto-fit for as long as this
+                    // untrimmed src is in place (persists across re-renders, not just the next one —
+                    // a one-shot flag here let the box snap to the padded ratio on the following
+                    // unrelated render, e.g. dragging another layer or switching frames and back)
+                    if (layer._cropBlocked) return;
                     const expectedH = Math.round(layer.w * img.naturalHeight / img.naturalWidth);
                     if (layer.h == null || Math.abs(layer.h - expectedH) > Math.max(4, expectedH * 0.05)) {
+                        const prevH = layer.h;
                         layer.h = expectedH;
                         el.style.height = expectedH + 'px';
                         // keep canonical pose-swap height in sync, otherwise the next action/pose
                         // swap snaps back to a stale charHeight and jumps size+position (see handleActionSelect)
                         if (layer.charHeight != null) layer.charHeight = expectedH;
+                        if (layer.charScale != null && prevH) layer.charScale *= (expectedH / prevH);
                     }
                 };
 
@@ -3930,7 +3942,7 @@ function _renderNow() {
             if (layer.locked) return; // locked layers cannot be moved or selected
             selectLayerLight(layer);
             // instant resize handles on tap, used to need a re-render or double-tap first
-            canvas.querySelectorAll('.resize-handle, .tail-scroller-track, .tail-scroller-handle, .sqa-corner-toggle').forEach(h => h.remove());
+            canvas.querySelectorAll('.resize-handle, .rotate-handle, .rotate-handle-stem, .tail-scroller-track, .tail-scroller-handle, .sqa-corner-toggle').forEach(h => h.remove());
             if (layer.type === 'img') attachResizeHandles(el, layer);
             if (layer.type === 'bubble' || layer.type === 'thinking') attachTailHandle(el, layer);
             if (['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type)) attachSqaEditToggle(el, layer);
@@ -4321,6 +4333,7 @@ function startTouchPinchResize(e, layer) {
     const origW = layer.w;
     const origH = (layer.h != null ? layer.h : layer.w);
     const origX = layer.x, origY = layer.y;
+    const origCharScale = layer.charScale;
     // attach to touchstart element not document
     const el = e.currentTarget;
 
@@ -4341,6 +4354,7 @@ function startTouchPinchResize(e, layer) {
         // keep canonical pose-swap height in sync with manual resizes, otherwise the next
         // action/pose swap snaps back to a stale charHeight and jumps size+position (see handleActionSelect)
         if (layer.charHeight != null) layer.charHeight = newPinchH;
+        if (origCharScale != null && origH) layer.charScale = origCharScale * (newPinchH / origH);
         // sync transform slider
         const sl = document.getElementById('size-slider');
         if (sl) { sl.value = layer.w; const sn = document.getElementById('size-num'); if (sn) sn.value = layer.w; }
@@ -5294,6 +5308,7 @@ function applyTransform() {
     const w = Math.min(sizeMax, parseInt(document.getElementById('size-slider').value));
     const r = parseInt(document.getElementById('rotate-slider').value);
     if (activeLayer.h != null && activeLayer.w && activeLayer.w !== w) {
+        if (activeLayer.charScale != null) activeLayer.charScale *= (w / activeLayer.w);
         activeLayer.h = Math.round(activeLayer.h * w / activeLayer.w);
     }
     activeLayer.w = w; activeLayer.rotation = r;
@@ -6421,18 +6436,33 @@ function handleActionSelect(img, pack, isEditing) {
                     // can't read pose pixels, best effort — keep current box size, just swap source.
                     // the new src's raw (untrimmed) aspect ratio won't match the kept box on purpose —
                     // tell the render onload handler not to "auto-fit" layer.h/charHeight to it.
-                    layer._suppressAutoFit = true;
+                    // this stays set (not one-shot) until a properly-trimmed pose is loaded, since
+                    // any later re-render of this same untrimmed src is just as untrustworthy as the first.
+                    layer._cropBlocked = true;
                     finish(oldW, oldH);
                     return;
                 }
 
-                // charHeight = canonical reference height set on first placement; data-url can't be measured (cors), falls back to oldH — keeps all poses the same height regardless of action swaps
+                // charHeight = canonical reference height set on first placement; data-url can't be measured (cors), falls back to oldH
+                layer._cropBlocked = false; // src is properly trimmed again, safety-net auto-fit is trustworthy
+
+                // canonical display-px-per-native-content-px ratio, applied to whatever THIS pose's
+                // own proportions are — keeps the character's apparent scale consistent across poses,
+                // instead of force-matching every pose's bounding box to one fixed height. Squeezing
+                // every pose to the same height was the bug: a pose whose trimmed content is naturally
+                // taller (e.g. a raised weapon extending above the head) or shorter (e.g. a crouch) than
+                // the reference pose got its whole body scaled down/up to force that mismatched box into
+                // the fixed height, making the character look smaller or larger for no visible reason.
+                if (!layer.charScale) layer.charScale = layer.charHeight / croppedNew.h; // legacy layer without one yet — establish it from this pose
                 {
-                    const canonH = layer.charHeight;
-                    const scale  = canonH / croppedNew.h;
-                    finish(Math.round(croppedNew.w * scale), canonH);
+                    const scale = layer.charScale;
+                    const newW  = Math.round(croppedNew.w * scale);
+                    const newH  = Math.round(croppedNew.h * scale);
+                    layer.charHeight = newH; // keep in sync for other code paths that still read charHeight
+                    finish(newW, newH);
                 }
             } else {
+                layer._cropBlocked = false;
                 // scale from current width proportionally
                 const scale = oldW / croppedNew.w;
                 finish(oldW, Math.round(croppedNew.h * scale));
@@ -6529,6 +6559,10 @@ function addSpriteToCanvas(src, pack) {
             nl.src = cropped.src;
             // store canonical height for action switches
             nl.charHeight = targetH;
+            // canonical display-px-per-native-content-px ratio, established once from this pose.
+            // future pose swaps apply this same ratio to whatever a new pose's own trimmed content
+            // is, instead of force-matching every pose to the same absolute height (see handleActionSelect).
+            nl.charScale = targetH / cropped.h;
         } else {
             // effect / plain image: keep original width-based sizing
             const initW = Math.round(cw * 0.4);
