@@ -2743,7 +2743,11 @@ function ctxDuplicate() {
     if (!layer) return;
     saveState();
     const copy = JSON.parse(JSON.stringify(layer));
-    copy.id = Date.now(); copy.x += 20; copy.y += 20;
+    copy.id = Date.now();
+    const cw = canvas.offsetWidth || 300;
+    const ch = canvas.offsetHeight || 300;
+    copy.x = Math.min(Math.round(copy.x || 0) + 20, cw - (copy.w || 100));
+    copy.y = Math.min(Math.round(copy.y || 0) + 20, ch - (copy.h || 100));
     frames[currentIdx].layers.push(copy);
     activeLayer = copy; render();
 }
@@ -4418,8 +4422,10 @@ function topBarDuplicate() {
         saveState();
         const copy = JSON.parse(JSON.stringify(activeLayer));
         copy.id = Date.now();
-        copy.x = Math.min((copy.x || 0) + 20, 600 - (copy.w || 100));
-        copy.y = Math.min((copy.y || 0) + 20, 600 - (copy.h || 100));
+        const cw = canvas.offsetWidth || 300;
+        const ch = canvas.offsetHeight || 300;
+        copy.x = Math.min(Math.round(copy.x || 0) + 20, cw - (copy.w || 100));
+        copy.y = Math.min(Math.round(copy.y || 0) + 20, ch - (copy.h || 100));
         frames[currentIdx].layers.push(copy);
         activeLayer = copy;
         render();
@@ -5259,7 +5265,7 @@ function moveLayerToBack() {
 }
 
 function sbCopyLayer() { if (activeLayer) { window._layerClipboard = JSON.parse(JSON.stringify(activeLayer)); } }
-function sbPasteLayer() { if (!window._layerClipboard) return; saveState(); const copy = { ...JSON.parse(JSON.stringify(window._layerClipboard)), id: Date.now(), x: (window._layerClipboard.x || 0) + 20, y: (window._layerClipboard.y || 0) + 20 }; frames[currentIdx].layers.push(copy); activeLayer = copy; render(); renderMobLayers(); }
+function sbPasteLayer() { if (!window._layerClipboard) return; saveState(); const copy = JSON.parse(JSON.stringify(window._layerClipboard)); copy.id = Date.now(); const cw = canvas.offsetWidth || 300; const ch = canvas.offsetHeight || 300; copy.x = Math.min(Math.round(copy.x || 0) + 20, cw - (copy.w || 100)); copy.y = Math.min(Math.round(copy.y || 0) + 20, ch - (copy.h || 100)); frames[currentIdx].layers.push(copy); activeLayer = copy; render(); renderMobLayers(); }
 function updateTextProp(prop, value) {
     if (activeLayer && ['bubble','thinking','text','subtitle'].includes(activeLayer.type)) {
         activeLayer[prop] = (prop === 'fontSize') ? parseInt(value) : (prop === 'outlineWidth') ? parseFloat(value) : value;
