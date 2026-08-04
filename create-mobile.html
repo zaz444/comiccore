@@ -6433,13 +6433,20 @@ function handleActionSelect(img, pack, isEditing) {
                 if (!layer.charHeight) layer.charHeight = oldH; // backfill for legacy layers
 
                 if (corsBlockedNew) {
-                    // can't read pose pixels, best effort — keep current box size, just swap source.
-                    // the new src's raw (untrimmed) aspect ratio won't match the kept box on purpose —
-                    // tell the render onload handler not to "auto-fit" layer.h/charHeight to it.
-                    // this stays set (not one-shot) until a properly-trimmed pose is loaded, since
-                    // any later re-render of this same untrimmed src is just as untrustworthy as the first.
+                    // can't read pose pixels (CORS), so we can't trim padding — but naturalWidth/
+                    // naturalHeight are still readable regardless of CORS, so we do still know this
+                    // pose's own raw w/h ratio. Reusing the OLD box's w+h verbatim (as before) only
+                    // matched the OLD pose's shape; a new pose almost never shares that exact ratio,
+                    // so the untrimmed image (rendered width:100%, height auto) ends up a different
+                    // shape than the box, leaving blank gaps or looking off vs the frame. Instead,
+                    // keep oldW and derive newH from THIS pose's raw ratio — same pattern the non-char
+                    // branch below already uses — so the box's shape actually matches what renders.
+                    // charHeight/charScale are intentionally left untouched (still padding-corrupted
+                    // data), staying blocked until a properly-trimmed pose comes back through.
                     layer._cropBlocked = true;
-                    finish(oldW, oldH);
+                    const rawAspect = probeNew.naturalWidth / probeNew.naturalHeight;
+                    const newH = Math.round(oldW / rawAspect);
+                    finish(oldW, newH);
                     return;
                 }
 
