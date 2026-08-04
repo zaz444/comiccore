@@ -3806,6 +3806,9 @@ function _renderNow() {
                     if (layer.h == null || Math.abs(layer.h - expectedH) > Math.max(4, expectedH * 0.05)) {
                         layer.h = expectedH;
                         el.style.height = expectedH + 'px';
+                        // keep canonical pose-swap height in sync, otherwise the next action/pose
+                        // swap snaps back to a stale charHeight and jumps size+position (see handleActionSelect)
+                        if (layer.charHeight != null) layer.charHeight = expectedH;
                     }
                 };
 
@@ -4327,6 +4330,9 @@ function startTouchPinchResize(e, layer) {
         layer.y = origY - (newPinchH - origH) / 2;
         layer.w = newPinchW;
         layer.h = newPinchH;
+        // keep canonical pose-swap height in sync with manual resizes, otherwise the next
+        // action/pose swap snaps back to a stale charHeight and jumps size+position (see handleActionSelect)
+        if (layer.charHeight != null) layer.charHeight = newPinchH;
         // sync transform slider
         const sl = document.getElementById('size-slider');
         if (sl) { sl.value = layer.w; const sn = document.getElementById('size-num'); if (sn) sn.value = layer.w; }
@@ -5281,6 +5287,9 @@ function applyTransform() {
         activeLayer.h = Math.round(activeLayer.h * w / activeLayer.w);
     }
     activeLayer.w = w; activeLayer.rotation = r;
+    // keep canonical pose-swap height in sync with manual resizes, otherwise the next
+    // action/pose swap snaps back to a stale charHeight and jumps size+position (see handleActionSelect)
+    if (activeLayer.charHeight != null) activeLayer.charHeight = activeLayer.h;
     render();
     renderTransformPreview();
 }
@@ -6380,8 +6389,8 @@ function handleActionSelect(img, pack, isEditing) {
             // anchor bottom-center so feet stay grounded — pure left-anchor let wide poses creep, causing sprites to land on top of each other's box after a pose swap
             const oldW       = layer.w != null ? layer.w : layer.h;
             const oldH       = layer.h != null ? layer.h : layer.w;
-            const oldBottom  = layer.y + oldH;
-            const oldCenterX = layer.x + oldW / 2;
+            const oldBottom  = Math.round(layer.y + oldH);
+            const oldCenterX = Math.round(layer.x + oldW / 2);
 
             const corsBlockedNew = (croppedNew.src === probeNew.src) && (croppedNew.w === probeNew.naturalWidth) && (croppedNew.h === probeNew.naturalHeight);
 
