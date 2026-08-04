@@ -3806,6 +3806,10 @@ function _renderNow() {
                 // fix layer.h if it doesn't match natural height on load, or outline is off by >5%
                 img.onload = () => {
                     if (!img.naturalWidth || !img.naturalHeight) return;
+                    // a CORS-blocked pose swap deliberately kept the old box paired with an
+                    // untrimmed src (see handleActionSelect) — skip the one-time aspect mismatch
+                    // this causes instead of "fixing" layer.h/charHeight to the padded image's ratio
+                    if (layer._suppressAutoFit) { layer._suppressAutoFit = false; return; }
                     const expectedH = Math.round(layer.w * img.naturalHeight / img.naturalWidth);
                     if (layer.h == null || Math.abs(layer.h - expectedH) > Math.max(4, expectedH * 0.05)) {
                         layer.h = expectedH;
@@ -6414,7 +6418,10 @@ function handleActionSelect(img, pack, isEditing) {
                 if (!layer.charHeight) layer.charHeight = oldH; // backfill for legacy layers
 
                 if (corsBlockedNew) {
-                    // can't read pose pixels, best effort — keep current box size, just swap source
+                    // can't read pose pixels, best effort — keep current box size, just swap source.
+                    // the new src's raw (untrimmed) aspect ratio won't match the kept box on purpose —
+                    // tell the render onload handler not to "auto-fit" layer.h/charHeight to it.
+                    layer._suppressAutoFit = true;
                     finish(oldW, oldH);
                     return;
                 }
