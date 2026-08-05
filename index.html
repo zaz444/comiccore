@@ -610,6 +610,10 @@
         const { data: freshProfile } = await supabaseClient
           .from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
         if (freshProfile) {
+          // Strip any legacy base64 blobs from the DB row before caching —
+          // they can be several MB and blow the localStorage quota.
+          if (freshProfile.pic    && freshProfile.pic.startsWith('data:image'))    freshProfile.pic    = '';
+          if (freshProfile.banner && freshProfile.banner.startsWith('data:image')) freshProfile.banner = '';
           myProfile = { ...myProfile, ...freshProfile };
           ccSaveProfile(myProfile);
         }

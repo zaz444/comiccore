@@ -614,6 +614,48 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+  // ── Pre-init localStorage cleanup ────────────────────────────────────────
+  // Run BEFORE creating the Supabase client so that the auth session write
+  // (which also uses localStorage) doesn't hit the quota error. Legacy
+  // accounts may have a raw base64 avatar/banner stored under user_profile
+  // or stale comic drafts that bloat localStorage past the 5 MB browser limit.
+  (function purgeLocalStorage() {
+    try {
+      // 1. Strip any base64 blobs from user_profile
+      const raw = localStorage.getItem('user_profile');
+      if (raw) {
+        try {
+          const p = JSON.parse(raw);
+          let dirty = false;
+          if (p.pic    && p.pic.startsWith('data:image'))    { p.pic    = ''; dirty = true; }
+          if (p.banner && p.banner.startsWith('data:image')) { p.banner = ''; dirty = true; }
+          if (dirty) localStorage.setItem('user_profile', JSON.stringify(p));
+        } catch (_) {
+          localStorage.removeItem('user_profile');
+        }
+      }
+
+      // 2. Remove stale large draft keys (comic_drafts can hold MB of frame data)
+      //    Keep only the keys we actively need on the login page itself.
+      const keepKeys = new Set(['user_profile', 'pending_handle', 'cc-auth',
+                                 'cc-device-mode', 'cc-privacy-team',
+                                 'cc-privacy-followers', 'cc-new-comic-ratio']);
+      const toDelete = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && !keepKeys.has(k) && !k.startsWith('sb-')) toDelete.push(k);
+      }
+      toDelete.forEach(k => localStorage.removeItem(k));
+    } catch (_) {
+      // If localStorage is completely locked, nuke everything non-auth.
+      try {
+        const authRaw = localStorage.getItem('cc-auth');
+        localStorage.clear();
+        if (authRaw) localStorage.setItem('cc-auth', authRaw);
+      } catch (__) { /* nothing we can do */ }
+    }
+  })();
+
   const _sb = supabase.createClient(
     'https://mmycqeejhguzhtzkyjaj.supabase.co',
     'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE',
