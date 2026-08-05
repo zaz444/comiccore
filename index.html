@@ -580,8 +580,7 @@
   // Apply immediately from cached profile so there's no flash of the default color
   applyAccentColor(JSON.parse(localStorage.getItem('user_profile') || '{}').settings?.accent_color);
 
-  async function checkUser() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
+  async function checkUser(session) {
     const user = session?.user ?? null;
     if (user) {
       let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
@@ -1172,7 +1171,18 @@
   }
 
   applyDeviceMode();
-  checkUser();
+  // Wait for Supabase to confirm the session has actually finished loading
+  // (including exchanging a magic-link token) before deciding whether to
+  // show the app or redirect to login. Calling getSession() immediately on
+  // page load can race with that restore process and return null even when
+  // the user IS logged in — this is a known Supabase gotcha.
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+      checkUser(session);
+    } else if (event === 'SIGNED_OUT') {
+      window.location.href = 'login.html';
+    }
+  });
 </script>
 
 </body>

@@ -431,14 +431,24 @@ const RATIOS = [
 ];
 
 // ── Init ───────────────────────────────────────────────────
-window.onload = async () => {
+// Wait for Supabase to confirm the session has actually finished loading
+// before deciding whether to load comics or bounce to login. Checking the
+// session immediately on page load can race with that restore process and
+// return null even when the user IS logged in — this is a known Supabase
+// gotcha (same fix applied on index.html).
+let _myComicsInitDone = false;
+
+async function initMyComics(session) {
+  if (_myComicsInitDone) return;
+  if (!session) {
+    window.location.href = 'login.html';
+    return;
+  }
+  _myComicsInitDone = true;
+
   const profile = JSON.parse(localStorage.getItem('user_profile') || '{}');
   myHandle = profile.handle || null;
   myName = profile.name || 'Creator';
-
-  // Initialize auth session — without this the Supabase client has no active
-  // token and all write/delete operations are rejected as unauthenticated.
-  await _sb.auth.getSession().catch(() => {});
 
   // Default tab is drafts — show Select button
   document.getElementById('select-toggle-btn').classList.add('visible');
@@ -449,7 +459,15 @@ window.onload = async () => {
   renderStats();
   renderDrafts();
   buildRatioGrid();
-};
+}
+
+_sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+    initMyComics(session);
+  } else if (event === 'SIGNED_OUT') {
+    window.location.href = 'login.html';
+  }
+});
 
 // ── Load data ─────────────────────────────────────────────
 async function loadDrafts() {
