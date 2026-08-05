@@ -922,10 +922,16 @@
     }
   });
 
-  // ── Auth state change (catches popup-based flows too) ─────────
+  // ── Auth state change (catches popup-based OAuth flows only) ──
+  // handleLogin() fully manages its own password sign-in flow. Without the
+  // _passwordLoginInProgress guard, a SIGNED_IN event from a normal password
+  // login would ALSO trigger handlePostOAuth() here — and if its profile
+  // lookup ran before handleLogin's own lookup/insert finished, it would
+  // find no profile yet and sign the user right back out.
   let _oauthHandled = false;
+  let _passwordLoginInProgress = false;
   _sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session && !_oauthHandled) {
+    if (event === 'SIGNED_IN' && session && !_oauthHandled && !_passwordLoginInProgress) {
       _oauthHandled = true;
       handlePostOAuth(session);
     }
@@ -1039,6 +1045,7 @@
     const loginBtn = document.querySelector('#c-login .btn-primary');
     loginBtn.disabled = true;
     loginBtn.innerHTML = '<span class="spinner"></span> Signing in…';
+    _passwordLoginInProgress = true;
 
     try {
       const { data: signInData, error } = await _sb.auth.signInWithPassword({ email, password: pass });
@@ -1087,6 +1094,7 @@
       showStatus(err.message, 'error');
       loginBtn.disabled = false;
       loginBtn.innerHTML = 'Sign In →';
+      _passwordLoginInProgress = false;
     }
   }
 
