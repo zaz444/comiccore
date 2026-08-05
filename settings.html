@@ -834,6 +834,28 @@
 <script>
     const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
 
+    // Safely persist the profile to localStorage. Legacy accounts can still
+    // have a raw base64 image in pic/banner (from before avatar uploads
+    // were migrated to Supabase Storage) which can be several MB — large
+    // enough to exceed the localStorage quota and throw. If the write
+    // fails, retry with any oversized base64 fields stripped so the app
+    // can still run — the real pic/banner lives in Supabase Storage / the
+    // profiles table either way, not in localStorage.
+    function ccSaveProfile(profile) {
+        try {
+            localStorage.setItem('user_profile', JSON.stringify(profile));
+        } catch (e) {
+            const trimmed = { ...profile };
+            if (trimmed.pic && trimmed.pic.startsWith('data:image')) trimmed.pic = '';
+            if (trimmed.banner && trimmed.banner.startsWith('data:image')) trimmed.banner = '';
+            try {
+                localStorage.setItem('user_profile', JSON.stringify(trimmed));
+            } catch (e2) {
+                localStorage.removeItem('user_profile');
+            }
+        }
+    }
+
     const SOCIAL_CONFIG = [
         { key: 'x',           label: 'X / Twitter',  icon: '𝕏',  hint: '@username',    placeholder: '@handle' },
         { key: 'instagram',   label: 'Instagram',     icon: '📸', hint: '@username',    placeholder: '@handle' },
@@ -1402,7 +1424,7 @@
         if (!error) {
             markClean();
             _pfpChanged = false;
-            localStorage.setItem('user_profile', JSON.stringify(updated));
+            ccSaveProfile(updated);
             myProfile = updated;
             showToast('Settings saved!');
         } else {
@@ -1425,7 +1447,7 @@
             const { data: { session } } = await _supabase.auth.getSession();
             if (!session?.user) { location.href = 'login.html'; return; }
             const { data: fresh } = await _supabase.from('profiles').select('*').eq('permanent_id', session.user.id).maybeSingle();
-            if (fresh) { myProfile = { ...myProfile, ...fresh }; localStorage.setItem('user_profile', JSON.stringify(myProfile)); }
+            if (fresh) { myProfile = { ...myProfile, ...fresh }; ccSaveProfile(myProfile); }
             else { location.href = 'login.html'; return; }
         }
 

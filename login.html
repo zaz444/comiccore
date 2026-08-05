@@ -620,6 +620,29 @@
     { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } }
   );
 
+  // Safely persist the profile to localStorage. Legacy accounts can still
+  // have a raw base64 image in pic/banner (from before avatar uploads were
+  // migrated to Supabase Storage) which can be several MB — large enough to
+  // exceed the localStorage quota and crash the whole login flow with
+  // "Failed to execute 'setItem' on 'Storage': ... exceeded the quota."
+  // If the write fails, retry with any oversized base64 fields stripped so
+  // login can still complete — the real pic/banner lives in Supabase
+  // Storage / the profiles table either way, not in localStorage.
+  function ccSaveProfile(profile) {
+    try {
+      localStorage.setItem('user_profile', JSON.stringify(profile));
+    } catch (e) {
+      const trimmed = { ...profile };
+      if (trimmed.pic && trimmed.pic.startsWith('data:image')) trimmed.pic = '';
+      if (trimmed.banner && trimmed.banner.startsWith('data:image')) trimmed.banner = '';
+      try {
+        localStorage.setItem('user_profile', JSON.stringify(trimmed));
+      } catch (e2) {
+        localStorage.removeItem('user_profile');
+      }
+    }
+  }
+
   // ── Ban / IP-ban enforcement ────────────────────────────────────
   const GET_IP_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co/functions/v1/get-ip';
 
@@ -772,9 +795,9 @@
       await recordLoginIp(existing.handle);
 
       // Save profile and redirect
-      localStorage.setItem('user_profile', JSON.stringify({
+      ccSaveProfile({
         ...existing, permanent_id: user.id, email: user.email
-      }));
+      });
       window.location.href = 'index.html';
     }
   }
@@ -883,10 +906,10 @@
         settings: {}
       });
 
-      localStorage.setItem('user_profile', JSON.stringify({
+      ccSaveProfile({
         handle, permanent_id: user.id, name, email: user.email,
         pic, banner: '', bio: '', socials: {}, settings: {}
-      }));
+      });
 
       await recordLoginIp(handle);
 
@@ -1083,9 +1106,9 @@
 
       await recordLoginIp(profile.handle);
 
-      localStorage.setItem('user_profile', JSON.stringify(
+      ccSaveProfile(
         { ...profile, permanent_id: user.id, email: user.email }
-      ));
+      );
 
       showStatus('Welcome back! Redirecting…', 'success');
       setTimeout(() => { window.location.href = 'index.html'; }, 700);

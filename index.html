@@ -549,6 +549,28 @@
     auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
   });
 
+  // Safely persist the profile to localStorage. Legacy accounts can still
+  // have a raw base64 image in pic/banner (from before avatar uploads were
+  // migrated to Supabase Storage) which can be several MB — large enough to
+  // exceed the localStorage quota and throw. If the write fails, retry with
+  // any oversized base64 fields stripped so the app can still run — the
+  // real pic/banner lives in Supabase Storage / the profiles table either
+  // way, not in localStorage.
+  function ccSaveProfile(profile) {
+    try {
+      localStorage.setItem('user_profile', JSON.stringify(profile));
+    } catch (e) {
+      const trimmed = { ...profile };
+      if (trimmed.pic && trimmed.pic.startsWith('data:image')) trimmed.pic = '';
+      if (trimmed.banner && trimmed.banner.startsWith('data:image')) trimmed.banner = '';
+      try {
+        localStorage.setItem('user_profile', JSON.stringify(trimmed));
+      } catch (e2) {
+        localStorage.removeItem('user_profile');
+      }
+    }
+  }
+
   let _myHandle = '';
   let _isOwner = false;
 
@@ -589,7 +611,7 @@
           .from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
         if (freshProfile) {
           myProfile = { ...myProfile, ...freshProfile };
-          localStorage.setItem('user_profile', JSON.stringify(myProfile));
+          ccSaveProfile(myProfile);
         }
       }
       applyAccentColor(myProfile.settings?.accent_color);
