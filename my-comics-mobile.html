@@ -547,7 +547,24 @@ async function loadPublished() {
 
   if (error) {
     console.error('Failed to load published:', error);
-    published = window.CCOffline ? await CCOffline.getCachedMyComics(myHandle) : [];
+
+    // BUGFIX: same class of bug as loadDrafts() above. This used to fall back
+    // to the CCOffline cache on ANY error, structured API errors included.
+    // A DELETE against `comics` can succeed against the database while the
+    // very next fetch trips a transient/structured error (not a real offline
+    // condition) — that fallback then re-served the stale cached list, which
+    // still had the just-deleted comic in it, making deleted/duplicate
+    // published comics reappear as "clones" that looked impossible to remove.
+    // Only trust the cache when we're actually offline; otherwise surface the
+    // real error so a genuine delete isn't masked by a stale snapshot.
+    const genuinelyOffline = !navigator.onLine || (e instanceof TypeError);
+
+    if (genuinelyOffline) {
+      published = window.CCOffline ? await CCOffline.getCachedMyComics(myHandle) : [];
+    } else {
+      toast('⚠ Could not load published: ' + (error?.message || 'unknown error'), 'var(--danger)');
+      published = [];
+    }
   } else {
     published = data || [];
     if (window.CCOffline) CCOffline.cacheMyComics(myHandle, published);
@@ -1262,8 +1279,19 @@ async function confirmDelete() {
     renderStats(); renderDrafts();
     toast('Draft deleted');
   } else {
-    const { error } = await _sb.from('comics').delete().eq('id', deleteId);
+    // BUGFIX: .delete() with no error doesn't mean a row was actually removed —
+    // an RLS policy mismatch (e.g. a duplicate row whose owner_handle/owner_handles
+    // don't line up with the current user) can silently affect zero rows. .select()
+    // here returns the rows that were actually deleted so we can tell the two
+    // cases apart instead of always claiming success.
+    const { data: delData, error } = await _sb.from('comics').delete().eq('id', deleteId).select('id');
     if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
+    if (!delData || !delData.length) {
+      toast('⚠ Delete blocked — this entry may not be owned by your account. Please reload and try again.', 'var(--danger)');
+      await loadPublished();
+      renderStats(); renderPublished();
+      return;
+    }
     published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
