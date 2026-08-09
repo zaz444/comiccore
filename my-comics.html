@@ -543,7 +543,19 @@ async function loadPublished() {
   try {
     ({ data, error } = await _sb.from('comics')
       .select('id,title,description,cover,tags,stars,data,storage_path,canvas_ratio,created_at,owner_handle,owner_handles')
-      .contains('owner_handles', JSON.stringify([myHandle]))
+      // BUGFIX: this used to pass JSON.stringify([myHandle]) — a JSON string
+      // like ["someuser"] (square brackets). supabase-js's .contains() only
+      // reformats real arrays/objects into a Postgres array literal; a value
+      // that's already a string gets sent through as-is. `drafts.owner_handles`
+      // apparently accepts that JSON string fine (it's a jsonb column, so `@>`
+      // treats it as JSON), but `comics.owner_handles` is a native Postgres
+      // text[] array column, which requires curly-brace syntax like
+      // {someuser} — square brackets fail to parse there ("malformed array
+      // literal"). Passing the real array here lets supabase-js format it
+      // correctly for the column it's actually querying. This is why
+      // Published showed 0 unconditionally, not intermittently — every call
+      // to this query failed with the same parse error.
+      .contains('owner_handles', [myHandle])
       .order('id', { ascending: false }));
   } catch (e) {
     error = e;
