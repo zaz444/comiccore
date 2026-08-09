@@ -603,14 +603,27 @@ async function loadPublished() {
 // ── Clear cache ───────────────────────────────────────────
 // ── Stats ─────────────────────────────────────────────────
 function renderStats() {
-  const totalPages = drafts.reduce((a,d) => a+(d.data?.length||0), 0);
+  // BUGFIX: same root cause as pageCountText — drafts spilled to Storage
+  // have data === null, so summing/maxing d.data?.length treated those
+  // (the longest drafts, by definition — that's why they spilled) as 0
+  // pages. That silently pulled both "Total Pages" and "Longest" down,
+  // making it look like content had gone missing. We can't know their real
+  // length without downloading each one just to render a stat, so total/
+  // longest are now computed only from drafts with a known inline count,
+  // with a "+" appended whenever at least one draft's true length isn't
+  // reflected — an honest lower bound instead of a silently wrong exact
+  // number.
+  const knownDrafts = drafts.filter(d => Array.isArray(d.data));
+  const hasUnknown = knownDrafts.length < drafts.length;
+  const totalPages = knownDrafts.reduce((a,d) => a+d.data.length, 0);
+  const longestPages = knownDrafts.reduce((a,d) => Math.max(a, d.data.length), 0);
   const draftEl = document.getElementById('draft-stats');
   if (drafts.length) {
     draftEl.style.display = 'flex';
     draftEl.innerHTML = [
       { v: drafts.length, l: 'Drafts' },
-      { v: totalPages,    l: 'Total Pages' },
-      { v: drafts.reduce((a,d) => Math.max(a, d.data?.length||0), 0), l: 'Longest' },
+      { v: totalPages + (hasUnknown ? '+' : ''),   l: 'Total Pages' },
+      { v: longestPages + (hasUnknown ? '+' : ''), l: 'Longest' },
     ].map(s => `<div class="stat-item"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
   } else { draftEl.style.display = 'none'; }
 
@@ -889,6 +902,17 @@ function openCollabDraft(draftId) {
 }
 // ── End Collab ─────────────────────────────────────────────
 
+// BUGFIX: same root cause as pageCountText above — a comic/draft spilled to
+// Storage has data === null, so sorting by "Pages" was treating the longest
+// comics as 0-length and sinking them to the bottom instead of the top.
+// It got spilled to Storage precisely because it's long, so rank it above
+// everything with a known inline count.
+function pageCountForSort(row) {
+  if (Array.isArray(row.data)) return row.data.length;
+  if (row.storage_path) return Number.MAX_SAFE_INTEGER;
+  return 0;
+}
+
 // ── Render drafts ─────────────────────────────────────────
 function renderDrafts() {
   const q = document.getElementById('draft-search').value.toLowerCase();
@@ -896,7 +920,7 @@ function renderDrafts() {
   let list = drafts.filter(d => !q || d.title?.toLowerCase().includes(q));
   if (sort === 'newest')   list = [...list].reverse();
   else if (sort === 'alpha') list = [...list].sort((a,b) => (a.title||'').localeCompare(b.title||''));
-  else if (sort === 'pages') list = [...list].sort((a,b) => (b.data?.length||0)-(a.data?.length||0));
+  else if (sort === 'pages') list = [...list].sort((a,b) => pageCountForSort(b)-pageCountForSort(a));
 
   const container = document.getElementById('list-container');
   if (!list.length) {
@@ -923,7 +947,6 @@ function makeDraftRow(d) {
     + (isSelected ? ' selected' : '');
   card.dataset.id = d.id;
   card.dataset.type = 'draft';
-  const pages = d.data?.length || 0;
   const isCloud = d._source === 'supabase';
   const isCollab = Array.isArray(d.ownerHandles) && d.ownerHandles.length > 1;
   const thumbInner = makeDraftThumb(d.data?.[0], d.ratio);
@@ -939,7 +962,7 @@ function makeDraftRow(d) {
     <div class="comic-card-info">
       <div class="comic-card-title">${escHtml(d.title || 'Untitled')}</div>
       ${isCloud ? '<div class="comic-card-cloud"><i class="fi fi-rs-cloud"></i> Cloud saved</div>' : ''}
-      <div class="comic-card-sub">${pages} page${pages!==1?'s':''} · ${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}${isCollab ? ' · ' + CO_BADGE_XS + ' Co-created' : ''}</div>
+      <div class="comic-card-sub">${pageCountText(d)} · ${d.lastModified ? 'Edited ' + d.lastModified : 'Draft'}${isCollab ? ' · ' + CO_BADGE_XS + ' Co-created' : ''}</div>
     </div>
   `;
   card.onclick = () => {
@@ -993,7 +1016,6 @@ function makePublishedRow(c) {
   card.dataset.id = c.id;
   card.dataset.type = 'published';
   const stars = c.stars || 0;
-  const pages = c.data?.length || 0;
   const coverHtml = c.cover
     ? `<img src="${c.cover}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.innerHTML='<div class=no-cover>📖</div>'">`
     : `<div class="no-cover">📖</div>`;
@@ -1009,7 +1031,7 @@ function makePublishedRow(c) {
     </div>
     <div class="comic-card-info">
       <div class="comic-card-title">${escHtml(c.title || 'Untitled')}</div>
-      <div class="comic-card-sub">⭐ ${stars} · ${pages} page${pages!==1?'s':''}${isCollab ? ' · ' + CO_BADGE_XS + ' Co-created' : ''}</div>
+      <div class="comic-card-sub">⭐ ${stars} · ${pageCountText(c)}${isCollab ? ' · ' + CO_BADGE_XS + ' Co-created' : ''}</div>
     </div>
   `;
   card.onclick = () => openPublishedPopup(c);
@@ -1018,7 +1040,6 @@ function makePublishedRow(c) {
 
 // ── Popup (discover-style) ─────────────────────────────────
 function openDraftPopup(d) {
-  const pages = d.data?.length || 0;
   const isCloud = d._source === 'supabase';
 
   // Cover
@@ -1040,7 +1061,7 @@ function openDraftPopup(d) {
 
   document.getElementById('popup-meta').innerHTML = `
     <span class="popup-meta-chip teal">Draft</span>
-    <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
+    <span class="popup-meta-chip">${pageCountText(d)}</span>
     ${isCloud ? '<span class="popup-meta-chip blue"><i class="fi fi-rs-cloud"></i> Cloud saved</span>' : ''}
   `;
 
@@ -1075,7 +1096,6 @@ function openDraftPopup(d) {
 
 function openPublishedPopup(c) {
   const stars = c.stars || 0;
-  const pages = c.data?.length || 0;
 
   // Cover
   const coverWrap = document.getElementById('popup-cover-wrap');
@@ -1089,7 +1109,7 @@ function openPublishedPopup(c) {
   document.getElementById('popup-meta').innerHTML = `
     <span class="popup-meta-chip orange">Live</span>
     <span class="popup-meta-chip">⭐ ${stars} star${stars!==1?'s':''}</span>
-    <span class="popup-meta-chip">${pages} page${pages!==1?'s':''}</span>
+    <span class="popup-meta-chip">${pageCountText(c)}</span>
   `;
 
   const pubDescEl = document.getElementById('popup-desc');
@@ -1395,6 +1415,25 @@ function startNewComic() {
 
 // ── Helpers ───────────────────────────────────────────────
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// BUGFIX: every page-count badge below used to read `row.data?.length || 0`
+// directly. `data` is null for any comic/draft whose frame JSON got routed
+// to Storage instead of stored inline (see create-mobile.html's "large-comic
+// safety net" — this kicks in once a comic's JSON crosses ~900KB, which
+// happens well before hundreds of frames once images/effects are involved).
+// Reading data?.length alone silently showed "0 pages" for exactly those
+// long comics, making a fully-intact upload look like it lost almost
+// everything. We don't have the real count without downloading the blob
+// (too expensive just to render a list card), so show something honest
+// instead of a false "0".
+function pageCountText(row) {
+  if (Array.isArray(row.data)) {
+    const n = row.data.length;
+    return n + ' page' + (n !== 1 ? 's' : '');
+  }
+  if (row.storage_path) return 'Long comic';
+  return '0 pages';
+}
 function escAttr(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
 function toast(msg, col='var(--green)') {

@@ -174,6 +174,38 @@
     .resize-handle.tr { top: -13px; right: -13px; cursor: nesw-resize; }
     .resize-handle.bl { bottom: -13px; left: -13px; cursor: nesw-resize; }
     .resize-handle.br { bottom: -13px; right: -13px; }
+    /* mid-edge handles — panels stretch on one axis at a time, not just uniform corner scale */
+    .resize-handle.t { top: -13px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+    .resize-handle.b { bottom: -13px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+    .resize-handle.l { top: 50%; left: -13px; transform: translateY(-50%); cursor: ew-resize; }
+    .resize-handle.r { top: 50%; right: -13px; transform: translateY(-50%); cursor: ew-resize; }
+
+    /* ── PANEL LAYER ── */
+    /* a Panel is a comic-panel shape layer: fill + border, sits behind other content. any
+       sprite/text/bubble that overlaps a panel gets visually clipped to that panel's interior —
+       same overflow:hidden idea as the outer frame, just per-panel — via applyPanelClip(). */
+    .panel-shape { position: absolute; inset: 0; box-sizing: border-box; pointer-events: none; }
+
+    /* ── PANEL SLICE TOOL ── */
+    /* dashed cut-guide + draggable scissors handle shown while slicing a panel into two */
+    .panel-slice-line { pointer-events: none; }
+    .panel-slice-handle {
+        position: absolute; width: 34px; height: 34px; z-index: 241;
+        background: var(--accent); border: 2px solid #000; border-radius: 50%;
+        touch-action: none; cursor: grab;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 15px; color: #000; transform: translate(-50%, -50%);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .panel-slice-handle:active { cursor: grabbing; }
+    #panel-slice-bar {
+        position: absolute; transform: translate(-50%, 0);
+        display: flex; align-items: center; gap: 5px;
+        background: rgba(28,28,30,0.96); border: 1px solid var(--border);
+        border-radius: 22px; padding: 6px 7px; z-index: 250;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.5); white-space: nowrap;
+        -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    }
 
     /* ── ROTATE HANDLE ── */
     /* rotate dial above the bbox, connected by a stem, drag to rotate without opening the transform sheet */
@@ -1373,6 +1405,7 @@
             <button class="add-btn" onclick="openBubblePicker('speech');closeSheet('add')"><span class="add-ico" style="display:flex;align-items:center;justify-content:center;height:26px;"><span style="background:#fff;border:2px solid #000;border-radius:999px;padding:3px 11px;font-size:11px;font-weight:900;color:#000;line-height:1;box-shadow:2px 2px 0 #000;">Aa</span></span>Bubble</button>
             <button class="add-btn" onclick="addText('plain');closeSheet('add')"><span class="add-ico" style="display:flex;align-items:center;justify-content:center;height:26px;"><span style="font-size:16px;font-weight:900;color:#fff;">Aa</span></span>Plain Text</button>
             <button class="add-btn" onclick="addSubtitle();closeSheet('add')"><span class="add-ico" style="display:flex;flex-direction:column;width:48px;"><span style="background:#ff9500;color:#fff;font-size:6px;font-weight:900;letter-spacing:0.5px;padding:2px 6px;border-radius:4px 4px 0 0;text-align:center;">NAME</span><span style="background:rgba(255,255,255,0.96);color:#111;font-size:9px;font-weight:700;padding:2px 6px;border-radius:0 0 4px 4px;text-align:center;">Aa</span></span>Subtitle Bar</button>
+            <button class="add-btn" onclick="addPanel();closeSheet('add')" title="Panel"><span class="add-ico" style="display:flex;align-items:center;justify-content:center;height:26px;"><span style="width:26px;height:20px;border:2.5px solid #fff;border-radius:2px;background:transparent;display:block;"></span></span>Panel</button>
         </div>
         <div class="add-section-label">Media</div>
         <div class="add-grid">
@@ -1911,12 +1944,12 @@
             <button onclick="closeTransformSheet()" style="background:none;border:none;color:#555;font-size:16px;cursor:pointer;">✕</button>
         </div>
         <div id="ts-preview-box"><div id="ts-preview-content"></div></div>
-        <div class="ts-row">
-            <span class="ts-label">Scale</span>
+        <div class="ts-row" id="ts-scale-row">
+            <span class="ts-label" id="ts-scale-label">Scale</span>
             <input type="range" id="size-slider" min="20" max="1000" value="200" oninput="document.getElementById('size-num').value=this.value;applyTransform&&applyTransform()">
             <input type="number" id="size-num" class="ts-num" value="200" min="20" max="1000" oninput="document.getElementById('size-slider').value=Math.min(1000,Math.max(20,+this.value||20));applyTransform&&applyTransform()">
         </div>
-        <div class="ts-row">
+        <div class="ts-row" id="ts-rotate-row">
             <span class="ts-label">Rotate</span>
             <input type="range" id="rotate-slider" min="0" max="360" value="0" oninput="document.getElementById('rotate-num').value=this.value;applyTransform&&applyTransform()">
             <input type="number" id="rotate-num" class="ts-num" value="0" min="0" max="360" oninput="document.getElementById('rotate-slider').value=Math.min(360,Math.max(0,+this.value||0));applyTransform&&applyTransform()">
@@ -1997,6 +2030,25 @@
             <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Private Name Tag</div>
             <input type="text" id="sprite-nametag-input" placeholder="Your label (only you see this)" class="pub-input" oninput="updateNameTag(this.value)" style="margin-bottom:8px;">
             <button onclick="saveSpriteToPersonal()" style="width:100%;padding:10px;background:#0a1a2a;border:1px solid var(--teal);color:var(--teal);border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;">💾 Save to Your Sprites</button>
+        </div>
+
+        <!-- panel settings -->
+        <div id="panel-settings" style="display:none;border-top:1px solid #2c2c2e;padding-top:12px;margin-top:4px;">
+            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Panel Fill</div>
+            <div id="panel-fill-swatches" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;"></div>
+            <div style="font-size:9px;font-weight:900;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Panel Border</div>
+            <div id="panel-border-swatches" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;"></div>
+            <div class="ts-row">
+                <span class="ts-label">Width</span>
+                <input type="range" id="panel-border-width-slider" min="0" max="20" step="1" value="4" oninput="document.getElementById('panel-border-width-num').value=this.value;tsApplyPanelBorderWidth(this.value)">
+                <input type="number" id="panel-border-width-num" class="ts-num" value="4" min="0" max="20" oninput="document.getElementById('panel-border-width-slider').value=this.value;tsApplyPanelBorderWidth(this.value)">
+            </div>
+            <div class="ts-row">
+                <span class="ts-label">Corner</span>
+                <input type="range" id="panel-radius-slider" min="0" max="80" step="1" value="0" oninput="document.getElementById('panel-radius-num').value=this.value;tsApplyPanelRadius(this.value)">
+                <input type="number" id="panel-radius-num" class="ts-num" value="0" min="0" max="80" oninput="document.getElementById('panel-radius-slider').value=this.value;tsApplyPanelRadius(this.value)">
+            </div>
+            <button onclick="closeTransformSheet();startPanelSlice();" style="width:100%;padding:10px;background:rgba(255,122,0,0.1);border:1px solid rgba(255,122,0,0.35);border-radius:10px;color:var(--accent);font-weight:800;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:4px;"><i class="fi fi-rs-scissors"></i> Slice Panel</button>
         </div>
 
         <div class="ts-actions">
@@ -2377,7 +2429,20 @@ function setRatio(w, h) {
     canvas.style.width = cw + 'px';
     canvas.style.height = ch + 'px';
     onionCanvas.width = cw; onionCanvas.height = ch;
-    render();
+    // BUGFIX: this used to call render(), which only queues a
+    // requestAnimationFrame and bails out silently if one is already
+    // pending. On a fresh mobile page load — right as the page is still
+    // settling from the My Comics -> create-mobile navigation — that queued
+    // frame can be delayed or dropped, and nothing else forces a repaint
+    // after it. The draft's real ratio/frames were already loaded into
+    // memory correctly by this point, the canvas just never got told to
+    // redraw with them, so it sat on the initial blank 1:1 paint until some
+    // later tap happened to flush a pending frame. setRatio() is only ever
+    // called from discrete, deliberate actions (ratio picker, frame
+    // activation, viewport resize, draft/comic load) — never a hot loop —
+    // so there's no perf reason to debounce here. Paint immediately instead.
+    if (_renderRaf) { cancelAnimationFrame(_renderRaf); _renderRaf = null; }
+    _renderNow();
 }
 // switch to frame i, resize canvas to its ratio first so per-frame ratios work
 function activateFrame(i) {
@@ -2560,6 +2625,12 @@ function syncTransformSheet() {
     sizeNum.value = activeLayer.w || 200;
     document.getElementById('rotate-slider').value = activeLayer.rotation || 0;
     document.getElementById('rotate-num').value = activeLayer.rotation || 0;
+    const isPanel = activeLayer.type === 'panel';
+    const rotateRow = document.getElementById('ts-rotate-row');
+    if (rotateRow) rotateRow.style.display = isPanel ? 'none' : 'flex'; // panels stay axis-aligned
+    const panelSettings = document.getElementById('panel-settings');
+    if (panelSettings) panelSettings.style.display = isPanel ? 'block' : 'none';
+    if (isPanel) syncPanelSettingsUI();
 
     const isText = ['text','bubble','thinking','subtitle'].includes(activeLayer.type);
     document.getElementById('text-settings').style.display = isText ? 'block' : 'none';
@@ -3265,6 +3336,7 @@ function attachResizeHandles(el, layer) {
                 // sync slider if transform sheet is open
                 const sl = document.getElementById('size-slider');
                 if (sl) { sl.value = newW; const sn = document.getElementById('size-num'); if (sn) sn.value = newW; }
+                applyPanelClip(layer, el);
             };
             const onUp = () => {
                 // remove from same element
@@ -3319,6 +3391,74 @@ function attachResizeHandles(el, layer) {
         rh.addEventListener('touchend', onUp, { once: true });
     }, { passive: false });
     el.appendChild(rh);
+}
+
+// re-clip every non-panel layer against current panel geometry — used for live feedback while
+// a panel is actively being resized/sliced, so content snaps its cut-off edge in real time
+// instead of waiting for the drag to end
+function reclipAllContent() {
+    const f = frames[currentIdx];
+    if (!f) return;
+    f.layers.forEach(l => {
+        if (l.type === 'panel') return;
+        const el = canvas.querySelector('.layer[data-layer-id="' + l.id + '"]');
+        if (el) applyPanelClip(l, el);
+    });
+}
+
+// panels stretch freely on either axis instead of scaling proportionally like sprites do —
+// 4 corner handles (both axes at once) + 4 mid-edge handles (one axis only), no rotate (panels
+// stay axis-aligned so slicing/clipping math stays simple and predictable)
+function attachPanelResizeHandles(el, layer) {
+    el.querySelectorAll('.resize-handle').forEach(h => h.remove());
+    el.querySelectorAll('.rotate-handle, .rotate-handle-stem').forEach(h => h.remove());
+    const MIN = 30;
+    ['tl','t','tr','r','br','b','bl','l'].forEach(pos => {
+        const h = document.createElement('div');
+        h.className = 'resize-handle ' + pos;
+        h.addEventListener('touchstart', (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            saveState();
+            const t0 = ev.touches[0];
+            const origW = layer.w, origH = (layer.h != null ? layer.h : layer.w), origX = layer.x, origY = layer.y;
+            const startClientX = t0.clientX, startClientY = t0.clientY;
+            const isLeft   = pos === 'tl' || pos === 'l' || pos === 'bl';
+            const isRight  = pos === 'tr' || pos === 'r' || pos === 'br';
+            const isTop    = pos === 'tl' || pos === 't' || pos === 'tr';
+            const isBottom = pos === 'bl' || pos === 'b' || pos === 'br';
+            const _cRect = canvas.getBoundingClientRect();
+            const _cScale = _cRect.width / (canvas.offsetWidth || 1);
+            const onMove = (mv) => {
+                if (mv.touches.length > 1) return;
+                mv.preventDefault(); mv.stopPropagation();
+                const dx = (mv.touches[0].clientX - startClientX) / _cScale;
+                const dy = (mv.touches[0].clientY - startClientY) / _cScale;
+                let newW = origW, newH = origH, newX = origX, newY = origY;
+                // width and height move independently — that's the "stretch", no proportional lock
+                if (isRight) newW = Math.max(MIN, Math.round(origW + dx));
+                if (isLeft)  { newW = Math.max(MIN, Math.round(origW - dx)); newX = origX + (origW - newW); }
+                if (isBottom) newH = Math.max(MIN, Math.round(origH + dy));
+                if (isTop)    { newH = Math.max(MIN, Math.round(origH - dy)); newY = origY + (origH - newH); }
+                layer.w = newW; layer.h = newH; layer.x = newX; layer.y = newY;
+                if (el) {
+                    el.style.width  = newW + 'px';
+                    el.style.height = newH + 'px';
+                    el.style.left   = newX + 'px';
+                    el.style.top    = newY + 'px';
+                }
+                reclipAllContent();
+                if (_panelSliceLayer === layer) updatePanelSliceOverlayPosition();
+            };
+            const onUp = () => {
+                h.removeEventListener('touchmove', onMove);
+                h.removeEventListener('touchend', onUp);
+                render(); // re-clips any content sitting on this panel to its new bounds
+            };
+            h.addEventListener('touchmove', onMove, { passive: false });
+            h.addEventListener('touchend', onUp, { once: true });
+        }, { passive: false });
+        el.appendChild(h);
+    });
 }
 
 // draggable tail puck, snaps to nearest edge+position instead of sliding under one fixed edge
@@ -3636,6 +3776,15 @@ function _renderNow() {
             if (layer.nameTag) { const nt = document.createElement('div'); nt.className = 'sprite-nametag'; nt.innerText = layer.nameTag; el.appendChild(nt); }
             // color fx overlay (lightness / color balance)
             applyColorFxToDOM(el, layer);
+        } else if (layer.type === 'panel') {
+            const shape = document.createElement('div');
+            shape.className = 'panel-shape';
+            const bw = layer.borderWidth != null ? layer.borderWidth : 4;
+            const fill = layer.fill || 'transparent';
+            const bc = layer.panelBorderColor || '#000000';
+            const rad = layer.radius || 0;
+            shape.style.cssText = `background:${fill};${bw > 0 ? `border:${bw}px solid ${bc};` : ''}border-radius:${rad}px;`;
+            el.appendChild(shape);
         } else if (layer.type === 'bubble' || layer.type === 'thinking') {
             const bub = document.createElement('div');
             const bStyle = layer.bubbleStyle || 'round';
@@ -3702,6 +3851,10 @@ function _renderNow() {
             // rotate/flip wrapper so outline follows sprite
             el.style.transform = `rotate(${layer.rotation||0}deg) scaleX(${layer.flipped ? -1 : 1})`;
             el.style.transformOrigin = 'center center';
+        } else if (layer.type === 'panel') {
+            // panels stay axis-aligned (no rotate) so slicing/clipping stays predictable
+            el.style.height = (layer.h != null) ? layer.h + 'px' : 'auto';
+            el.style.overflow = 'visible';
         }
 
         // long press = menu, double tap = edit
@@ -3743,6 +3896,7 @@ function _renderNow() {
             // instant resize handles on tap, used to need a re-render or double-tap first
             canvas.querySelectorAll('.resize-handle, .rotate-handle, .rotate-handle-stem, .tail-scroller-track, .tail-scroller-handle, .sqa-corner-toggle').forEach(h => h.remove());
             if (layer.type === 'img') attachResizeHandles(el, layer);
+            else if (layer.type === 'panel') attachPanelResizeHandles(el, layer);
             if (layer.type === 'bubble' || layer.type === 'thinking') attachTailHandle(el, layer);
             if (['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type)) attachSqaEditToggle(el, layer);
             startTouchDrag(e, layer);
@@ -3773,6 +3927,9 @@ function _renderNow() {
         if (layer === activeLayer && layer.type === 'img' && !layer.locked) {
             attachResizeHandles(el, layer);
         }
+        if (layer === activeLayer && layer.type === 'panel' && !layer.locked) {
+            attachPanelResizeHandles(el, layer);
+        }
         if (layer === activeLayer && (layer.type === 'bubble' || layer.type === 'thinking') && !layer.locked) {
             attachTailHandle(el, layer);
         }
@@ -3781,6 +3938,7 @@ function _renderNow() {
         }
 
         canvas.appendChild(el);
+        applyPanelClip(layer, el); // cut off anything spilling past whichever panel this sits on, frame-style
     });
 
     // flash outline on spilling layers after ratio change
@@ -3805,6 +3963,7 @@ function _renderNow() {
     const dot = document.getElementById('unsaved-dot');
     if (dot) dot.style.display = 'block';
     updateSpriteQuickBar(activeLayer);
+    if (_panelSliceLayer) renderPanelSliceOverlay(); // canvas.innerHTML='' above wiped it — rebuild if slicing is active
 }
 
 function selectLayer(layer) {
@@ -3839,6 +3998,7 @@ function mobToggleSqaPopover(kind) {
     if (kind === 'font') _sqaStyleRowOpen = false;
     if (kind === 'color') renderSqaColorPopover();
     else if (kind === 'font') renderSqaFontPopover();
+    else if (kind === 'panel') renderSqaPanelPopover();
     pop.classList.add('show');
     positionSqaPopover(activeLayer); // re-measure now that it's actually visible
 }
@@ -3909,6 +4069,69 @@ function mobSqaOpenAdvancedPicker() {
         renderSqaColorPopover();
     });
 }
+// panel fill/border style popover — same compact swatch pattern as text/bubble color
+function renderSqaPanelPopover() {
+    const pop = document.getElementById('sqa-popover');
+    if (!pop || !activeLayer || activeLayer.type !== 'panel') return;
+    const l = activeLayer;
+    const curFill = (l.fill || '#ffffff').toLowerCase();
+    const curBorder = (l.panelBorderColor || '#000000').toLowerCase();
+    const bw = l.borderWidth != null ? l.borderWidth : 4;
+    const rad = l.radius || 0;
+    const fillSwatches = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="event.stopPropagation();mobSqaPanelPickFill('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${curFill === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
+    ).join('') + `<button type="button" onclick="event.stopPropagation();mobSqaPanelPickFill('transparent')" title="No fill" style="width:22px;height:22px;border-radius:50%;background:repeating-conic-gradient(#666 0% 25%, #222 0% 50%) 50% / 8px 8px;border:2px solid ${curFill === 'transparent' ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`;
+    const borderSwatches = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="event.stopPropagation();mobSqaPanelPickBorder('${hex}')" style="width:22px;height:22px;border-radius:50%;background:${hex};border:2px solid ${curBorder === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;flex-shrink:0;"></button>`
+    ).join('');
+    pop.innerHTML = `
+        <div style="font-size:9px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;">Panel Fill</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">${fillSwatches}</div>
+        <div style="font-size:9px;font-weight:900;color:#666;text-transform:uppercase;letter-spacing:1px;margin-top:2px;">Panel Border</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">${borderSwatches}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+            <span style="font-size:10px;font-weight:800;color:#555;flex-shrink:0;width:44px;">WIDTH</span>
+            <input type="range" min="0" max="20" step="1" value="${bw}" oninput="event.stopPropagation();mobSqaPanelSetBorderWidth(this.value)" style="flex:1;">
+            <span style="font-size:11px;font-weight:800;color:#aaa;width:26px;text-align:right;">${bw}px</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-weight:800;color:#555;flex-shrink:0;width:44px;">CORNER</span>
+            <input type="range" min="0" max="80" step="1" value="${rad}" oninput="event.stopPropagation();mobSqaPanelSetRadius(this.value)" style="flex:1;">
+            <span style="font-size:11px;font-weight:800;color:#aaa;width:26px;text-align:right;">${rad}px</span>
+        </div>
+        <button type="button" onclick="event.stopPropagation();mobToggleSqaPopover('panel');startPanelSlice();" style="width:100%;padding:9px;background:rgba(255,122,0,0.1);border:1px solid rgba(255,122,0,0.35);border-radius:9px;color:var(--accent);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;"><i class="fi fi-rs-scissors"></i> Slice Panel</button>
+    `;
+    positionSqaPopover(activeLayer);
+}
+function mobSqaPanelPickFill(hex) {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    saveState();
+    activeLayer.fill = hex;
+    render(); renderTransformPreview(); renderSqaPanelPopover();
+    if (typeof syncPanelSettingsUI === 'function') syncPanelSettingsUI();
+}
+function mobSqaPanelPickBorder(hex) {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    saveState();
+    activeLayer.panelBorderColor = hex;
+    render(); renderTransformPreview(); renderSqaPanelPopover();
+    if (typeof syncPanelSettingsUI === 'function') syncPanelSettingsUI();
+}
+function mobSqaPanelSetBorderWidth(val) {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    saveState();
+    activeLayer.borderWidth = Math.max(0, Math.min(20, parseInt(val) || 0));
+    render(); renderTransformPreview(); renderSqaPanelPopover();
+    if (typeof syncPanelSettingsUI === 'function') syncPanelSettingsUI();
+}
+function mobSqaPanelSetRadius(val) {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    saveState();
+    activeLayer.radius = Math.max(0, Math.min(80, parseInt(val) || 0));
+    render(); renderTransformPreview(); renderSqaPanelPopover();
+    if (typeof syncPanelSettingsUI === 'function') syncPanelSettingsUI();
+}
+
 let _sqaStyleRowOpen = false;
 function mobToggleSqaStyleRow() {
     _sqaStyleRowOpen = !_sqaStyleRowOpen;
@@ -3987,9 +4210,11 @@ function updateSpriteQuickBar(layer) {
     const bar = document.getElementById('sprite-quick-actions');
     const pop = document.getElementById('sqa-popover');
     if (!bar) return;
+    if (_panelSliceLayer) { bar.classList.remove('show'); bar.innerHTML = ''; updateCfbExtras(null); return; } // slice toolbar takes over while active
     const isSprite   = !!layer && layer.type === 'img';
+    const isPanel    = !!layer && layer.type === 'panel';
     const isTextLike = !!layer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type);
-    if (!layer || layer.locked || (!isSprite && !isTextLike)) {
+    if (!layer || layer.locked || (!isSprite && !isTextLike && !isPanel)) {
         bar.classList.remove('show');
         bar.innerHTML = '';
         updateCfbExtras(null);
@@ -4000,7 +4225,23 @@ function updateSpriteQuickBar(layer) {
     const frameBar = document.getElementById('canvas-frame-bar');
     const frameBarHidden = !frameBar || frameBar.classList.contains('cfb-hidden');
     updateCfbExtras(frameBarHidden ? null : layer);
-    if (isSprite) {
+    if (isPanel) {
+        if (frameBarHidden) {
+            bar.innerHTML = `
+                <button class="sqa-btn sqa-accent" onclick="event.stopPropagation();startPanelSlice()" title="Slice"><i class="fi fi-rs-scissors"></i></button>
+                <button class="sqa-btn" onclick="event.stopPropagation();topBarDuplicate()" title="Duplicate"><i class="fi fi-rs-clone"></i></button>
+                <button class="sqa-btn" onclick="event.stopPropagation();mobToggleSqaPopover('panel')" title="Style"><span style="width:16px;height:16px;border-radius:50%;background:conic-gradient(from 180deg,#ff3b30,#ff9500,#ffcc00,#34c759,#30b0c7,#007aff,#5856d6,#ff2d92,#ff3b30);border:1.5px solid rgba(255,255,255,0.4);display:block;"></span></button>
+                <div class="sqa-sep"></div>
+                <button class="sqa-btn sqa-danger" onclick="event.stopPropagation();deleteLayer()" title="Delete"><i class="fi fi-rs-trash"></i></button>
+            `;
+            bar.classList.add('show');
+        } else {
+            bar.classList.remove('show');
+            bar.innerHTML = '';
+        }
+        if (pop && pop.classList.contains('show') && pop.dataset.kind === 'panel') renderSqaPanelPopover();
+        else if (pop) { pop.classList.remove('show'); pop.dataset.kind = ''; }
+    } else if (isSprite) {
         if (frameBarHidden) {
             const hasActions = !!layer.packData;
             bar.innerHTML = `
@@ -4044,12 +4285,19 @@ function updateCfbExtras(layer) {
     if (!extras) return;
     const isTextLike = !!layer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type) && !layer.locked;
     const isSprite   = !!layer && layer.type === 'img' && !layer.locked;
-    if (!isTextLike && !isSprite) {
+    const isPanel    = !!layer && layer.type === 'panel' && !layer.locked;
+    if (!isTextLike && !isSprite && !isPanel) {
         extras.classList.remove('show');
         extras.innerHTML = '';
         return;
     }
-    if (isSprite) {
+    if (isPanel) {
+        extras.innerHTML = `
+            <button class="cfb-btn" style="color:var(--accent);" onclick="event.stopPropagation();startPanelSlice()" title="Slice"><i class="fi fi-rs-scissors"></i></button>
+            <button class="cfb-btn" onclick="event.stopPropagation();mobToggleSqaPopover('panel')" title="Style"><span style="width:15px;height:15px;border-radius:50%;background:conic-gradient(from 180deg,#ff3b30,#ff9500,#ffcc00,#34c759,#30b0c7,#007aff,#5856d6,#ff2d92,#ff3b30);border:1.5px solid rgba(255,255,255,0.4);display:block;"></span></button>
+            <button class="cfb-btn" style="color:#ff453a;" onclick="event.stopPropagation();deleteLayer()" title="Delete"><i class="fi fi-rs-trash"></i></button>
+        `;
+    } else if (isSprite) {
         const hasActions = !!layer.packData;
         extras.innerHTML = `
             ${hasActions ? `<button class="cfb-btn" style="color:var(--accent);" onclick="event.stopPropagation();editCurrentSpriteAction()" title="Actions">🔄</button>` : ''}
@@ -4107,6 +4355,8 @@ function startTouchDrag(e, layer) {
         // direct dom update during drag
         el.style.left = layer.x + 'px';
         el.style.top  = layer.y + 'px';
+        if (layer.type === 'panel') reclipAllContent(); // panel moved — re-clip whatever now sits on it
+        else applyPanelClip(layer, el); // content moved — re-clip it live against whichever panel it's over now
     };
     var up = function() { cleanup(); };
     el.addEventListener('touchmove', move, { passive: false });
@@ -4850,7 +5100,7 @@ async function useUploadedAudioClip() {
 function getLayerName(layer, i) {
     if (layer.nameTag) return layer.nameTag;
     if (layer.content) return layer.content.substring(0, 18) + (layer.content.length > 18 ? '…' : '');
-    const typeNames = { img: 'Image', bubble: 'Bubble', thinking: 'Thought', text: 'Text', subtitle: 'Subtitle' };
+    const typeNames = { img: 'Image', bubble: 'Bubble', thinking: 'Thought', text: 'Text', subtitle: 'Subtitle', panel: 'Panel' };
     return (typeNames[layer.type] || layer.type) + ' ' + (i + 1);
 }
 
@@ -4872,7 +5122,8 @@ function renderMobLayers() {
         item.dataset.layerIdx = i;
 
         const ico = layer.type === 'img' ? '🖼' : layer.type === 'bubble' ? '💬' :
-                    layer.type === 'thinking' ? '💭' : layer.type === 'subtitle' ? '📋' : '✍️';
+                    layer.type === 'thinking' ? '💭' : layer.type === 'subtitle' ? '📋' :
+                    layer.type === 'panel' ? '▭' : '✍️';
         const lockIcon = layer.locked ? ' 🔒' : '';
         const name = getLayerName(layer, i);
 
@@ -5029,6 +5280,45 @@ function attachLayerDrag(handle, item, layerIdx) {
 
 function deleteLayer() { if (!activeLayer) return; saveState(); const f = frames[currentIdx]; f.layers = f.layers.filter(l => l !== activeLayer); activeLayer = null; closeTransformSheet(); render(); renderMobLayers(); }
 function flipHorizontal() { if (!activeLayer) return; saveState(); activeLayer.flipped = !activeLayer.flipped; render(); }
+// transform-sheet panel section — swatches + slider sync (separate DOM from the on-canvas
+// popover version, same underlying mobSqaPanelPickFill/Border/SetBorderWidth/SetRadius setters)
+function syncPanelSettingsUI() {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    const bw = activeLayer.borderWidth != null ? activeLayer.borderWidth : 4;
+    const rad = activeLayer.radius || 0;
+    const bwSlider = document.getElementById('panel-border-width-slider');
+    const bwNum = document.getElementById('panel-border-width-num');
+    if (bwSlider) bwSlider.value = bw;
+    if (bwNum) bwNum.value = bw;
+    const radSlider = document.getElementById('panel-radius-slider');
+    const radNum = document.getElementById('panel-radius-num');
+    if (radSlider) radSlider.value = rad;
+    if (radNum) radNum.value = rad;
+    const fillWrap = document.getElementById('panel-fill-swatches');
+    const borderWrap = document.getElementById('panel-border-swatches');
+    if (!fillWrap || !borderWrap) return;
+    const curFill = (activeLayer.fill || '#ffffff').toLowerCase();
+    const curBorder = (activeLayer.panelBorderColor || '#000000').toLowerCase();
+    fillWrap.innerHTML = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="mobSqaPanelPickFill('${hex}')" style="width:24px;height:24px;border-radius:50%;background:${hex};border:2px solid ${curFill === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;"></button>`
+    ).join('') + `<button type="button" onclick="mobSqaPanelPickFill('transparent')" title="No fill" style="width:24px;height:24px;border-radius:50%;background:repeating-conic-gradient(#666 0% 25%, #222 0% 50%) 50% / 8px 8px;border:2px solid ${curFill === 'transparent' ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;"></button>`;
+    borderWrap.innerHTML = MOB_COLOR_PRESETS.map(hex =>
+        `<button type="button" onclick="mobSqaPanelPickBorder('${hex}')" style="width:24px;height:24px;border-radius:50%;background:${hex};border:2px solid ${curBorder === hex ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};cursor:pointer;padding:0;"></button>`
+    ).join('');
+}
+function tsApplyPanelBorderWidth(val) {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    saveState();
+    activeLayer.borderWidth = Math.max(0, Math.min(20, parseInt(val) || 0));
+    render(); renderTransformPreview();
+}
+function tsApplyPanelRadius(val) {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    saveState();
+    activeLayer.radius = Math.max(0, Math.min(80, parseInt(val) || 0));
+    render(); renderTransformPreview();
+}
+
 function resetTransform() {
     if (!activeLayer) return;
     saveState();
@@ -5168,6 +5458,13 @@ function buildLayerPreviewElement(layer) {
         el.draggable = false;
         const h = (layer.h != null) ? layer.h + 'px' : 'auto';
         el.style.cssText = `width:${layer.w||120}px;height:${h};display:block;object-fit:contain;transform:scaleX(${layer.flipped ? -1 : 1});`;
+    } else if (layer.type === 'panel') {
+        el = document.createElement('div');
+        const bw = layer.borderWidth != null ? layer.borderWidth : 4;
+        const fill = layer.fill || 'transparent';
+        const bc = layer.panelBorderColor || '#000000';
+        const rad = layer.radius || 0;
+        el.style.cssText = `width:${layer.w||200}px;height:${layer.h||140}px;box-sizing:border-box;background:${fill};${bw > 0 ? `border:${bw}px solid ${bc};` : ''}border-radius:${rad}px;`;
     }
 
     return el;
@@ -6414,6 +6711,235 @@ function addSubtitle() {
     frames[currentIdx].layers.push(nl);
     activeLayer = nl;
     render();
+}
+
+// panel — a comic-panel shape layer (fill + border). New panels start covering most of the
+// frame and are sent to the BACK of the stack so sprites/text added afterward sit on top of
+// them, matching how panels behave as page layout rather than foreground content.
+function addPanel() {
+    saveState();
+    const cw = canvas.offsetWidth || 300, ch = canvas.offsetHeight || 300;
+    const pad = Math.round(Math.min(cw, ch) * 0.04);
+    const nl = {
+        type: 'panel', id: Date.now(),
+        x: pad, y: pad, w: Math.max(40, cw - pad * 2), h: Math.max(40, ch - pad * 2),
+        fill: '#ffffff', panelBorderColor: '#000000', borderWidth: 4, radius: 0
+    };
+    frames[currentIdx].layers.unshift(nl); // back of stack — behind existing content
+    activeLayer = nl;
+    render();
+    renderMobLayers();
+}
+
+// ── PANEL CONTAINMENT ───────────────────────────────────────────────────────
+// Panels behave like little frames-within-the-frame: a sprite/text/bubble that overlaps a
+// panel is visually clipped to that panel's interior — exact same idea as the outer comic
+// frame clipping everything to its own edges (overflow:hidden), just applied per-panel. The
+// asset's real x/y/w/h never change; only what's *visible* is cut off, so it can be dragged
+// freely (including across a panel boundary mid-drag) without anything being force-moved or
+// resized. If it doesn't overlap any panel at all (e.g. a caption in the gutter) it's left
+// fully visible — this only kicks in where there's actual overlap.
+function getPanelsInFrame() {
+    const f = frames[currentIdx];
+    return f ? f.layers.filter(l => l.type === 'panel') : [];
+}
+// which panel (if any) does this box overlap the most? null if it touches no panel at all
+function findContainingPanel(x, y, w, h) {
+    const panels = getPanelsInFrame();
+    if (!panels.length) return null;
+    let best = null, bestArea = 0;
+    panels.forEach(p => {
+        const ox = Math.max(0, Math.min(x + w, p.x + p.w) - Math.max(x, p.x));
+        const oy = Math.max(0, Math.min(y + h, p.y + p.h) - Math.max(y, p.y));
+        const area = ox * oy;
+        if (area > bestArea) { bestArea = area; best = p; }
+    });
+    return best;
+}
+// set/clear a clip-path on a layer's DOM element so it's cut off at the edge of whichever
+// panel it overlaps most. el should already be attached to canvas (so offsetWidth/Height are
+// accurate for auto-height text/bubble layers, which don't store an h). Safe to call every
+// render — recomputed fresh from current geometry each time, no persisted state needed.
+function applyPanelClip(layer, el) {
+    if (!layer || !el || layer.type === 'panel') return;
+    const lw = el.offsetWidth  || layer.w || 100;
+    const lh = el.offsetHeight || (layer.h != null ? layer.h : lw);
+    const panel = findContainingPanel(layer.x || 0, layer.y || 0, lw, lh);
+    if (!panel) { el.style.clipPath = ''; return; }
+    // clip to the panel's INTERIOR (inset by its border width) so the panel's own border art
+    // always stays visible on top, without needing any DOM stacking tricks
+    const bw = panel.borderWidth != null ? panel.borderWidth : 4;
+    const ix = panel.x + bw, iy = panel.y + bw;
+    const iw = Math.max(0, panel.w - bw * 2), ih = Math.max(0, panel.h - bw * 2);
+    const lx = layer.x || 0, ly = layer.y || 0;
+    const top    = Math.max(0, iy - ly);
+    const left   = Math.max(0, ix - lx);
+    const bottom = Math.max(0, (ly + lh) - (iy + ih));
+    const right  = Math.max(0, (lx + lw) - (ix + iw));
+    el.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
+}
+
+// ── PANEL SLICE TOOL ────────────────────────────────────────────────────────
+// cuts one panel into two along a line the user drags into place with a scissors handle,
+// like a real comic-page layout tool. can be re-run on either half to keep subdividing.
+let _panelSliceLayer = null;   // the panel currently being sliced, or null when inactive
+let _panelSliceAxis  = 'v';    // 'v' = vertical cut line (drag left/right), 'h' = horizontal (drag up/down)
+let _panelSliceFrac  = 0.5;    // 0..1 position of the cut along the panel
+
+function startPanelSlice() {
+    if (!activeLayer || activeLayer.type !== 'panel') return;
+    // close any open popover / quick-action bar — the slice toolbar takes over
+    const pop = document.getElementById('sqa-popover');
+    if (pop) { pop.classList.remove('show'); pop.dataset.kind = ''; }
+    _panelSliceLayer = activeLayer;
+    _panelSliceAxis = 'v';
+    _panelSliceFrac = 0.5;
+    updateSpriteQuickBar(activeLayer); // hides the normal quick-action bar while slicing
+    renderPanelSliceOverlay();
+}
+function cancelPanelSlice() {
+    _panelSliceLayer = null;
+    document.querySelectorAll('.panel-slice-line, .panel-slice-handle, #panel-slice-bar').forEach(n => n.remove());
+    updateSpriteQuickBar(activeLayer);
+}
+function togglePanelSliceAxis() {
+    if (!_panelSliceLayer) return;
+    _panelSliceAxis = _panelSliceAxis === 'v' ? 'h' : 'v';
+    _panelSliceFrac = 0.5;
+    updatePanelSliceOverlayPosition();
+}
+function commitPanelSlice() {
+    if (!_panelSliceLayer) return;
+    const p = _panelSliceLayer;
+    const idx = frames[currentIdx].layers.indexOf(p);
+    if (idx === -1) { cancelPanelSlice(); return; }
+    saveState();
+    const gutter = 6; // small comic-style gap between the two new panels
+    let left, right;
+    if (_panelSliceAxis === 'v') {
+        const cutX = p.w * _panelSliceFrac;
+        const leftW  = Math.max(24, Math.round(cutX - gutter / 2));
+        const rightW = Math.max(24, Math.round(p.w - cutX - gutter / 2));
+        left  = { ...p, id: Date.now(),     w: leftW };
+        right = { ...p, id: Date.now() + 1, x: Math.round(p.x + cutX + gutter / 2), w: rightW };
+    } else {
+        const cutY = p.h * _panelSliceFrac;
+        const topH = Math.max(24, Math.round(cutY - gutter / 2));
+        const botH = Math.max(24, Math.round(p.h - cutY - gutter / 2));
+        left  = { ...p, id: Date.now(),     h: topH };
+        right = { ...p, id: Date.now() + 1, y: Math.round(p.y + cutY + gutter / 2), h: botH };
+    }
+    frames[currentIdx].layers.splice(idx, 1, left, right);
+    activeLayer = left;
+    _panelSliceLayer = null;
+    document.querySelectorAll('.panel-slice-line, .panel-slice-handle, #panel-slice-bar').forEach(n => n.remove());
+    render();
+    renderMobLayers();
+}
+// (re)builds the dashed cut-line + scissors handle + confirm/cancel toolbar over the panel
+function renderPanelSliceOverlay() {
+    document.querySelectorAll('.panel-slice-line, .panel-slice-handle, #panel-slice-bar').forEach(n => n.remove());
+    const p = _panelSliceLayer;
+    if (!p) return;
+    if (!frames[currentIdx].layers.includes(p)) { _panelSliceLayer = null; return; } // panel gone (deleted / frame switched)
+
+    const line = document.createElement('div');
+    line.id = 'panel-slice-line';
+    line.className = 'panel-slice-line';
+    canvas.appendChild(line);
+
+    const handle = document.createElement('div');
+    handle.id = 'panel-slice-handle';
+    handle.className = 'panel-slice-handle';
+    handle.innerHTML = '<i class="fi fi-rs-scissors"></i>';
+    attachSliceHandleDrag(handle);
+    canvas.appendChild(handle);
+
+    const bar = document.createElement('div');
+    bar.id = 'panel-slice-bar';
+    bar.innerHTML = `
+        <button class="sqa-btn" onclick="event.stopPropagation();togglePanelSliceAxis()" title="Switch cut direction">⇄</button>
+        <div class="sqa-sep"></div>
+        <button class="sqa-btn sqa-danger" onclick="event.stopPropagation();cancelPanelSlice()" title="Cancel">✕</button>
+        <button class="sqa-btn sqa-accent" onclick="event.stopPropagation();commitPanelSlice()" title="Confirm cut">✓</button>
+    `;
+    canvas.appendChild(bar);
+
+    updatePanelSliceOverlayPosition();
+}
+// cheap direct-style reposition of the overlay pieces, used during drag + live panel resize
+function updatePanelSliceOverlayPosition() {
+    const p = _panelSliceLayer;
+    if (!p) return;
+    const line = document.getElementById('panel-slice-line');
+    const handle = document.getElementById('panel-slice-handle');
+    const bar = document.getElementById('panel-slice-bar');
+    if (!line || !handle) return;
+    if (_panelSliceAxis === 'v') {
+        const x = p.x + p.w * _panelSliceFrac;
+        line.style.cssText = `position:absolute;left:${x}px;top:${p.y}px;width:0;height:${p.h}px;border-left:3px dashed var(--accent);z-index:240;pointer-events:none;`;
+        handle.style.left = x + 'px';
+        handle.style.top  = (p.y + p.h / 2) + 'px';
+    } else {
+        const y = p.y + p.h * _panelSliceFrac;
+        line.style.cssText = `position:absolute;left:${p.x}px;top:${y}px;width:${p.w}px;height:0;border-top:3px dashed var(--accent);z-index:240;pointer-events:none;`;
+        handle.style.left = (p.x + p.w / 2) + 'px';
+        handle.style.top  = y + 'px';
+    }
+    if (bar) {
+        bar.style.left = (p.x + p.w / 2) + 'px';
+        bar.style.top  = (p.y + p.h + 14) + 'px';
+    }
+}
+// drag the scissors handle along the active axis to reposition the cut
+function attachSliceHandleDrag(handle) {
+    handle.addEventListener('touchstart', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const _cRect = canvas.getBoundingClientRect();
+        const _cScale = _cRect.width / (canvas.offsetWidth || 1);
+        const onMove = (mv) => {
+            if (mv.touches.length > 1) return;
+            mv.preventDefault(); mv.stopPropagation();
+            const p = _panelSliceLayer;
+            if (!p) return;
+            const t = mv.touches[0];
+            const localX = (t.clientX - _cRect.left) / _cScale;
+            const localY = (t.clientY - _cRect.top) / _cScale;
+            if (_panelSliceAxis === 'v') {
+                _panelSliceFrac = Math.max(0.08, Math.min(0.92, (localX - p.x) / p.w));
+            } else {
+                _panelSliceFrac = Math.max(0.08, Math.min(0.92, (localY - p.y) / p.h));
+            }
+            updatePanelSliceOverlayPosition();
+        };
+        const onUp = () => {
+            handle.removeEventListener('touchmove', onMove);
+            handle.removeEventListener('touchend', onUp);
+        };
+        handle.addEventListener('touchmove', onMove, { passive: false });
+        handle.addEventListener('touchend', onUp, { once: true });
+    }, { passive: false });
+    // desktop mouse support
+    handle.addEventListener('mousedown', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const _cRect = canvas.getBoundingClientRect();
+        const _cScale = _cRect.width / (canvas.offsetWidth || 1);
+        const onMove = (mv) => {
+            const p = _panelSliceLayer;
+            if (!p) return;
+            const localX = (mv.clientX - _cRect.left) / _cScale;
+            const localY = (mv.clientY - _cRect.top) / _cScale;
+            if (_panelSliceAxis === 'v') {
+                _panelSliceFrac = Math.max(0.08, Math.min(0.92, (localX - p.x) / p.w));
+            } else {
+                _panelSliceFrac = Math.max(0.08, Math.min(0.92, (localY - p.y) / p.h));
+            }
+            updatePanelSliceOverlayPosition();
+        };
+        const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    });
 }
 
 // bubble picker
@@ -8149,6 +8675,51 @@ function switchExportTab(tab) {
     document.getElementById('export-'+tab).classList.add('active');
     if (tab === 'frames') openExportFramesTab();
 }
+// export-time panel helpers — separate from the editor's findContainingPanel/applyPanelClip
+// because batch export walks OTHER frames, not just frames[currentIdx]
+function findContainingPanelInFrame(frame, x, y, w, h) {
+    const panels = frame.layers.filter(l => l.type === 'panel');
+    if (!panels.length) return null;
+    let best = null, bestArea = 0;
+    panels.forEach(p => {
+        const ox = Math.max(0, Math.min(x + w, p.x + p.w) - Math.max(x, p.x));
+        const oy = Math.max(0, Math.min(y + h, p.y + p.h) - Math.max(y, p.y));
+        const area = ox * oy;
+        if (area > bestArea) { bestArea = area; best = p; }
+    });
+    return best;
+}
+function drawPanelShapeOnCanvas(ctx, layer, scaleX, scaleY) {
+    const x = (layer.x || 0) * scaleX, y = (layer.y || 0) * scaleY;
+    const w = (layer.w || 0) * scaleX, h = (layer.h || 0) * scaleY;
+    const bw = (layer.borderWidth != null ? layer.borderWidth : 4) * scaleX;
+    const rad = (layer.radius || 0) * scaleX;
+    const fill = layer.fill || 'transparent';
+    const rr = (rx, ry, rw, rh, r) => {
+        r = Math.max(0, Math.min(r, rw / 2, rh / 2));
+        ctx.beginPath();
+        ctx.moveTo(rx + r, ry);
+        ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+        ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
+        ctx.arcTo(rx, ry + rh, rx, ry, r);
+        ctx.arcTo(rx, ry, rx + rw, ry, r);
+        ctx.closePath();
+    };
+    ctx.save();
+    if (fill && fill !== 'transparent') {
+        rr(x, y, w, h, rad);
+        ctx.fillStyle = fill;
+        ctx.fill();
+    }
+    if (bw > 0) {
+        rr(x + bw / 2, y + bw / 2, Math.max(0, w - bw), Math.max(0, h - bw), Math.max(0, rad - bw / 2));
+        ctx.lineWidth = bw;
+        ctx.strokeStyle = layer.panelBorderColor || '#000000';
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
 async function renderFrameToCanvas(frame, cw, ch) {
     const tmp = document.createElement('canvas');
     tmp.width = cw; tmp.height = ch;
@@ -8269,6 +8840,22 @@ async function renderFrameToCanvas(frame, cw, ch) {
 
     // layers
     for (const layer of frame.layers) {
+        if (layer.type === 'panel') {
+            drawPanelShapeOnCanvas(ctx, layer, scaleX, scaleY);
+            continue;
+        }
+        // clip to whichever panel this layer overlaps most, matching the editor's live preview —
+        // same idea as the outer frame's own edges, just per-panel
+        const _lw = layer.w || 100;
+        const _lh = layer.h != null ? layer.h : _lw;
+        const _panel = findContainingPanelInFrame(frame, layer.x || 0, layer.y || 0, _lw, _lh);
+        if (_panel) {
+            const pbw = _panel.borderWidth != null ? _panel.borderWidth : 4;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect((_panel.x + pbw) * scaleX, (_panel.y + pbw) * scaleY, Math.max(0, _panel.w - pbw * 2) * scaleX, Math.max(0, _panel.h - pbw * 2) * scaleY);
+            ctx.clip();
+        }
         if (layer.type === 'img') {
             const bStrength  = (layer.blurStrength != null) ? layer.blurStrength : 100;
             const baseOpacity = (layer.fxOpacity != null ? layer.fxOpacity / 100 : 1);
@@ -8455,6 +9042,7 @@ async function renderFrameToCanvas(frame, cw, ch) {
                 } catch(e) { drawFallback(); finish(); }
             });
         }
+        if (_panel) ctx.restore();
     }
     return tmp;
 }

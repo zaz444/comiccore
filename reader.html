@@ -953,6 +953,41 @@ function updateTsPosition() {
     posEl.textContent = `${closestIdx + 1} / ${frames2.length}`;
 }
 
+// panels act like little frames-within-the-frame: whichever panel a layer overlaps most, it
+// gets visually clipped to that panel's interior (same overflow:hidden idea as the outer
+// frame). Mirrors the editor's findContainingPanel/applyPanelClip, just with the extra sx/sy
+// render-scale factor folded in since the reader draws frames at arbitrary display sizes.
+function findPanelInFrame(f, x, y, w, h) {
+    const panels = (f.layers || []).filter(p => p.type === 'panel');
+    if (!panels.length) return null;
+    let best = null, bestArea = 0;
+    panels.forEach(p => {
+        const ox = Math.max(0, Math.min(x + w, p.x + p.w) - Math.max(x, p.x));
+        const oy = Math.max(0, Math.min(y + h, p.y + p.h) - Math.max(y, p.y));
+        const area = ox * oy;
+        if (area > bestArea) { bestArea = area; best = p; }
+    });
+    return best;
+}
+function applyReaderPanelClip(f, l, el, sx, sy) {
+    if (!l || !el || l.type === 'panel') return;
+    const lw0 = l.w || 100;
+    const lh0 = l.h != null ? l.h : lw0;
+    const panel = findPanelInFrame(f, l.x || 0, l.y || 0, lw0, lh0);
+    if (!panel) { el.style.clipPath = ''; return; }
+    const bw = panel.borderWidth != null ? panel.borderWidth : 4;
+    const ix = (panel.x + bw) * sx, iy = (panel.y + bw) * sy;
+    const iw = Math.max(0, panel.w - bw * 2) * sx, ih = Math.max(0, panel.h - bw * 2) * sy;
+    const lx = (l.x || 0) * sx, ly = (l.y || 0) * sy; // same page-coord space as el.style.left/top
+    const lw = el.offsetWidth  || lw0 * sx;
+    const lh = el.offsetHeight || lh0 * sy;
+    const top    = Math.max(0, iy - ly);
+    const left   = Math.max(0, ix - lx);
+    const bottom = Math.max(0, (ly + lh) - (iy + ih));
+    const right  = Math.max(0, (lx + lw) - (ix + iw));
+    el.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
+}
+
 function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     frameEl.innerHTML = '';
 
@@ -1111,6 +1146,17 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
                 }
             }
             applyColorFxToDOM(el, l);
+        } else if (l.type === 'panel') {
+            const lh = (l.h != null ? l.h : l.w) * (ov.scale || 1) * sy;
+            const bw = (l.borderWidth != null ? l.borderWidth : 4) * sx;
+            const fill = l.fill || 'transparent';
+            const bc = l.panelBorderColor || '#000000';
+            const rad = (l.radius || 0) * sx;
+            el.style.height = lh + 'px';
+            el.style.boxSizing = 'border-box';
+            el.style.background = fill;
+            if (bw > 0) el.style.border = `${bw}px solid ${bc}`;
+            el.style.borderRadius = rad + 'px';
         } else if (l.type === 'bubble' || l.type === 'thinking') {
             const fs = (l.fontSize || 28) * sx;
             const ff = l.fontFamily || "'Inter', sans-serif";
@@ -1166,6 +1212,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         }
 
         frameEl.appendChild(el);
+        applyReaderPanelClip(f, l, el, sx, sy); // cut off anything spilling past whichever panel this sits on, frame-style
     });
 }
 
@@ -2247,6 +2294,18 @@ function _renderFrameDOM(f, next, cw, ch) {
       // Color FX overlay — sprite layers only, matches create.html
       applyColorFxToDOM(el, l);
 
+    } else if (l.type === 'panel') {
+      const lh = (l.h != null ? l.h : l.w) * (ov.scale || 1) * sy;
+      const bw = (l.borderWidth != null ? l.borderWidth : 4) * sx;
+      const fill = l.fill || 'transparent';
+      const bc = l.panelBorderColor || '#000000';
+      const rad = (l.radius || 0) * sx;
+      el.style.height = lh + 'px';
+      el.style.boxSizing = 'border-box';
+      el.style.background = fill;
+      if (bw > 0) el.style.border = `${bw}px solid ${bc}`;
+      el.style.borderRadius = rad + 'px';
+
     } else if (l.type === 'bubble' || l.type === 'thinking') {
       const fs = (l.fontSize || 28) * sx;
       const ff = l.fontFamily || "'Inter', sans-serif";
@@ -2370,6 +2429,7 @@ function _renderFrameDOM(f, next, cw, ch) {
     }
 
     next.appendChild(el);
+    applyReaderPanelClip(f, l, el, sx, sy); // cut off anything spilling past whichever panel this sits on, frame-style
   });
 
 } // end _renderFrameDOM
