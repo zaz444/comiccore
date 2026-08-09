@@ -607,15 +607,29 @@
     if (user) {
       let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
       if (!myProfile.handle) {
-        const { data: freshProfile } = await supabaseClient
-          .from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
-        if (freshProfile) {
-          // Strip any legacy base64 blobs from the DB row before caching —
-          // they can be several MB and blow the localStorage quota.
-          if (freshProfile.pic    && freshProfile.pic.startsWith('data:image'))    freshProfile.pic    = '';
-          if (freshProfile.banner && freshProfile.banner.startsWith('data:image')) freshProfile.banner = '';
-          myProfile = { ...myProfile, ...freshProfile };
-          ccSaveProfile(myProfile);
+        // BUGFIX: this fetch used to be unguarded. If it threw (network
+        // blip, transient error) the exception was uncaught, which killed
+        // the rest of checkUser() before it ever reached the lines below —
+        // header handle/avatar, team notifications, and inbox badges would
+        // all silently stay blank/stale until the next full reload. Same
+        // class of "unhandled fetch error breaks downstream rendering" bug
+        // fixed in my-comics.html and discover.html; wrapping it here so a
+        // failed lookup degrades gracefully instead of aborting everything
+        // after it.
+        try {
+          const { data: freshProfile, error } = await supabaseClient
+            .from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
+          if (error) throw error;
+          if (freshProfile) {
+            // Strip any legacy base64 blobs from the DB row before caching —
+            // they can be several MB and blow the localStorage quota.
+            if (freshProfile.pic    && freshProfile.pic.startsWith('data:image'))    freshProfile.pic    = '';
+            if (freshProfile.banner && freshProfile.banner.startsWith('data:image')) freshProfile.banner = '';
+            myProfile = { ...myProfile, ...freshProfile };
+            ccSaveProfile(myProfile);
+          }
+        } catch (e) {
+          console.error('Failed to load profile:', e);
         }
       }
       applyAccentColor(myProfile.settings?.accent_color);

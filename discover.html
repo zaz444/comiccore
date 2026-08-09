@@ -1052,6 +1052,24 @@ const _sb = supabase.createClient(
 );
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
+// BUGFIX: this page used to fire its live Supabase queries on window.onload
+// with no wait at all. createClient() returns synchronously, but restoring/
+// validating the persisted session from storage happens asynchronously
+// inside the client — any query fired before that finishes can race it
+// (same class of gotcha documented in my-comics.html, which guards against
+// it by waiting for onAuthStateChange). Discover never guarded against it,
+// which is the likely cause of comics intermittently failing to load right
+// after arriving from login, or after the tab is backgrounded and resumed.
+// INITIAL_SESSION fires exactly once, whether or not there's a session, so
+// this doesn't add any wait for guests — it just guarantees the client has
+// finished settling before the live fetch goes out. The instant cache-paint
+// in loadFeeds() (steps 1–2) is untouched and still renders synchronously.
+let _resolveAuthReady;
+const _authReady = new Promise(resolve => { _resolveAuthReady = resolve; });
+_sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'INITIAL_SESSION') _resolveAuthReady(session);
+});
+
 // ── Accent color (mirrors settings.html / profile.html) ──
 function hexToRgb(hex) {
   const clean = (hex || '').replace('#', '');
@@ -1518,13 +1536,36 @@ async function loadFeeds() {
   }
 
   // ── 3. Fetch only what's needed — no full data blobs ────
-  const [{ data: comics }, { data: ratings }] = await Promise.all([
-    _sb.from('comics')
-      .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked,views')
-      .order('created_at', { ascending: false })
-      .limit(80),
-    _sb.from('messages').select('receiver_hand,content').eq('reaction','rating').limit(2000),
-  ]);
+  // BUGFIX: this used to destructure only `data` and ignore `error`. If
+  // either query failed (most commonly an auth/session race right after
+  // login — the same class of Supabase gotcha noted elsewhere in this file),
+  // `comics`/`ratings` came back null, allComics silently became [], and
+  // renderComics([]) showed the false "No comics yet" empty state — which
+  // then got written into cc-comics-cache for the next 2 minutes, so even a
+  // retry kept showing empty. Now a failed fetch leaves whatever is already
+  // on screen alone (instead of overwriting it with emptiness) and never
+  // poisons the cache; the next successful load replaces it normally.
+  //
+  // Also wait for the client's session restore to settle (see _authReady
+  // above) before firing this fetch, so it isn't racing that restore.
+  await _authReady;
+  let comics, ratings;
+  try {
+    const [comicsRes, ratingsRes] = await Promise.all([
+      _sb.from('comics')
+        .select('id,title,cover,owner_handle,owner_name,created_at,tags,swipe_dir,toonscroll_status,canvas_ratio,age_rating,age_rating_locked,views')
+        .order('created_at', { ascending: false })
+        .limit(80),
+      _sb.from('messages').select('receiver_hand,content').eq('reaction','rating').limit(2000),
+    ]);
+    if (comicsRes.error || ratingsRes.error) throw (comicsRes.error || ratingsRes.error);
+    comics  = comicsRes.data;
+    ratings = ratingsRes.data;
+  } catch (e) {
+    console.error('Failed to load feed:', e);
+    if (!allComics.length) showComicSkeletons();
+    return Promise.resolve();
+  }
 
   allComics     = (comics || []).filter(c => c.title && c.owner_handle);
   globalRatings = ratings || [];

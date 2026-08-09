@@ -453,9 +453,13 @@ async function initMyComics(session) {
   // Default tab is drafts — show Select button
   document.getElementById('select-toggle-btn').classList.add('visible');
 
-  await loadDrafts();
-  await loadPublished();
-  await loadCollab();
+  // BUGFIX: these used to run as a plain sequential await chain, so an
+  // uncaught error thrown by any one loader (see the ReferenceError fixed
+  // above) silently aborted everything after it — including renderDrafts(),
+  // which is why drafts could show a correct count but never actually
+  // appear on screen. Each load now fails on its own without blocking the
+  // others, and stats/rendering always run afterward no matter what.
+  await Promise.allSettled([loadDrafts(), loadPublished(), loadCollab()]);
   renderStats();
   renderDrafts();
   buildRatioGrid();
@@ -535,7 +539,7 @@ async function loadDrafts() {
 async function loadPublished() {
   if (!myHandle) { published = []; document.getElementById('pub-count').innerText = 0; return; }
 
-  let data, error;
+  let data, error, thrownErr = null;
   try {
     ({ data, error } = await _sb.from('comics')
       .select('id,title,description,cover,tags,stars,data,storage_path,canvas_ratio,created_at,owner_handle,owner_handles')
@@ -543,6 +547,7 @@ async function loadPublished() {
       .order('id', { ascending: false }));
   } catch (e) {
     error = e;
+    thrownErr = e;
   }
 
   if (error) {
@@ -557,7 +562,16 @@ async function loadPublished() {
     // published comics reappear as "clones" that looked impossible to remove.
     // Only trust the cache when we're actually offline; otherwise surface the
     // real error so a genuine delete isn't masked by a stale snapshot.
-    const genuinelyOffline = !navigator.onLine || (e instanceof TypeError);
+    //
+    // BUGFIX 2: `e` used to be read here directly, but `e` only exists inside
+    // the `catch(e)` block above — referencing it here threw an uncaught
+    // ReferenceError on every structured (non-thrown) Supabase error, which
+    // silently killed the rest of initMyComics()'s await chain (loadCollab,
+    // renderStats, renderDrafts, buildRatioGrid never ran). That's why drafts
+    // showed a correct count but an empty list, Published stayed stuck, and
+    // the topbar never left "Loading…" until a full logout/relaunch. Now we
+    // capture the thrown exception (if any) in `thrownErr` above instead.
+    const genuinelyOffline = !navigator.onLine || (thrownErr instanceof TypeError);
 
     if (genuinelyOffline) {
       published = window.CCOffline ? await CCOffline.getCachedMyComics(myHandle) : [];
