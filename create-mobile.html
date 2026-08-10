@@ -3630,15 +3630,22 @@ function _renderNow() {
             const img = document.createElement('img');
             img.src = bg;
             const sv2 = Math.max(1, typeof scale === 'number' ? scale : 1);
+            // 1.25x baseline overscan: cover-fit only leaves pan room on the overflowing axis
+            // (e.g. a landscape photo on a square canvas has zero vertical slack at 1x) —
+            // this guarantees both X and Y sliders always have room to move
+            const svPan2 = sv2 * 1.25;
             img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;' + objPosCSS
-                + 'transform:scale(' + sv2 + ') rotate(' + rotate + 'deg);'
+                + 'transform:scale(' + svPan2 + ') rotate(' + rotate + 'deg);'
                 + 'transform-origin:center center;pointer-events:none;';
             wrapper.appendChild(img);
             bgLayer.appendChild(wrapper);
         } else {
             // static image: cover fill + pan via object-position, extra zoom/rotate via transform
             const sv  = Math.max(1, typeof scale === 'number' ? scale : 1);
-            const transformCSS = 'transform:scale(' + sv + ') rotate(' + rotate + 'deg);transform-origin:center center;';
+            // same 1.25x baseline overscan as the animated path, so Y (or X) pan always has room
+            // regardless of how the image's aspect ratio compares to the canvas's
+            const svPan = sv * 1.25;
+            const transformCSS = 'transform:scale(' + svPan + ') rotate(' + rotate + 'deg);transform-origin:center center;';
             if (bgHasFxSrc && bgFxStrength < 100) {
                 // blend: base + fx overlay (matches sprite layer FX)
                 const baseImg = document.createElement('img');
@@ -7186,7 +7193,7 @@ function renderBgEditPreview() {
     const pRotate = s.rotate ?? 0;
     const pObjPosX = Math.max(0, Math.min(100, 50 + ((s.x ?? 0) / 2)));
     const pObjPosY = Math.max(0, Math.min(100, 50 + ((s.y ?? 0) / 2)));
-    const pTransformCSS = `object-position:${pObjPosX}% ${pObjPosY}%;transform:scale(${pScale}) rotate(${pRotate}deg);transform-origin:center center;`;
+    const pTransformCSS = `object-position:${pObjPosX}% ${pObjPosY}%;transform:scale(${pScale * 1.25}) rotate(${pRotate}deg);transform-origin:center center;`;
 
     if (isImg && hasFxSrc && strength < 100) {
         const base = document.createElement('img');
@@ -8773,8 +8780,11 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     let baseW, baseH;
                     if (imgAR > canvasAR) { baseH = ch; baseW = baseH * imgAR; }
                     else { baseW = cw; baseH = baseW / imgAR; }
-                    const drawW = baseW * scale;
-                    const drawH = baseH * scale;
+                    // same 1.25x baseline overscan as the live canvas (see render()), so exports
+                    // match what's shown on screen and Y pan isn't silently a no-op when the
+                    // image's aspect ratio happens to match the canvas on that axis
+                    const drawW = baseW * scale * 1.25;
+                    const drawH = baseH * scale * 1.25;
                     // pan within the covered overflow (mirrors CSS object-position) — always
                     // gap-free since drawW/drawH >= cw/ch regardless of zoom, so this now applies
                     // at the default 1x zoom too, not just when zoomed in
@@ -10129,7 +10139,9 @@ document.addEventListener('gesturechange', function(e) {
         const inner = document.getElementById('move-bg-frame-inner');
         const scale = s.scale ?? 1;
         const rotate = s.rotate ?? 0;
-        inner.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
+        // same 1.25x baseline overscan as the real canvas, so this modal's preview and the
+        // resulting X/Y range actually match what ends up on the comic panel
+        inner.style.transform = `scale(${scale * 1.25}) rotate(${rotate}deg)`;
         inner.style.transformOrigin = 'center center';
         inner.style.background = '';
         inner.style.backgroundImage = '';
