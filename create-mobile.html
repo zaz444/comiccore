@@ -3639,11 +3639,16 @@ function _renderNow() {
         }
         const imgAR = nat.w / nat.h, canvasAR = cw / ch;
         let baseW, baseH;
-        if (imgAR > canvasAR) { baseH = ch; baseW = baseH * imgAR; } else { baseW = cw; baseH = baseW / imgAR; }
+        if (s.fit) {
+            // contain: whole image visible, letterboxed on one axis — opposite branch of cover
+            if (imgAR > canvasAR) { baseW = cw; baseH = baseW / imgAR; } else { baseH = ch; baseW = baseH * imgAR; }
+        } else if (imgAR > canvasAR) { baseH = ch; baseW = baseH * imgAR; } else { baseW = cw; baseH = baseW / imgAR; }
         const sv = Math.max(1, typeof scale === 'number' ? scale : 1);
-        // 1.25x baseline overscan on top of cover-fit, so there's always pan room even at 1x
-        const drawW = baseW * sv * 1.25;
-        const drawH = baseH * sv * 1.25;
+        // 1.25x baseline overscan on top of cover-fit, so there's always pan room even at 1x —
+        // skipped for fit, since the whole image is already visible with nothing to crop/pan into
+        const overscan = s.fit ? 1 : 1.25;
+        const drawW = baseW * sv * overscan;
+        const drawH = baseH * sv * overscan;
         const posXfrac = Math.max(0, Math.min(100, 50 + (xOff / 2))) / 100;
         const posYfrac = Math.max(0, Math.min(100, 50 + (yOff / 2))) / 100;
         const posX = (cw - drawW) * posXfrac;
@@ -7830,7 +7835,10 @@ function confirmMultiImport() {
     const mode = document.getElementById('multi-insert-mode').value;
     const newFrames = multiFiles.map(f => ({
         layers: [], background: f.dataUrl,
-        bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none' },
+        // fit:true — imported frames show the whole photo (contain), not cropped to fill (cover),
+        // since the user never got a chance to pan/crop it themselves. Not set anywhere else —
+        // "Import Background" (bgChoiceFixed/apply-crop-btn) intentionally keeps cover behavior.
+        bgSettings: { scale: 1, rotate: 0, x: 0, y: 0, filter: 'none', fit: true },
         ratio: (f.w && f.h) ? { w: f.w, h: f.h } : undefined
     }));
     if (mode === 'replace') {
@@ -8776,7 +8784,6 @@ async function renderFrameToCanvas(frame, cw, ch) {
     const ctx = tmp.getContext('2d');
     const bg = frame.background || '#ffffff';
     const s = frame.bgSettings || {};
-    const isCover = false;
     const scale  = typeof s.scale === 'number' ? s.scale : 1;
     const xOff   = s.x      ?? 0;
     const yOff   = s.y      ?? 0;
@@ -8807,15 +8814,21 @@ async function renderFrameToCanvas(frame, cw, ch) {
                     const imgAR = img.naturalWidth / img.naturalHeight;
                     const canvasAR = cw / ch;
                     // base cover size: fills canvas exactly on one axis, overflows the other —
-                    // matches CSS object-fit:cover at scale 1
+                    // matches CSS object-fit:cover at scale 1. When bgSettings.fit is set (frame
+                    // importer), use the opposite branch instead — object-fit:contain, whole image
+                    // visible, letterboxed on one axis. Mirrors the same fit branch in render().
                     let baseW, baseH;
-                    if (imgAR > canvasAR) { baseH = ch; baseW = baseH * imgAR; }
+                    if (s.fit) {
+                        if (imgAR > canvasAR) { baseW = cw; baseH = baseW / imgAR; }
+                        else { baseH = ch; baseW = baseH * imgAR; }
+                    } else if (imgAR > canvasAR) { baseH = ch; baseW = baseH * imgAR; }
                     else { baseW = cw; baseH = baseW / imgAR; }
-                    // same 1.25x baseline overscan as the live canvas (see render()), so exports
-                    // match what's shown on screen and Y pan isn't silently a no-op when the
-                    // image's aspect ratio happens to match the canvas on that axis
-                    const drawW = baseW * scale * 1.25;
-                    const drawH = baseH * scale * 1.25;
+                    // same overscan as the live canvas (see render()), so exports match what's
+                    // shown on screen — skipped for fit, nothing is cropped so there's no pan slack
+                    // to reserve room for
+                    const overscan = s.fit ? 1 : 1.25;
+                    const drawW = baseW * scale * overscan;
+                    const drawH = baseH * scale * overscan;
                     // pan within the covered overflow (mirrors CSS object-position) — always
                     // gap-free since drawW/drawH >= cw/ch regardless of zoom, so this now applies
                     // at the default 1x zoom too, not just when zoomed in
