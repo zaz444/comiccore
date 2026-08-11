@@ -2405,21 +2405,32 @@ function setRatio(w, h) {
     const { cw, ch } = computeCanvasSize(w, h);
 
     const prev = _knownCanvasSizeForRatio(w, h);
+    // fixed: a bogus premature/mid-layout measurement (page still settling, viewport
+    // sheet animating) used to produce a wild scale (e.g. 40x) that flung every layer
+    // on that ratio thousands of px off-canvas — looked exactly like the layer got
+    // deleted. A real device/orientation/viewport change never plausibly moves the
+    // canvas by more than ~6x in either direction, so anything outside that band is
+    // treated as a bad measurement: skip the rescale (layers keep their positions)
+    // and just record the fresh size as the new baseline instead of trusting it blindly.
     if (prev && prev.cw > 0 && prev.ch > 0 && (Math.abs(prev.cw - cw) > 0.5 || Math.abs(prev.ch - ch) > 0.5)) {
         const scale = cw / prev.cw; // aspect is always preserved, so this equals ch/prev.ch too
-        frames.forEach(f => {
-            const fr = getFrameRatio(f);
-            if (fr.w !== w || fr.h !== h) return;
-            (f.layers || []).forEach(l => {
-                if (l.x != null) l.x *= scale;
-                if (l.y != null) l.y *= scale;
-                if (l.w != null) l.w *= scale;
-                if (l.h != null) l.h *= scale;
-                // charHeight ref needs to track pose/action swaps, don't use stale value
-                if (l.charHeight != null) l.charHeight *= scale;
-                if (l.charScale != null) l.charScale *= scale;
+        if (isFinite(scale) && scale > 0.15 && scale < 6) {
+            frames.forEach(f => {
+                const fr = getFrameRatio(f);
+                if (fr.w !== w || fr.h !== h) return;
+                (f.layers || []).forEach(l => {
+                    if (l.x != null) l.x *= scale;
+                    if (l.y != null) l.y *= scale;
+                    if (l.w != null) l.w *= scale;
+                    if (l.h != null) l.h *= scale;
+                    // charHeight ref needs to track pose/action swaps, don't use stale value
+                    if (l.charHeight != null) l.charHeight *= scale;
+                    if (l.charScale != null) l.charScale *= scale;
+                });
             });
-        });
+        } else {
+            console.warn('setRatio: implausible scale ' + scale + ' for ' + w + ':' + h + ' — skipped rescale, kept layer positions as-is');
+        }
     }
     _lastCanvasSizeByRatio[_ratioKey(w, h)] = { cw, ch };
 
@@ -9331,11 +9342,36 @@ window.onload = async function() {
         renderMobFrames();
         updateFrameCounter();
 
+        // fixed: this blank-state paint runs before any real draft/comic data is loaded
+        // (frames is still empty/placeholder here), but the setRatio() call above still
+        // wrote a "known size" into _lastCanvasSizeByRatio for whatever ratio it guessed.
+        // If the real draft/comic that loads a moment later happens to share that same
+        // ratio (very common — 1:1 is the default for both), _knownCanvasSizeForRatio()
+        // would find this bogus early measurement instead of the frame's own genuine
+        // saved _editorW/_editorH stamp, and rescale every real layer (bubbles, sprites,
+        // everything) against a number that has nothing to do with where they were
+        // actually placed — the "dialog/sprite shifted or vanished after loading" bug.
+        // Clearing the cache here forces the real load path (further down, or the
+        // editComicId/editDraftId branches) to fall back to each frame's own stamped
+        // size, which is the only value that's actually meaningful.
+        _lastCanvasSizeByRatio = {};
+
         // re-run setRatio on viewport resize
         if (window.visualViewport) {
+            let _vvResizeTimer = null;
             window.visualViewport.addEventListener('resize', () => {
-                const r = canvasRatio;
-                setRatio(r.w, r.h);
+                // fixed: debounced — mobile fires several resize events in a row while
+                // an OS sheet (sprite upload picker, keyboard, share sheet) animates
+                // open/closed. Each one used to call setRatio() immediately, and each
+                // call re-baselines _lastCanvasSizeByRatio against that in-between
+                // frame, so a burst of events could compound into a real, visible drift
+                // even mid-session. Waiting for the viewport to actually settle means
+                // only the final, correct size ever gets applied.
+                clearTimeout(_vvResizeTimer);
+                _vvResizeTimer = setTimeout(() => {
+                    const r = canvasRatio;
+                    setRatio(r.w, r.h);
+                }, 200);
             });
         }
     })();
