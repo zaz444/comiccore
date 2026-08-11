@@ -9954,7 +9954,13 @@ function toggleOnionMobile() {
 
 // viewport pan/zoom
 
-let vpScale = 1;
+// computeCanvasSize() already fits the frame snug to the viewport on its
+// constrained axis at 100% (just a 24px margin baked in), so starting at 1
+// meant the frame touched the edge on at least one side with zero breathing
+// room. Starting below 1 leaves visible room on BOTH axes right away.
+const VP_DEFAULT_SCALE = 0.8;
+
+let vpScale = VP_DEFAULT_SCALE;
 let vpOffsetX = 0, vpOffsetY = 0;
 let vpZoomTimer = null;
 
@@ -9993,7 +9999,7 @@ function vpZoomStep(delta) {
 }
 
 function vpZoomReset() {
-    vpScale = 1; vpOffsetX = 0; vpOffsetY = 0;
+    vpScale = VP_DEFAULT_SCALE; vpOffsetX = 0; vpOffsetY = 0;
     _applyVpTransform();
     _showZoomIndicator();
 }
