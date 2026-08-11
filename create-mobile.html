@@ -9973,8 +9973,21 @@ function _showZoomIndicator() {
     vpZoomTimer = setTimeout(() => el.classList.remove('visible'), 1400);
 }
 
+// min zoom is dynamic, not a flat 20% — computeCanvasSize() already fits the
+// canvas to whatever screen it's on at 100%, so a bigger viewport means a
+// physically bigger canvas at 100%, which means the same flat 0.2 floor left
+// more unused room on bigger screens. Instead the floor targets an absolute
+// on-screen size (~70px) so the canvas can shrink further before it stops,
+// and how much further scales with however much room the device actually has.
+function _vpMinZoom() {
+    const cw = canvas.offsetWidth || 300;
+    const ch = canvas.offsetHeight || 300;
+    const ABS_MIN_PX = 70;
+    return Math.min(0.2, Math.max(0.05, ABS_MIN_PX / Math.max(cw, ch)));
+}
+
 function vpZoomStep(delta) {
-    vpScale = Math.min(5, Math.max(0.2, vpScale + delta));
+    vpScale = Math.min(5, Math.max(_vpMinZoom(), vpScale + delta));
     _applyVpTransform();
     _showZoomIndicator();
 }
@@ -10059,7 +10072,7 @@ _vpViewport.addEventListener('touchmove', (e) => {
             const rect = _vpViewport.getBoundingClientRect();
             const cx = midX - rect.left - rect.width / 2;
             const cy = midY - rect.top - rect.height / 2;
-            const newScale = Math.min(5, Math.max(0.2, vpScale * scaleChange));
+            const newScale = Math.min(5, Math.max(_vpMinZoom(), vpScale * scaleChange));
             const ratio = newScale / vpScale;
             vpOffsetX = cx + (vpOffsetX - cx) * ratio;
             vpOffsetY = cy + (vpOffsetY - cy) * ratio;
