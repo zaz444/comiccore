@@ -3584,11 +3584,11 @@ function _renderNow() {
             if (imgAR > canvasAR) { baseW = cw; baseH = baseW / imgAR; } else { baseH = ch; baseW = baseH * imgAR; }
         } else if (imgAR > canvasAR) { baseH = ch; baseW = baseH * imgAR; } else { baseW = cw; baseH = baseW / imgAR; }
         const sv = Math.max(1, typeof scale === 'number' ? scale : 1);
-        // 1.25x baseline overscan on top of cover-fit, so there's always pan room even at 1x —
-        // skipped for fit, since the whole image is already visible with nothing to crop/pan into
-        const overscan = s.fit ? 1 : 1.25;
-        const drawW = baseW * sv * overscan;
-        const drawH = baseH * sv * overscan;
+        // no overscan — start at true cover-fit (most zoomed-out while still filling canvas);
+        // pan room comes from the natural overflow on the non-flush axis, or from the user's
+        // scale slider going above 1. Skipping overscan also applies for fit mode (no change).
+        const drawW = baseW * sv;
+        const drawH = baseH * sv;
         const posXfrac = Math.max(0, Math.min(100, 50 + (xOff / 2))) / 100;
         const posYfrac = Math.max(0, Math.min(100, 50 + (yOff / 2))) / 100;
         const posX = (cw - drawW) * posXfrac;
@@ -7198,7 +7198,7 @@ function renderBgEditPreview() {
         const imgAR = pNat.w / pNat.h;
         let baseW, baseH;
         if (imgAR > 1) { baseH = boxSide; baseW = baseH * imgAR; } else { baseW = boxSide; baseH = baseW / imgAR; }
-        const drawW = baseW * pScale * 1.25, drawH = baseH * pScale * 1.25;
+        const drawW = baseW * pScale, drawH = baseH * pScale;
         const pXfrac = Math.max(0, Math.min(100, 50 + ((s.x ?? 0) / 2))) / 100;
         const pYfrac = Math.max(0, Math.min(100, 50 + ((s.y ?? 0) / 2))) / 100;
         const pPosX = (boxSide - drawW) * pXfrac, pPosY = (boxSide - drawH) * pYfrac;
@@ -8829,12 +8829,10 @@ async function renderFrameToCanvas(frame, cw, ch) {
                         else { baseH = ch; baseW = baseH * imgAR; }
                     } else if (imgAR > canvasAR) { baseH = ch; baseW = baseH * imgAR; }
                     else { baseW = cw; baseH = baseW / imgAR; }
-                    // same overscan as the live canvas (see render()), so exports match what's
-                    // shown on screen — skipped for fit, nothing is cropped so there's no pan slack
-                    // to reserve room for
-                    const overscan = s.fit ? 1 : 1.25;
-                    const drawW = baseW * scale * overscan;
-                    const drawH = baseH * scale * overscan;
+                    // no overscan — pure cover-fit minimum, matching the live canvas;
+                    // pan room is the natural non-flush-axis overflow + user scale > 1
+                    const drawW = baseW * scale;
+                    const drawH = baseH * scale;
                     // pan within the covered overflow (mirrors CSS object-position) — always
                     // gap-free since drawW/drawH >= cw/ch regardless of zoom, so this now applies
                     // at the default 1x zoom too, not just when zoomed in
@@ -10223,8 +10221,8 @@ document.addEventListener('gesturechange', function(e) {
             const imgAR = nat.w / nat.h, boxAR = bw / bh;
             let baseW, baseH;
             if (imgAR > boxAR) { baseH = bh; baseW = baseH * imgAR; } else { baseW = bw; baseH = baseW / imgAR; }
-            const drawW = baseW * mbgScale * 1.25;
-            const drawH = baseH * mbgScale * 1.25;
+            const drawW = baseW * mbgScale;
+            const drawH = baseH * mbgScale;
             el.style.backgroundSize = drawW + 'px ' + drawH + 'px';
         }
         el.style.backgroundPosition = Math.max(0, Math.min(100, 50 + mbgX / 2)) + '% ' + Math.max(0, Math.min(100, 50 + mbgY / 2)) + '%';
