@@ -36,7 +36,7 @@
 
 <!-- Loading Screen -->
 <div id="loading-screen">
-  <img src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/discoverimages/loading.gif" alt="">
+  <img id="loading-gif" src="https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/discoverimages/loading.gif" alt="">
   <div class="loading-text">Loading…</div>
 </div>
 
@@ -283,12 +283,38 @@ function hexToRgb(hex) {
   const b = parseInt(clean.slice(4,6), 16);
   return `${r},${g},${b}`;
 }
+// Native loading.gif dots are #ff7a00 (hue ≈ 29°). To recolor the gif to any
+// chosen accent color, we shift its hue by the difference between the
+// target color's hue and this base hue, via a CSS hue-rotate() filter.
+const LOADING_GIF_BASE_HUE = 29;
+function hexToHue(hex) {
+  const clean = (hex || '').replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  if (delta !== 0) {
+    if (max === r) h = 60 * (((g - b) / delta) % 6);
+    else if (max === g) h = 60 * (((b - r) / delta) + 2);
+    else h = 60 * (((r - g) / delta) + 4);
+  }
+  return h < 0 ? h + 360 : h;
+}
 function applyAccentColor(hex) {
   const color = hex || '#ff7a00';
   document.documentElement.style.setProperty('--accent', color);
   document.documentElement.style.setProperty('--accent-rgb', hexToRgb(color));
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = color;
+
+  // Recolor the loading gif's dots to match the chosen accent color.
+  const loaderImg = document.getElementById('loading-gif');
+  if (loaderImg) {
+    const shift = hexToHue(color) - LOADING_GIF_BASE_HUE;
+    loaderImg.style.filter = `hue-rotate(${shift}deg)`;
+  }
 }
 applyAccentColor(myProfile.settings?.accent_color);
 
