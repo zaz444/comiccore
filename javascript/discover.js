@@ -69,12 +69,12 @@ const isModOrAdmin = isAdmin || isMod;
 // age ratings
 // locked after admin touches it
 const AGE_RATINGS = [
-  { code: 'G',     label: 'G',     desc: 'General audiences',          color: '#32d74b' },
-  { code: 'PG',    label: 'PG',    desc: 'Parental guidance',          color: '#64d2ff' },
-  { code: 'PG-13', label: 'PG-13', desc: 'Parents strongly cautioned', color: '#ffd60a' },
-  { code: 'R',     label: 'R',     desc: 'Restricted',                 color: '#ff9f0a' },
-  { code: 'TV-MA', label: 'TV-MA', desc: 'Mature audiences only',      color: '#ff453a' },
+  { code: 'E',  label: 'E',  desc: 'Everyone',              color: '#32d74b' },
+  { code: 'T',  label: 'T',  desc: 'Teen',                  color: '#ffd60a' },
+  { code: 'T+', label: 'T+', desc: 'Teen+ — mature themes', color: '#ff453a' },
 ];
+// 'U' (Unrated) isn't in this list on purpose — it's the implicit placeholder
+// shown when age_rating is null, same role the old 'Rate' label played.
 function ratingMeta(code) { return AGE_RATINGS.find(r => r.code === code) || null; }
 function canEditRating(c) {
   const isMine = c.owner_handle === myProfile.handle;
@@ -86,7 +86,7 @@ function ratingBadgeHtml(c) {
   if (!c.age_rating && !canEdit) return '';
   const meta  = ratingMeta(c.age_rating);
   const color = meta ? meta.color : '#888';
-  const label = meta ? meta.label : 'Rate';
+  const label = meta ? meta.label : 'U';
   const check = c.age_rating_locked ? ' ✓' : '';
   const click = canEdit ? ` onclick="event.stopPropagation(); openRatingPicker('${esc(c.id)}')"` : '';
   return `<div class="tile-age-rating${canEdit ? ' editable' : ''}" style="--rating-color:${color}"${click}>${esc(label)}${check}</div>`;
@@ -892,7 +892,7 @@ async function openPopup(id) {
       const style = meta ? ` style="color:${meta.color};"` : '';
       const attrs = canEdit ? ` onclick="openRatingPicker('${esc(c.id)}')"` : '';
       const check = c.age_rating_locked ? ' <span title="Verified by admin" style="color:#32d74b;">✓</span>' : '';
-      return `<span class="${cls}"${style}${attrs}>${esc(c.age_rating || 'Rate')}${check}</span>`;
+      return `<span class="${cls}"${style}${attrs}>${esc(c.age_rating || 'U')}${check}</span>`;
     })()}`;
 
   // desc
