@@ -774,7 +774,6 @@ async function bootStory(story) {
   document.getElementById('bot-bar').style.display    = 'none';
   document.querySelector('.prog-track').style.display = 'none';
   document.getElementById('vp').style.display         = 'none';
-  document.getElementById('fs-btn').style.display     = 'none';
 
   // Wire existing top-bar buttons to story context
   document.getElementById('comment-btn').onclick = openComments;
@@ -2388,7 +2387,6 @@ function toggleFS() {
   }
 }
 document.addEventListener('fullscreenchange', () => {
-  document.getElementById('fs-btn').innerHTML = document.fullscreenElement ? '✕⛶' : '⛶';
   renderFrame();
 });
 
