@@ -6,7 +6,7 @@ const _sb = supabase.createClient(
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
 // bump this whenever you deploy changes that need a fresh cache
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CC_COMICS  = `cc-comics-cache-${CACHE_VERSION}`;
 const CC_RATINGS = `cc-ratings-cache-${CACHE_VERSION}`;
 const CC_FEEDS_TS = `cc-feeds-ts-${CACHE_VERSION}`;
@@ -366,7 +366,7 @@ async function loadTopCreators(tab) {
           count: comicsByOwner[h] || 0   // kept for reference, not displayed
         }))
         .filter(h => h.bestRating > 0)   // only show creators with at least one rated comic
-        .sort((a, b) => b.bestRating - a.bestRating)
+        .sort((a, b) => b.bestRating - a.bestRating || b.raterCount - a.raterCount)
         .slice(0, 10);
 
       if (!ranked.length) { list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">No data yet</div>'; return; }
