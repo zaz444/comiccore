@@ -6,7 +6,7 @@ const _sb = supabase.createClient(
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
 // bump this whenever you deploy changes that need a fresh cache
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v5';
 const CC_COMICS  = `cc-comics-cache-${CACHE_VERSION}`;
 const CC_RATINGS = `cc-ratings-cache-${CACHE_VERSION}`;
 const CC_FEEDS_TS = `cc-feeds-ts-${CACHE_VERSION}`;
@@ -428,7 +428,7 @@ function renderTopCreators(creators, tab) {
     if (tab === 'stars') {
       const raterCount = c.raterCount || 0;
       statHtml = `<div class="creator-rank-stat" style="display:flex;align-items:center;gap:4px;">
-        ${starNumIcon(c.bestRating)}
+        ${starNumIcon(c.bestRating, 'md')}
         ${raterCount > 0 ? `<span style="font-size:10px;color:#888;font-weight:700;">(${raterCount})</span>` : ''}
       </div>`;
     } else {
@@ -1989,7 +1989,9 @@ function starCountToRating(count) {
 // star icon
 function starNumIcon(rating, size) {
   const GOLD = '#ffd700';
-  const cls = size === 'lg' ? 'star-num-icon star-num-icon-lg' : 'star-num-icon';
+  const cls = size === 'lg' ? 'star-num-icon star-num-icon-lg'
+            : size === 'md' ? 'star-num-icon star-num-icon-md'
+            : 'star-num-icon';
   const label = (Math.round(rating * 10) / 10).toFixed(1).replace(/\.0$/, '');
   return `<span class="${cls}">
     <svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${GOLD}" stroke="${GOLD}" stroke-width="1" stroke-linejoin="round"/></svg>
