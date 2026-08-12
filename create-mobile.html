@@ -613,6 +613,10 @@
         cursor: pointer; transition: 0.15s;
     }
     .mob-layer-item.active-l { border-color: var(--accent); background: rgba(255,122,0,0.1); }
+    .mob-layer-item.pinned-l { border-color: #00d2ff; }
+    .mob-layer-item .l-pin { background: none; border: none; color: #444; cursor: pointer; font-size: 14px; padding: 4px 6px; flex-shrink: 0; }
+    .mob-layer-item .l-pin.pinned { color: #00d2ff; }
+    .mob-layer-item .l-pin:active { color: #00d2ff; }
     .mob-layer-item .l-thumb {
         width: 32px; height: 32px; border-radius: 6px; background: #333;
         object-fit: contain; flex-shrink: 0;
@@ -1616,7 +1620,7 @@
         <div class="mob-layer-actions">
             <button class="mob-lay-btn" onclick="sbCopyLayer()" title="Copy"><i class="fi fi-rs-copy"></i></button>
             <button class="mob-lay-btn" onclick="sbPasteLayer()" title="Paste"><i class="fi fi-rs-paste"></i></button>
-            <button class="mob-lay-btn" onclick="toggleSelectedLayerLock()" title="Lock"><i class="fi fi-rs-lock"></i></button>
+            <button class="mob-lay-btn" onclick="toggleSelectedLayerPin()" title="Pin"><i class="fi fi-rs-thumbtack"></i></button>
             <button class="mob-lay-btn danger" onclick="deleteLayer()" title="Delete"><i class="fi fi-rs-trash"></i></button>
         </div>
         <!-- layer order -->
@@ -2301,6 +2305,11 @@ let currentIdx = 0;
 let history = [], redoStack = [];
 let activeLayer = null;
 let selectedLayers = [];
+// pin targeting: when one or more layers are pinned, canvas taps on any non-pinned layer are ignored
+function anyLayersPinned() {
+    const f = frames[currentIdx];
+    return !!(f && f.layers && f.layers.some(l => l.pinned));
+}
 let cropper = null;
 let currentImportType = null;
 let hasUnsavedChanges = false;
@@ -2733,86 +2742,6 @@ function isAnimatedBg(src) {
 
 // render
 
-// layer context menu
-let _ctxMenuTimer = null;
-let _ctxMenuLayer = null;
-
-function showCtxMenu(x, y, layer) {
-    _ctxMenuLayer = layer;
-    const menu = document.getElementById('layer-ctx-menu');
-    // change action only for pack sprites
-    const changeActionItem = document.getElementById('ctx-change-action');
-    if (changeActionItem) changeActionItem.style.display = (layer.type === 'img' && layer.packData) ? 'block' : 'none';
-    menu.style.display = 'block';
-    // dont go off screen
-    const mw = 180, mh = 240;
-    menu.style.left = Math.min(x, window.innerWidth  - mw - 10) + 'px';
-    menu.style.top  = Math.min(y, window.innerHeight - mh - 10) + 'px';
-    // close on outside tap, slight delay
-    setTimeout(() => document.addEventListener('touchstart', closeCtxMenu, { once: true }), 50);
-}
-
-function closeCtxMenu() {
-    document.getElementById('layer-ctx-menu').style.display = 'none';
-    // delay clear so handlers can read layer
-    setTimeout(() => { _ctxMenuLayer = null; }, 50);
-}
-
-function ctxDuplicate() {
-    const layer = _ctxMenuLayer;
-    closeCtxMenu();
-    if (!layer) return;
-    saveState();
-    const copy = JSON.parse(JSON.stringify(layer));
-    copy.id = Date.now();
-    const cw = canvas.offsetWidth || 300;
-    const ch = canvas.offsetHeight || 300;
-    copy.x = Math.min(Math.round(copy.x || 0) + 20, cw - (copy.w || 100));
-    copy.y = Math.min(Math.round(copy.y || 0) + 20, ch - (copy.h || 100));
-    frames[currentIdx].layers.push(copy);
-    activeLayer = copy; render();
-}
-function ctxBringForward() {
-    const layer = _ctxMenuLayer;
-    closeCtxMenu();
-    if (!layer) return;
-    saveState();
-    const layers = frames[currentIdx].layers;
-    const idx = layers.indexOf(layer);
-    if (idx < layers.length - 1) { [layers[idx], layers[idx+1]] = [layers[idx+1], layers[idx]]; render(); }
-}
-function ctxSendBack() {
-    const layer = _ctxMenuLayer;
-    closeCtxMenu();
-    if (!layer) return;
-    saveState();
-    const layers = frames[currentIdx].layers;
-    const idx = layers.indexOf(layer);
-    if (idx > 0) { [layers[idx], layers[idx-1]] = [layers[idx-1], layers[idx]]; render(); }
-}
-function ctxFlip() {
-    const layer = _ctxMenuLayer;
-    closeCtxMenu();
-    if (!layer) return;
-    saveState();
-    layer.flipped = !layer.flipped; render();
-}
-function ctxChangeAction() {
-    const layer = _ctxMenuLayer;
-    closeCtxMenu();
-    if (!layer || !layer.packData) return;
-    activeLayer = layer;
-    openActionModal(layer.packData, true);
-}
-function ctxDelete() {
-    const layer = _ctxMenuLayer;
-    closeCtxMenu();
-    if (!layer) return;
-    saveState();
-    frames[currentIdx].layers = frames[currentIdx].layers.filter(l => l !== layer);
-    if (activeLayer === layer) activeLayer = null;
-    render();
-}
 function openTextEdit(layer) {
     // double tap / Edit Text now opens the full transform sheet's text editor instead of the old CAMC popup
     activeLayer = layer;
@@ -3892,22 +3821,17 @@ function _renderNow() {
             el.style.overflow = 'visible';
         }
 
-        // long press = menu, double tap = edit
+        // double tap = edit
         let _lastTapTime = 0;
         // tap = select, drag = move, stop prop for pinch
         el.addEventListener('touchstart', (e) => {
-            // long press = context menu
-            const touchX = e.touches[0].clientX;
-            const touchY = e.touches[0].clientY;
-            _ctxMenuTimer = setTimeout(() => {
-                showCtxMenu(touchX, touchY, layer);
-                _ctxMenuLayer = layer;
-            }, 600);
+            // pin targeting: if any layer is pinned, taps on a non-pinned layer are ignored
+            // (prevents accidentally grabbing something underneath). Pin/unpin from the layers panel.
+            if (anyLayersPinned() && !layer.pinned) return;
 
             // double tap = edit text
             const now = Date.now();
             if (now - _lastTapTime < 300 && (layer.type === 'bubble' || layer.type === 'thinking' || layer.type === 'text' || layer.type === 'subtitle')) {
-                clearTimeout(_ctxMenuTimer);
                 openTextEdit(layer);
             }
             _lastTapTime = now;
@@ -3926,7 +3850,6 @@ function _renderNow() {
             }
             e.preventDefault();
             e.stopPropagation();
-            if (layer.locked) return; // locked layers cannot be moved or selected
             selectLayerLight(layer);
             // instant resize handles on tap, used to need a re-render or double-tap first
             canvas.querySelectorAll('.resize-handle, .rotate-handle, .rotate-handle-stem, .tail-scroller-track, .tail-scroller-handle, .sqa-corner-toggle').forEach(h => h.remove());
@@ -3936,21 +3859,21 @@ function _renderNow() {
             if (['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type)) attachSqaEditToggle(el, layer);
             startTouchDrag(e, layer);
         }, { passive: false });
-        el.addEventListener('mousedown', (e) => { e.preventDefault(); if (!layer.locked) { selectLayer(layer); startDrag(e, layer); } });
+        el.addEventListener('mousedown', (e) => { e.preventDefault(); if (anyLayersPinned() && !layer.pinned) return; selectLayer(layer); startDrag(e, layer); });
 
-        // lock badge on locked layers
-        if (layer.locked) {
-            el.style.opacity = ((layer.fxOpacity != null ? layer.fxOpacity / 100 : 1) * 0.6) + '';
-            const lockBadge = document.createElement('div');
-            lockBadge.style.cssText = 'position:absolute;top:2px;right:2px;font-size:10px;background:rgba(0,0,0,0.6);border-radius:3px;padding:1px 3px;pointer-events:none;z-index:10;';
-            lockBadge.innerText = '🔒';
-            el.appendChild(lockBadge);
+        // pin badge on targeted layers; dim layers that are shut out while a pin is active
+        if (layer.pinned) {
+            const pinBadge = document.createElement('div');
+            pinBadge.style.cssText = 'position:absolute;top:2px;right:2px;font-size:10px;color:var(--accent);background:rgba(0,0,0,0.6);border-radius:3px;padding:2px 3px;pointer-events:none;z-index:10;';
+            pinBadge.innerHTML = '<i class="fi fi-rs-thumbtack"></i>';
+            el.appendChild(pinBadge);
+        } else if (anyLayersPinned()) {
+            el.style.opacity = ((layer.fxOpacity != null ? layer.fxOpacity / 100 : 1) * 0.5) + '';
         }
 
         // double tap = transform sheet
         let lastTap = 0;
         el.addEventListener('touchend', (e) => {
-            clearTimeout(_ctxMenuTimer); // cancel long-press
             if (e.changedTouches.length === 1) {
                 const now = Date.now();
                 if (!_isDragging && now - lastTap < 300) { e.preventDefault(); openTransformSheet(); }
@@ -3959,16 +3882,16 @@ function _renderNow() {
         }, { passive: false });
 
         // resize handles or tail scroller depending on layer type
-        if (layer === activeLayer && layer.type === 'img' && !layer.locked) {
+        if (layer === activeLayer && layer.type === 'img') {
             attachResizeHandles(el, layer);
         }
-        if (layer === activeLayer && layer.type === 'panel' && !layer.locked) {
+        if (layer === activeLayer && layer.type === 'panel') {
             attachPanelResizeHandles(el, layer);
         }
-        if (layer === activeLayer && (layer.type === 'bubble' || layer.type === 'thinking') && !layer.locked) {
+        if (layer === activeLayer && (layer.type === 'bubble' || layer.type === 'thinking')) {
             attachTailHandle(el, layer);
         }
-        if (layer === activeLayer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type) && !layer.locked) {
+        if (layer === activeLayer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type)) {
             attachSqaEditToggle(el, layer);
         }
 
@@ -4249,7 +4172,7 @@ function updateSpriteQuickBar(layer) {
     const isSprite   = !!layer && layer.type === 'img';
     const isPanel    = !!layer && layer.type === 'panel';
     const isTextLike = !!layer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type);
-    if (!layer || layer.locked || (!isSprite && !isTextLike && !isPanel)) {
+    if (!layer || (!isSprite && !isTextLike && !isPanel)) {
         bar.classList.remove('show');
         bar.innerHTML = '';
         updateCfbExtras(null);
@@ -4318,9 +4241,9 @@ function updateSpriteQuickBar(layer) {
 function updateCfbExtras(layer) {
     const extras = document.getElementById('cfb-text-extras');
     if (!extras) return;
-    const isTextLike = !!layer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type) && !layer.locked;
-    const isSprite   = !!layer && layer.type === 'img' && !layer.locked;
-    const isPanel    = !!layer && layer.type === 'panel' && !layer.locked;
+    const isTextLike = !!layer && ['bubble', 'thinking', 'text', 'subtitle'].includes(layer.type);
+    const isSprite   = !!layer && layer.type === 'img';
+    const isPanel    = !!layer && layer.type === 'panel';
     if (!isTextLike && !isSprite && !isPanel) {
         extras.classList.remove('show');
         extras.innerHTML = '';
@@ -4353,7 +4276,6 @@ function updateCfbExtras(layer) {
 var _isDragging = false; // blocks double-tap-to-transform during a drag
 function startTouchDrag(e, layer) {
     if (e.touches.length > 1) return;
-    clearTimeout(_ctxMenuTimer); // cancel long-press — user is dragging, not holding
     var touch = e.touches[0];
     var fingerStartX = touch.clientX;
     var fingerStartY = touch.clientY;
@@ -4497,12 +4419,12 @@ function deselectLayer(e) {
     }
 }
 function handleViewportClick(e) {
+    // close sheets too
+    if (e.target === document.getElementById('sheet-overlay')) closeAllSheets();
     // tap viewport bg = deselect
     if (e.target === document.getElementById('viewport') || e.target === document.getElementById('canvas-container')) {
         activeLayer = null; selectedLayers = []; closeTransformSheet(); render();
     }
-    // close sheets too
-    if (e.target === document.getElementById('sheet-overlay')) closeAllSheets();
 }
 
 // undo/redo
@@ -5153,13 +5075,12 @@ function renderMobLayers() {
     [...f.layers].reverse().forEach((layer, ri) => {
         const i = f.layers.length - 1 - ri; // actual index in f.layers
         const item = document.createElement('div');
-        item.className = 'mob-layer-item' + (layer === activeLayer ? ' active-l' : '');
+        item.className = 'mob-layer-item' + (layer === activeLayer ? ' active-l' : '') + (layer.pinned ? ' pinned-l' : '');
         item.dataset.layerIdx = i;
 
         const ico = layer.type === 'img' ? '🖼' : layer.type === 'bubble' ? '💬' :
                     layer.type === 'thinking' ? '💭' : layer.type === 'subtitle' ? '📋' :
                     layer.type === 'panel' ? '▭' : '✍️';
-        const lockIcon = layer.locked ? ' 🔒' : '';
         const name = getLayerName(layer, i);
 
         // drag handle
@@ -5176,7 +5097,7 @@ function renderMobLayers() {
         // info
         const info = document.createElement('div');
         info.className = 'l-info';
-        info.innerHTML = `<div class="l-name">${name}${lockIcon}</div><div class="l-type">${layer.type}</div>`;
+        info.innerHTML = `<div class="l-name">${name}</div><div class="l-type">${layer.type}</div>`;
 
         // double tap to rename
         let nameTapTime = 0;
@@ -5188,6 +5109,17 @@ function renderMobLayers() {
             }
             nameTapTime = now;
         });
+
+        // pin button — target this layer so canvas taps on other layers are ignored
+        const pin = document.createElement('button');
+        pin.className = 'l-pin' + (layer.pinned ? ' pinned' : '');
+        pin.innerHTML = '<i class="fi fi-rs-thumbtack"></i>';
+        pin.title = layer.pinned ? 'Unpin' : 'Pin (protect from stray taps on other layers)';
+        pin.onclick = e => {
+            e.stopPropagation();
+            layer.pinned = !layer.pinned;
+            render(); renderMobLayers();
+        };
 
         // delete button
         const del = document.createElement('button');
@@ -5203,17 +5135,19 @@ function renderMobLayers() {
         item.appendChild(handle);
         item.appendChild(icoEl);
         item.appendChild(info);
+        item.appendChild(pin);
         item.appendChild(del);
 
-        if (layer.locked) item.style.opacity = '0.5';
+        if (anyLayersPinned() && !layer.pinned) item.style.opacity = '0.5';
 
-        // select on tap
+        // select on tap — always works from the layers panel regardless of pin state
         let tapStartTime = 0, tapMoved = false;
         item.addEventListener('touchstart', () => { tapStartTime = Date.now(); tapMoved = false; }, { passive: true });
         item.addEventListener('touchmove', () => { tapMoved = true; }, { passive: true });
         item.addEventListener('touchend', () => {
-            if (!tapMoved && Date.now() - tapStartTime < 400 && !layer.locked) {
-                activeLayer = layer; fxEditingBg = false; render(); renderMobLayers();
+            if (!tapMoved && Date.now() - tapStartTime < 400) {
+                activeLayer = layer; fxEditingBg = false;
+                render(); renderMobLayers();
             }
         });
         item.ondblclick = () => openTransformSheet();
@@ -9919,10 +9853,10 @@ async function computeBgFx() {
     bgFx._fxSrc = c.toDataURL('image/png');
 }
 
-function toggleSelectedLayerLock() {
+function toggleSelectedLayerPin() {
+    // pins are a targeting/workflow aid, not a content edit — kept out of undo history
     if (!activeLayer) return;
-    saveState();
-    activeLayer.locked = !activeLayer.locked;
+    activeLayer.pinned = !activeLayer.pinned;
     render();
     renderMobLayers();
 }
@@ -10969,21 +10903,6 @@ function openSpriteEditorEdit(id, name, imageData, actions) {
     </div>
 </div>
 
-
-<!-- context menu -->
-<div id="layer-ctx-menu" style="display:none;position:fixed;z-index:9000;background:#1a1a1a;border:1px solid #333;border-radius:14px;padding:6px;box-shadow:0 8px 32px rgba(0,0,0,.8);min-width:170px;">
-    <div class="ctx-item" id="ctx-change-action" onclick="ctxChangeAction()" style="display:none;color:#ff7a00;">🎬 Change Action</div>
-    <div class="ctx-item" onclick="ctxDuplicate()"><i class="fi fi-rs-clone"></i> Duplicate</div>
-    <div class="ctx-item" onclick="ctxBringForward()">⬆ Bring Forward</div>
-    <div class="ctx-item" onclick="ctxSendBack()">⬇ Send Back</div>
-    <div class="ctx-item" onclick="ctxFlip()">↔ Flip</div>
-    <div class="ctx-item ctx-danger" onclick="ctxDelete()"><i class="fi fi-rs-trash"></i> Delete</div>
-</div>
-<style>
-.ctx-item { padding:10px 14px; font-size:13px; font-weight:700; color:#f5f5f7; border-radius:8px; cursor:pointer; -webkit-tap-highlight-color: transparent; }
-.ctx-item:active { background:#2a2a2a; }
-.ctx-item.ctx-danger { color:#ff453a; }
-</style>
 
 <!-- bg adjust bar -->
 <div id="bg-adjust-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:1200;background:#161618;border-top:1px solid #2a2a2c;border-radius:20px 20px 0 0;padding:12px 16px 24px;box-shadow:0 -6px 30px rgba(0,0,0,0.6);">
