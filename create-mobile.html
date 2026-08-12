@@ -595,7 +595,7 @@
 
     /* ── LAYERS SHEET ── */
     .mob-layer-actions {
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px;
     }
     .mob-lay-btn {
         background: #222; border: 1px solid #333; color: #aaa;
@@ -612,7 +612,8 @@
         background: #222; border: 1.5px solid #2c2c2e; border-radius: 10px;
         cursor: pointer; transition: 0.15s;
     }
-    .mob-layer-item.active-l { border-color: var(--accent); background: rgba(255,122,0,0.1); }
+    .mob-layer-item.active-l { border-color: var(--accent); background: rgba(255,122,0,0.22); box-shadow: inset 0 0 0 1px rgba(255,122,0,0.3); }
+    .mob-layer-item.active-l .l-name { color: var(--accent); }
     .mob-layer-item.pinned-l { border-color: #00d2ff; }
     .mob-layer-item .l-pin { background: none; border: none; color: #444; cursor: pointer; font-size: 14px; padding: 4px 6px; flex-shrink: 0; }
     .mob-layer-item .l-pin.pinned { color: #00d2ff; }
@@ -1620,8 +1621,6 @@
         <div class="mob-layer-actions">
             <button class="mob-lay-btn" onclick="sbCopyLayer()" title="Copy"><i class="fi fi-rs-copy"></i></button>
             <button class="mob-lay-btn" onclick="sbPasteLayer()" title="Paste"><i class="fi fi-rs-paste"></i></button>
-            <button class="mob-lay-btn" onclick="toggleSelectedLayerPin()" title="Pin"><i class="fi fi-rs-thumbtack"></i></button>
-            <button class="mob-lay-btn danger" onclick="deleteLayer()" title="Delete"><i class="fi fi-rs-trash"></i></button>
         </div>
         <!-- layer order -->
         <div style="display:flex;gap:5px;padding:6px 0 2px;flex-wrap:nowrap;">
@@ -5115,22 +5114,32 @@ function renderMobLayers() {
         pin.className = 'l-pin' + (layer.pinned ? ' pinned' : '');
         pin.innerHTML = '<i class="fi fi-rs-thumbtack"></i>';
         pin.title = layer.pinned ? 'Unpin' : 'Pin (protect from stray taps on other layers)';
-        pin.onclick = e => {
+        const doPinToggle = e => {
             e.stopPropagation();
+            e.preventDefault();
             layer.pinned = !layer.pinned;
             render(); renderMobLayers();
         };
+        // touchend fires before the row's own tap-to-select handler (and before the
+        // list gets rebuilt out from under the finger), so bind there directly —
+        // stopPropagation keeps the row from also treating this as a select-tap.
+        // preventDefault suppresses the trailing synthetic click so it can't double-fire.
+        pin.addEventListener('touchend', doPinToggle);
+        pin.onclick = doPinToggle;
 
         // delete button
         const del = document.createElement('button');
         del.className = 'l-del'; del.innerHTML = '<i class="fi fi-rs-trash"></i>';
-        del.onclick = e => {
+        const doDelete = e => {
             e.stopPropagation();
+            e.preventDefault();
             saveState();
             f.layers.splice(i, 1);
             if (activeLayer === layer) activeLayer = null;
             render(); renderMobLayers();
         };
+        del.addEventListener('touchend', doDelete);
+        del.onclick = doDelete;
 
         item.appendChild(handle);
         item.appendChild(icoEl);
