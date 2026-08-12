@@ -5304,18 +5304,34 @@ function tsApplyPanelRadius(val) {
 function resetTransform() {
     if (!activeLayer) return;
     saveState();
-    activeLayer.w = 200; activeLayer.rotation = 0; activeLayer.flipped = false;
+    activeLayer.rotation = 0; activeLayer.flipped = false;
     if (activeLayer.type === 'img') {
         const resetProbe = new Image();
         resetProbe.onload = () => {
             if (resetProbe.naturalWidth && resetProbe.naturalHeight) {
-                activeLayer.h = Math.round(200 * resetProbe.naturalHeight / resetProbe.naturalWidth);
+                if (activeLayer.insertW && activeLayer.insertH) {
+                    // restore the size it was actually placed at (recorded when the sprite was inserted), not a placeholder
+                    activeLayer.w = activeLayer.insertW;
+                    activeLayer.h = activeLayer.insertH;
+                } else if (activeLayer.charHeight && activeLayer.charScale) {
+                    // legacy character layer with no insertW/insertH on record — rebuild from its canonical height/scale instead
+                    activeLayer.h = activeLayer.charHeight;
+                    activeLayer.w = Math.round(resetProbe.naturalWidth * activeLayer.charScale);
+                } else {
+                    // legacy layer with no canonical size on record at all — last-resort default
+                    activeLayer.w = 200;
+                    activeLayer.h = Math.round(200 * resetProbe.naturalHeight / resetProbe.naturalWidth);
+                }
+                syncTransformSheet();
                 render();
             }
         };
         resetProbe.src = activeLayer.src;
+    } else {
+        activeLayer.w = 200;
+        syncTransformSheet();
+        render();
     }
-    syncTransformSheet(); render();
 }
 function moveLayerZ(dir) {
     if (!activeLayer) return;
@@ -6105,9 +6121,10 @@ function addEffectToCanvas(src, pack) {
         nl.src = cropped.src;
         nl.w = Math.round(cropped.w * scale);
         nl.h = Math.round(cropped.h * scale);
+        nl.insertW = nl.w; nl.insertH = nl.h; // canonical size at insertion — resetTransform() restores to this
         render();
     };
-    probe.onerror = () => { const fb=new Image(); fb.onload=()=>{ nl.h=Math.round(initW*fb.naturalHeight/fb.naturalWidth); render(); }; fb.src=src; };
+    probe.onerror = () => { const fb=new Image(); fb.onload=()=>{ nl.h=Math.round(initW*fb.naturalHeight/fb.naturalWidth); nl.insertW=nl.w; nl.insertH=nl.h; render(); }; fb.src=src; };
     probe.src = src;
 }
 
@@ -6653,6 +6670,8 @@ function addSpriteToCanvas(src, pack) {
             nl.w = Math.round(cropped.w * scale);
             nl.h = Math.round(cropped.h * scale);
         }
+        // canonical size at insertion — resetTransform() restores to this instead of a placeholder
+        nl.insertW = nl.w; nl.insertH = nl.h;
         // bottom center
         nl.x = Math.round((cw - nl.w) / 2);
         nl.y = Math.round(ch - nl.h);
@@ -7627,6 +7646,7 @@ document.getElementById('img-input').addEventListener('change', (e) => {
                 nl.src = cropped.src;
                 nl.w = Math.min(getMaxSpriteSize(), Math.round(cropped.w * scale));
                 nl.h = Math.round(cropped.h * scale);
+                nl.insertW = nl.w; nl.insertH = nl.h; // canonical size at insertion — resetTransform() restores to this
                 render();
             };
             probe.src = ev.target.result;
@@ -7731,6 +7751,7 @@ document.getElementById('apply-crop-btn').onclick = async () => {
                 nl.src = cropped.src;
                 nl.w = Math.round(cropped.w * scale);
                 nl.h = Math.round(cropped.h * scale);
+                nl.insertW = nl.w; nl.insertH = nl.h; // canonical size at insertion — resetTransform() restores to this
                 render();
             };
             probe.onerror = () => render();
