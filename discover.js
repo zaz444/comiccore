@@ -276,6 +276,55 @@ function smartRandomSort(comics, stars) {
 }
 
 
+/** Shared weighted-rating helper — combines average rating, rater count, AND
+ *  how many viewers actually rated (response ratio), so a single lucky
+ *  perfect rating can't outrank a comic with more raters and strong,
+ *  well-evidenced ratings. This is the SINGLE source of truth for "what
+ *  counts as best" — used by both the "Top Comics" sort and the
+ *  "Top Creators · Stars" leaderboard, so the two always agree.
+ *
+ *  NOTE: this discounts low-sample scores toward ZERO, not toward the
+ *  dataset's mean rating. Shrinking toward the mean was tried first, but
+ *  when most ratings in the app already skew near 5★ (as here), that
+ *  actually HELPS a lucky 2-rater 5★ instead of penalizing it — a comic's
+ *  score has to earn its confidence through volume/response, not borrow it
+ *  from the crowd average. */
+function getRatingStats(stars) {
+  const byComic = {}; // comic id -> { sum, count }
+  stars.forEach(s => {
+    const val = parseInt(s.content) || 0;
+    if (!byComic[s.receiver_hand]) byComic[s.receiver_hand] = { sum: 0, count: 0 };
+    byComic[s.receiver_hand].sum   += val;
+    byComic[s.receiver_hand].count += 1;
+  });
+
+  const rated = Object.values(byComic).filter(r => r.count > 0);
+  const globalAvgRaters = rated.length
+    ? rated.reduce((a, r) => a + r.count, 0) / rated.length
+    : 1;
+
+  // Confidence divisor: how many (response-adjusted) raters it takes before
+  // a comic's raw average is mostly trusted. Floor of 4 keeps small/early
+  // datasets from collapsing this to ~1-2, which is what let a single 5★
+  // outrank a proven 4.8★ from 5 raters. Scales up with the dataset so
+  // "average" engagement doesn't count as fully reliable as the app grows.
+  const K = Math.max(4, globalAvgRaters);
+
+  // Ratings-to-views ratio is a second confidence signal: a comic almost
+  // everyone who viewed it also rated (e.g. 5 ratings / 6 views) is far
+  // more trustworthy than the same rater count with sparse view coverage,
+  // so it earns up to 2x "effective" raters. Ratio is clamped to 1 and only
+  // ever adds confidence — missing/zero view data just means no bonus.
+  const weightedScore = (avg, count, views) => {
+    if (!count) return 0;
+    const responseRatio = views > 0 ? Math.min(1, count / views) : 0;
+    const effectiveCount = count * (1 + responseRatio);
+    return avg * (effectiveCount / (effectiveCount + K));
+  };
+
+  return { byComic, globalAvgRaters, K, weightedScore };
+}
+
 // sort
 function setSort(s) {
   currentSort = s;
@@ -292,10 +341,14 @@ function setSort(s) {
 function sortedComics(comics, stars) {
   const c = [...comics];
   if (currentSort === 'popular') {
-    return c.sort((a,b) =>
-      stars.filter(s => s.receiver_hand === b.id).length -
-      stars.filter(s => s.receiver_hand === a.id).length
-    );
+    const { byComic, weightedScore } = getRatingStats(stars);
+    return c.sort((a, b) => {
+      const ra = byComic[a.id] || { sum: 0, count: 0 };
+      const rb = byComic[b.id] || { sum: 0, count: 0 };
+      const scoreA = weightedScore(ra.count ? ra.sum / ra.count : 0, ra.count, a.views);
+      const scoreB = weightedScore(rb.count ? rb.sum / rb.count : 0, rb.count, b.views);
+      return scoreB - scoreA || rb.count - ra.count;
+    });
   }
   if (currentSort === 'oldest') return c.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   if (currentSort === 'smart_random') return smartRandomSort(c, stars);
@@ -328,32 +381,11 @@ async function loadTopCreators(tab) {
 
   try {
     if (tab === 'stars') {
-      // rank by best comic avg rating not total stars
-
-      // sum ratings per comic
-      const ratingsByComic = {};
-      globalStars.forEach(s => {
-        const val = parseInt(s.content) || 0;
-        if (!ratingsByComic[s.receiver_hand]) ratingsByComic[s.receiver_hand] = { sum: 0, count: 0 };
-        ratingsByComic[s.receiver_hand].sum   += val;
-        ratingsByComic[s.receiver_hand].count += 1;
-      });
-
-      // Global prior used to "discount" low-sample-size ratings, so one lucky
-      // 5★ from a single rater can't outrank a comic with dozens of ratings
-      // that average slightly less. Same idea as IMDb's weighted rating.
-      const ratedComicsList = Object.values(ratingsByComic).filter(r => r.count > 0);
-      const globalMeanRating = ratedComicsList.length
-        ? ratedComicsList.reduce((a, r) => a + r.sum, 0) / ratedComicsList.reduce((a, r) => a + r.count, 0)
-        : 0;
-      const globalAvgRaters = ratedComicsList.length
-        ? ratedComicsList.reduce((a, r) => a + r.count, 0) / ratedComicsList.length
-        : 1;
-      const CONFIDENCE_M = Math.max(1, globalAvgRaters); // "how many raters counts as reliable", scales with app size
-
-      function weightedScore(avg, count) {
-        return (count / (count + CONFIDENCE_M)) * avg + (CONFIDENCE_M / (count + CONFIDENCE_M)) * globalMeanRating;
-      }
+      // rank by best comic weighted score, not total stars — same formula
+      // getRatingStats() uses for the "Top Comics" sort, so a creator's
+      // leaderboard stat always matches whichever of their comics is
+      // actually winning under that same definition of "best"
+      const { byComic: ratingsByComic, weightedScore } = getRatingStats(globalStars);
 
       // best rated comic per owner — ranked by weighted score, not raw average,
       // so a comic with more raters and a strong (but not perfect) average wins
@@ -364,7 +396,7 @@ async function loadTopCreators(tab) {
         const r = ratingsByComic[c.id];
         if (!r || r.count === 0) return;
         const avg = r.sum / r.count;
-        const weighted = weightedScore(avg, r.count);
+        const weighted = weightedScore(avg, r.count, c.views);
         if (!bestByOwner[c.owner_handle] || weighted > bestByOwner[c.owner_handle].weighted) {
           bestByOwner[c.owner_handle] = { avgRating: avg, raterCount: r.count, weighted, title: c.title || 'Untitled' };
         }
