@@ -8627,12 +8627,26 @@ async function finalPublish() {
     }
 }
 
-// frame snapshot generation (mobile): render frames, upload jpegs, save urls — reader uses these for instant frame flips
+// a baked JPEG snapshot can only ever hold one still frame, so any frame carrying an
+// animated bg or sprite (gif/webp/apng) must be excluded from snapshotting entirely —
+// otherwise publish silently flattens the animation. reuses the same isAnimatedBg()
+// used by the live editor's own render() (see ~line 3533) so "animated" means the same
+// thing in both places.
+function frameHasAnimatedMedia(f) {
+    if (isAnimatedBg(f.background)) return true;
+    return (f.layers || []).some(l => l.type === 'img' && (isAnimatedBg(l.src) || isAnimatedBg(l._fxSrc)));
+}
+
+// frame snapshot generation (mobile): render frames, upload jpegs, save urls — reader uses these for instant frame flips.
+// Frames with animated media are deliberately skipped (see frameHasAnimatedMedia) — the reader treats a missing
+// frame_snapshots row as "not snapshotted yet" and falls back to its live DOM render for that frame, which renders
+// gif/webp <img> tags natively and so keeps the animation intact.
 async function _generateFrameSnapshots(comicId, onProgress) {
     const SNAP_SIZE = 1200;
     // snapshot dims computed per frame (own ratio now) instead of once for the whole comic
     let upsertRows = [];
     let completed = 0;
+    let animatedIdx = [];
 
     // flush in chunks not one big upsert (same timeout issue as the frames jsonb) — grab-and-clear is atomic in JS's single-threaded loop so it's safe to call concurrently, no row double-flushed or dropped
     async function flushSnapshotRows() {
@@ -8648,6 +8662,13 @@ async function _generateFrameSnapshots(comicId, onProgress) {
     const CONCURRENT_LIMIT = 6;
     async function processFrame(i) {
         try {
+            if (frameHasAnimatedMedia(frames[i])) {
+                // don't bake this one — see frameHasAnimatedMedia comment above
+                animatedIdx.push(i);
+                completed++;
+                if (onProgress) onProgress(completed, frames.length);
+                return;
+            }
             const r = getFrameRatio(frames[i]);
             const ar = (r && r.w && r.h) ? r.w / r.h : 1;
             const snapW = ar >= 1 ? SNAP_SIZE : Math.round(SNAP_SIZE * ar);
@@ -8677,6 +8698,15 @@ async function _generateFrameSnapshots(comicId, onProgress) {
     }
 
     await flushSnapshotRows();
+
+    // clean up stale snapshots left from a prior publish — e.g. a frame that used to be a plain
+    // image and got a JPEG snapshot, but was since replaced with a gif on republish. Without this
+    // the old static row would keep winning in the reader even though frames[] now animates.
+    if (animatedIdx.length) {
+        await Promise.resolve(_supabase.from('frame_snapshots')
+            .delete().eq('comic_id', comicId).in('frame_idx', animatedIdx))
+            .catch((e) => console.warn('Stale snapshot cleanup failed:', e));
+    }
 }
 // end frame snapshots / export
 function openExportModal() { document.getElementById('export-modal').style.display='flex'; openExportFramesTab(); }
