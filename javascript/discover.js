@@ -276,6 +276,37 @@ function smartRandomSort(comics, stars) {
 }
 
 
+/** Shared weighted-rating helper — combines average rating AND rater count so
+ *  a single lucky perfect rating can't outrank a comic with many strong
+ *  ratings (same idea as IMDb's weighted rating). This is the SINGLE source
+ *  of truth for "what counts as best" — used by both the "Top Comics" sort
+ *  and the "Top Creators · Stars" leaderboard, so the two always agree. */
+function getRatingStats(stars) {
+  const byComic = {}; // comic id -> { sum, count }
+  stars.forEach(s => {
+    const val = parseInt(s.content) || 0;
+    if (!byComic[s.receiver_hand]) byComic[s.receiver_hand] = { sum: 0, count: 0 };
+    byComic[s.receiver_hand].sum   += val;
+    byComic[s.receiver_hand].count += 1;
+  });
+
+  const rated = Object.values(byComic).filter(r => r.count > 0);
+  const globalMeanRating = rated.length
+    ? rated.reduce((a, r) => a + r.sum, 0) / rated.reduce((a, r) => a + r.count, 0)
+    : 0;
+  const globalAvgRaters = rated.length
+    ? rated.reduce((a, r) => a + r.count, 0) / rated.length
+    : 1;
+  const M = Math.max(1, globalAvgRaters); // "how many raters counts as reliable", scales with app size
+
+  const weightedScore = (avg, count) => {
+    if (!count) return 0;
+    return (count / (count + M)) * avg + (M / (count + M)) * globalMeanRating;
+  };
+
+  return { byComic, globalMeanRating, M, weightedScore };
+}
+
 // sort
 function setSort(s) {
   currentSort = s;
@@ -292,10 +323,14 @@ function setSort(s) {
 function sortedComics(comics, stars) {
   const c = [...comics];
   if (currentSort === 'popular') {
-    return c.sort((a,b) =>
-      stars.filter(s => s.receiver_hand === b.id).length -
-      stars.filter(s => s.receiver_hand === a.id).length
-    );
+    const { byComic, weightedScore } = getRatingStats(stars);
+    return c.sort((a, b) => {
+      const ra = byComic[a.id] || { sum: 0, count: 0 };
+      const rb = byComic[b.id] || { sum: 0, count: 0 };
+      const scoreA = weightedScore(ra.count ? ra.sum / ra.count : 0, ra.count);
+      const scoreB = weightedScore(rb.count ? rb.sum / rb.count : 0, rb.count);
+      return scoreB - scoreA || rb.count - ra.count;
+    });
   }
   if (currentSort === 'oldest') return c.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   if (currentSort === 'smart_random') return smartRandomSort(c, stars);
@@ -328,26 +363,24 @@ async function loadTopCreators(tab) {
 
   try {
     if (tab === 'stars') {
-      // rank by best comic avg rating not total stars
+      // rank by best comic weighted score, not total stars — same formula
+      // getRatingStats() uses for the "Top Comics" sort, so a creator's
+      // leaderboard stat always matches whichever of their comics is
+      // actually winning under that same definition of "best"
+      const { byComic: ratingsByComic, weightedScore } = getRatingStats(globalStars);
 
-      // sum ratings per comic
-      const ratingsByComic = {};
-      globalStars.forEach(s => {
-        const val = parseInt(s.content) || 0;
-        if (!ratingsByComic[s.receiver_hand]) ratingsByComic[s.receiver_hand] = { sum: 0, count: 0 };
-        ratingsByComic[s.receiver_hand].sum   += val;
-        ratingsByComic[s.receiver_hand].count += 1;
-      });
-
-      // best rated comic per owner
-      const bestByOwner = {}; // handle → { avgRating, raterCount, title }
+      // best rated comic per owner — ranked by weighted score, not raw average,
+      // so a comic with more raters and a strong (but not perfect) average wins
+      // over a comic with a single perfect rating
+      const bestByOwner = {}; // handle → { avgRating, raterCount, weighted, title }
       allComics.forEach(c => {
         if (!c.owner_handle) return;
         const r = ratingsByComic[c.id];
         if (!r || r.count === 0) return;
         const avg = r.sum / r.count;
-        if (!bestByOwner[c.owner_handle] || avg > bestByOwner[c.owner_handle].avgRating) {
-          bestByOwner[c.owner_handle] = { avgRating: avg, raterCount: r.count, title: c.title || 'Untitled' };
+        const weighted = weightedScore(avg, r.count);
+        if (!bestByOwner[c.owner_handle] || weighted > bestByOwner[c.owner_handle].weighted) {
+          bestByOwner[c.owner_handle] = { avgRating: avg, raterCount: r.count, weighted, title: c.title || 'Untitled' };
         }
       });
 
@@ -355,18 +388,20 @@ async function loadTopCreators(tab) {
       const comicsByOwner = {};
       allComics.forEach(c => { if (c.owner_handle) comicsByOwner[c.owner_handle] = (comicsByOwner[c.owner_handle] || 0) + 1; });
 
-      // merge and rank
+      // merge and rank by weighted score (best rating AND rater count both count),
+      // raw rating and rater count only break remaining ties
       const allOwners = [...new Set([...Object.keys(bestByOwner), ...Object.keys(comicsByOwner)])];
       const ranked = allOwners
         .map(h => ({
           handle: h,
           bestRating: bestByOwner[h]?.avgRating  || 0,
           raterCount: bestByOwner[h]?.raterCount || 0,
+          weighted:   bestByOwner[h]?.weighted   || 0,
           bestTitle:  bestByOwner[h]?.title      || '',
           count: comicsByOwner[h] || 0   // kept for reference, not displayed
         }))
         .filter(h => h.bestRating > 0)   // only show creators with at least one rated comic
-        .sort((a, b) => b.bestRating - a.bestRating || b.raterCount - a.raterCount)
+        .sort((a, b) => b.weighted - a.weighted || b.raterCount - a.raterCount)
         .slice(0, 10);
 
       if (!ranked.length) { list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">No data yet</div>'; return; }
