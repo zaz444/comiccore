@@ -5,25 +5,22 @@ const _sb = supabase.createClient(
 );
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
-// BUGFIX: this page used to fire its live Supabase queries on window.onload
-// with no wait at all. createClient() returns synchronously, but restoring/
-// validating the persisted session from storage happens asynchronously
-// inside the client — any query fired before that finishes can race it
-// (same class of gotcha documented in my-comics.html, which guards against
-// it by waiting for onAuthStateChange). Discover never guarded against it,
-// which is the likely cause of comics intermittently failing to load right
-// after arriving from login, or after the tab is backgrounded and resumed.
-// INITIAL_SESSION fires exactly once, whether or not there's a session, so
-// this doesn't add any wait for guests — it just guarantees the client has
-// finished settling before the live fetch goes out. The instant cache-paint
-// in loadFeeds() (steps 1–2) is untouched and still renders synchronously.
+// bump this whenever you deploy changes that need a fresh cache
+const CACHE_VERSION = 'v2';
+const CC_COMICS  = `cc-comics-cache-${CACHE_VERSION}`;
+const CC_RATINGS = `cc-ratings-cache-${CACHE_VERSION}`;
+const CC_FEEDS_TS = `cc-feeds-ts-${CACHE_VERSION}`;
+const CC_STORIES  = `cc-stories-cache-${CACHE_VERSION}`;
+const CC_STORIES_TS = `cc-stories-ts-${CACHE_VERSION}`;
+
+// wait for auth before fetching, stops the race condition on load
 let _resolveAuthReady;
 const _authReady = new Promise(resolve => { _resolveAuthReady = resolve; });
 _sb.auth.onAuthStateChange((event, session) => {
   if (event === 'INITIAL_SESSION') _resolveAuthReady(session);
 });
 
-// ── Accent color (mirrors settings.html / profile.html) ──
+// accent color
 function hexToRgb(hex) {
   const clean = (hex || '').replace('#', '');
   const r = parseInt(clean.slice(0,2), 16);
@@ -31,9 +28,7 @@ function hexToRgb(hex) {
   const b = parseInt(clean.slice(4,6), 16);
   return `${r},${g},${b}`;
 }
-// Native loading.gif dots are #ff7a00 (hue ≈ 29°). To recolor the gif to any
-// chosen accent color, we shift its hue by the difference between the
-// target color's hue and this base hue, via a CSS hue-rotate() filter.
+// rotate gif hue to match accent
 const LOADING_GIF_BASE_HUE = 29;
 function hexToHue(hex) {
   const clean = (hex || '').replace('#', '');
@@ -57,7 +52,7 @@ function applyAccentColor(hex) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = color;
 
-  // Recolor the loading gif's dots to match the chosen accent color.
+  // recolor gif
   const loaderImg = document.getElementById('loading-gif');
   if (loaderImg) {
     const shift = hexToHue(color) - LOADING_GIF_BASE_HUE;
@@ -68,13 +63,11 @@ applyAccentColor(myProfile.settings?.accent_color);
 
 const isAdmin   = myProfile.handle === 'jeffyplays';
 const isMod     = myProfile.settings?.role === 'mod';
-// Mods have the same moderation powers as the admin (delete any comic, manage
-// age ratings on any comic), just not the "Owner" tag itself.
+// mods same as admin basically
 const isModOrAdmin = isAdmin || isMod;
 
-// ── Age ratings ───────────────────────────────────────────
-// Creators can set/change the rating on their own comic. Once an admin/mod sets or
-// changes it, the comic is locked and only an admin/mod can change it from then on.
+// age ratings
+// locked after admin touches it
 const AGE_RATINGS = [
   { code: 'G',     label: 'G',     desc: 'General audiences',          color: '#32d74b' },
   { code: 'PG',    label: 'PG',    desc: 'Parental guidance',          color: '#64d2ff' },
@@ -87,8 +80,7 @@ function canEditRating(c) {
   const isMine = c.owner_handle === myProfile.handle;
   return isModOrAdmin || (isMine && !c.age_rating_locked);
 }
-// Small pill for comic-card tiles: shows the rating if set, or a "Rate" prompt
-// to whoever is allowed to set one. Hidden entirely for everyone else if unrated.
+// rating pill on tile
 function ratingBadgeHtml(c) {
   const canEdit = canEditRating(c);
   if (!c.age_rating && !canEdit) return '';
@@ -115,7 +107,7 @@ let shareComicId    = null;
 let shareComicTitle = null;
 let toastTimer      = null;
 
-// ── Frame-count cache (comics fetched without data column) ───
+// frame count cache
 const frameCountCache = {};
 
 /** Sync — returns count from in-memory cache or localStorage (written by reader.html). */
@@ -142,7 +134,7 @@ async function fetchAndCacheFrameCount(comicId) {
   } catch(e) { return 0; }
 }
 
-// ── Profile cache (to avoid re-fetching same profiles) ────
+// profile cache
 const profileCache = {};
 async function getCachedProfile(handle) {
   if (profileCache[handle]) return profileCache[handle];
@@ -162,7 +154,7 @@ function getPublicAvatarUrl(pic) {
   return data?.publicUrl || '';
 }
 
-// ── Follow system (real one-way follows via `follows` table) ──
+// follow system
 const followCache = {}; // handle -> bool
 
 async function isFollowing(targetHandle) {
@@ -180,14 +172,14 @@ async function tileFollow(btn, handle) {
   btn.classList.add('loading');
   const already = await isFollowing(handle);
   if (already) {
-    // Unfollow
+    // unfollow
     await _sb.from('follows').delete().eq('follower', myProfile.handle).eq('following', handle);
     followCache[handle] = false;
     btn.textContent = 'Follow';
     btn.classList.remove('following');
     showToast(`Unfollowed @${handle}`);
   } else {
-    // Follow
+    // follow
     const { error } = await _sb.from('follows').insert([{ follower: myProfile.handle, following: handle }]);
     if (error) { showToast('Error — try again'); btn.classList.remove('loading'); return; }
     followCache[handle] = true;
@@ -196,11 +188,11 @@ async function tileFollow(btn, handle) {
     showToast(`✅ Now following @${handle}`);
   }
   btn.classList.remove('loading');
-  // Refresh top creators after follow change
+  // refresh leaderboard
   loadTopCreators(currentRankTab);
 }
 
-// ── Connection/follow cache (legacy — keep for share sheet) ────────────────────────────────
+// connection cache, keeping for share sheet
 const connectionCache = {};
 async function getConnectionStatus(targetHandle) {
   if (!myProfile.handle || myProfile.handle === 'guest') return 'guest';
@@ -216,7 +208,7 @@ async function getConnectionStatus(targetHandle) {
   return status;
 }
 
-// ── Helpers ──────────────────────────────────────────────
+// helpers
 function esc(s) {
   return String(s || '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -268,14 +260,13 @@ function getProgress(comicId, totalFrames) {
   } catch(e) { return null; }
 }
 
-// ── Home arrow buttons are pure page navigation ─────────
-// (arrows in header row call goToPage directly)
+// arrow buttons
 
 /** Smart-random: weighted shuffle biasing toward popular but adding variety */
 function smartRandomSort(comics, stars) {
   const starMap = {};
   stars.forEach(s => { starMap[s.receiver_hand] = (starMap[s.receiver_hand] || 0) + 1; });
-  // Give each comic a score = stars + small random noise
+  // score = stars + noise
   const maxStars = Math.max(1, ...comics.map(c => starMap[c.id] || 0));
   return [...comics].sort((a, b) => {
     const scoreA = ((starMap[a.id] || 0) / maxStars) * 0.6 + Math.random() * 0.4;
@@ -285,7 +276,7 @@ function smartRandomSort(comics, stars) {
 }
 
 
-// ── Sort ─────────────────────────────────────────────────
+// sort
 function setSort(s) {
   currentSort = s;
   currentPage = 0;
@@ -311,7 +302,7 @@ function sortedComics(comics, stars) {
   return c.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
-// ── Top Creators ──────────────────────────────────────────
+// top creators
 let currentRankTab = 'stars';
 let topCreatorsData = { stars: [], follows: [] };
 
@@ -327,7 +318,7 @@ async function loadTopCreators(tab) {
   const list = document.getElementById('top-creators-list');
   if (!list) return;
 
-  // Only use cache if it has real data
+  // cache check
   if (topCreatorsData[tab]?.length) {
     renderTopCreators(topCreatorsData[tab], tab);
     return;
@@ -337,22 +328,45 @@ async function loadTopCreators(tab) {
 
   try {
     if (tab === 'stars') {
-      // Primary: count stars per owner via comic ownership
-      const starsByOwner = {};
+      // rank by best comic avg rating not total stars
+
+      // sum ratings per comic
+      const ratingsByComic = {};
       globalStars.forEach(s => {
-        const comic = allComics.find(c => c.id === s.receiver_hand);
-        if (comic?.owner_handle) starsByOwner[comic.owner_handle] = (starsByOwner[comic.owner_handle] || 0) + 1;
+        const val = parseInt(s.content) || 0;
+        if (!ratingsByComic[s.receiver_hand]) ratingsByComic[s.receiver_hand] = { sum: 0, count: 0 };
+        ratingsByComic[s.receiver_hand].sum   += val;
+        ratingsByComic[s.receiver_hand].count += 1;
       });
 
-      // Always also count comics per owner as a signal
+      // best rated comic per owner
+      const bestByOwner = {}; // handle → { avgRating, raterCount, title }
+      allComics.forEach(c => {
+        if (!c.owner_handle) return;
+        const r = ratingsByComic[c.id];
+        if (!r || r.count === 0) return;
+        const avg = r.sum / r.count;
+        if (!bestByOwner[c.owner_handle] || avg > bestByOwner[c.owner_handle].avgRating) {
+          bestByOwner[c.owner_handle] = { avgRating: avg, raterCount: r.count, title: c.title || 'Untitled' };
+        }
+      });
+
+      // fallback: comic count
       const comicsByOwner = {};
       allComics.forEach(c => { if (c.owner_handle) comicsByOwner[c.owner_handle] = (comicsByOwner[c.owner_handle] || 0) + 1; });
 
-      // Merge: use star count if available, else comic count
-      const allOwners = [...new Set([...Object.keys(starsByOwner), ...Object.keys(comicsByOwner)])];
+      // merge and rank
+      const allOwners = [...new Set([...Object.keys(bestByOwner), ...Object.keys(comicsByOwner)])];
       const ranked = allOwners
-        .map(h => ({ handle: h, count: starsByOwner[h] || comicsByOwner[h] || 0 }))
-        .sort((a, b) => b.count - a.count)
+        .map(h => ({
+          handle: h,
+          bestRating: bestByOwner[h]?.avgRating  || 0,
+          raterCount: bestByOwner[h]?.raterCount || 0,
+          bestTitle:  bestByOwner[h]?.title      || '',
+          count: comicsByOwner[h] || 0   // kept for reference, not displayed
+        }))
+        .filter(h => h.bestRating > 0)   // only show creators with at least one rated comic
+        .sort((a, b) => b.bestRating - a.bestRating)
         .slice(0, 10);
 
       if (!ranked.length) { list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">No data yet</div>'; return; }
@@ -368,7 +382,7 @@ async function loadTopCreators(tab) {
       const countMap = {};
       (followCounts || []).forEach(r => { countMap[r.following] = (countMap[r.following] || 0) + 1; });
 
-      // Fallback to comic count if no follows data
+      // fallback if no follows yet
       if (!Object.keys(countMap).length) {
         allComics.forEach(c => { if (c.owner_handle) countMap[c.owner_handle] = (countMap[c.owner_handle] || 0) + 1; });
       }
@@ -400,7 +414,6 @@ function renderTopCreators(creators, tab) {
     list.innerHTML = '<div style="color:#333;font-size:12px;font-weight:700;padding:20px;">No data yet</div>';
     return;
   }
-  const statLabel = tab === 'stars' ? '⭐' : '👥';
   list.innerHTML = creators.map((c, i) => {
     const medal = RANK_MEDALS[i] || (i+1);
     const rankClass = RANK_CLASSES[i] || '';
@@ -409,17 +422,30 @@ function renderTopCreators(creators, tab) {
     const avatarHtml = avatarUrl
       ? `<img class="creator-rank-avatar" data-handle="${esc(c.handle)}" src="${esc(avatarUrl)}" onerror="this.onerror=null;this.src='';this.style.display='none';this.nextElementSibling.style.display='flex';" alt="${esc(c.handle)}"><div class="creator-rank-avatar" style="display:none;align-items:center;justify-content:center;font-size:22px;background:#222;border:2px solid #333;">👤</div>`
       : `<div class="creator-rank-avatar" style="display:flex;align-items:center;justify-content:center;font-size:22px;background:#222;border:2px solid #333;">👤</div>`;
+
+    // stat display
+    let statHtml;
+    if (tab === 'stars') {
+      const raterCount = c.raterCount || 0;
+      statHtml = `<div class="creator-rank-stat" style="display:flex;align-items:center;gap:4px;">
+        ${starNumIcon(c.bestRating)}
+        ${raterCount > 0 ? `<span style="font-size:10px;color:#888;font-weight:700;">(${raterCount})</span>` : ''}
+      </div>`;
+    } else {
+      statHtml = `<div class="creator-rank-stat">👥 ${c.count}</div>`;
+    }
+
     return `
       <a class="creator-rank-card ${rankClass}" href="profile.html?u=${esc(c.handle)}">
         ${isMedal ? `<div class="rank-badge">${medal}</div>` : `<div style="position:absolute;top:6px;left:8px;font-size:9px;color:#444;font-weight:900;">#${i+1}</div>`}
         ${avatarHtml}
         <div class="creator-rank-name">${esc(c.name||c.handle)}</div>
         <div class="creator-rank-handle">@${esc(c.handle)}</div>
-        <div class="creator-rank-stat">${statLabel} ${c.count}</div>
+        ${statHtml}
       </a>`;
   }).join('');
 
-  // Re-hydrate any avatars that were missing from the initial data
+  // hydrate missing avatars
   list.querySelectorAll('img.creator-rank-avatar[src=""]').forEach(async img => {
     const handle = img.dataset.handle;
     if (!handle) return;
@@ -429,23 +455,23 @@ function renderTopCreators(creators, tab) {
   });
 }
 
-// ── Load ─────────────────────────────────────────────────
+// load
 function init() {
-  // Clear any broken cache from old base64-era data
+  // nuke bad cache
   try {
-    const cached = localStorage.getItem('cc-comics-cache');
+    const cached = localStorage.getItem(CC_COMICS);
     if (cached) {
       const arr = JSON.parse(cached);
-      // Old cache had cover as base64 — if first item's cover starts with data: nuke it
+      // old base64 covers, ditch em
       if (arr?.[0]?.cover?.startsWith('data:')) {
-        localStorage.removeItem('cc-comics-cache');
-        localStorage.removeItem('cc-ratings-cache');
-        localStorage.removeItem('cc-feeds-ts');
+        localStorage.removeItem(CC_COMICS);
+        localStorage.removeItem(CC_RATINGS);
+        localStorage.removeItem(CC_FEEDS_TS);
       }
     }
   } catch(e) {
-    localStorage.removeItem('cc-comics-cache');
-    localStorage.removeItem('cc-feeds-ts');
+    localStorage.removeItem(CC_COMICS);
+    localStorage.removeItem(CC_FEEDS_TS);
   }
 
   loadFeeds().then(() => {
@@ -462,11 +488,11 @@ function init() {
 function setupRealtime() {
   _sb.channel('discover_realtime')
     .on('postgres_changes', { event:'*', schema:'public', table:'messages' }, () => {
-      // Only reload comments if reading a comic — don't re-fetch entire feed
+      // comments only if popup open
       if (activeComicId) fetchComments();
     })
     .on('postgres_changes', { event:'UPDATE', schema:'public', table:'comics' }, ({ new: updated }) => {
-      // Live-patch view counts as they land — bypasses the 2-min feed cache entirely
+      // live patch views
       const c = allComics.find(x => x.id === updated.id);
       if (!c || c.views === updated.views) return;
       c.views = updated.views;
@@ -486,11 +512,11 @@ function setupRealtime() {
 }
 
 async function loadFeeds() {
-  // ── 1. Paint from cache INSTANTLY ──────────────────────
+  // 1. cache paint
   const CACHE_TTL = 120000; // 2 min
-  const cachedComics  = localStorage.getItem('cc-comics-cache');
-  const cachedStars   = localStorage.getItem('cc-ratings-cache');
-  const cachedTs      = parseInt(localStorage.getItem('cc-feeds-ts') || '0');
+  const cachedComics  = localStorage.getItem(CC_COMICS);
+  const cachedStars   = localStorage.getItem(CC_RATINGS);
+  const cachedTs      = parseInt(localStorage.getItem(CC_FEEDS_TS) || '0');
   const cacheIsValid  = Date.now() - cachedTs < CACHE_TTL;
 
   if (cachedComics && cachedStars && cacheIsValid) {
@@ -502,7 +528,7 @@ async function loadFeeds() {
     return;
   }
 
-  // ── 2. Stale cache? Paint immediately, refresh silently ─
+  // 2. stale cache, paint then refresh
   if (cachedComics && cachedStars) {
     allComics     = JSON.parse(cachedComics);
     globalRatings = JSON.parse(cachedStars);
@@ -510,23 +536,11 @@ async function loadFeeds() {
     renderComics(allComics, globalRatings);
     loadTopCreators(currentRankTab);
   } else {
-    // No cache yet — show skeleton placeholders while fetching
+    // no cache yet, skeletons
     showComicSkeletons();
   }
 
-  // ── 3. Fetch only what's needed — no full data blobs ────
-  // BUGFIX: this used to destructure only `data` and ignore `error`. If
-  // either query failed (most commonly an auth/session race right after
-  // login — the same class of Supabase gotcha noted elsewhere in this file),
-  // `comics`/`ratings` came back null, allComics silently became [], and
-  // renderComics([]) showed the false "No comics yet" empty state — which
-  // then got written into cc-comics-cache for the next 2 minutes, so even a
-  // retry kept showing empty. Now a failed fetch leaves whatever is already
-  // on screen alone (instead of overwriting it with emptiness) and never
-  // poisons the cache; the next successful load replaces it normally.
-  //
-  // Also wait for the client's session restore to settle (see _authReady
-  // above) before firing this fetch, so it isn't racing that restore.
+  // 3. fetch, dont nuke screen on error
   await _authReady;
   let comics, ratings;
   try {
@@ -550,7 +564,7 @@ async function loadFeeds() {
   globalRatings = ratings || [];
   globalStars   = globalRatings; // keep in sync for legacy references
 
-  // ── Fetch accepted collaborators for all visible comics ──
+  // fetch collabs
   collabMap = {};
   try {
     const comicIds = allComics.map(c => c.id);
@@ -567,18 +581,18 @@ async function loadFeeds() {
     }
   } catch(e) { /* non-fatal — collab table may not exist yet */ }
 
-  // Reset top creators cache so it re-renders with fresh data
+  // reset leaderboard cache
   topCreatorsData = { stars: [], follows: [] };
 
-  // Save to cache
+  // save to cache
   try {
-    localStorage.setItem('cc-comics-cache',  JSON.stringify(allComics));
-    localStorage.setItem('cc-ratings-cache', JSON.stringify(globalRatings));
-    localStorage.setItem('cc-feeds-ts',      String(Date.now()));
+    localStorage.setItem(CC_COMICS,   JSON.stringify(allComics));
+    localStorage.setItem(CC_RATINGS,  JSON.stringify(globalRatings));
+    localStorage.setItem(CC_FEEDS_TS, String(Date.now()));
   } catch(e) {
-    localStorage.removeItem('cc-comics-cache');
-    localStorage.removeItem('cc-ratings-cache');
-    localStorage.removeItem('cc-stories-cache');
+    localStorage.removeItem(CC_COMICS);
+    localStorage.removeItem(CC_RATINGS);
+    localStorage.removeItem(CC_STORIES);
   }
 
   renderComics(allComics, globalRatings);
@@ -586,7 +600,7 @@ async function loadFeeds() {
   return Promise.resolve();
 }
 
-// ── Skeleton placeholders ────────────────────────────────
+// skeletons
 function showComicSkeletons(count = 12) {
   const container = document.getElementById('recentFeed');
   if (!container) return;
@@ -600,7 +614,7 @@ function showComicSkeletons(count = 12) {
     </div>`).join('');
 }
 
-// ── Render comics grid ────────────────────────────────────
+// render grid
 function renderComics(comics, stars) {
   const sorted    = sortedComics(comics, stars);
   const container = document.getElementById('recentFeed');
@@ -690,14 +704,14 @@ function openRandomComic() {
   openPopup(r.id);
 }
 
-// ── Sort dropdown ─────────────────────────────────────────
+// sort dropdown
 function toggleSortDropdown(e) {
   e?.stopPropagation();
   const menu = document.getElementById('sort-dropdown-menu');
   const btn  = document.getElementById('sort-dropdown-btn');
   const isOpen = menu.classList.contains('open');
   if (isOpen) { menu.classList.remove('open'); return; }
-  // Position the fixed menu below the button
+  // position menu
   const rect = btn.getBoundingClientRect();
   menu.style.top  = (rect.bottom + 6) + 'px';
   menu.style.left = rect.left + 'px';
@@ -706,11 +720,11 @@ function toggleSortDropdown(e) {
 
 function setSortFromDropdown(sort) {
   document.getElementById('sort-dropdown-menu').classList.remove('open');
-  // Highlight active option
+  // highlight active
   ['recent','popular','oldest','favorites'].forEach(s => {
     document.getElementById('sort-opt-' + s)?.classList.toggle('sort-active', s === sort);
   });
-  // Update dropdown button label
+  // update label
   const labels = { recent: 'Recent ▾', popular: 'Top ▾', oldest: 'Oldest ▾', favorites: '⭐ Favs ▾' };
   const btn = document.getElementById('sort-dropdown-btn');
   if (btn) btn.textContent = labels[sort] || 'All ▾';
@@ -725,7 +739,7 @@ function setSortFromDropdown(sort) {
   }
 }
 
-// Close dropdown when clicking outside (but not on the menu itself)
+// close dropdown on outside click
 document.addEventListener('click', (e) => {
   const menu = document.getElementById('sort-dropdown-menu');
   const btn  = document.getElementById('sort-dropdown-btn');
@@ -735,7 +749,7 @@ document.addEventListener('click', (e) => {
 });
 
 function hydrateCardAvatars(container) {
-  // Hydrate both old .comic-card-avatar and new overlapping .comic-card-pfp
+  // hydrate avatars
   const avatars = container.querySelectorAll('[data-handle].comic-card-avatar, [data-handle].comic-card-pfp');
   const handles = [...new Set([...avatars].map(a => a.dataset.handle))];
   handles.forEach(async handle => {
@@ -752,7 +766,7 @@ function hydrateCardAvatars(container) {
 
 async function hydrateAvatars(container) {
   const avatars = container.querySelectorAll('.tile-creator-avatar[data-handle]');
-  // Batch by unique handles
+  // batch handles
   const handles = [...new Set([...avatars].map(a => a.dataset.handle))];
   await Promise.all(handles.map(async handle => {
     const p = await getCachedProfile(handle);
@@ -777,25 +791,24 @@ async function hydrateFollowButtons(container) {
   }));
 }
 
-// ── Popup ─────────────────────────────────────────────────
+// popup
 async function openPopup(id) {
   const c = allComics.find(c => c.id === id);
   if (!c) return;
   activePopupComic = c;
 
-  // ── Clear this comic's NEW badge for this viewer, permanently. ──
-  // (Views are counted in reader.html now — opening this popup isn't reading the comic.)
+  // clear new badge
   if (c.owner_handle !== myProfile.handle) {
     markComicSeen(c.id);
   }
 
-  // Cover
+  // cover
   const coverWrap = document.getElementById('popup-cover-wrap');
   coverWrap.innerHTML = c.cover
     ? `<img class="popup-cover" src="${esc(c.cover)}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📖</div>'">`
     : `<div class="popup-cover-placeholder">📖</div>`;
 
-  // Title & creator
+  // title + creator
   document.getElementById('popup-title').innerText   = c.title || 'Untitled';
   const ownerHandle = c.owner_handle || 'unknown';
   const popupCollabs = collabMap[c.id] || [];
@@ -806,7 +819,7 @@ async function openPopup(id) {
   document.getElementById('popup-creator').innerHTML =
     `by ${popupAuthorLinks} · ${timeAgo(c.created_at)}`;
 
-  // Meta — show sync cache first, then update from Supabase fetch
+  // meta
   let frameCount = getCachedFrameCount(c.id);
   const starCount  = globalRatings.filter(r => r.receiver_hand === c.id).length;
   const avgRating = starCount > 0 ?
@@ -829,17 +842,17 @@ async function openPopup(id) {
       return `<span class="${cls}"${style}${attrs}>${esc(c.age_rating || 'Rate')}${check}</span>`;
     })()}`;
 
-  // Description
+  // desc
   const descEl = document.getElementById('popup-desc');
   descEl.innerText = c.description || '';
   descEl.style.display = c.description ? 'block' : 'none';
 
-  // Tags
+  // tags
   const tags = c.tags || [];
   document.getElementById('popup-tags').innerHTML =
     tags.map(t => `<span class="popup-tag">#${esc(t)}</span>`).join('');
 
-  // Progress (sync path — works immediately if reader has been opened before)
+  // progress
   function applyProgressUI(total) {
     const prog = total > 0 ? getProgress(c.id, total) : null;
     const progWrap = document.getElementById('popup-progress-wrap');
@@ -855,7 +868,7 @@ async function openPopup(id) {
   }
   let prog = applyProgressUI(frameCount);
 
-  // Lazy-fetch real frame count from Supabase if not yet cached
+  // lazy fetch frame count
   if (!frameCount) {
     fetchAndCacheFrameCount(c.id).then(count => {
       if (!count || count === frameCount) return; // no change
@@ -863,13 +876,13 @@ async function openPopup(id) {
       const chip = document.getElementById('popup-frame-chip');
       if (chip) chip.textContent = `${count} frame${count !== 1 ? 's' : ''}`;
       prog = applyProgressUI(count);
-      // Also update Continue button state
+      // update continue btn
       const readBtn = document.getElementById('popup-read-btn');
       if (readBtn) readBtn.innerHTML = prog ? '▶ Continue' : '▶ Read Now';
     });
   }
 
-  // Favorite (⭐) state + comment count — fetched together
+  // fav + comment count
   const isMine = c.owner_handle === myProfile.handle;
   activePopupStarred = false;
   const hideCommentsInDiscover = myProfile.settings?.hide_discover_comments === true;
@@ -889,7 +902,7 @@ async function openPopup(id) {
   activePopupStarred = !!starRes.data;
   const commentCount = commentCountRes.count || 0;
 
-  // Build buttons — row 1: Read Now + comments · row 2: Delete, FAV, Share, Edit, Episode
+  // build buttons
   const btnsRow1 = document.getElementById('popup-btns-row1');
   const btnsRow2 = document.getElementById('popup-btns-row2');
   btnsRow1.innerHTML = '';
@@ -916,10 +929,7 @@ async function openPopup(id) {
     btnsRow1.appendChild(commentBtn);
   }
 
-  // Delete: the creator can always delete their own comic; mods/admin can
-  // delete any comic as a moderation action. Mod/admin status takes priority
-  // in the label/wording — if you have mod powers, this always reads as a
-  // moderator action, even on a comic you happen to also own.
+  // delete btn, mods can delete anything
   if (isMine || isModOrAdmin) {
     const asModerator = isModOrAdmin;
     const delBtn = document.createElement('button');
@@ -979,11 +989,11 @@ async function openAddEpisodeModal(parentId) {
   _episodeParentId = parentId;
   _episodeSelected = [];
 
-  // Load existing episodes
+  // load episodes
   const { data: parentComic } = await _sb.from('comics').select('episodes').eq('id', parentId).maybeSingle();
   _episodeSelected = parentComic?.episodes || [];
 
-  // Load user's comics (excluding the parent)
+  // load my comics
   const { data: myComics } = await _sb.from('comics').select('id, title, cover').eq('owner_handle', myProfile.handle);
 
   const grid = document.getElementById('episode-comics-grid');
@@ -1099,13 +1109,7 @@ async function deleteComic(id, title, asModerator = false) {
     : `Delete "${title}"? This removes it from Discover permanently.`;
   if (!confirm(msg)) return;
   closePopup();
-  // BUGFIX: a delete blocked by Row Level Security doesn't come back as an `error` —
-  // Supabase just matches zero rows and reports success either way. Without .select()
-  // there's no way to tell "deleted 1 row" from "deleted 0 rows (RLS blocked it)", so a
-  // blocked delete looked identical to a real one: toast said "Comic deleted", the row
-  // vanished from the local allComics array, but the row itself never left the database
-  // — and the next loadFeeds() refetch brought it right back. Requesting the deleted
-  // rows back and checking the array is actually non-empty is the only way to catch this.
+  // rls doesnt error, check rows actually deleted
   const { data, error } = await _sb.from('comics').delete().eq('id', id).select('id');
   if (error) { showToast('Error deleting comic: ' + error.message); return; }
   if (!data || !data.length) {
@@ -1117,7 +1121,7 @@ async function deleteComic(id, title, asModerator = false) {
   showToast(asModerator ? 'Comic removed' : 'Comic deleted');
 }
 
-// ── Comments ──────────────────────────────────────────────
+// comments
 let pendingReactionImg = null; // {name, src} to insert
 let activeReplyTo   = null;    // {id, handle} being replied to, or null
 let commentSortMode = 'top';   // 'top' | 'newest'
@@ -1166,7 +1170,7 @@ function openCommentSheet(id) {
   pendingReactionImg = null;
   cancelReply();
   document.getElementById('comment-overlay').classList.add('open');
-  // Close reaction tray on open (guard against missing elements)
+  // close tray on open
   const tray = document.getElementById('reaction-tray');
   const toggleBtn = document.getElementById('reaction-toggle-btn');
   if (tray) tray.classList.remove('open');
@@ -1182,10 +1186,10 @@ function closeCommentSheet() {
   cancelReply();
 }
 
-// ── Reaction Picker (Tenor-style) ──────────────────────────────
+// reaction picker
 const BASE_URL = 'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/avatars/reactions/';
 
-// All reaction images from Supabase bucket
+// reactions
 const ALL_REACTIONS = [
   { name: 'nuke the whole generation', src: BASE_URL + 'IMG_1823.webp', tags: ['rage','angry'] },
   { name: 'who is this',               src: BASE_URL + 'IMG_1824.webp', tags: ['confused','who'] },
@@ -1198,7 +1202,7 @@ const ALL_REACTIONS = [
   { name: 'spongebob phone',           src: BASE_URL + 'IMG_1833.webp', tags: ['phone','calling'] },
 ];
 
-// Auto-build categories from tags
+// categories
 const CATEGORIES = ['All', 'Angry', 'Sad', 'Funny', 'Confused', 'Wow'];
 
 let reactionLoaded = false;
@@ -1286,7 +1290,7 @@ function selectReaction(src, name) {
   showToast('🎭 "' + name + '" selected');
 }
 
-// Keep old selectReactionImage for compatibility
+// legacy compat
 function selectReactionImage(index) {
   const img = ALL_REACTIONS[index];
   if (!img) return;
@@ -1338,12 +1342,12 @@ async function fetchComments() {
     return;
   }
 
-  // Batch-fetch all unique profiles in ONE query instead of N sequential calls
+  // batch fetch profiles
   const handles = [...new Set(commentsCache.map(m => m.author_handle).filter(Boolean))];
   const { data: profiles } = await _sb.from('profiles').select('handle,pic,name').in('handle', handles);
   (profiles || []).forEach(p => { profileCache[p.handle] = p; });
 
-  // Batch-fetch my like/dislike state for these comments
+  // fetch my reactions
   if (myProfile.handle && myProfile.handle !== 'guest') {
     const { data: myReactions } = await _sb
       .from('comment_reactions')
@@ -1499,7 +1503,7 @@ async function toggleReaction(commentId, type) {
   const prevState = myReactionsMap[commentId]; // undefined | 'like' | 'dislike'
   const target = findCommentById(commentId);
 
-  // optimistic UI
+  // optimistic
   if (prevState === type) {
     delete myReactionsMap[commentId];
     if (target) target[type + '_count'] = Math.max(0, (target[type + '_count'] || 0) - 1);
@@ -1520,7 +1524,7 @@ async function toggleReaction(commentId, type) {
       );
 
   if (error) {
-    // roll back — the write didn't actually happen
+    // rollback
     if (prevState) myReactionsMap[commentId] = prevState; else delete myReactionsMap[commentId];
     if (target) {
       if (prevState === type) {
@@ -1627,9 +1631,7 @@ async function postComment() {
   const { data, error } = await _sb.from('comments').insert([row]).select().single();
   if (error) { showToast('Error posting comment'); return; }
 
-  // Notify the comic owner (unless they're commenting on their own comic).
-  // Reuses the same `mentions` table the inbox panel already polls, tagged
-  // with type:'comment' so it can be rendered differently there.
+  // notify owner
   const ownerHandle = getActiveComicOwner();
   if (ownerHandle && ownerHandle !== myProfile.handle) {
     _sb.from('mentions').insert([{
@@ -1661,7 +1663,7 @@ async function postComment() {
   renderCommentList();
 }
 
-// ── Search ────────────────────────────────────────────────
+// search
 async function filterSearch() {
   const q = document.getElementById('tagSearch').value.toLowerCase().trim();
   const creatorSection = document.getElementById('creatorResultsSection');
@@ -1698,19 +1700,19 @@ async function filterSearch() {
   }
 }
 
-// ── Tabs ──────────────────────────────────────────────────
+// tabs
 function switchTab(type) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   const activeTabEl = document.getElementById('tab-'+type);
   if (activeTabEl) activeTabEl.classList.add('active');
-  // If favorites is picked from dropdown, highlight the dropdown btn
+  // highlight favs in dropdown
   if (type === 'favorites') {
     document.getElementById('sort-dropdown-btn')?.classList.add('active');
   }
   document.getElementById('section-recents').style.display   = type === 'all'       ? 'block' : 'none';
   document.getElementById('section-stories').style.display   = type === 'stories'   ? 'block' : 'none';
   document.getElementById('section-favorites').style.display = type === 'favorites' ? 'block' : 'none';
-  // Top creators only on home
+  // top creators only on home tab
   const tcSection = document.getElementById('top-creators-section');
   if (tcSection) tcSection.style.display = type === 'all' ? '' : 'none';
   if (type === 'stories') { if (!storiesLoaded) loadStories(); }
@@ -1761,9 +1763,9 @@ async function loadStories() {
   const feed = document.getElementById('storiesFeed');
   storiesLoaded = true;
 
-  // ── 1. Instant cache paint ──────────────────────────────
-  const cacheKey = 'cc-stories-cache';
-  const cacheTs  = 'cc-stories-ts';
+  // 1. cache
+  const cacheKey = CC_STORIES;
+  const cacheTs  = CC_STORIES_TS;
   const cached   = localStorage.getItem(cacheKey);
   const ts       = parseInt(localStorage.getItem(cacheTs) || '0');
   const stale    = Date.now() - ts > 90000; // 90 s TTL
@@ -1777,7 +1779,7 @@ async function loadStories() {
     feed.innerHTML = renderSkeletons(4);
   }
 
-  // ── 2. Background fetch ─────────────────────────────────
+  // 2. fetch
   const { data: stories, error } = await _sb.from('stories')
     .select('id,title,description,cover,tags,word_count,owner_name,owner_handle,created_at')
     .order('created_at', { ascending: false })
@@ -1785,7 +1787,7 @@ async function loadStories() {
 
   if (error) {
     console.warn('Stories fetch error:', error.message);
-    // Always show something — never leave skeletons frozen
+    // dont leave skeletons up
     if (cached) {
       try { renderStories(JSON.parse(cached)); } catch(e) {
         feed.innerHTML = '<div class="empty-feed">Could not load stories. Try refreshing.</div>';
@@ -1805,7 +1807,7 @@ async function loadStories() {
   renderStories(stories || []);
 }
 
-// ── Share (friend DM) ─────────────────────────────────────
+// share
 function openShareSheet(comicId, comicTitle) {
   shareComicId    = comicId;
   shareComicTitle = comicTitle;
@@ -1866,16 +1868,14 @@ async function sendShare(toHandle) {
   showToast('Shared!');
 }
 
-// ── Trending/Recent reaction tabs ─────────────────────────────────────────────
-// Replace static category-based reaction picker with Trending/Recent tabs
-// that are populated from actual comment usage in the DB
+// trending/recent reaction tabs
 
 async function loadTrendingReactions() {
   const grid = document.getElementById('reaction-grid');
   grid.innerHTML = '<div class="reaction-tray-empty">Loading…</div>';
 
   try {
-    // Fetch recent IMG_REACTION comments to count usage
+    // fetch recent reactions
     const { data: comments } = await _sb
       .from('messages')
       .select('content')
@@ -1884,25 +1884,25 @@ async function loadTrendingReactions() {
       .limit(500);
 
     if (!comments || !comments.length) {
-      // Fall back to all reactions if no data yet
+      // fallback
       loadReactionGrid(ALL_REACTIONS);
       return;
     }
 
-    // Count frequency of each image URL
+    // count usage
     const counts = {};
     comments.forEach(c => {
       const src = c.content.replace('[IMG_REACTION]:', '').trim();
       counts[src] = (counts[src] || 0) + 1;
     });
 
-    // Sort by usage, map back to reaction objects
+    // sort by usage
     const sorted = Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .map(([src]) => ALL_REACTIONS.find(r => r.src === src))
       .filter(Boolean);
 
-    // Add any reactions not yet used at the end
+    // pad with unused
     const usedSrcs = new Set(sorted.map(r => r.src));
     const unused = ALL_REACTIONS.filter(r => !usedSrcs.has(r.src));
 
@@ -1932,7 +1932,7 @@ async function loadRecentReactions() {
       return;
     }
 
-    // Deduplicate by src, preserve order (most recent first)
+    // dedupe
     const seen = new Set();
     const recent = [];
     comments.forEach(c => {
@@ -1944,7 +1944,7 @@ async function loadRecentReactions() {
       }
     });
 
-    // Pad with unused reactions
+    // pad unused
     const unused = ALL_REACTIONS.filter(r => !seen.has(r.src));
     loadReactionGrid([...recent, ...unused]);
   } catch(e) {
@@ -1952,14 +1952,14 @@ async function loadRecentReactions() {
   }
 }
 
-// Override buildCategoryBtns to build Trending/Recent tabs instead
+// override category btns
 function buildCategoryBtns() {
   const wrap = document.getElementById('reaction-categories');
   wrap.innerHTML = `
     <button class="reaction-cat-btn active" id="reaction-tab-trending" onclick="switchReactionCategory('trending', this)">🔥 Trending</button>
     <button class="reaction-cat-btn" id="reaction-tab-recent" onclick="switchReactionCategory('recent', this)">🕐 Recent</button>
   `;
-  // Load trending by default
+  // default to trending
   loadTrendingReactions();
 }
 
@@ -1970,9 +1970,7 @@ function switchReactionCategory(tab, btn) {
   else loadRecentReactions();
 }
 
-// ── Star Rating (5-star display from count) ───────────────
-// Maps raw star count → 0-5 rating with half-star resolution
-// Scale: 0 stars = 0, 1 star ≈ 5+, 2 stars ≈ 15+, 3 stars ≈ 35+, 4 stars ≈ 70+, 5 stars ≈ 120+
+// star rating
 function starCountToRating(count) {
   if (!count || count <= 0) return 0;
   if (count >= 120) return 5;
@@ -1988,8 +1986,7 @@ function starCountToRating(count) {
   return 0;
 }
 
-// Single gold star icon with the numeric rating centered inside it.
-// size 'lg' is used for the big expanded panel; default is the small tile/popup size.
+// star icon
 function starNumIcon(rating, size) {
   const GOLD = '#ffd700';
   const cls = size === 'lg' ? 'star-num-icon star-num-icon-lg' : 'star-num-icon';
@@ -2005,7 +2002,7 @@ function renderStarRating(avgRating, count) {
   return `<div class="star-rating">${starNumIcon(avgRating)}<span class="star-count">${count} rating${count !== 1 ? 's' : ''}</span></div>`;
 }
 
-// ── Favorites Section ─────────────────────────────────────
+// favorites
 let favoritesPage = 0;
 let favoriteComics = [];
 const FAV_PER_PAGE = 12;
@@ -2034,7 +2031,7 @@ async function loadFavoritesSection() {
   const favoriteIds = starEntries.map(e => e.receiver_hand);
   favoriteComics = allComics.filter(c => favoriteIds.includes(c.id));
 
-  // If some IDs not in allComics (edge case), fetch them
+  // fetch missing comics
   const missing = favoriteIds.filter(id => !allComics.find(c => c.id === id));
   if (missing.length) {
     const { data: extras } = await _sb
@@ -2107,7 +2104,7 @@ function renderFavoritesPage() {
   hydrateCardAvatars(container);
   hydrateFollowButtons(container);
 
-  // Pagination
+  // pagination
   if (totalPages <= 1) { pagRow.innerHTML = ''; return; }
   pagRow.innerHTML = `
     <button class="page-btn pg-arrow" onclick="goToFavPage(${favoritesPage - 1})" ${favoritesPage <= 0 ? 'disabled' : ''}>\u2039</button>
@@ -2122,10 +2119,10 @@ function goToFavPage(n) {
   document.getElementById('section-favorites')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── Star badge expand/collapse ─────────────────────────────
+// star expand
 function toggleStarExpand(badge, starCount, avgRating) {
   const coverInner = badge.closest('div[style]') || badge.parentElement;
-  // If expanded panel already open, close it
+  // toggle panel
   const existing = coverInner.querySelector('.tile-star-expanded');
   if (existing) { existing.remove(); return; }
 
@@ -2140,7 +2137,7 @@ function toggleStarExpand(badge, starCount, avgRating) {
   coverInner.appendChild(panel);
 }
 
-// ── Age rating picker ────────────────────────────────────
+// age rating picker
 function openRatingPicker(comicId) {
   const c = allComics.find(x => x.id === comicId) || favoriteComics.find(x => x.id === comicId);
   if (!c) return;
@@ -2175,8 +2172,7 @@ function openRatingPicker(comicId) {
 
 async function setComicRating(comicId, code) {
   const update = { age_rating: code };
-  // A creator setting/changing their own rating leaves it unlocked and editable later.
-  // An admin/mod acting on any comic — including clearing it — locks it going forward.
+  // admin sets = locked, creator sets = stays editable
   if (isModOrAdmin) update.age_rating_locked = true;
 
   const { error } = await _sb.from('comics').update(update).eq('id', comicId);
