@@ -357,7 +357,7 @@ async function respondCollabFromInbox(inviteId, comicId, response, btn, isDraft)
     // in the wrong table, which is why it showed "Could not load comic."
     localStorage.setItem(isDraft ? 'edit_draft_id' : 'edit_comic_id', comicId);
     closeInboxPanel();
-    location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+    location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
   } else {
     row.style.opacity = '0.4';
     row.style.pointerEvents = 'none';
@@ -509,7 +509,7 @@ function toggleCommentReveal(el) {
 function openCollabEditFromInbox(comicId, isDraft) {
   localStorage.setItem(isDraft ? 'edit_draft_id' : 'edit_comic_id', comicId);
   closeInboxPanel();
-  location.href = window.innerWidth <= 768 ? 'create-mobile.html' : 'create.html';
+  location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
 }
 
 function escHtml(str) {
@@ -627,8 +627,7 @@ function openCreateFlow() {
 
 function resumeDraft() {
   document.getElementById('draft-choice-modal').style.display = 'none';
-  const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
-  window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
+  window.location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
 }
 
 function startNewFromDraftChoice() {
@@ -645,13 +644,12 @@ function pickRatio(w, h) {
 }
 
 function goToMyComics() {
-  const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
-  window.location.href = deviceMode === 'mobile' ? 'my-comics-mobile.html' : 'my-comics.html';
+  window.location.href = 'my-comics.html'; // My Comics only exists as my-comics.html now — my-comics-mobile.html is retired
 }
 
 function goToMode(mode) {
   const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
-  if (mode === 'comic') window.location.href = deviceMode === 'mobile' ? 'create-mobile.html' : 'create.html';
+  if (mode === 'comic') window.location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
   else window.location.href = deviceMode === 'mobile' ? 'story-mobile.html' : 'story.html';
 }
 
