@@ -1,12 +1,6 @@
         const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
 
-        // Safely persist the profile to localStorage. Legacy accounts can
-        // still have a raw base64 image in pic/banner (from before avatar
-        // uploads were migrated to Supabase Storage) which can be several
-        // MB — large enough to exceed the localStorage quota and throw. If
-        // the write fails, retry with any oversized base64 fields stripped
-        // so the app can still run — the real pic/banner lives in Supabase
-        // Storage / the profiles table either way, not in localStorage.
+        // fix quota crash on save, strip base64 first
         function ccSaveProfile(profile) {
             try {
                 localStorage.setItem('user_profile', JSON.stringify(profile));
@@ -46,9 +40,7 @@
         let _settingsAccentColor = '#ff7a00';
         let _settingsPronoun = '';
 
-        // ══════════════════════════════════════════════════════
-        // UNSAVED CHANGES TRACKER
-        // ══════════════════════════════════════════════════════
+        // -- unsaved changes tracker --
         function markDirty() {
             if (_isDirty) return;
             _isDirty = true;
@@ -151,9 +143,7 @@
         }
 
         async function init() {
-            // Apply accent color (recolors the loading gif) immediately from the
-            // cached profile, same as discover.html — loadPublicProfile() will
-            // re-apply it with the viewed user's own accent if applicable.
+            // apply cached accent color right away, same as discover.html
             applyAccentColor(myProfile.settings?.accent_color || '#ff7a00');
 
             const params = new URLSearchParams(window.location.search);
@@ -204,7 +194,7 @@
             const { data: profile } = await _supabase.from('profiles').select('*').eq('handle', handle).single();
             if (!profile) return;
 
-            // Apply the profile owner's chosen accent color
+            // apply profile owner's accent color
             applyAccentColor(profile.settings?.accent_color || '#ff7a00');
 
             document.getElementById('view-name').innerText = profile.name || handle;
@@ -358,9 +348,7 @@
             }
         }
 
-        // ══════════════════════════════════════════════════════
-        // PAUSE / BAN SYSTEM
-        // ══════════════════════════════════════════════════════
+        // -- pause / ban system --
         let _banTargetHandle = '';
         let _banMode = 'pause';
         let _banDuration = '';
@@ -447,9 +435,7 @@
             loadPublicProfile(_banTargetHandle);
         }
 
-        // Looks up every IP this handle has ever logged in from (recorded by
-        // login.html on each successful sign-in) and adds them to banned_ips,
-        // so a fresh account from the same device/network gets blocked too.
+        // ban every ip this handle has logged in from too
         async function banKnownIps(handle, reason, expiresAt) {
             const { data: ips } = await _supabase.from('login_ips').select('ip').eq('handle', handle);
             if (!ips || !ips.length) return 0;
@@ -485,9 +471,7 @@
 
         function closeBanLog() { document.getElementById('banlog-overlay').classList.remove('open'); }
 
-        // ══════════════════════════════════════════════════════
-        // REPORT SYSTEM
-        // ══════════════════════════════════════════════════════
+        // -- report system --
         let _reportTargetHandle = '';
         let _reportReason = '';
 
@@ -507,9 +491,7 @@
             closeReportModal(); showToast('✓ Report submitted — thank you');
         }
 
-        // ══════════════════════════════════════════════════════
-        // SQUAD INVITE SYSTEM
-        // ══════════════════════════════════════════════════════
+        // -- squad invite system --
         function openInviteModal(handle, name) {
             document.getElementById('invite-sub-text').innerText = 'Pick a squad to invite ' + name + ' to';
             const list = document.getElementById('invite-squads-list');
@@ -551,9 +533,7 @@
             setTimeout(closeInviteModal, 1200);
         }
 
-        // ══════════════════════════════════════════════════════
-        // MOD MANAGEMENT
-        // ══════════════════════════════════════════════════════
+        // -- mod management --
         async function setModRole(handle, makeMod) {
             if (myProfile.handle !== 'jeffyplays') return;
             const { data: p } = await _supabase.from('profiles').select('settings').eq('handle', handle).maybeSingle();
@@ -598,11 +578,11 @@
             const { data: comics } = await _supabase.from('comics').select('id, title, cover').eq('owner_handle', handle);
             const grid = document.getElementById('user-comic-grid');
 
-            // Load profile for pinned comics
+            // load profile for pinned comics
             const { data: profile } = await _supabase.from('profiles').select('settings').eq('handle', handle).maybeSingle();
             const pinnedIds = profile?.settings?.pinned_comics || [];
 
-            // Render pinned comics section if there are pinned comics
+            // render pinned comics section if any
             const pinnedSection = document.getElementById('pinned-section');
             if (pinnedIds.length > 0 && comics && comics.length > 0) {
                 const pinnedComics = pinnedIds.map(id => comics.find(c => c.id === id)).filter(Boolean);
@@ -638,7 +618,7 @@
             const section = document.getElementById('collab-section');
             const grid    = document.getElementById('user-collab-grid');
             try {
-                // Get all comics this user has accepted a collab invite for
+                // get comics with an accepted collab invite
                 const { data: collabs } = await _supabase
                     .from('comic_collaborators')
                     .select('comic_id')
@@ -725,7 +705,7 @@
             document.getElementById('st-notif-milestones').checked    = s.notif_milestones !== false;
             document.getElementById('st-reduced-motion').checked = !!s.reduced_motion;
 
-            // Mark clean first, then attach listeners after a tick so population doesn't trigger dirty
+            // mark clean first, attach listeners after a tick so populating doesn't flag dirty
             markClean();
             setTimeout(attachDirtyListeners, 50);
         }
@@ -804,19 +784,14 @@
             markDirty();
         }
 
-        // ══════════════════════════════════════════════════════
-        // PLAYLISTS
-        // A playlist is an ordered, named collection of comics that can
-        // include comics from ANY creator, not just the profile owner's own —
-        // that's what makes the "By @handle" attribution line meaningful.
-        // ══════════════════════════════════════════════════════
-        let playlistsData = [];              // playlists belonging to whichever profile is currently open
-        let plComicCache  = {};               // comic_id -> { title, cover, owner_handle }
+        // -- playlists -- ordered named collection, can include comics from any creator --
+        let playlistsData = [];  // playlists for the currently open profile
+        let plComicCache  = {};  // comic_id -> title/cover/owner cache
         let plEditDraft   = { id: null, title: '', comic_ids: [] };
 
         function escHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-        // Small count badge on the icon button — called from loadPublicProfile/init
+        // count badge on the icon button
         async function loadPlaylistsCount(handle) {
             const badge = document.getElementById('playlists-nav-badge');
             if (!badge) return;
@@ -836,7 +811,7 @@
             const { data, error } = await _supabase.from('playlists').select('*').eq('owner_handle', handle).order('created_at', { ascending: false });
             playlistsData = error ? [] : (data || []);
 
-            // Resolve cover thumbnails — pull the first up-to-4 comics' covers per playlist
+            // resolve cover thumbnails, first 4 comics per playlist
             const allIds = [...new Set(playlistsData.flatMap(p => (p.comic_ids || []).slice(0, 4)))];
             if (allIds.length) {
                 const { data: comics } = await _supabase.from('comics').select('id,title,cover,owner_handle').in('id', allIds);
@@ -875,7 +850,7 @@
             grid.innerHTML = html;
         }
 
-        // ── Playlist detail (viewing one playlist's comics, with attribution) ──
+        // -- playlist detail (with attribution) --
         async function openPlaylistDetail(playlistId) {
             const playlist = playlistsData.find(p => p.id === playlistId);
             if (!playlist) return;
@@ -897,8 +872,7 @@
             const { data: comics } = await _supabase.from('comics').select('id,title,cover,owner_handle').in('id', ids);
             const comicMap = {}; (comics || []).forEach(c => { comicMap[c.id] = c; plComicCache[c.id] = c; });
 
-            // Team/collab comics show attribution even when the owner matches this
-            // playlist — a comic made with others is never purely "yours" alone.
+            // show attribution for collab comics even if owner matches this playlist
             const { data: collabs } = await _supabase.from('comic_collaborators').select('comic_id,invitee_handle').in('comic_id', ids).eq('status', 'accepted');
             const collabMap = {};
             (collabs || []).forEach(c => { (collabMap[c.comic_id] = collabMap[c.comic_id] || []).push(c.invitee_handle); });
@@ -935,7 +909,7 @@
             renderPlaylistsGrid();
         }
 
-        // ── Playlist create/edit ──
+        // -- playlist create/edit --
         function openPlaylistEdit(playlistId) {
             const existing = playlistId ? playlistsData.find(p => p.id === playlistId) : null;
             plEditDraft = existing
@@ -1046,7 +1020,7 @@
                     if (data) picPath = `avatars/${filename}`;
                 } catch (err) { showToast('Error uploading profile picture: ' + err.message); return; }
             } else if (_pfpChanged && pfpBase64) {
-                // Gallery avatar or other direct URL was selected
+                // gallery avatar, not a crop upload
                 picPath = pfpBase64;
             }
 
@@ -1067,10 +1041,7 @@
             const newStatus = selectedStatusEl?.dataset.status || 'online';
             const msEnabled = document.getElementById('st-milestones-enabled').checked;
             const msMessage = document.getElementById('milestone-message-input').value.trim();
-            // Pull the latest settings from the DB instead of trusting the local cache —
-            // the local copy can be stale (e.g. if a role was granted server-side since
-            // this browser last synced), and blindly spreading it here would silently
-            // overwrite/erase fields like `role` that the client doesn't manage.
+            // refetch from db, cache can be stale and shouldn't overwrite role
             const { data: freshRow } = await _supabase.from('profiles').select('settings').eq('handle', myProfile.handle).maybeSingle();
             const existingSettings = freshRow?.settings || myProfile.settings || {};
             const updatedSettings = {
@@ -1116,7 +1087,7 @@
             }
         }
 
-        // ── Gallery avatars ──
+        // -- gallery avatars --
         const GALLERY_AVATARS = [
             'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/pfps/csf.webp',
             'https://mmycqeejhguzhtzkyjaj.supabase.co/storage/v1/object/public/comiccore-assets/pfps/fsfds.webp',
@@ -1161,7 +1132,7 @@
             e.target.value = '';
         };
 
-        // ── PFP Crop ──
+        // -- pfp crop --
         let pfpCropSrc = null, pfpCropOffsetX = 0, pfpCropOffsetY = 0, pfpCropScale = 1, pfpCropDrag = null, pfpImgNatW = 1, pfpImgNatH = 1;
         const PFP_SIZE = 240;
 
@@ -1231,7 +1202,7 @@
             e.target.value = '';
         };
 
-        // ── Banner Crop ──
+        // -- banner crop --
         let cropImgNaturalW = 0, cropImgNaturalH = 0, cropOffsetX = 0, cropOffsetY = 0, cropScale = 1, cropDragStart = null;
         const BANNER_RATIO = 16 / 6;
 
@@ -1295,10 +1266,7 @@
             const b = parseInt(clean.slice(4,6), 16);
             return `${r},${g},${b}`;
         }
-        // Native loading.gif dots are #ff7a00 (hue ≈ 29°). To recolor the gif to any
-        // chosen accent color, we shift its hue by the difference between the
-        // target color's hue and this base hue, via a CSS hue-rotate() filter.
-        // (mirrors discover.html)
+        // hue-rotate the loading gif to match accent color (mirrors discover.html)
         const LOADING_GIF_BASE_HUE = 29;
         function hexToHue(hex) {
             const clean = (hex || '').replace('#', '');
@@ -1322,7 +1290,7 @@
             const preview = document.getElementById('menu-accent-preview');
             if (preview) preview.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${color};vertical-align:-2px;"></span>`;
 
-            // Recolor the loading gif's dots to match the chosen accent color.
+            // recolor loading gif dots to accent color
             const loaderImg = document.getElementById('loading-gif');
             if (loaderImg) {
                 const shift = hexToHue(color) - LOADING_GIF_BASE_HUE;
@@ -1387,9 +1355,7 @@
         async function nativeShare() { try { await navigator.share({ title: document.getElementById('share-card-name').innerText + ' on ComicCore', text: document.getElementById('share-card-bio').innerText || 'Check out this profile on ComicCore!', url: getProfileUrl() }); } catch {} }
 
 
-        // ══════════════════════════════════════════════════════
-        // STATUS SYSTEM
-        // ══════════════════════════════════════════════════════
+        // -- status system --
         const STATUS_META = {
             online:  { label: 'Online',         color: '#32d74b', cls: 'online' },
             afk:     { label: 'AFK',            color: '#ffcc00', cls: 'afk' },
@@ -1414,9 +1380,7 @@
             else if (labelRow) labelRow.style.display = 'none';
         }
 
-        // ══════════════════════════════════════════════════════
-        // MILESTONES
-        // ══════════════════════════════════════════════════════
+        // -- milestones --
         const DEFAULT_MILESTONES = [100, 500, 1000, 5000, 10000, 50000];
         const MILESTONE_STYLES = [
             { id: 'fire', icon: '🔥', label: 'Fire' },
@@ -1495,7 +1459,7 @@
             banner.style.display = 'block';
         }
 
-        // ── Toast ──
+        // -- toast --
         let _toastTimer = null;
         function showToast(msg) {
             let el = document.getElementById('cc-toast');

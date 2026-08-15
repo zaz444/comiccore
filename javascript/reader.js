@@ -1,4 +1,4 @@
-// ── Config ────────────────────────────────────────────────
+// -- config --
 const READER_BASE = location.origin + location.pathname;
 const _sb = supabase.createClient(
   'https://mmycqeejhguzhtzkyjaj.supabase.co',
@@ -10,7 +10,7 @@ const isAdmin = myP.handle === 'jeffyplays';
 const isMod = myP.settings?.role === 'mod';
 const isModOrAdmin = isAdmin || isMod;
 
-// ── Profile cache + avatars (shared shape with discover.html) ──
+// -- profile cache + avatars (same shape as discover.html) --
 const profileCache = {};
 const DEFAULT_AVATAR = 'https://via.placeholder.com/150';
 function getPublicAvatarUrl(pic) {
@@ -23,7 +23,7 @@ function getPublicAvatarUrl(pic) {
   return data?.publicUrl || '';
 }
 
-// ── Frame-count cache (used for "read X/Y frames" comment badges) ──
+// -- frame count cache (for X/Y frames badges) --
 const frameCountCache = {};
 function getCachedFrameCount(id) {
   if (frameCountCache[id] !== undefined) return frameCountCache[id];
@@ -37,27 +37,25 @@ function getCachedFrameCount(id) {
 
 let comic = null, frames = [], idx = 0, comicId = null, isStarred = false;
 
-// A collab comic has no single "owner" once an invite is accepted — everyone in
-// owner_handles is an equal co-owner. Falls back to the single owner_handle for
-// comics that were never collaborated on.
+// collab comic has no single owner, everyone in owner_handles is a co-owner. falls back to owner_handle otherwise
 function comicOwners(c) {
   return (c?.owner_handles && c.owner_handles.length) ? c.owner_handles : (c?.owner_handle ? [c.owner_handle] : []);
 }
 function isComicOwner(c, handle) {
   return !!handle && comicOwners(c).includes(handle);
 }
-let snapshotMap = {}; // frame_idx → public URL — populated after load
+let snapshotMap = {};  // frame_idx -> public url, populated after load
 let uiOn = true, hideTimer = null;
 let swipeDir = 'horizontal';
 let txX = 0, txY = 0, txT = 0;
 let shareUrl = '';
-// ── Frame audio ──
-let _audioUnlocked = false;   // becomes true after the first user-initiated play (autoplay-policy gate)
-let _lastAudioKey = null;     // dedupe so scroll-driven re-syncs don't restart an already-playing clip
-// The canonical editor canvas size (create.html uses 900px base)
+// -- frame audio --
+let _audioUnlocked = false;  // true after first user-initiated play (autoplay gate)
+let _lastAudioKey = null;  // dedupe so scroll re-syncs dont restart an already-playing clip
+// editor canvas base size (create.html uses 900px)
 const EDITOR_BASE = 900;
 
-// ── ToonScroll State ─────────────────────────────────────
+// -- toonscroll state --
 let toonScrollMode = localStorage.getItem('cc-toonscroll') || 'off';
 let toonScrollDir = localStorage.getItem('cc-toonscroll-dir') || 'horizontal';
 let _toonScrollScrolling = false;
@@ -93,18 +91,14 @@ function enableToonScroll(dir, fromConfig = false) {
     document.body.classList.add('toonscroll');
     initToonScrollStrip();
 
-    // The exit button is hidden ONLY when the creator deliberately locked this
-    // comic to ToonScroll (visibility:'only'). That's an intentional creator
-    // choice, so instead of silently trapping the reader, show a clear badge
-    // explaining why there's no exit. Manual toggles and the "every frame is
-    // toonscroll_only" data case always keep the real exit button available.
+    // hide exit button only when creator locked to toonscroll on purpose, otherwise keep it
     const isLocked = fromConfig && toonScrollConfig && toonScrollConfig.visibility === 'only';
     const exitBtn = document.getElementById('ts-exit-btn');
     const lockedBadge = document.getElementById('ts-locked-badge');
     if (exitBtn) exitBtn.style.display = isLocked ? 'none' : 'flex';
     if (lockedBadge) lockedBadge.style.display = isLocked ? 'flex' : 'none';
 
-    // Brief hint so the reader understands why they're here
+    // hint so the reader knows why they're here
     showTsHint(isLocked ? 'ToonScroll only — scroll to read' : 'ToonScroll');
 }
 
@@ -118,14 +112,14 @@ function disableToonScroll() {
     const lockedBadge = document.getElementById('ts-locked-badge');
     if (lockedBadge) lockedBadge.style.display = 'none';
 
-    // Restore visibility of all UI elements
+    // restore visibility of all ui elements
     document.getElementById('top-bar').style.cssText = '';
     document.querySelector('.prog-track').style.cssText = '';
     document.getElementById('bot-bar').style.cssText = '';
     document.getElementById('vp').style.cssText = '';
     document.getElementById('finish').style.cssText = '';
 
-    // Restore nav zones based on swipe direction
+    // restore nav zones based on swipe direction
     setSwipeDir(swipeDir);
 
     renderFrame();
@@ -148,7 +142,7 @@ function initToonScrollStrip() {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    // Use database frame order and settings if available
+    // use db frame order and settings if available
     const orderedFrames = toonScrollFrames.length > 0
         ? toonScrollFrames.map(tf => ({
             frame: frames[tf.frame_index],
@@ -160,17 +154,16 @@ function initToonScrollStrip() {
     orderedFrames.forEach(({ frame, settings, originalIdx }) => {
         if (!frame) return;
 
-        // Each frame sizes off its OWN ratio now — a frame can be a different
-        // shape from its neighbors in the same scrolling strip.
+        // each frame sizes off its own ratio now, can differ from neighbors
         const r = getFrameRatio(frame);
         const ar = r.w / r.h;
         let frameW, frameH;
         if (toonScrollDir === 'horizontal') {
-            // Each frame = full viewport width for clean snap scrolling
+            // each frame = full viewport width for clean snap scrolling
             frameW = vw;
             frameH = Math.min(frameW / ar, vh);
         } else {
-            // Vertical: full viewport width, natural height (webtoon style)
+            // vertical: full viewport width, natural height (webtoon style)
             frameW = Math.min(vw, 600);
             frameH = frameW / ar;
         }
@@ -186,7 +179,7 @@ function initToonScrollStrip() {
         frameEl.style.height = (frameH * hRatio) + 'px';
 
         const layerOvr = settings?.layer_overrides || {};
-        // Use snapshot image if available — massively faster than DOM rebuild
+        // use snapshot image if available, way faster than dom rebuild
         const snapUrl = snapshotMap[originalIdx];
         if (snapUrl) {
             const img = document.createElement('img');
@@ -199,7 +192,7 @@ function initToonScrollStrip() {
         strip.appendChild(frameEl);
     });
 
-    // Scroll to current frame
+    // scroll to current frame
     setTimeout(() => {
         const currentFrameEl = strip.querySelector(`[data-idx="${idx}"]`);
         if (currentFrameEl) {
@@ -207,10 +200,10 @@ function initToonScrollStrip() {
         }
     }, 100);
 
-    // Update position indicator
+    // update position indicator
     updateTsPosition();
 
-    // Setup scroll listener
+    // setup scroll listener
     strip.onscroll = onToonScroll;
 }
 
@@ -237,12 +230,12 @@ function updateTsPosition() {
         }
     });
 
-    // Update idx to match
+    // update idx to match
     const actualIdx = parseInt(frames2[closestIdx]?.dataset.idx) || closestIdx;
     idx = actualIdx;
     syncFrameAudio(frames[actualIdx]);
 
-    // Show position indicator
+    // show position indicator
     let posEl = document.getElementById('ts-position');
     if (!posEl) {
         posEl = document.createElement('div');
@@ -253,10 +246,7 @@ function updateTsPosition() {
     posEl.textContent = `${closestIdx + 1} / ${frames2.length}`;
 }
 
-// panels act like little frames-within-the-frame: whichever panel a layer overlaps most, it
-// gets visually clipped to that panel's interior (same overflow:hidden idea as the outer
-// frame). Mirrors the editor's findContainingPanel/applyPanelClip, just with the extra sx/sy
-// render-scale factor folded in since the reader draws frames at arbitrary display sizes.
+// clip layers to whichever panel they overlap most, mirrors editor's findContainingPanel/applyPanelClip plus sx/sy scale
 function findPanelInFrame(f, x, y, w, h) {
     const panels = (f.layers || []).filter(p => p.type === 'panel');
     if (!panels.length) return null;
@@ -278,7 +268,7 @@ function applyReaderPanelClip(f, l, el, sx, sy) {
     const bw = panel.borderWidth != null ? panel.borderWidth : 4;
     const ix = (panel.x + bw) * sx, iy = (panel.y + bw) * sy;
     const iw = Math.max(0, panel.w - bw * 2) * sx, ih = Math.max(0, panel.h - bw * 2) * sy;
-    const lx = (l.x || 0) * sx, ly = (l.y || 0) * sy; // same page-coord space as el.style.left/top
+    const lx = (l.x || 0) * sx, ly = (l.y || 0) * sy;  // same page-coord space as el.style.left/top
     const lw = el.offsetWidth  || lw0 * sx;
     const lh = el.offsetHeight || lh0 * sy;
     const top    = Math.max(0, iy - ly);
@@ -303,9 +293,9 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         return lower.includes('.gif') || lower.includes('.webp');
     }
 
-    // Background
+    // background
     const bg = f.background || '#ffffff';
-    // Exclude base64 backgrounds from DOM render — snapshots handle them
+    // exclude base64 backgrounds from dom render, snapshots handle them
     const isBgImage = bg.startsWith('http');
     const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
     const isBgAnimated = isBgImage && isAnimatedBg(bg);
@@ -316,7 +306,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     const yOff = s.y ?? 0;
     const filterCSS = (s.filter && s.filter !== 'none') ? s.filter : '';
 
-    // Background FX (blur/filter chip/opacity/blend/color FX) — mirrors bgFx handling in create-mobile.html
+    // background fx, mirrors create-mobile.html
     const bgFx = f.bgFx || {};
     const bgFxCSS = getSpriteFilterCSS(bgFx);
     const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
@@ -330,10 +320,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     if (bgFx.fxBlend && bgFx.fxBlend !== 'normal') bgLayer.style.mixBlendMode = cssBlendMode(bgFx.fxBlend);
 
     if (isBgImage) {
-        // px-based cover+zoom+pan geometry (not object-position+transform:scale) — object-fit's
-        // pan slack is computed from the element's own box size before any transform runs, so a
-        // transform:scale() zoom never creates real room to pan on an axis where the image's
-        // aspect ratio already matches the frame. Mirrors the fix in create-mobile.html's render().
+        // px-based cover+zoom+pan geometry, not css scale, mirrors create-mobile.html render()
         window._readerBgNatDimCache = window._readerBgNatDimCache || {};
         let nat = window._readerBgNatDimCache[bg];
         if (!nat) {
@@ -391,7 +378,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     applyColorFxToDOM(bgLayer, bgFx);
     frameEl.appendChild(bgLayer);
 
-    // Layers
+    // layers
     (f.layers || []).forEach((l, layerIdx) => {
         const el = document.createElement('div');
         el.className = 'r-layer';
@@ -445,7 +432,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
                 el.style.position = 'relative';
             } else {
                 const imgSrc = hasFxSrc ? l._fxSrc : l.src;
-                // Skip base64 blobs — only render real URLs; snapshots handle the rest
+                // skip base64 blobs, only render real urls
                 if (imgSrc && imgSrc.startsWith('http')) {
                     const img = document.createElement('img');
                     img.src = imgSrc;
@@ -521,7 +508,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         }
 
         frameEl.appendChild(el);
-        applyReaderPanelClip(f, l, el, sx, sy); // cut off anything spilling past whichever panel this sits on, frame-style
+        applyReaderPanelClip(f, l, el, sx, sy);  // clip to whichever panel this sits on
     });
 }
 
@@ -538,7 +525,7 @@ function scrollToFrame(frameIdx) {
     if (!frameEl) return;
 
     _toonScrollScrolling = true;
-    // Use scrollIntoView so scroll-snap handles the exact landing position
+    // use scrollIntoView so scroll-snap lands exactly
     frameEl.scrollIntoView({
         behavior: 'smooth',
         block:  toonScrollDir === 'horizontal' ? 'nearest' : 'start',
@@ -578,7 +565,7 @@ function rereadComic() {
     else { renderFrame(); _updateReaderChrome(); resetUI(); buildDots(); }
 }
 
-// ── Boot ──────────────────────────────────────────────────
+// -- boot --
 let toonScrollConfig = null;
 let toonScrollFrames = [];
 
@@ -586,12 +573,12 @@ async function boot() {
   comicId = new URLSearchParams(location.search).get('id');
   if (!comicId) return location.href = 'discover.html';
 
-  // Show loading state clearly
+  // show loading state clearly
   document.getElementById('top-title').innerText = 'Loading…';
 
   try {
 
-  // ── Check all tables simultaneously ──────────────────────
+  // -- check all tables at once --
   const safe = fn => Promise.resolve(fn).catch(e => { console.warn('Supabase fetch failed:', e); return { data: null }; });
   const [comicRes, storyRes, tsConfigRes, snapRes] = await Promise.all([
     safe(_sb.from('comics').select('*').eq('id', comicId).maybeSingle()),
@@ -601,7 +588,7 @@ async function boot() {
   ]);
 
   if (storyRes.data && !comicRes.data) {
-    // ── It's a STORY ─ render reading mode ──────────────
+    // -- it's a story, render reading mode --
     bootStory(storyRes.data);
     return;
   }
@@ -609,8 +596,7 @@ async function boot() {
   let data = comicRes.data;
   let _offlineSnaps = null;
 
-  // OFFLINE FALLBACK — Supabase gave us nothing back (no connection,
-  // most likely). Try the local on-device cache before giving up.
+  // offline fallback, try local cache before giving up
   if (!data && window.CCOffline) {
     const cached = await CCOffline.getCachedComic(comicId);
     if (cached) {
@@ -621,19 +607,15 @@ async function boot() {
 
   if (!data) { alert('Not found.'); return location.href = 'discover.html'; }
 
-  // Got a live result — cache it locally so this comic is readable
-  // offline next time. Fire-and-forget, never blocks rendering.
+  // got a live result, cache it locally for offline. fire and forget
   if (comicRes.data && window.CCOffline) {
     CCOffline.cacheComic({ ...comicRes.data, _cachedSnapshots: (snapRes && snapRes.data) || [] });
   }
 
-  // ── It's a COMIC ─ original flow ────────────────────────
+  // -- it's a comic, original flow --
   comic = data;
   if (!data.data && data.storage_path) {
-    // Large comics spill their frame data to Storage (see create-mobile.html's
-    // "Large-comic safety net") — `data.data` is null and only a pointer is
-    // stored on the row. Missing this fallback makes any spilled comic render
-    // as completely empty, which looks like the comic was deleted.
+    // large comics spill to storage, data.data can be null, fall back or it looks deleted
     try {
       const { data: blob, error: dlErr } = await _sb.storage.from('comiccore-assets').download(data.storage_path);
       if (dlErr) throw dlErr;
@@ -646,38 +628,36 @@ async function boot() {
     frames = data.data || data.frames || [];
   }
 
-  // Build snapshot lookup — keyed by frame index for O(1) access in renderFrame
+  // build snapshot lookup by frame index for O(1) access
   snapshotMap = {};
   const snaps = (snapRes && snapRes.data) || _offlineSnaps || [];
   snaps.forEach(s => { snapshotMap[s.frame_idx] = s.url; });
 
-  // Load ToonScroll config
+  // load toonscroll config
   toonScrollConfig = tsConfigRes.data;
-  const allFrames = frames.slice(); // keep full set for toonscroll strip
+  const allFrames = frames.slice();  // keep full set for toonscroll strip
   if (toonScrollConfig && toonScrollConfig.is_enabled) {
     const tsFramesRes = await Promise.resolve(_sb.from('toonscroll_frames')
       .select('*').eq('toonscroll_id', toonScrollConfig.id).order('frame_order')).catch(() => ({ data: [] }));
     const tsFrames = tsFramesRes.data;
     toonScrollFrames = tsFrames || [];
 
-    // Build set of frame indices hidden from reader (toonscroll_only)
+    // build set of frame indices hidden from reader
     const hiddenSet = new Set(
       toonScrollFrames.filter(tf => tf.toonscroll_only).map(tf => tf.frame_index)
     );
 
     if (hiddenSet.size > 0) {
-      // Filter frames for reader mode; stamp original index on each frame
-      // so renderFrame can look up toonscroll layer overrides by original idx
+      // filter frames for reader mode, stamp original index for layer overrides
       frames = allFrames
         .map((f, i) => ({ ...f, _readerOrigIdx: i }))
         .filter((_, i) => !hiddenSet.has(i));
     } else {
-      // Stamp original idx even when nothing is hidden (consistent lookup)
+      // stamp original idx even when nothing is hidden
       frames = allFrames.map((f, i) => ({ ...f, _readerOrigIdx: i }));
     }
 
-    // If every eligible toonscroll frame is toonscroll_only → all frames hidden
-    // from reader, so auto-enable toonscroll immediately (set flag, handled below)
+    // if every eligible frame is toonscroll_only, auto-enable toonscroll
     const allToonscrollOnly = allFrames.length > 0 && frames.length === 0;
     if (allToonscrollOnly) frames = allFrames.map((f, i) => ({ ...f, _readerOrigIdx: i }));
     toonScrollConfig._autoEnable = allToonscrollOnly;
@@ -686,7 +666,7 @@ async function boot() {
     toonScrollConfig = null;
   }
 
-  // Write frame count so discover.html can read it without an extra fetch
+  // write frame count so discover.html can read it without a fetch
   if (comicId && frames.length > 0) localStorage.setItem('cc-frame-count-' + comicId, frames.length);
   document.title = (data.title || 'Comic') + ' — ComicCore';
   document.getElementById('top-title').innerText = data.title || 'Untitled';
@@ -696,16 +676,14 @@ async function boot() {
   } else {
     document.getElementById('top-author').innerText = 'by @' + (data.owner_handle || 'unknown');
   }
-  // ── Views: count once per viewer per comic (skip owners/co-owners) ──
-  // This is the real "view" event — a discover.html popup peek doesn't count,
-  // and this covers direct/shared links that never touch discover.html at all.
+  // count a view once per viewer per comic, skip owners/co-owners. covers direct links too, not just discover popups
   if (!owners.includes(myP.handle)) {
     const alreadyViewed = !!localStorage.getItem('cc-viewed-' + comicId);
     if (!alreadyViewed) {
       _sb.rpc('increment_comic_views', { comic_id: comicId }).then(({ data: viewCount, error }) => {
         if (error || typeof viewCount !== 'number') {
           console.error('increment_comic_views failed:', error);
-          return; // don't flag as viewed — retry next open
+          return;  // dont flag as viewed, retry next open
         }
         localStorage.setItem('cc-viewed-' + comicId, '1');
       });
@@ -734,12 +712,11 @@ async function boot() {
   preloadAllFrameImages(frames);
   startBackgroundPreload();
 
-  // Auto-enable ToonScroll if visibility='only' OR all frames are toonscroll_only
+  // auto-enable toonscroll if visibility=only or all frames are toonscroll_only
   if (toonScrollConfig && (toonScrollConfig.visibility === 'only' || toonScrollConfig._autoEnable)) {
     const dir = toonScrollConfig.direction === 'both' ? 'horizontal' : toonScrollConfig.direction;
     enableToonScroll(dir, true);
-    // If auto-enabled because all frames are toonscroll_only, hide the toggle button
-    // so users can't accidentally exit (they have no frames to fall back to)
+    // hide toggle button if auto-enabled with no frames to fall back to
     if (toonScrollConfig._autoEnable && toonScrollConfig.visibility !== 'only') {
 
     }
@@ -758,8 +735,8 @@ async function boot() {
   }
 }
 
-// ── Story reader ───────────────────────────────────────────
-let _story = null; // active story object for story-mode actions
+// -- story reader --
+let _story = null;  // active story object for story-mode actions
 
 async function bootStory(story) {
   _story = story;
@@ -769,19 +746,19 @@ async function bootStory(story) {
   document.getElementById('top-title').innerText  = story.title || 'Untitled';
   document.getElementById('top-author').innerText = 'by @' + (story.owner_handle || 'unknown');
 
-  // Hide comic-specific UI, keep share + comment + star buttons
+  // hide comic-specific ui, keep share/comment/star buttons
   document.getElementById('edit-btn').style.display   = 'none';
   document.getElementById('bot-bar').style.display    = 'none';
   document.querySelector('.prog-track').style.display = 'none';
   document.getElementById('vp').style.display         = 'none';
 
-  // Wire existing top-bar buttons to story context
+  // wire existing top-bar buttons to story context
   document.getElementById('comment-btn').onclick = openComments;
   document.getElementById('share-btn').onclick   = openStoryShare;
   document.getElementById('star-btn').onclick    = toggleStoryStar;
   if (isOwner) document.getElementById('star-btn').style.display = 'none';
 
-  // Check if already starred
+  // check if already starred
   if (!isOwner && myP.handle && myP.handle !== 'guest') {
     const { data: starData } = await _sb.from('messages')
       .select('id').eq('sender_handle', myP.handle)
@@ -790,17 +767,17 @@ async function bootStory(story) {
     updStar();
   }
 
-  // Body scroll
+  // body scroll
   document.body.style.background = '#0a0a0a';
   document.body.style.overflowY  = 'auto';
   document.body.style.overflowX  = 'hidden';
 
-  // ── Build reading view ────────────────────────────────────
+  // -- build reading view --
   const wrap = document.createElement('div');
   wrap.id = 'story-wrap';
   wrap.style.cssText = 'max-width:720px;margin:0 auto;padding:40px 28px 120px;';
 
-  // Cover
+  // cover
   if (story.cover) {
     const img = document.createElement('img');
     img.src = story.cover;
@@ -808,7 +785,7 @@ async function bootStory(story) {
     wrap.appendChild(img);
   }
 
-  // Title + meta
+  // title + meta
   const words   = story.word_count || 0;
   const readMin = Math.max(1, Math.ceil(words / 200));
   const pages   = story.page_count || Math.max(1, Math.ceil(words / 350));
@@ -831,7 +808,7 @@ async function bootStory(story) {
     + tagsHtml;
   wrap.appendChild(meta);
 
-  // Content
+  // content
   const contentEl = document.createElement('div');
   contentEl.id = 'story-content';
   const fontFamily = story.font || "'Merriweather', Georgia, serif";
@@ -854,7 +831,7 @@ async function bootStory(story) {
 
   document.body.appendChild(wrap);
 
-  // ── Bottom action bar ────────────────────────────────────
+  // -- bottom action bar --
   const bar = document.createElement('div');
   bar.id = 'story-bottom-bar';
   bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:200;'
@@ -874,8 +851,7 @@ async function bootStory(story) {
   }
   document.body.appendChild(bar);
 
-  // Load comment count — story.id is the same id as comicId, so this reads
-  // from the SAME `comments` table/thread the unified openComments() below uses.
+  // load comment count, story.id = comicId so this reads the same comments thread as openComments()
   _sb.from('comments').select('id', { count: 'exact', head: true })
     .eq('comic_id', story.id).eq('deleted', false)
     .then(({ count }) => {
@@ -889,7 +865,7 @@ async function bootStory(story) {
   buildShareUrl();
 }
 
-// ── Story actions ──────────────────────────────────────────
+// -- story actions --
 function storyEdit() {
   if (!_story) return;
   localStorage.setItem('edit_story_id', _story.id);
@@ -948,11 +924,7 @@ function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Text-outline (stroke) CSS — mirrors create.html's textOutlineCSS/defaultOutlineWidth
-// so stroked text/bubble/subtitle layers render the same in the reader as in the
-// editor. fontSize passed in here is already scale-adjusted (fs = layer.fontSize * sx),
-// so the proportional default falls out correctly; an explicit outlineWidth (stored
-// unscaled on the layer) must be scaled by sx by the caller before being passed in.
+// text-outline css, mirrors create.html's textOutlineCSS/defaultOutlineWidth. fontSize here is already scaled
 function defaultOutlineWidth(fontSize) {
   if (!fontSize) fontSize = 24;
   return Math.max(1, Math.round(fontSize * 0.07 * 10) / 10);
@@ -962,34 +934,17 @@ function textOutlineCSS(fontSize, outlineWidth) {
   return `-webkit-text-stroke:${w}px #000;paint-order:stroke fill;`;
 }
 
-// 'add' (additive/"linear dodge") isn't a native CSS mix-blend-mode keyword —
-// CSS calls it 'plus-lighter' (canvas calls it 'lighter', not used here).
-// Everything else in create.html's FX_BLEND_MODES already matches the CSS
-// keyword directly, so this only needs to special-case 'add'. Mirrors
-// create.html's cssBlendMode().
+// 'add' isn't a real css blend mode, css calls it plus-lighter. mirrors create.html's cssBlendMode()
 function cssBlendMode(name) { return name === 'add' ? 'plus-lighter' : name; }
 
-// ── Share URL ─────────────────────────────────────────────
+// -- share url --
 function buildShareUrl() {
   shareUrl = `${READER_BASE}?id=${encodeURIComponent(comicId)}`;
 }
 
-// ═══════════════════════════════════════════════════════════
-// ── FAITHFUL FRAME RENDERER ─────────────────────────────
-// Mirrors create.html's render() logic exactly so what you
-// see in the editor is what readers see.
-// ═══════════════════════════════════════════════════════════
-// Ratio for a SPECIFIC frame — checked in this order:
-//   1. That frame's own stamped ratio (per-frame ratio changes)
-//   2. The comic-level DB column (the whole-comic default)
-//   3. Any other frame in the comic that happens to carry a ratio
-//      (older comics re-saved as a draft before per-frame ratio existed)
-//   4. URL param / localStorage hints, then a 1:1 fallback
-// BUGFIX: this used to check the comic-level column FIRST, unconditionally,
-// for every frame — which meant a comic-level ratio always won even when an
-// individual frame had its own different ratio stamped on it, so per-frame
-// ratio changes made in the editor never actually showed up here. Checking
-// the frame's own ratio first is what makes mid-comic ratio changes render.
+// -- faithful frame renderer, mirrors create.html's render() --
+// ratio order: frame's own ratio, then comic-level column, then any other frame's ratio, then url/localStorage hint, then 1:1.
+// used to check comic-level first always, which broke per-frame ratio changes. frame's own ratio wins now
 function getFrameRatio(frame) {
   if (frame?._ratio?.w && frame?._ratio?.h) return frame._ratio;
   if (frame?.ratio?.w  && frame?.ratio?.h)  return frame.ratio;
@@ -1011,8 +966,7 @@ function getFrameRatio(frame) {
   } catch(e) {}
   return { w: 1, h: 1 };
 }
-// Back-compat wrapper for call sites that aren't about a specific frame
-// (e.g. a comic-wide default before any frame is known).
+// back-compat wrapper for callers not tied to a specific frame
 function getCanvasRatio() { return getFrameRatio(null); }
 
 function sizeFrame(el, frame) {
@@ -1033,7 +987,7 @@ function sizeFrame(el, frame) {
   cf.style.height = ch + 'px';
   cf.style.backgroundSize = 'cover';
 
-  // Size the wrap so it contains the absolute-positioned buffers
+  // size wrap to contain the absolute-positioned buffers
   const wrap = document.getElementById('comic-frame-wrap');
   if (wrap) { wrap.style.width = cw + 'px'; wrap.style.height = ch + 'px'; }
 
@@ -1041,26 +995,18 @@ function sizeFrame(el, frame) {
 }
 
 function getEditorDimensions(frame) {
-  // Mobile editor stamps the actual canvas pixel size onto each frame as _editorW/_editorH.
-  // Desktop create.html always uses BASE_SIZE=900 (derived from ratio via setRatio).
-  // Prefer the per-frame stamp when present so mobile-created comics render correctly.
+  // mobile stamps real canvas size as _editorW/_editorH, desktop uses BASE_SIZE=900. prefer the stamp when present
   if (frame && frame._editorW && frame._editorH) {
     return { ew: frame._editorW, eh: frame._editorH };
   }
-  // Fallback: desktop path — reconstruct from THIS frame's own ratio × EDITOR_BASE=900
+  // fallback: desktop path, reconstruct from this frame's ratio x EDITOR_BASE=900
   const r = getFrameRatio(frame);
   const ew = r.w >= r.h ? EDITOR_BASE : Math.round(EDITOR_BASE * r.w / r.h);
   const eh = r.h >= r.w ? EDITOR_BASE : Math.round(EDITOR_BASE * r.h / r.w);
   return { ew, eh };
 }
 
-// Tail position is stored as an edge ('top'|'bottom'|'left'|'right', l.tailEdge)
-// plus a 0-100% point along that edge (l.tailPos), set by dragging the tail
-// handle anywhere around the bubble's perimeter in create-mobile.html. Older
-// saves only have the legacy `tailFlip` boolean, so fall back to each style's
-// default bottom-edge base position, mirrored to the right side when flipped.
-// This must stay in sync with getBubbleTailEdge()/getBubbleTailPos() in
-// create-mobile.html.
+// tail position = edge + 0-100% point along it, set by dragging in create-mobile.html. old saves only have tailFlip, fall back to default position. keep in sync with getBubbleTailEdge/getBubbleTailPos
 const MOB_BUBBLE_TAIL_BASE = { round: 20, chat: 80, rect: 50, whisper: 25 };
 function getBubbleTailEdge(layer) {
   return (layer.tailEdge === 'top' || layer.tailEdge === 'left' || layer.tailEdge === 'right')
@@ -1072,14 +1018,8 @@ function getBubbleTailPos(layer, bStyle) {
   return layer.tailFlip ? (100 - base) : base;
 }
 
-// ── TAIL SHAPE ENGINE (ported from create-mobile.html) ──
-// Each tail-capable style's triangle, as it looks glued to the BOTTOM edge
-// (outer solid/a/b border sizes, plus an optional inner "keyline" triangle in
-// the bubble's fill color). The same numbers drive all four edges — rotating
-// a rigid triangle doesn't change its size, only which physical CSS sides
-// it uses. Keep these numbers identical to MOB_TAIL_SHAPE in
-// create-mobile.html so a bubble looks the same in the reader as it did
-// while authoring it.
+// -- tail shape engine, ported from create-mobile.html --
+// each style's triangle as it looks on the bottom edge, same numbers drive all four edges via rotation. keep in sync with MOB_TAIL_SHAPE
 const MOB_TAIL_SHAPE = {
   round:   { solid: 20, a: 12, b: 4,  inner: { solid: 16, a: 8,  b: 2,  gapMain: -19, gapCross: -9  } },
   chat:    { solid: 18, a: 14, b: 0,  inner: { solid: 14, a: 10, b: 0,  gapMain: -17, gapCross: -11 } },
@@ -1088,13 +1028,7 @@ const MOB_TAIL_SHAPE = {
 };
 const MOB_TAIL_SOLID_SIDE = { bottom: 'top', top: 'bottom', left: 'right', right: 'left' };
 
-// Builds a `<div class="bubble-tail edge-...">` (with its inner keyline div,
-// if the style has one) for a tail sitting on `edge` at `pos` (0-100%) along
-// it, scaled uniformly by `sx` to match the bubble/font scale the reader
-// renders this frame at. All border widths and offsets are pre-multiplied by
-// sx rather than using a CSS transform:scale(), so the tail's own edge/pos
-// positioning (which relies on percentages of the *unscaled* bubble) isn't
-// thrown off by a second, independent scale layer.
+// build the bubble-tail div + keyline, scaled by sx. border widths pre-multiplied by sx instead of css transform so pos % isn't thrown off
 function bubbleTailEl(bStyle, edge, pos, bubBorder, bubBg, sx) {
   const shape = MOB_TAIL_SHAPE[bStyle];
   if (!shape) return null;
@@ -1124,23 +1058,14 @@ function getSpriteFilterCSS(layer) {
   const blurType = layer.blurType || 'none';
   if (blurType === 'none') return '';
   const amt = layer.blurAmount ?? layer.blurAmt ?? 4;  // desktop: blurAmount, mobile: blurAmt
-  // 'gaussian'/'soft' and 'lens' — must stay in sync with getSpriteFilterCSS() in create-mobile.html.
-  // These two were previously missing here, so Gaussian/Lens blur silently
-  // dropped in the DOM-rebuild fallback (used whenever a frame_snapshot isn't
-  // available yet) even though the baked snapshot path always rendered them fine.
+  // gaussian/soft and lens, keep in sync with getSpriteFilterCSS() in create-mobile.html. were missing here, blur silently dropped in dom fallback
   if (blurType === 'gaussian' || blurType === 'soft') return `blur(${amt}px)`;
   if (blurType === 'lens')  return `blur(${amt * 1.2}px) brightness(112%) saturate(88%)`;
   if (blurType === 'pixel') return `blur(${Math.max(1, Math.round(amt * 0.6))}px) contrast(${100 + amt * 4}%) saturate(120%)`;
   return '';
 }
 
-// Color FX overlay — Lightness + Color Balance. Brightness/Contrast/Hue/
-// Saturation are native CSS filter functions and already flow through
-// layer.fxFilter / bgFx.fxFilter as a plain string (see getSpriteFilterCSS
-// usage below), so they need no special handling here. Lightness and Color
-// Balance aren't native CSS filter primitives, so they're rendered as flat,
-// alpha-blended color tints stacked on top of the element — must stay in
-// sync with colorFxOverlayLayers()/applyColorFxToDOM() in create-mobile.html.
+// color fx overlay, lightness + color balance arent native css filters so rendered as alpha-blended tints. keep in sync with create-mobile.html
 function colorFxOverlayLayers(cf) {
   const layers = [];
   if (!cf) return layers;
@@ -1182,28 +1107,23 @@ function applyColorFxToDOM(el, layer) {
   el.appendChild(wrap);
 }
 
-// ── Preload all images across all frames ─────────────────────
-// Fires-and-forgets Image() loads so the browser caches every
-// sprite and background before the reader reaches that frame.
+// -- preload all images across all frames --
+// fire-and-forget Image() loads so the browser caches everything ahead of time
 function preloadAllFrameImages(frames) {
   const seen = new Set();
   const queue = [];
   frames.forEach((f, i) => {
-    // Frames with a snapshot render from that single baked PNG and never
-    // touch these raw sprite/background images — warming them was wasted
-    // bandwidth, and it was firing at boot alongside startBackgroundPreload()'s
-    // snapshot walk, saturating the connection pool and slowing down the
-    // very first frame the reader is waiting on.
+    // frames with a snapshot never touch these raw images, warming them was wasted bandwidth and slowed the first frame
     const origIdx = f._readerOrigIdx != null ? f._readerOrigIdx : i;
     if (snapshotMap[origIdx]) return;
 
-    // Background
+    // background
     const bg = f.background || '';
     if ((bg.startsWith('http') || bg.startsWith('data:image')) && !seen.has(bg)) {
       seen.add(bg);
       queue.push(bg);
     }
-    // Layers
+    // layers
     (f.layers || []).forEach(l => {
       if (l.type === 'img' && l.src && !seen.has(l.src)) {
         seen.add(l.src);
@@ -1212,8 +1132,7 @@ function preloadAllFrameImages(frames) {
     });
   });
 
-  // Whatever's left (frames with no snapshot yet) gets warmed one at a
-  // time instead of all at once — same spirit as _bgPreloadStep below.
+  // warm whatever's left one at a time instead of all at once
   let i = 0;
   (function step() {
     if (i >= queue.length) return;
@@ -1223,18 +1142,8 @@ function preloadAllFrameImages(frames) {
   })();
 }
 
-// ── BACKGROUND SNAPSHOT PRE-LOADING ────────────────────────────────────────
-// preloadAllFrameImages() above fires every sprite/background image at once —
-// fine for the DOM-fallback render path, but the main rendering path is the
-// pre-rendered per-frame PNG snapshots in snapshotMap, and firing every
-// snapshot at once for a long comic would flood the connection and slow down
-// the very frame the person is looking at right now.
-// This instead walks outward from the current frame — ahead first, since
-// that's the direction people actually read in — one image at a time, with a
-// small gap between each, quietly warming the browser's cache well before
-// the person swipes there. renderFrame()'s own preload still exists as a
-// safety net for a cache miss, but with this running, it should rarely
-// actually have to wait on the network.
+// -- background snapshot preloading --
+// walks outward from current frame, ahead first since that's the read direction, one at a time with a gap. renderFrame's own preload is still the safety net for a cache miss
 const _preloadedSnaps = new Set();
 let _bgPreloadRunning = false;
 function _bgPreloadStep() {
@@ -1251,10 +1160,10 @@ function _bgPreloadStep() {
       if (url && !_preloadedSnaps.has(url)) { next = i; break; }
     }
   }
-  if (next === -1) { _bgPreloadRunning = false; return; } // everything we know about is warmed
+  if (next === -1) { _bgPreloadRunning = false; return; }  // everything we know about is warmed
 
   const url = snapshotMap[origIdx(next)];
-  _preloadedSnaps.add(url); // mark up front so a slow load can't get requeued
+  _preloadedSnaps.add(url);  // mark up front so a slow load cant get requeued
   const img = new Image();
   img.onload = img.onerror = () => setTimeout(_bgPreloadStep, 120);
   img.src = url;
@@ -1267,8 +1176,8 @@ function startBackgroundPreload() {
 
 function getActiveCf() { return document.getElementById('comic-frame'); }
 
-// ── Frame audio: one reusable <audio> element, swapped per frame ──────────
-// Field names match the editor exactly: f.audio_url, f.audio_name, f.audio_start, f.audio_end
+// -- frame audio: one reusable <audio> element, swapped per frame --
+// field names match the editor: audio_url, audio_name, audio_start, audio_end
 function syncFrameAudio(f) {
   const audioEl = document.getElementById('r-frame-audio');
   const btn = document.getElementById('r-audio-btn');
@@ -1285,7 +1194,7 @@ function syncFrameAudio(f) {
 
   const start = f.audio_start || 0;
   const key = f.audio_url + '|' + start;
-  if (key === _lastAudioKey) return; // same clip already loaded — scroll-driven re-syncs shouldn't restart it
+  if (key === _lastAudioKey) return;  // same clip already loaded, dont restart on re-sync
   _lastAudioKey = key;
 
   btn.classList.add('has-audio');
@@ -1298,8 +1207,7 @@ function syncFrameAudio(f) {
   audioEl.onpause = () => { btn.classList.remove('playing'); btn.innerText = '🔈'; };
   audioEl.onended = () => { btn.classList.remove('playing'); btn.innerText = '🔈'; };
 
-  // Browsers block unmuted autoplay until the user has interacted at least once.
-  // After the first manual tap, keep auto-resuming sound on subsequent frames.
+  // browsers block unmuted autoplay until first interaction, keep auto-resuming after that
   if (_audioUnlocked) {
     audioEl.play().catch(() => { btn.classList.remove('playing'); btn.innerText = '🔈'; });
   } else {
@@ -1319,11 +1227,11 @@ function toggleFrameAudio() {
 }
 
 
-// ── Get toonscroll override for a frame by its original index ─────────────
+// -- get toonscroll override for a frame by original index --
 function getTsLayerOverrides(readerIdx) {
   if (!toonScrollFrames || toonScrollFrames.length === 0) return {};
   const f = frames[readerIdx];
-  // Use stamped original index if present, otherwise fall back to readerIdx
+  // use stamped original index if present, else fall back to readerIdx
   const origIdx = (f && f._readerOrigIdx != null) ? f._readerOrigIdx : readerIdx;
   const tf = toonScrollFrames.find(t => t.frame_index === origIdx);
   return tf?.layer_overrides || {};
@@ -1337,34 +1245,21 @@ function renderFrame() {
 
   const el = getActiveCf();
 
-  // ── SNAPSHOT PATH ────────────────────────────────────────────────────────
+  // -- snapshot path --
   const snapIdx = f._readerOrigIdx ?? idx;
   const snapUrl = snapshotMap[snapIdx];
 
   if (snapUrl) {
     const currentImg = el.querySelector('.r-snapshot');
     if (currentImg && currentImg.dataset.snapUrl === snapUrl) {
-      // Already showing this exact frame — just keep sizing in sync (e.g. on
-      // a viewport/orientation change) without touching the visible image.
+      // already showing this frame, just keep sizing in sync
       sizeFrame(el, f);
       return;
     }
-    // BUGFIX: this used to wipe el.innerHTML and append a src-less <img>
-    // immediately, then set .src — so the previous frame's content vanished
-    // and the reader showed a blank white rectangle for as long as the new
-    // image took to load (very visible on a slow connection or an uncached
-    // frame). Preloading off-DOM first means the OLD frame stays fully
-    // visible right up until the NEW one is actually ready to show, and the
-    // resize + swap happen together in the same instant instead of a resize
-    // (revealing blank space) followed later by the image itself.
-    // If there's nothing on screen yet (e.g. this is the very first frame the
-    // reader shows), fall through to a straight blank→content swap below —
-    // startBackgroundPreload() (kicked off once snapshots are known) is what
-    // keeps this from happening on every OTHER frame by warming frames ahead
-    // of time, so this path is only ever hit once per reading session.
+    // preload off-dom first so the old frame stays visible until the new one is ready, avoids a blank flash. first frame ever shown falls through to a straight swap
     const preload = new Image();
     preload.onload = () => {
-      // Bail if the user has since swiped past this frame again
+      // bail if the user already swiped past this frame
       if ((frames[idx]._readerOrigIdx ?? idx) !== snapIdx) return;
       const { cw, ch } = sizeFrame(el, f);
       el.innerHTML = '';
@@ -1376,14 +1271,14 @@ function renderFrame() {
       el.appendChild(snapImg);
     };
     preload.onerror = () => {
-      // Snapshot broken/expired — fall back to DOM render
+      // snapshot broken/expired, fall back to dom render
       delete snapshotMap[snapIdx];
       const { cw, ch } = sizeFrame(el, f);
       el.innerHTML = '';
       _renderFrameDOM(f, el, cw, ch);
     };
     preload.src = snapUrl;
-    // Preload neighbours
+    // preload neighbours
     [snapIdx - 1, snapIdx + 1, snapIdx + 2].forEach(pi => {
       if (snapshotMap[pi] && !document.querySelector(`link[href="${snapshotMap[pi]}"]`)) {
         const link = document.createElement('link');
@@ -1394,22 +1289,22 @@ function renderFrame() {
     return;
   }
 
-  // ── DOM FALLBACK ─────────────────────────────────────────────────────────
+  // -- dom fallback --
   const { cw, ch } = sizeFrame(el, f);
   _renderFrameDOM(f, el, cw, ch);
 }
 
-// Full DOM layer rebuild — used only when no snapshot exists yet
+// full dom layer rebuild, only when no snapshot exists yet
 function _renderFrameDOM(f, next, cw, ch) {
   next.style.width  = cw + 'px';
   next.style.height = ch + 'px';
 
-  // 2. Scale factors: editor → reader
+  // scale factors: editor -> reader
   const { ew, eh } = getEditorDimensions(f);
   const sx = cw / ew;
   const sy = ch / eh;
 
-  // 3. Helpers
+  // helpers
   function isAnimatedBg(src) {
     if (!src) return false;
     if (src.startsWith('data:image/gif'))  return true;
@@ -1419,28 +1314,17 @@ function _renderFrameDOM(f, next, cw, ch) {
     return lower.includes('.gif') || lower.includes('.webp');
   }
 
-  // 3. Apply background — mirrors updated create.html render():
-  //    filter goes ONLY on the bg-layer div, never on cf root, so sprites are unaffected.
+  // apply background, mirrors create.html render(). filter goes only on bg-layer div
   const bg = f.background || '#ffffff';
-  // Exclude base64 backgrounds from DOM render — snapshots handle them
+  // exclude base64 backgrounds from dom render, snapshots handle them
   const isBgImage    = bg.startsWith('http');
   const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
   const isBgAnimated = isBgImage && isAnimatedBg(bg);
 
-  // Full wipe, not a targeted one. This buffer may currently be showing a
-  // baked .r-snapshot <img> from the OTHER render path (renderFrame()'s
-  // snapshot branch) — that element isn't a .r-bg-div/.r-layer, so the old
-  // targeted querySelectorAll cleanup below missed it entirely. Since it's
-  // a plain (non-positioned) child, it painted *behind* the new absolutely-
-  // positioned sprites but *in front of* the frame's own background,
-  // showing through as a ghost of the previous frame — most visible right
-  // at the boundary between a snapshotted frame and a not-yet-snapshotted
-  // one, which is exactly the "flickers to someone else" symptom. Nothing
-  // else is expected to live in this buffer between renders, so a full
-  // clear is safe.
+  // full wipe, not targeted. a stale .r-snapshot img from the other render path was leaking through as a ghost frame at the boundary. nothing else lives here between renders so full clear is safe
   next.innerHTML = '';
 
-  // Reset canvas-level bg props
+  // reset canvas-level bg props
   next.style.filter          = '';
   next.style.backgroundImage = 'none';
   next.style.backgroundColor = '#ffffff';
@@ -1455,7 +1339,7 @@ function _renderFrameDOM(f, next, cw, ch) {
   const filter = s.filter || 'none';
   const filterCSS = filter === 'none' ? '' : filter;
 
-  // Background FX (blur/filter chip/opacity/blend/color FX) — mirrors bgFx handling in create-mobile.html
+  // background fx, mirrors create-mobile.html
   const bgFx = f.bgFx || {};
   const bgFxCSS = getSpriteFilterCSS(bgFx);
   const bgFxChipCSS = (bgFx.fxFilter && bgFx.fxFilter !== 'none') ? bgFx.fxFilter : '';
@@ -1471,10 +1355,7 @@ function _renderFrameDOM(f, next, cw, ch) {
 
   if (isBgImage) {
     next.style.backgroundColor = 'transparent';
-    // px-based cover+zoom+pan geometry (not object-position+transform:scale) — same root-cause
-    // fix as create-mobile.html's render(): object-position's pan slack is computed from the
-    // element's own box size before any transform runs, so scale() zoom never creates real pan
-    // room on an axis where the image's aspect ratio already matches the frame.
+    // px-based cover+zoom+pan geometry, same fix as create-mobile.html render()
     window._readerBgNatDimCache = window._readerBgNatDimCache || {};
     let nat = window._readerBgNatDimCache[bg];
     if (!nat) {
@@ -1533,13 +1414,13 @@ function _renderFrameDOM(f, next, cw, ch) {
   applyColorFxToDOM(bgLayer, bgFx);
   next.appendChild(bgLayer);
 
-  // 4. Add this frame's layers (buffer was already fully cleared above)
+  // add this frame's layers, buffer already cleared above
   const rfLayerOvr = getTsLayerOverrides(idx);
   f.layers.forEach((l, layerIdx) => {
     const el = document.createElement('div');
     el.className = 'r-layer';
 
-    // Position & size — scaled from editor coords, with toonscroll overrides applied
+    // position & size, scaled from editor coords with toonscroll overrides
     const ov  = rfLayerOvr[layerIdx] || {};
     const lx  = (l.x + (ov.dx || 0)) * sx;
     const ly  = (l.y + (ov.dy || 0)) * sy;
@@ -1551,21 +1432,21 @@ function _renderFrameDOM(f, next, cw, ch) {
     el.style.zIndex = 10 + layerIdx;
     if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = cssBlendMode(l.fxBlend);
 
-    // Rotation + flip — transform-origin MUST be center to match create.html
+    // rotation + flip, transform-origin must be center to match create.html
     const rot  = l.rotation || 0;
     const flip = l.flipped ? -1 : 1;
     el.style.transform       = `rotate(${rot}deg) scaleX(${flip})`;
     el.style.transformOrigin = 'center center';
 
-    // Opacity — handle both desktop (opacity 0-100) and mobile (fxOpacity 0-100)
+    // opacity, handles both desktop (opacity) and mobile (fxOpacity)
     const opacityVal = l.opacity ?? l.fxOpacity;
     if (opacityVal != null && opacityVal !== 100) {
       el.style.opacity = opacityVal / 100;
     }
 
-    // FX: blur + layer filter — handle both desktop and mobile field names
+    // fx: blur + layer filter, handles both desktop and mobile field names
     const blurCSS = getSpriteFilterCSS(l);
-    // desktop: l.layerFilter, mobile: l.fxFilter
+    // desktop: layerFilter, mobile: fxFilter
     const lfCSS = ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '')
                || ((l.fxFilter    && l.fxFilter    !== 'none') ? l.fxFilter    : '');
     const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
@@ -1573,13 +1454,12 @@ function _renderFrameDOM(f, next, cw, ch) {
     if (l.type === 'img') {
       const hasFxSrc   = !!l._fxSrc;
       const bStrength  = (l.blurStrength != null) ? l.blurStrength : 100;
-      // blurCSS (soft/pixel CSS approximation) is skipped when a canvas-baked
-      // _fxSrc snapshot already exists, so the effect isn't applied twice.
+      // blurCSS skipped when a baked _fxSrc snapshot already exists, avoids double-applying
       const imgBlurCSS   = hasFxSrc ? '' : blurCSS;
       const imgFilterCSS = [imgBlurCSS, lfCSS].filter(Boolean).join(' ');
 
       if (hasFxSrc && bStrength < 100) {
-        // Clean base + FX overlay at blur-opacity — matches create.html
+        // clean base + fx overlay at blur-opacity, matches create.html
         if (l.src && l.src.startsWith('http')) {
           const base = document.createElement('img');
           base.src = l.src;
@@ -1596,7 +1476,7 @@ function _renderFrameDOM(f, next, cw, ch) {
         el.style.position = 'relative';
       } else {
         const imgSrc = hasFxSrc ? l._fxSrc : l.src;
-        // Skip base64 blobs — only render real URLs; snapshots handle the rest
+        // skip base64 blobs, only render real urls
         if (imgSrc && imgSrc.startsWith('http')) {
           const img = document.createElement('img');
           img.src = imgSrc;
@@ -1605,7 +1485,7 @@ function _renderFrameDOM(f, next, cw, ch) {
           el.appendChild(img);
         }
       }
-      // Color FX overlay — sprite layers only, matches create.html
+      // color fx overlay, sprite layers only, matches create.html
       applyColorFxToDOM(el, l);
 
     } else if (l.type === 'panel') {
@@ -1630,11 +1510,11 @@ function _renderFrameDOM(f, next, cw, ch) {
       const decos     = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
       const isThinking = l.type === 'thinking';
 
-      // Determine bubble style — default: cloud for thinking, round for speech
+      // determine bubble style, default cloud for thinking round for speech
       const bStyle = l.bubbleStyle || (isThinking ? 'cloud' : 'round');
       const isCloud = bStyle === 'cloud';
 
-      // Bubble-level border/bg color overrides (stored on layer in create.html)
+      // bubble-level border/bg color overrides, stored on layer in create.html
       const bubBorder = l.bubbleBorderColor || '#000';
       const bubBg     = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
 
@@ -1642,11 +1522,7 @@ function _renderFrameDOM(f, next, cw, ch) {
 
       const bubble = document.createElement('div');
       bubble.className = `speech-bubble bubble-style-${bStyle}`;
-      // Burst-style bubbles (Shout, Burst) are clipped to a jagged polygon.
-      // A plain CSS border on a clipped element only paints where the
-      // polygon touches the box's literal top/bottom/left/right edges,
-      // leaving the interior zigzag unbordered — so those styles render
-      // their text in a nested fill layer instead (matches create.html).
+      // burst-style bubbles clip to a jagged polygon, plain css border leaves the interior unbordered so text renders in a nested fill layer instead
       const isBurst = bStyle === 'spiky' || bStyle === 'shout';
       bubble.style.cssText = [
         `font-size:${fs}px`,
@@ -1679,11 +1555,7 @@ function _renderFrameDOM(f, next, cw, ch) {
         bubble.appendChild(document.createTextNode(l.content || ''));
       }
 
-      // Tail: shown only for styles that use one (same logic as create-mobile.html).
-      // Uses the continuous drag position + edge saved by the creator
-      // (l.tailEdge / l.tailPos), falling back to the legacy bottom-edge-only
-      // tailFlip toggle for older saves that predate the draggable-to-any-edge
-      // tail (same logic as create-mobile.html's getBubbleTailEdge()/getBubbleTailPos()).
+      // tail shown only for styles that use one. uses drag position + edge, falls back to legacy tailFlip for older saves
       const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
       if (showTail) {
         const tailEdge = getBubbleTailEdge(l);
@@ -1692,12 +1564,12 @@ function _renderFrameDOM(f, next, cw, ch) {
         if (tail) bubble.appendChild(tail);
       }
 
-      // Thought dots: shown for cloud/thinking bubbles
+      // thought dots, shown for cloud/thinking bubbles
       if (isCloud || isThinking) {
         ['thought-dot-1','thought-dot-2','thought-dot-3'].forEach(cls => {
           const d = document.createElement('div');
           d.className = cls;
-          // Scale dot size to match the scale factor
+          // scale dot size to match scale factor
           bubble.appendChild(d);
         });
       }
@@ -1723,7 +1595,7 @@ function _renderFrameDOM(f, next, cw, ch) {
       if (combinedFilter) el.style.filter = combinedFilter;
 
     } else {
-      // Plain text (type === 'text' or any unlisted type)
+      // plain text (type === 'text' or unlisted)
       const fs = (l.fontSize || 28) * sx;
       const ff = l.fontFamily || "'Inter', sans-serif";
       const decos = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
@@ -1743,10 +1615,10 @@ function _renderFrameDOM(f, next, cw, ch) {
     }
 
     next.appendChild(el);
-    applyReaderPanelClip(f, l, el, sx, sy); // cut off anything spilling past whichever panel this sits on, frame-style
+    applyReaderPanelClip(f, l, el, sx, sy);  // clip to whichever panel this sits on
   });
 
-} // end _renderFrameDOM
+}  // end _renderFrameDOM
 
 function _updateReaderChrome() {
   const tot = frames.length;
@@ -1759,25 +1631,25 @@ function _updateReaderChrome() {
   document.querySelectorAll('.fd').forEach((d, i) => d.classList.toggle('on', i === idx));
 }
 
-// ── Nav ───────────────────────────────────────────────────
+// -- nav --
 // nav functions defined above
 
-// ── Fullscreen ────────────────────────────────────────────
+// -- fullscreen --
 let _fsActive = false;
 function toggleFullscreen() {
   _fsActive = !_fsActive;
   document.body.classList.toggle('fs-mode', _fsActive);
-  // Update the button icon
+  // update the button icon
   const btn = document.getElementById('btn-fs');
   if (btn) btn.innerText = _fsActive ? '⊠' : '⛶';
-  // Try native fullscreen API too (desktop browsers)
+  // try native fullscreen api too (desktop browsers)
   if (_fsActive) {
     document.documentElement.requestFullscreen?.().catch(() => {});
   } else {
     if (document.fullscreenElement) document.exitFullscreen?.();
   }
 }
-// Sync if user presses Esc or the browser exits native fullscreen
+// sync if user presses esc or browser exits native fullscreen
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement && _fsActive) {
     _fsActive = false;
@@ -1796,11 +1668,11 @@ function setSwipeDir(d) {
   document.getElementById('nz-down').style.display  = v ? 'block' : 'none';
 }
 
-// ── Progress ──────────────────────────────────────────────
+// -- progress --
 function saveProg() {
   if (!comicId) return;
   if (idx >= frames.length - 1) {
-    // Mark as finished but keep progress key so re-read can resume correctly
+    // mark as finished but keep progress key so re-read resumes correctly
     localStorage.setItem('cc-progress-' + comicId, '__done__');
   } else {
     localStorage.setItem('cc-progress-' + comicId, idx);
@@ -1811,7 +1683,7 @@ function isFinished() {
   return localStorage.getItem('cc-progress-' + comicId) === '__done__';
 }
 
-// ── Star ──────────────────────────────────────────────────
+// -- star --
 async function checkStar() {
   if (!myP.handle || myP.handle === 'guest') return;
   if (isComicOwner(comic, myP.handle)) return;
@@ -1823,7 +1695,7 @@ async function checkStar() {
     .eq('reaction', 'rating')
     .maybeSingle();
   userRating = data ? parseInt(data.content) || 0 : 0;
-  isStarred = userRating > 0; // For backward compatibility
+  isStarred = userRating > 0;  // for backward compat
   updStar();
 }
 
@@ -1841,11 +1713,11 @@ function updStar() {
 }
 
 async function toggleStar() {
-  // Legacy function - now opens rating modal
+  // legacy function, now opens rating modal
   openRatingModal();
 }
 
-// ── Rating System ─────────────────────────────────────────
+// -- rating system --
 let currentRating = 0;
 let userRating = 0;
 
@@ -1853,7 +1725,7 @@ function openRatingModal() {
   if (!myP.handle || myP.handle === 'guest') return showToast('Log in to rate!');
   if (isComicOwner(comic, myP.handle)) return showToast('You can\'t rate your own comic');
   document.getElementById('rating-modal').style.display = 'flex';
-  // Load existing rating
+  // load existing rating
   loadUserRating();
 }
 
@@ -1901,7 +1773,7 @@ async function loadUserRating() {
       document.getElementById('rating-submit').textContent = 'Submit Rating';
     }
   } catch (e) {
-    // No existing rating
+    // no existing rating
     userRating = 0;
     currentRating = 0;
     updateRatingDisplay();
@@ -1913,7 +1785,7 @@ async function submitRating() {
 
   try {
     if (userRating > 0) {
-      // Update existing rating
+      // update existing rating
       await _sb.from('messages').update({
         content: currentRating.toString(),
         created_at: new Date().toISOString()
@@ -1922,7 +1794,7 @@ async function submitRating() {
       .eq('receiver_hand', comicId)
       .eq('reaction', 'rating');
     } else {
-      // Insert new rating
+      // insert new rating
       await _sb.from('messages').insert([{
         sender_handle: myP.handle,
         receiver_hand: comicId,
@@ -1934,17 +1806,17 @@ async function submitRating() {
     userRating = currentRating;
     closeRatingModal();
     showToast(`⭐ Rated ${currentRating} star${currentRating > 1 ? 's' : ''}!`);
-    updStar(); // Update UI
+    updStar();  // update ui
   } catch (error) {
     showToast('Error saving rating');
   }
 }
 
-// ── Finish ────────────────────────────────────────────────
+// -- finish --
 function showFinish() {
   const alreadySeen = localStorage.getItem('cc-progress-' + comicId) === '__done__';
-  saveProg(); // mark as __done__
-  if (alreadySeen) return; // don't show the card again if they've already seen it
+  saveProg();  // mark as done
+  if (alreadySeen) return;  // dont show the card again if already seen
   const fc = document.getElementById('finish');
   fc.style.display = 'flex';
   document.getElementById('fin-title').innerText = comic?.title ? `Finished "${comic.title}"!` : 'You finished it!';
@@ -1968,14 +1840,13 @@ async function finishStar() {
   openRatingModal();
 }
 
-// ── Comments ──────────────────────────────────────────────
-// Uses the exact same `comments` table, row shape, and rendering as discover.html
-// (keyed by comic_id) so a comment posted here shows up there and vice versa.
-let activeReplyTo   = null;    // {id, handle} being replied to, or null
-let commentSortMode = 'top';   // 'top' | 'newest'
-let commentsCache   = [];      // top-level comments for this comic
-let repliesCache    = {};      // { parentCommentId: [reply, ...] }
-let myReactionsMap  = {};      // { commentId: 'like'|'dislike' }
+// -- comments --
+// same comments table/row shape/rendering as discover.html (keyed by comic_id) so it stays in sync both ways
+let activeReplyTo   = null;  // {id, handle} being replied to, or null
+let commentSortMode = 'top';  // 'top' | 'newest'
+let commentsCache   = [];  // top-level comments for this comic
+let repliesCache    = {};  // { parentCommentId: [reply, ...] }
+let myReactionsMap  = {};  // { commentId: 'like'|'dislike' }
 const openReplyThreads = new Set();
 
 const ICON_THUMB_UP   = '<svg viewBox="0 0 24 24"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.4c.9 0 1.6-.6 1.9-1.4l2.5-6.5c.4-1.2-.5-2.6-1.9-2.6H15l1-4.5C16.3 4.5 15 2 11.5 2z"/></svg>';
@@ -1985,7 +1856,7 @@ const ICON_PIN        = '<svg viewBox="0 0 24 24"><path d="M12 2l1.5 5.5L19 9l-4
 const ICON_HEART      = '<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.2C.5 8.6 2.3 5 6 5c2 0 3.5 1.1 4.5 2.5C11.5 6.1 13 5 15 5c3.7 0 5.5 3.6 4 6.8-2.5 4.6-10 9.2-10 9.2z"/></svg>';
 const ICON_TRASH      = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 14h8l1-14"/></svg>';
 
-/** Returns { viewed, total } from THIS reader's own local progress cache. */
+// returns viewed/total from this reader's own progress cache
 function getFramesViewedForComment(id) {
   const total = getCachedFrameCount(id);
   if (!total) return null;
@@ -2371,13 +2242,13 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ── Edit ──────────────────────────────────────────────────
+// -- edit --
 function editComic() {
   localStorage.setItem('edit_comic_id', comicId);
   location.href = 'create.html';
 }
 
-// ── Fullscreen ────────────────────────────────────────────
+// -- fullscreen --
 function toggleFS() {
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
     (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)
@@ -2390,7 +2261,7 @@ document.addEventListener('fullscreenchange', () => {
   renderFrame();
 });
 
-// ── UI auto-hide ──────────────────────────────────────────
+// -- ui auto-hide --
 function sched() {
   hideTimer = setTimeout(() => {
     document.getElementById('top-bar').classList.add('hide');
@@ -2415,7 +2286,7 @@ function hideUI() {
   uiOn = false;
 }
 
-// ── Dots ──────────────────────────────────────────────────
+// -- dots --
 function buildDots() {
   const c = document.getElementById('fdots');
   if (frames.length > 24) { c.style.display = 'none'; return; }
@@ -2424,7 +2295,7 @@ function buildDots() {
   ).join('');
 }
 
-// ── Back ──────────────────────────────────────────────────
+// -- back --
 function goBack() {
   document.referrer && (
     document.referrer.includes('discover') ||
@@ -2433,7 +2304,7 @@ function goBack() {
   ) ? history.back() : location.href = 'discover.html';
 }
 
-// ── Share ─────────────────────────────────────────────────
+// -- share --
 function openShare() {
   if (!shareUrl) buildShareUrl();
   const title   = comic?.title || 'this comic';
@@ -2483,7 +2354,7 @@ async function nativeShare() {
   } else { copyLink(); }
 }
 
-// ── QR Code ───────────────────────────────────────────────
+// -- qr code --
 function drawQR(url) {
   const canvas = document.getElementById('qr-canvas');
   if (!canvas) return;
@@ -2516,7 +2387,7 @@ function renderQR(canvas, url) {
   } catch(e) { console.warn('QR render error:', e); }
 }
 
-// ── Toast ─────────────────────────────────────────────────
+// -- toast --
 let toastTimer = null;
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -2525,17 +2396,13 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ── Touch swipe ───────────────────────────────────────────
+// -- touch swipe --
 const vp = document.getElementById('vp');
-// Tracks whether the current touch gesture already advanced/retreated a
-// frame via swipe. Mobile browsers can still synthesize a `click` on the
-// nav-zone under the finger after a touchend even when the finger moved
-// well past the swipe threshold — without this guard that click re-fires
-// nextFrame()/prevFrame() a second time, so one swipe skips two frames.
+// tracks whether this touch gesture already advanced a frame. mobile browsers can still fire a synthetic click after touchend, this guard stops it from double-advancing
 let _touchSwiped = false;
 
 function zoneTap(which) {
-  if (_touchSwiped) return; // swipe on this gesture already navigated
+  if (_touchSwiped) return;  // swipe already navigated this gesture
   if (which === 'prev') prevFrame();
   else if (which === 'next') nextFrame();
   else if (which === 'mid') onMidTap();
@@ -2558,7 +2425,7 @@ vp.addEventListener('touchend', e => {
   if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 280) resetUI();
 }, { passive: true });
 
-// ── Prevent pinch-zoom and double-tap zoom (iOS Safari ignores user-scalable=no) ──
+// -- prevent pinch-zoom and double-tap zoom (ios safari ignores user-scalable=no) --
 document.addEventListener('gesturestart',  e => e.preventDefault(), { passive: false });
 document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
 document.addEventListener('gestureend',    e => e.preventDefault(), { passive: false });
@@ -2572,7 +2439,7 @@ document.addEventListener('touchend', e => {
   _lastTap = now;
 }, { passive: false });
 
-// ── Keyboard ──────────────────────────────────────────────
+// -- keyboard --
 window.addEventListener('keydown', e => {
   if (document.getElementById('share-sheet').classList.contains('open')) {
     if (e.key === 'Escape') closeShare();
@@ -2584,7 +2451,7 @@ window.addEventListener('keydown', e => {
   }
 
   if (toonScrollMode !== 'off') {
-    // In ToonScroll mode: arrows scroll the strip by one frame using snap
+    // in toonscroll mode, arrows scroll the strip by one frame using snap
     const strip = document.getElementById('toonscroll-strip');
     const isH = toonScrollDir === 'horizontal';
     if (e.key === (isH ? 'ArrowRight' : 'ArrowDown')) {

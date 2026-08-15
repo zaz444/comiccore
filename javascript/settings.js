@@ -1,12 +1,6 @@
     const _supabase = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co', 'sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
 
-    // Safely persist the profile to localStorage. Legacy accounts can still
-    // have a raw base64 image in pic/banner (from before avatar uploads
-    // were migrated to Supabase Storage) which can be several MB — large
-    // enough to exceed the localStorage quota and throw. If the write
-    // fails, retry with any oversized base64 fields stripped so the app
-    // can still run — the real pic/banner lives in Supabase Storage / the
-    // profiles table either way, not in localStorage.
+    // fix quota crash on save, strip base64 first
     function ccSaveProfile(profile) {
         try {
             localStorage.setItem('user_profile', JSON.stringify(profile));
@@ -74,7 +68,7 @@
     let _isDirty = false;
     let selectedGalleryUrl = null;
 
-    // ── UNSAVED TRACKING ──
+    // -- unsaved tracking --
     function markDirty() {
         if (_isDirty) return;
         _isDirty = true;
@@ -104,7 +98,7 @@
         });
     }
 
-    // ── PAGE SWITCHING ──
+    // -- page switching --
     const PAGE_TITLES = {
         'profile': 'Profile', 'connections': 'Connections', 'privacy': 'Privacy & Data',
         'account': 'Account', 'profile-display': 'Profile Display',
@@ -132,10 +126,10 @@
         document.querySelector('.settings-content-scroll').scrollTop = 0;
     }
 
-    // Keep switchPage as alias for backward-compat (used in unsaved-banner save btn etc.)
+    // keep old name for backward compat
     function switchPage(name) { switchSettingsPage(name); }
 
-    // ── TOONSCROLL SETTINGS ──
+    // -- toonscroll settings --
     let _tsDefaultDir = 'horizontal';
 
     function selectTsDir(dir) {
@@ -382,7 +376,7 @@
         location.href = 'index.html';
     }
 
-    // ── PFP PICKER ──
+    // -- pfp picker --
     function openPfpPicker() {
         selectedGalleryUrl = null;
         const grid = document.getElementById('pfp-gallery-grid');
@@ -407,7 +401,7 @@
         markDirty(); closePfpPicker();
     }
 
-    // ── PFP FILE INPUT ──
+    // -- pfp file input --
     document.getElementById('pfp-input').onchange = e => {
         if (!e.target.files[0]) return;
         document.getElementById('pfp-preview').src = URL.createObjectURL(e.target.files[0]);
@@ -417,7 +411,7 @@
         e.target.value = '';
     };
 
-    // ── PFP CROP ──
+    // -- pfp crop --
     let pfpCropOffsetX=0,pfpCropOffsetY=0,pfpCropScale=1,pfpCropDrag=null,pfpImgNatW=1,pfpImgNatH=1;
     const PFP_SIZE = 240;
     function openPfpCrop(src) {
@@ -462,7 +456,7 @@
         markDirty(); closePfpCrop();
     }
 
-    // ── BANNER ──
+    // -- banner --
     document.getElementById('banner-input').onchange = e => {
         if (!e.target.files[0]) return;
         document.getElementById('banner-preview').src = URL.createObjectURL(e.target.files[0]);
@@ -506,7 +500,7 @@
         markDirty(); closeCropModal();
     }
 
-    // ── SAVE ──
+    // -- save --
     async function saveSettings() {
         if (!myProfile.handle) { showToast('Not logged in'); return; }
 
@@ -522,7 +516,7 @@
                 if (data) picPath = `avatars/${fn}`;
             } catch(e) { showToast('PFP upload error'); return; }
         } else if (_pfpChanged && pfpBase64) {
-            // Gallery avatar or other direct URL was selected (not a cropped upload)
+            // gallery avatar, not a crop upload
             picPath = pfpBase64;
         }
 
@@ -543,10 +537,7 @@
         const msEnabled = document.getElementById('st-milestones-enabled').checked;
         const msMessage = document.getElementById('milestone-message-input').value.trim();
 
-        // Pull the latest settings from the DB instead of trusting the local cache —
-        // the local copy can be stale (e.g. if a role was granted server-side since
-        // this browser last synced), and blindly spreading it here would silently
-        // overwrite/erase fields like `role` that the client doesn't manage.
+        // refetch from db, cache can be stale
         const { data: freshRow } = await _supabase.from('profiles').select('settings').eq('handle', myProfile.handle).maybeSingle();
         const existingSettings = freshRow?.settings || myProfile.settings || {};
 
@@ -598,9 +589,9 @@
         }
     }
 
-    // ── INIT ──
+    // -- init --
     async function init() {
-        // Build social inputs
+        // build social inputs
         const container = document.getElementById('social-inputs-container');
         SOCIAL_CONFIG.forEach(s => {
             const card = document.createElement('div'); card.className = 'social-card';
@@ -608,7 +599,7 @@
             container.appendChild(card);
         });
 
-        // Auth check
+        // auth check
         if (!myProfile.handle) {
             const { data: { session } } = await _supabase.auth.getSession();
             if (!session?.user) { location.href = 'login.html'; return; }
@@ -617,7 +608,7 @@
             else { location.href = 'login.html'; return; }
         }
 
-        // Populate fields
+        // populate fields
         document.getElementById('edit-name').value = myProfile.name || '';
         document.getElementById('edit-bio').value = myProfile.bio || '';
 
@@ -676,7 +667,7 @@
         setTimeout(attachDirtyListeners, 50);
     }
 
-    // ── TOAST ──
+    // -- toast --
     let _toastTimer = null;
     function showToast(msg) {
         let el = document.getElementById('cc-toast');

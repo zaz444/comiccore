@@ -1,9 +1,9 @@
 const _sb = supabase.createClient('https://mmycqeejhguzhtzkyjaj.supabase.co','sb_publishable_8Du2GAcH5oBeiHWe-1e0Fg_XtSub2QE', { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' } });
 
-// Same trash icon discover.html uses for delete actions — keeps iconography consistent, no emoji.
+// same trash icon as discover.html
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-2px;margin-right:5px;fill:none;stroke:currentColor;stroke-width:2;"><path d="M4 7h16M9 7V4h6v3m-8 0 1 14h8l1-14"/></svg>';
 
-// ── Draft Save/Load helpers (SQL-first, Storage bucket fallback) ──────────────
+// -- draft save/load (sql first, storage fallback) --
 const DRAFT_BUCKET  = 'comiccore-assets';
 const DRAFT_PREFIX  = 'drafts/';
 const INLINE_LIMIT  = 900_000;
@@ -42,7 +42,7 @@ async function loadDraftData(d) {
   return d.data;
 }
 
-// ── State ──────────────────────────────────────────────────
+// -- state --
 let currentTab = 'drafts';
 let drafts = [];
 let published = [];
@@ -52,12 +52,11 @@ let renameTargetId = null;
 let selectedRatio = { w: 9, h: 13 };
 let startFromCollabTab = false;
 
-// Draft select mode
+// draft select mode
 let draftSelectMode = false;
 let selectedDraftIds = new Set();
 
-// "Co" badge — same rounded-square style as Discover's orange "E" episode badge,
-// used everywhere Collab shows up instead of an emoji.
+// co badge, same style as discover's episode badge
 const CO_BADGE_XS = '<svg width="12" height="12" viewBox="0 0 26 26" style="display:inline-block;vertical-align:-2px;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg>';
 const CO_BADGE_SM = '<svg width="16" height="16" viewBox="0 0 26 26" style="display:inline-block;vertical-align:-3px;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg>';
 const CO_BADGE_MD = '<svg width="22" height="22" viewBox="0 0 26 26" style="display:block;flex-shrink:0;"><rect x="0.5" y="0.5" width="25" height="25" rx="7" fill="#ff7a00"/><text x="13" y="17.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="900" fill="#000">Co</text></svg>';
@@ -72,12 +71,7 @@ const RATIOS = [
   { w:3,  h:4,  label:'Portrait', dims:'3:4',   icon:{ w:38, h:50 } },
 ];
 
-// ── Init ───────────────────────────────────────────────────
-// Wait for Supabase to confirm the session has actually finished loading
-// before deciding whether to load comics or bounce to login. Checking the
-// session immediately on page load can race with that restore process and
-// return null even when the user IS logged in — this is a known Supabase
-// gotcha (same fix applied on index.html).
+// -- init -- wait for session before loading or redirecting to login
 let _myComicsInitDone = false;
 
 async function initMyComics(session) {
@@ -92,15 +86,10 @@ async function initMyComics(session) {
   myHandle = profile.handle || null;
   myName = profile.name || 'Creator';
 
-  // Default tab is drafts — show Select button
+  // default tab is drafts, show select button
   document.getElementById('select-toggle-btn').classList.add('visible');
 
-  // BUGFIX: these used to run as a plain sequential await chain, so an
-  // uncaught error thrown by any one loader (see the ReferenceError fixed
-  // above) silently aborted everything after it — including renderDrafts(),
-  // which is why drafts could show a correct count but never actually
-  // appear on screen. Each load now fails on its own without blocking the
-  // others, and stats/rendering always run afterward no matter what.
+  // run loaders independently so one failure doesn't block the rest
   await Promise.allSettled([loadDrafts(), loadPublished(), loadCollab()]);
   renderStats();
   renderDrafts();
@@ -115,9 +104,9 @@ _sb.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// ── Load data ─────────────────────────────────────────────
+// -- load data --
 async function loadDrafts() {
-  // Load ONLY from Supabase (no localStorage fallback)
+  // load only from supabase, no localStorage fallback
   if (!myHandle) {
     drafts = [];
     document.getElementById('drafts-count').innerText = 0;
@@ -125,13 +114,7 @@ async function loadDrafts() {
   }
 
   try {
-    // `drafts.owner_handles` is a jsonb column (unlike `comics.owner_handles`
-    // below, which is a native Postgres text[] array) — .contains() needs a
-    // JSON string here, not a real array. Passing a real array makes
-    // supabase-js format it as Postgres array-literal syntax ({someuser}),
-    // which Postgres then fails to parse as JSON ("invalid input syntax for
-    // type json"). Keep this as JSON.stringify — do not "fix" it to match
-    // loadPublished() below, that's a different column type.
+    // drafts.owner_handles is jsonb, needs JSON.stringify not a real array
     const { data: sbDrafts, error } = await _sb.from('drafts')
       .select('id, title, data, storage_path, canvas_ratio, owner_handles, updated_at, created_at')
       .contains('owner_handles', JSON.stringify([myHandle]))
@@ -153,14 +136,7 @@ async function loadDrafts() {
   } catch(e) {
     console.error('Failed to load drafts:', e);
 
-    // Only trust the offline cache when we are ACTUALLY offline — a real
-    // network failure (fetch can't even reach the server) or the browser
-    // itself reporting no connection. A structured API error (bad query,
-    // RLS denial, etc.) means we reached the server just fine and got a real
-    // response — that should surface as a real error, not get masked by a
-    // stale local snapshot. Silently falling back to cache on ANY error is
-    // what caused drafts that were already deleted from the database to
-    // keep reappearing even while online with a working connection.
+    // only trust offline cache when actually offline, not on api errors
     const genuinelyOffline = !navigator.onLine || (e instanceof TypeError);
 
     if (genuinelyOffline) {
@@ -192,18 +168,7 @@ async function loadPublished() {
   try {
     ({ data, error } = await _sb.from('comics')
       .select('id,title,description,cover,tags,stars,data,storage_path,canvas_ratio,created_at,owner_handle,owner_handles')
-      // BUGFIX: this used to pass JSON.stringify([myHandle]) — a JSON string
-      // like ["someuser"] (square brackets). supabase-js's .contains() only
-      // reformats real arrays/objects into a Postgres array literal; a value
-      // that's already a string gets sent through as-is. `drafts.owner_handles`
-      // accepts that JSON string fine (it's a jsonb column, so `@>`
-      // treats it as JSON), but `comics.owner_handles` is a native Postgres
-      // text[] array column, which requires curly-brace syntax like
-      // {someuser} — square brackets fail to parse there ("malformed array
-      // literal"). Passing the real array here lets supabase-js format it
-      // correctly for the column it's actually querying. This is why
-      // Published showed 0 unconditionally, not intermittently — every call
-      // to this query failed with the same parse error.
+      // pass real array here, comics.owner_handles is a postgres text[] column
       .contains('owner_handles', [myHandle])
       .order('id', { ascending: false }));
   } catch (e) {
@@ -214,24 +179,7 @@ async function loadPublished() {
   if (error) {
     console.error('Failed to load published:', error);
 
-    // BUGFIX: same class of bug as loadDrafts() above. This used to fall back
-    // to the CCOffline cache on ANY error, structured API errors included.
-    // A DELETE against `comics` can succeed against the database while the
-    // very next fetch trips a transient/structured error (not a real offline
-    // condition) — that fallback then re-served the stale cached list, which
-    // still had the just-deleted comic in it, making deleted/duplicate
-    // published comics reappear as "clones" that looked impossible to remove.
-    // Only trust the cache when we're actually offline; otherwise surface the
-    // real error so a genuine delete isn't masked by a stale snapshot.
-    //
-    // BUGFIX 2: `e` used to be read here directly, but `e` only exists inside
-    // the `catch(e)` block above — referencing it here threw an uncaught
-    // ReferenceError on every structured (non-thrown) Supabase error, which
-    // silently killed the rest of initMyComics()'s await chain (loadCollab,
-    // renderStats, renderDrafts, buildRatioGrid never ran). That's why drafts
-    // showed a correct count but an empty list, Published stayed stuck, and
-    // the topbar never left "Loading…" until a full logout/relaunch. Now we
-    // capture the thrown exception (if any) in `thrownErr` above instead.
+    // same fallback bug as loadDrafts, only trust cache when offline. also fixes a ReferenceError on `e` that was silently killing the rest of init
     const genuinelyOffline = !navigator.onLine || (thrownErr instanceof TypeError);
 
     if (genuinelyOffline) {
@@ -249,19 +197,10 @@ async function loadPublished() {
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
 }
 
-// ── Clear cache ───────────────────────────────────────────
-// ── Stats ─────────────────────────────────────────────────
+// -- clear cache --
+// -- stats --
 function renderStats() {
-  // BUGFIX: same root cause as pageCountText — drafts spilled to Storage
-  // have data === null, so summing/maxing d.data?.length treated those
-  // (the longest drafts, by definition — that's why they spilled) as 0
-  // pages. That silently pulled both "Total Pages" and "Longest" down,
-  // making it look like content had gone missing. We can't know their real
-  // length without downloading each one just to render a stat, so total/
-  // longest are now computed only from drafts with a known inline count,
-  // with a "+" appended whenever at least one draft's true length isn't
-  // reflected — an honest lower bound instead of a silently wrong exact
-  // number.
+  // spilled drafts have data === null, exclude from total/longest and mark with a +
   const knownDrafts = drafts.filter(d => Array.isArray(d.data));
   const hasUnknown = knownDrafts.length < drafts.length;
   const totalPages = knownDrafts.reduce((a,d) => a+d.data.length, 0);
@@ -288,9 +227,9 @@ function renderStats() {
   } else { pubEl.style.display = 'none'; }
 }
 
-// ── Tab switching ─────────────────────────────────────────
+// -- tab switching --
 function switchTab(tab) {
-  // Exit select mode when leaving drafts tab
+  // exit select mode when leaving drafts tab
   if (draftSelectMode && tab !== 'drafts') exitDraftSelectMode();
 
   currentTab = tab;
@@ -304,7 +243,7 @@ function switchTab(tab) {
   document.getElementById('list-container').style.display = tab === 'collab' ? 'none' : '';
   document.getElementById('collab-container').style.display = tab === 'collab' ? '' : 'none';
 
-  // Show Select button only on drafts tab
+  // show select button only on drafts tab
   const selBtn = document.getElementById('select-toggle-btn');
   selBtn.classList.toggle('visible', tab === 'drafts');
 
@@ -313,16 +252,13 @@ function switchTab(tab) {
   else renderCollab();
 }
 
-// ── Collab Comics ──────────────────────────────────────────
+// -- collab comics --
 let collabInvites = [];
 
 async function loadCollab() {
   if (!myHandle) return;
   try {
-    // BUGFIX: this used to filter by invitee_handle only, so if you sent an
-    // invite (you're the inviter, not the invitee) you'd never see it here —
-    // not as pending, not after it was accepted. An .or() pulls both sides;
-    // `_role` records which one you are so rendering/actions stay correct.
+    // use .or() so it catches invites you sent too, not just received
     const { data } = await _sb
       .from('comic_collaborators')
       .select('id,comic_id,comic_title,inviter_handle,invitee_handle,status,is_draft,created_at')
@@ -352,8 +288,7 @@ async function loadCollab() {
 
 function renderCollab() {
   const el = document.getElementById('collab-container');
-  // A "collab" comic is just any draft or published comic with more than one
-  // owner — drafts and published already carry owner_handles, so no extra fetch.
+  // collab = any draft/comic with more than one owner
   const collabDrafts = drafts.filter(d => Array.isArray(d.ownerHandles) && d.ownerHandles.length > 1);
   const collabComics = published.filter(c => Array.isArray(c.owner_handles) && c.owner_handles.length > 1);
   const pendingInvites = collabInvites.filter(i => i._role === 'invitee' && i.status === 'pending');
@@ -457,9 +392,7 @@ function renderInviteCard(inv) {
 }
 
 async function acceptCollabInvite(inviteId, comicId, isDraft) {
-  // .select() surfaces which rows actually changed. A blocked RLS policy on
-  // this UPDATE returns error:null + 0 rows — no exception — so without this
-  // check the invite silently stays "pending" and keeps re-asking to accept.
+  // .select() to catch silent RLS failures on invite accept
   const { data: updated, error } = await _sb.from('comic_collaborators')
     .update({ status: 'accepted' }).eq('id', inviteId).select('id');
   if (error || !updated || !updated.length) {
@@ -481,21 +414,7 @@ async function acceptCollabInvite(inviteId, comicId, isDraft) {
   }
 }
 
-// Comics have no single "owner" once a collab is accepted — everyone in
-// owner_handles is an equal co-owner with identical edit/delete rights.
-//
-// BUGFIX: this UPDATE is run by the invitee, who is (by definition, at this
-// point) not yet in owner_handles. If the comics table's RLS UPDATE policy
-// only allows current owners to modify a row, this write is silently
-// rejected — error:null, 0 rows changed, same class of bug documented in
-// acceptCollabInvite() above. Nothing threw, so nobody noticed: the invitee
-// could still open the comic (create-mobile's access check has a separate
-// fallback that also accepts anyone with an accepted comic_collaborators
-// row), which made it *look* like collab worked. But owner_handles itself
-// never actually grew, so anything that keys off owner_handles.length > 1
-// — like the "Your Collab Comics" list on the inviter's side — never
-// showed the comic, for either person. The .select() here is what makes
-// that failure visible instead of silent.
+// invitee isn't in owner_handles yet when this runs, .select() catches silent RLS rejection
 async function grantCoOwnership(comicId, handle) {
   const { data: comic } = await _sb.from('comics').select('owner_handle, owner_handles').eq('id', comicId).maybeSingle();
   if (!comic) return;
@@ -511,7 +430,7 @@ async function grantCoOwnership(comicId, handle) {
   }
 }
 
-// Same idea as grantCoOwnership, but for a still-unpublished draft.
+// same idea as grantCoOwnership but for a draft
 async function grantDraftCoOwnership(draftId, handle) {
   const { data: draft } = await _sb.from('drafts').select('owner_handle, owner_handles').eq('id', draftId).maybeSingle();
   if (!draft) return;
@@ -549,27 +468,21 @@ function openCollabDraft(draftId) {
   localStorage.setItem('edit_draft_id', draftId);
   location.href = 'create-mobile.html';
 }
-// ── End Collab ─────────────────────────────────────────────
+// -- end collab --
 
-// BUGFIX: same root cause as pageCountText above — a comic/draft spilled to
-// Storage has data === null, so sorting by "Pages" was treating the longest
-// comics as 0-length and sinking them to the bottom instead of the top.
-// It got spilled to Storage precisely because it's long, so rank it above
-// everything with a known inline count.
+// spilled comics have data === null, rank by known length instead of 0
 function pageCountForSort(row) {
   if (Array.isArray(row.data)) return row.data.length;
   if (row.storage_path) return Number.MAX_SAFE_INTEGER;
   return 0;
 }
 
-// ── Render drafts ─────────────────────────────────────────
+// -- render drafts --
 function renderDrafts() {
   const q = document.getElementById('draft-search').value.toLowerCase();
   const sort = document.getElementById('draft-sort').value;
   let list = drafts.filter(d => !q || d.title?.toLowerCase().includes(q));
-  // drafts[] is already ordered newest-first (loadDrafts() queries
-  // `updated_at desc`), so "newest" needs no reordering — it's "oldest"
-  // that needs the reverse.
+  // drafts already sorted newest-first, only reverse for oldest
   if (sort === 'oldest')   list = [...list].reverse();
   else if (sort === 'alpha') list = [...list].sort((a,b) => (a.title||'').localeCompare(b.title||''));
   else if (sort === 'pages') list = [...list].sort((a,b) => pageCountForSort(b)-pageCountForSort(a));
@@ -637,7 +550,7 @@ function makeDraftThumb(frame, ratio) {
   return `<div style="width:100%;height:100%;${style};"></div>`;
 }
 
-// ── Render published ──────────────────────────────────────
+// -- render published --
 function renderPublished() {
   const q = document.getElementById('pub-search').value.toLowerCase();
   const sort = document.getElementById('pub-sort').value;
@@ -690,11 +603,11 @@ function makePublishedRow(c) {
   return card;
 }
 
-// ── Popup (discover-style) ─────────────────────────────────
+// -- popup (discover-style) --
 function openDraftPopup(d) {
   const isCloud = d._source === 'supabase';
 
-  // Cover
+  // cover
   const coverWrap = document.getElementById('popup-cover-wrap');
   const thumbFrame = d.data?.[0];
   const imgLayer = thumbFrame?.layers?.find(l => l.type==='img' && l.src);
@@ -717,7 +630,7 @@ function openDraftPopup(d) {
     ${isCloud ? '<span class="popup-meta-chip blue"><i class="fi fi-rs-cloud"></i> Cloud saved</span>' : ''}
   `;
 
-  // Drafts have no description — keep the desc block hidden
+  // drafts have no description, keep hidden
   const draftDescEl = document.getElementById('popup-desc');
   draftDescEl.innerText = '';
   draftDescEl.style.display = 'none';
@@ -749,7 +662,7 @@ function openDraftPopup(d) {
 function openPublishedPopup(c) {
   const stars = c.stars || 0;
 
-  // Cover
+  // cover
   const coverWrap = document.getElementById('popup-cover-wrap');
   coverWrap.innerHTML = c.cover
     ? `<img class="popup-cover" src="${c.cover}" onerror="this.parentNode.innerHTML='<div class=popup-cover-placeholder>📖</div>'">`
@@ -796,12 +709,12 @@ function closePopup() {
   document.getElementById('popup-overlay').classList.remove('open');
 }
 
-// ── Action Sheets (kept for delete confirm / rename, triggered from popup) ────
+// -- action sheets (delete confirm / rename, from popup) --
 function closeActionSheet() {
   document.getElementById('action-sheet').classList.remove('open');
 }
 
-// ── Actions ───────────────────────────────────────────────
+// -- actions --
 function resumeDraft(id) {
   const draft = drafts.find(d => String(d.id) === String(id));
   localStorage.removeItem('edit_comic_id');
@@ -817,16 +730,9 @@ async function editPublished(id) {
   toast('⏳ Pulling into draft…');
   try {
     const draftId = crypto.randomUUID();
-    // BUGFIX: `comic.data` is null whenever this comic's frames were spilled
-    // to Storage for size (see loadDraftData). Falling back straight to `[]`
-    // silently created an empty draft, and republishing it then overwrote the
-    // real published comic with nothing — this is what was wiping people's comics.
+    // comic.data is null when spilled to storage, don't fall back to [] or republish wipes it
     const framesData = await loadDraftData(comic);
-    // SAFETY NET: loadDraftData() throws on an actual fetch/download error, but a
-    // corrupted or unexpectedly-empty row wouldn't throw — it would just come back
-    // empty, and the old `|| []` fallback would then quietly save a blank draft.
-    // Treat "loaded successfully but empty" the same as a failure: stop and tell the
-    // person, rather than letting them start editing a comic that looks wiped.
+    // treat empty-but-successful load as a failure too, don't let it look wiped
     if (!framesData || !framesData.length) {
       throw new Error("This comic's saved data came back empty — refusing to open a blank draft. Nothing has been changed.");
     }
@@ -845,7 +751,7 @@ function readComic(id) {
   location.href = `reader.html?id=${id}`;
 }
 
-// ── Draft Select Mode ─────────────────────────────────────
+// -- draft select mode --
 function toggleDraftSelectMode() {
   if (draftSelectMode) {
     exitDraftSelectMode();
@@ -896,35 +802,30 @@ async function bulkDeleteDrafts() {
   const ids = [...selectedDraftIds];
   const toDelete = drafts.filter(d => ids.includes(String(d.id)));
 
-  // Delete from DB
+  // delete from db
   const { data: delData, error } = await _sb.rpc('delete_drafts_bulk', { draft_ids: ids });
   if (error) {
     const details = `message: ${error.message}\ncode: ${error.code || 'n/a'}\ndetails: ${error.details || 'n/a'}\nhint: ${error.hint || 'n/a'}`;
     console.error('delete_drafts_bulk RPC error:', { message: error.message, code: error.code, details: error.details, hint: error.hint, ids });
-    alert('Bulk delete failed:\n\n' + details); // TEMP DEBUG — remove once diagnosed
+    alert('Bulk delete failed:\n\n' + details);  // temp debug, remove later
     toast('⚠ Delete failed: ' + error.message, 'var(--danger)');
     return;
   }
   if (!delData || !delData.length) {
     console.error('delete_drafts_bulk returned no rows (delete may not have run):', { delData, ids });
-    alert('Bulk delete returned no rows.\n\nids sent: ' + JSON.stringify(ids) + '\ndelData: ' + JSON.stringify(delData)); // TEMP DEBUG — remove once diagnosed
+    alert('Bulk delete returned no rows.\n\nids sent: ' + JSON.stringify(ids) + '\ndelData: ' + JSON.stringify(delData));  // temp debug, remove later
     toast('⚠ Delete failed — please reload and try again', 'var(--danger)');
     return;
   }
 
-  // Remove any storage files
+  // remove storage files
   const storagePaths = toDelete.map(d => d.storage_path).filter(Boolean);
   if (storagePaths.length) {
     await _sb.storage.from('comiccore-assets').remove(storagePaths).catch(() => {});
     storagePaths.forEach(purgeCachedAsset);
   }
 
-  // BUGFIX: same class of bug as confirmDelete()'s draft branch — bulk delete
-  // used to only trim the in-memory `drafts` array, leaving the CCOffline
-  // fallback cache (read whenever a later load fails/is offline) with its old
-  // snapshot still containing these drafts. That let bulk-deleted drafts
-  // reappear after an offline reload. loadDrafts() re-fetches from Supabase
-  // and re-caches via CCOffline, keeping the two in sync.
+  // resync cache after bulk delete so deleted drafts don't reappear offline
   await loadDrafts();
   document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
   renderStats();
@@ -938,7 +839,7 @@ function purgeCachedAsset(path) {
   }
 }
 
-// ── Delete ────────────────────────────────────────────────
+// -- delete --
 function askDelete(id, type, title) {
   pendingDeleteId = id;
   pendingDeleteType = type;
@@ -968,20 +869,12 @@ async function confirmDelete() {
     drafts = drafts.filter(d => String(d.id) !== String(deleteId));
     document.getElementById('drafts-count').innerText = drafts.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
-    // BUGFIX: deleting used to only update the in-memory `drafts` array. The
-    // CCOffline fallback cache (read whenever a later load fails/is offline)
-    // kept its old snapshot, which still had this draft in it — so a deleted
-    // draft could reappear after an offline reload. loadDrafts() re-fetches
-    // from Supabase and re-caches via CCOffline, keeping the two in sync.
+    // resync cache after delete so it doesn't reappear offline
     await loadDrafts();
     renderStats(); renderDrafts();
     toast('Draft deleted');
   } else {
-    // BUGFIX: .delete() with no error doesn't mean a row was actually removed —
-    // an RLS policy mismatch (e.g. a duplicate row whose owner_handle/owner_handles
-    // don't line up with the current user) can silently affect zero rows. .select()
-    // here returns the rows that were actually deleted so we can tell the two
-    // cases apart instead of always claiming success.
+    // .select() to confirm a row was actually deleted, not just no error
     const { data: delData, error } = await _sb.from('comics').delete().eq('id', deleteId).select('id');
     if (error) { toast('⚠ Could not delete: ' + error.message, 'var(--danger)'); return; }
     if (!delData || !delData.length) {
@@ -993,15 +886,14 @@ async function confirmDelete() {
     published = published.filter(c => String(c.id) !== String(deleteId));
     document.getElementById('pub-count').innerText = published.length;
     document.getElementById('topbar-sub').innerText = `${drafts.length} draft${drafts.length!==1?'s':''} · ${published.length} published`;
-    // BUGFIX: same issue as the draft branch above — resync the CCOffline
-    // cache so a deleted comic can't reappear from a stale fallback snapshot.
+    // resync cache here too, same reason
     await loadPublished();
     renderStats(); renderPublished();
     toast('Comic removed from Discover');
   }
 }
 
-// ── Rename ────────────────────────────────────────────────
+// -- rename --
 function openRenameSheet(id, currentTitle) {
   renameTargetId = id;
   document.getElementById('rename-inp').value = currentTitle || '';
@@ -1023,7 +915,7 @@ async function confirmRename() {
   }
 }
 
-// ── New Comic ─────────────────────────────────────────────
+// -- new comic --
 
 function openNewSheet(fromCollab = false) {
   startFromCollabTab = fromCollab;
@@ -1080,19 +972,10 @@ function goToNewMode(mode) {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────
+// -- helpers --
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// BUGFIX: every page-count badge below used to read `row.data?.length || 0`
-// directly. `data` is null for any comic/draft whose frame JSON got routed
-// to Storage instead of stored inline (see create-mobile.html's "large-comic
-// safety net" — this kicks in once a comic's JSON crosses ~900KB, which
-// happens well before hundreds of frames once images/effects are involved).
-// Reading data?.length alone silently showed "0 pages" for exactly those
-// long comics, making a fully-intact upload look like it lost almost
-// everything. We don't have the real count without downloading the blob
-// (too expensive just to render a list card), so show something honest
-// instead of a false "0".
+// data is null for comics spilled to storage, show honest count instead of a false 0
 function pageCountText(row) {
   if (Array.isArray(row.data)) {
     const n = row.data.length;

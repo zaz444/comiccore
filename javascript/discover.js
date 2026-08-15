@@ -5,7 +5,7 @@ const _sb = supabase.createClient(
 );
 const myProfile = JSON.parse(localStorage.getItem('user_profile') || '{"handle":"guest"}');
 
-// bump this whenever you deploy changes that need a fresh cache
+// bump on deploy to bust cache
 const CACHE_VERSION = 'v5';
 const CC_COMICS  = `cc-comics-cache-${CACHE_VERSION}`;
 const CC_RATINGS = `cc-ratings-cache-${CACHE_VERSION}`;
@@ -13,7 +13,7 @@ const CC_FEEDS_TS = `cc-feeds-ts-${CACHE_VERSION}`;
 const CC_STORIES  = `cc-stories-cache-${CACHE_VERSION}`;
 const CC_STORIES_TS = `cc-stories-ts-${CACHE_VERSION}`;
 
-// wait for auth before fetching, stops the race condition on load
+// wait for auth before fetching, avoids race on load
 let _resolveAuthReady;
 const _authReady = new Promise(resolve => { _resolveAuthReady = resolve; });
 _sb.auth.onAuthStateChange((event, session) => {
@@ -93,7 +93,7 @@ function ratingBadgeHtml(c) {
 }
 
 let allComics       = [];
-let collabMap       = {}; // comicId -> [accepted invitee handles]
+let collabMap       = {};  // comicId -> accepted invitee handles
 let activeComicId   = null;
 let globalStars     = [];
 let globalRatings   = [];
@@ -110,7 +110,7 @@ let toastTimer      = null;
 // frame count cache
 const frameCountCache = {};
 
-/** Sync — returns count from in-memory cache or localStorage (written by reader.html). */
+// sync version, checks memory cache then localStorage (reader.html writes it)
 function getCachedFrameCount(comicId) {
   if (frameCountCache[comicId] !== undefined) return frameCountCache[comicId];
   const stored = localStorage.getItem('cc-frame-count-' + comicId);
@@ -121,7 +121,7 @@ function getCachedFrameCount(comicId) {
   return 0;
 }
 
-/** Async — checks cache/localStorage first, then fetches from Supabase. */
+// async version, falls back to a supabase fetch
 async function fetchAndCacheFrameCount(comicId) {
   const cached = getCachedFrameCount(comicId);
   if (cached > 0) return cached;
@@ -155,7 +155,7 @@ function getPublicAvatarUrl(pic) {
 }
 
 // follow system
-const followCache = {}; // handle -> bool
+const followCache = {};  // handle -> bool
 
 async function isFollowing(targetHandle) {
   if (!myProfile.handle || myProfile.handle === 'guest') return false;
@@ -241,11 +241,11 @@ function exactDate(d) {
 
 function isNewComic(c) {
   if (!c || !c.created_at) return false;
-  if (localStorage.getItem('cc-seen-' + c.id)) return false; // already opened by this viewer
+  if (localStorage.getItem('cc-seen-' + c.id)) return false;  // already opened by this viewer
   return (Date.now() - new Date(c.created_at)) < 1000 * 60 * 60 * 48;
 }
 
-/** Mark a comic as seen locally so its NEW badge clears immediately (and stays cleared). */
+// mark comic as seen so the new badge clears and stays cleared
 function markComicSeen(comicId) {
   try { localStorage.setItem('cc-seen-' + comicId, '1'); } catch (e) {}
 }
@@ -262,7 +262,7 @@ function getProgress(comicId, totalFrames) {
 
 // arrow buttons
 
-/** Smart-random: weighted shuffle biasing toward popular but adding variety */
+// weighted shuffle, favors popular but keeps some variety
 function smartRandomSort(comics, stars) {
   const starMap = {};
   stars.forEach(s => { starMap[s.receiver_hand] = (starMap[s.receiver_hand] || 0) + 1; });
@@ -276,21 +276,10 @@ function smartRandomSort(comics, stars) {
 }
 
 
-/** Shared weighted-rating helper — combines average rating, rater count, AND
- *  how many viewers actually rated (response ratio), so a single lucky
- *  perfect rating can't outrank a comic with more raters and strong,
- *  well-evidenced ratings. This is the SINGLE source of truth for "what
- *  counts as best" — used by both the "Top Comics" sort and the
- *  "Top Creators · Stars" leaderboard, so the two always agree.
- *
- *  NOTE: this discounts low-sample scores toward ZERO, not toward the
- *  dataset's mean rating. Shrinking toward the mean was tried first, but
- *  when most ratings in the app already skew near 5★ (as here), that
- *  actually HELPS a lucky 2-rater 5★ instead of penalizing it — a comic's
- *  score has to earn its confidence through volume/response, not borrow it
- *  from the crowd average. */
+// shared weighted-rating helper, used by top comics sort and top creators leaderboard so they agree.
+// discounts low-sample scores toward zero instead of the mean, so a lucky 2-rater 5star doesn't win
 function getRatingStats(stars) {
-  const byComic = {}; // comic id -> { sum, count }
+  const byComic = {};  // comic id -> { sum, count }
   stars.forEach(s => {
     const val = parseInt(s.content) || 0;
     if (!byComic[s.receiver_hand]) byComic[s.receiver_hand] = { sum: 0, count: 0 };
@@ -303,18 +292,10 @@ function getRatingStats(stars) {
     ? rated.reduce((a, r) => a + r.count, 0) / rated.length
     : 1;
 
-  // Confidence divisor: how many (response-adjusted) raters it takes before
-  // a comic's raw average is mostly trusted. Floor of 4 keeps small/early
-  // datasets from collapsing this to ~1-2, which is what let a single 5★
-  // outrank a proven 4.8★ from 5 raters. Scales up with the dataset so
-  // "average" engagement doesn't count as fully reliable as the app grows.
+  // confidence divisor, floor of 4 so small samples don't overrank, scales with dataset size
   const K = Math.max(4, globalAvgRaters);
 
-  // Ratings-to-views ratio is a second confidence signal: a comic almost
-  // everyone who viewed it also rated (e.g. 5 ratings / 6 views) is far
-  // more trustworthy than the same rater count with sparse view coverage,
-  // so it earns up to 2x "effective" raters. Ratio is clamped to 1 and only
-  // ever adds confidence — missing/zero view data just means no bonus.
+  // ratings/views ratio as a second confidence signal, clamped to 1, only adds
   const weightedScore = (avg, count, views) => {
     if (!count) return 0;
     const responseRatio = views > 0 ? Math.min(1, count / views) : 0;
@@ -363,7 +344,7 @@ function switchRankTab(tab, el) {
   currentRankTab = tab;
   document.querySelectorAll('.creator-rank-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  topCreatorsData[tab] = []; // clear cache so it re-fetches fresh
+  topCreatorsData[tab] = [];  // clear cache, forces refetch
   loadTopCreators(tab);
 }
 
@@ -381,16 +362,11 @@ async function loadTopCreators(tab) {
 
   try {
     if (tab === 'stars') {
-      // rank by best comic weighted score, not total stars — same formula
-      // getRatingStats() uses for the "Top Comics" sort, so a creator's
-      // leaderboard stat always matches whichever of their comics is
-      // actually winning under that same definition of "best"
+      // rank by best comic's weighted score, matches top comics sort
       const { byComic: ratingsByComic, weightedScore } = getRatingStats(globalStars);
 
-      // best rated comic per owner — ranked by weighted score, not raw average,
-      // so a comic with more raters and a strong (but not perfect) average wins
-      // over a comic with a single perfect rating
-      const bestByOwner = {}; // handle → { avgRating, raterCount, weighted, title }
+      // best comic per owner, ranked by weighted score not raw average
+      const bestByOwner = {};  // handle -> { avgRating, raterCount, weighted, title }
       allComics.forEach(c => {
         if (!c.owner_handle) return;
         const r = ratingsByComic[c.id];
@@ -406,8 +382,7 @@ async function loadTopCreators(tab) {
       const comicsByOwner = {};
       allComics.forEach(c => { if (c.owner_handle) comicsByOwner[c.owner_handle] = (comicsByOwner[c.owner_handle] || 0) + 1; });
 
-      // merge and rank by weighted score (best rating AND rater count both count),
-      // raw rating and rater count only break remaining ties
+      // merge and rank by weighted score, raw rating/count only break ties
       const allOwners = [...new Set([...Object.keys(bestByOwner), ...Object.keys(comicsByOwner)])];
       const ranked = allOwners
         .map(h => ({
@@ -416,9 +391,9 @@ async function loadTopCreators(tab) {
           raterCount: bestByOwner[h]?.raterCount || 0,
           weighted:   bestByOwner[h]?.weighted   || 0,
           bestTitle:  bestByOwner[h]?.title      || '',
-          count: comicsByOwner[h] || 0   // kept for reference, not displayed
+          count: comicsByOwner[h] || 0  // kept for reference, not displayed
         }))
-        .filter(h => h.bestRating > 0)   // only show creators with at least one rated comic
+        .filter(h => h.bestRating > 0)  // only creators with at least one rated comic
         .sort((a, b) => b.weighted - a.weighted || b.raterCount - a.raterCount)
         .slice(0, 10);
 
@@ -566,7 +541,7 @@ function setupRealtime() {
 
 async function loadFeeds() {
   // 1. cache paint
-  const CACHE_TTL = 120000; // 2 min
+  const CACHE_TTL = 120000;  // 2 min
   const cachedComics  = localStorage.getItem(CC_COMICS);
   const cachedStars   = localStorage.getItem(CC_RATINGS);
   const cachedTs      = parseInt(localStorage.getItem(CC_FEEDS_TS) || '0');
@@ -615,7 +590,7 @@ async function loadFeeds() {
 
   allComics     = (comics || []).filter(c => c.title && c.owner_handle);
   globalRatings = ratings || [];
-  globalStars   = globalRatings; // keep in sync for legacy references
+  globalStars   = globalRatings;  // keep in sync for legacy refs
 
   // fetch collabs
   collabMap = {};
@@ -632,7 +607,7 @@ async function loadFeeds() {
         collabMap[r.comic_id].push(r.invitee_handle);
       });
     }
-  } catch(e) { /* non-fatal — collab table may not exist yet */ }
+  } catch(e) { /* no collab table yet */ }
 
   // reset leaderboard cache
   topCreatorsData = { stars: [], follows: [] };
@@ -922,7 +897,7 @@ async function openPopup(id) {
   // lazy fetch frame count
   if (!frameCount) {
     fetchAndCacheFrameCount(c.id).then(count => {
-      if (!count || count === frameCount) return; // no change
+      if (!count || count === frameCount) return;  // no change
       frameCount = count;
       const chip = document.getElementById('popup-frame-chip');
       if (chip) chip.textContent = `${count} frame${count !== 1 ? 's' : ''}`;
@@ -1117,7 +1092,7 @@ function closeEpisodeModal() {
 async function saveEpisodeSelection() {
   if (!_episodeParentId) return;
 
-  closePopup(); // Close the comic popup too
+  closePopup();  // close the comic popup too
 
   const { error } = await _sb.from('comics').update({ episodes: _episodeSelected }).eq('id', _episodeParentId);
 
@@ -1173,12 +1148,12 @@ async function deleteComic(id, title, asModerator = false) {
 }
 
 // comments
-let pendingReactionImg = null; // {name, src} to insert
-let activeReplyTo   = null;    // {id, handle} being replied to, or null
-let commentSortMode = 'top';   // 'top' | 'newest'
-let commentsCache   = [];      // top-level comments for the open comic
-let myReactionsMap  = {};      // { commentId: 'like'|'dislike' }
-const openReplyThreads = new Set(); // commentIds currently expanded
+let pendingReactionImg = null;  // {name, src} to insert
+let activeReplyTo   = null;  // {id, handle} being replied to, or null
+let commentSortMode = 'top';  // 'top' | 'newest'
+let commentsCache   = [];  // top-level comments for the open comic
+let myReactionsMap  = {};  // { commentId: 'like'|'dislike' }
+const openReplyThreads = new Set();  // commentIds currently expanded
 
 const ICON_THUMB_UP   = '<svg viewBox="0 0 24 24"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.4c.9 0 1.6-.6 1.9-1.4l2.5-6.5c.4-1.2-.5-2.6-1.9-2.6H15l1-4.5C16.3 4.5 15 2 11.5 2z"/></svg>';
 const ICON_THUMB_DOWN = '<svg viewBox="0 0 24 24"><path d="M17 14V3h4v11h-4zm-4.5 8L17 14V3H5.6c-.9 0-1.6.6-1.9 1.4L1.2 10.9c-.4 1.2.5 2.6 1.9 2.6H9l-1 4.5C7.7 19.5 9 22 12.5 22z"/></svg>';
@@ -1187,7 +1162,7 @@ const ICON_PIN        = '<svg viewBox="0 0 24 24"><path d="M12 2l1.5 5.5L19 9l-4
 const ICON_HEART      = '<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.2C.5 8.6 2.3 5 6 5c2 0 3.5 1.1 4.5 2.5C11.5 6.1 13 5 15 5c3.7 0 5.5 3.6 4 6.8-2.5 4.6-10 9.2-10 9.2z"/></svg>';
 const ICON_TRASH       = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 14h8l1-14"/></svg>';
 
-/** Returns { viewed, total } from the reader's local progress cache, or null if unknown. */
+// returns viewed/total from reader's progress cache, or null
 function getFramesViewedForComment(comicId) {
   const total = getCachedFrameCount(comicId);
   if (!total) return null;
@@ -1199,7 +1174,7 @@ function getFramesViewedForComment(comicId) {
   return { viewed: Math.min(total, f + 1), total };
 }
 
-/** Escapes text, then turns @handle tokens into clickable mention spans. */
+// escape text, linkify @handle mentions
 function linkifyComment(text) {
   return esc(text).replace(/@([a-zA-Z0-9_]{2,30})/g, (match, handle) =>
     '<span class="comment-mention" onclick="location.href=&quot;profile.html?u=' + esc(handle) + '&quot;">@' + esc(handle) + '</span>'
@@ -1348,9 +1323,9 @@ function selectReactionImage(index) {
   selectReaction(img.src, img.name);
 }
 
-function loadReactionTray() { /* legacy — no-op, replaced by picker */ }
+function loadReactionTray() { /* legacy, no-op, replaced by picker */ }
 
-let repliesCache = {}; // { parentCommentId: [reply, ...] }
+let repliesCache = {};  // { parentCommentId: [reply, ...] }
 
 function getActiveComicOwner() {
   const c = allComics.find(x => x.id === activeComicId);
@@ -1551,7 +1526,7 @@ async function toggleReplies(commentId) {
 async function toggleReaction(commentId, type) {
   if (!myProfile.handle || myProfile.handle === 'guest') { showToast('Log in to react!'); return; }
 
-  const prevState = myReactionsMap[commentId]; // undefined | 'like' | 'dislike'
+  const prevState = myReactionsMap[commentId];  // undefined | 'like' | 'dislike'
   const target = findCommentById(commentId);
 
   // optimistic
@@ -1819,7 +1794,7 @@ async function loadStories() {
   const cacheTs  = CC_STORIES_TS;
   const cached   = localStorage.getItem(cacheKey);
   const ts       = parseInt(localStorage.getItem(cacheTs) || '0');
-  const stale    = Date.now() - ts > 90000; // 90 s TTL
+  const stale    = Date.now() - ts > 90000;  // 90s ttl
 
   if (cached && !stale) {
     try { renderStories(JSON.parse(cached)); return; } catch(e) {}

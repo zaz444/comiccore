@@ -4,13 +4,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cc-auth' }
 });
 
-// Safely persist the profile to localStorage. Legacy accounts can still
-// have a raw base64 image in pic/banner (from before avatar uploads were
-// migrated to Supabase Storage) which can be several MB — large enough to
-// exceed the localStorage quota and throw. If the write fails, retry with
-// any oversized base64 fields stripped so the app can still run — the
-// real pic/banner lives in Supabase Storage / the profiles table either
-// way, not in localStorage.
+// fix quota crash on save, strip big base64 fields first
 function ccSaveProfile(profile) {
   try {
     localStorage.setItem('user_profile', JSON.stringify(profile));
@@ -54,7 +48,7 @@ function applyAccentColor(hex) {
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.setAttribute('content', color);
 }
-// Apply immediately from cached profile so there's no flash of the default color
+// apply cached color right away, avoid flash
 applyAccentColor(JSON.parse(localStorage.getItem('user_profile') || '{}').settings?.accent_color);
 
 async function checkUser(session) {
@@ -62,22 +56,13 @@ async function checkUser(session) {
   if (user) {
     let myProfile = JSON.parse(localStorage.getItem('user_profile') || '{}');
     if (!myProfile.handle) {
-      // BUGFIX: this fetch used to be unguarded. If it threw (network
-      // blip, transient error) the exception was uncaught, which killed
-      // the rest of checkUser() before it ever reached the lines below —
-      // header handle/avatar, team notifications, and inbox badges would
-      // all silently stay blank/stale until the next full reload. Same
-      // class of "unhandled fetch error breaks downstream rendering" bug
-      // fixed in my-comics.html and discover.html; wrapping it here so a
-      // failed lookup degrades gracefully instead of aborting everything
-      // after it.
+      // wrap fetch in try/catch, was breaking everything after it
       try {
         const { data: freshProfile, error } = await supabaseClient
           .from('profiles').select('*').eq('permanent_id', user.id).maybeSingle();
         if (error) throw error;
         if (freshProfile) {
-          // Strip any legacy base64 blobs from the DB row before caching —
-          // they can be several MB and blow the localStorage quota.
+          // strip base64 before caching
           if (freshProfile.pic    && freshProfile.pic.startsWith('data:image'))    freshProfile.pic    = '';
           if (freshProfile.banner && freshProfile.banner.startsWith('data:image')) freshProfile.banner = '';
           myProfile = { ...myProfile, ...freshProfile };
@@ -104,7 +89,7 @@ async function checkUser(session) {
     if (localStorage.getItem('cc-privacy-team') === 'false')
       document.getElementById('teams-btn').style.display = 'none';
 
-    // Show reports card for owner
+    // reports card, owner only
     if (_isOwner) {
       document.getElementById('reports-nav-btn').style.display = '';
       checkPendingReports();
@@ -117,7 +102,7 @@ async function checkUser(session) {
   }
 }
 
-// ── INBOX COUNT ──────────────────────────────────────────────
+// -- inbox count --
 async function checkInboxCount() {
   if (!_myHandle) return;
   const [{ count: invCount }, { count: mentionCount }, { count: collabCount }] = await Promise.all([
@@ -135,7 +120,7 @@ async function checkInboxCount() {
   document.getElementById('inbox-btn').classList.toggle('has-mail', total > 0);
 }
 
-// ── OPEN / CLOSE PANELS ──────────────────────────────────────
+// -- open/close panels --
 function openInboxPanel() {
   document.getElementById('inbox-panel').classList.add('open');
   document.getElementById('panel-overlay').classList.add('open');
@@ -150,7 +135,7 @@ function closeReportsPanel() {
   document.getElementById('panel-overlay').classList.remove('open');
 }
 
-// ── INBOX: squad invites + mentions + co-create ──────────────
+// -- inbox: invites, mentions, co-create --
 async function loadInboxPanel() {
   const body = document.getElementById('inbox-panel-body');
   body.innerHTML = '<div class="empty-panel">Loading…</div>';
@@ -168,9 +153,7 @@ async function loadInboxPanel() {
       .order('created_at', { ascending: false })
   ]);
 
-  // "made changes to a comic" notifications ride on the mentions table (same
-  // to_handle/is_read plumbing) but get their own themed section below rather
-  // than living under "Mentions" — they're not a mention.
+  // comic update notis get their own section, not really a mention
   const collabEdits = (allMentions || []).filter(m => m.type === 'collab_edit');
   const mentions    = (allMentions || []).filter(m => m.type !== 'collab_edit');
 
@@ -186,7 +169,7 @@ async function loadInboxPanel() {
 
   body.innerHTML = '';
 
-  // ── Co-create Invites ──
+  // -- co-create invites --
   if (hasCollabs) {
     const hdr = document.createElement('div');
     hdr.className = 'panel-section-hdr';
@@ -213,7 +196,7 @@ async function loadInboxPanel() {
     });
   }
 
-  // ── Comic Updates (a co-creator made changes) ──
+  // -- comic updates --
   if (hasCollabEdits) {
     const hdr = document.createElement('div');
     hdr.className = 'panel-section-hdr';
@@ -235,14 +218,14 @@ async function loadInboxPanel() {
     });
   }
 
-  // ── Mentions ──
+  // -- mentions --
   if (hasMentions) {
     const hdr = document.createElement('div');
     hdr.className = 'panel-section-hdr';
     hdr.textContent = 'Mentions';
     body.appendChild(hdr);
 
-    // Mark all as read
+    // mark all read
     if (allMentions && allMentions.length) {
       supabaseClient.from('mentions').update({ is_read: true })
         .eq('to_handle', _myHandle).eq('is_read', false).then(() => checkInboxCount());
@@ -280,7 +263,7 @@ async function loadInboxPanel() {
     });
   }
 
-  // ── Squad Invites ──
+  // -- squad invites --
   if (hasInvites) {
     const hdr = document.createElement('div');
     hdr.className = 'panel-section-hdr';
@@ -312,7 +295,7 @@ async function respondInvite(inviteId, status, btn) {
   const row = btn.closest('.inbox-item');
   await supabaseClient.from('squad_invites').update({ status }).eq('id', inviteId);
   if (status === 'accepted') {
-    // Grant membership via team_requests (the table squads.html actually reads)
+    // grant membership via team_requests
     const { data: inv } = await supabaseClient.from('squad_invites').select('squad_id').eq('id', inviteId).maybeSingle();
     if (inv?.squad_id) {
       const { data: existing } = await supabaseClient.from('team_requests').select('id').eq('ticket_id', inv.squad_id).eq('sender_handle', _myHandle).maybeSingle();
@@ -333,9 +316,7 @@ async function respondInvite(inviteId, status, btn) {
 async function respondCollabFromInbox(inviteId, comicId, response, btn, isDraft) {
   btn.disabled = true;
   const row = btn.closest('.inbox-item');
-  // .select() forces Supabase to return the rows it actually changed. Without
-  // it, a blocked RLS policy fails SILENTLY — error is null and 0 rows update,
-  // so the invite just sits there as "pending" forever and keeps re-asking.
+  // add .select() to catch silent RLS failures
   const { data: updated, error } = await supabaseClient
     .from('comic_collaborators')
     .update({ status: response })
@@ -352,12 +333,10 @@ async function respondCollabFromInbox(inviteId, comicId, response, btn, isDraft)
     return;
   }
   if (response === 'accepted') {
-    // A pending draft's comic_id points at a row in `drafts`, not `comics` —
-    // routing it through edit_comic_id sent create-mobile.html to look it up
-    // in the wrong table, which is why it showed "Could not load comic."
+    // fix drafts vs comics lookup
     localStorage.setItem(isDraft ? 'edit_draft_id' : 'edit_comic_id', comicId);
     closeInboxPanel();
-    location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
+    location.href = 'create-mobile.html';  // old create.html retired
   } else {
     row.style.opacity = '0.4';
     row.style.pointerEvents = 'none';
@@ -365,7 +344,7 @@ async function respondCollabFromInbox(inviteId, comicId, response, btn, isDraft)
   }
 }
 
-// ── REPORTS PANEL (owner only) ────────────────────────────────
+// -- reports panel (owner only) --
 let _reportsCache = null;
 let _reportsFilter = 'pending';
 let _reportsLoaded = false;
@@ -413,10 +392,10 @@ async function loadReportsPanel(showLoading = true) {
   _reportsCache = reports || [];
   _reportsLoaded = true;
 
-  // Show toolbar
+  // show toolbar
   document.getElementById('reports-toolbar').style.display = 'flex';
 
-  // Update live count badge
+  // bump badge
   const pending = _reportsCache.filter(r => r.status === 'pending');
   const badge = document.getElementById('reports-live-count');
   if (pending.length) {
@@ -471,14 +450,14 @@ async function dismissReport(id, btn) {
   btn.disabled = true;
   btn.textContent = '…';
   await supabaseClient.from('reports').update({ status: 'dismissed' }).eq('id', id);
-  // Update cache instantly — no re-fetch needed
+  // update cache, skip refetch
   const entry = _reportsCache && _reportsCache.find(r => r.id === id);
   if (entry) entry.status = 'dismissed';
-  // Animate card out, then re-render
+  // animate out then rerender
   const card = btn.closest('.report-card');
   card.classList.add('dismissed');
   setTimeout(() => renderReportsFromCache(), 300);
-  // Update nav badge
+  // update nav badge
   checkPendingReports();
   const badge = document.getElementById('reports-live-count');
   const pending = (_reportsCache || []).filter(r => r.status === 'pending');
@@ -509,14 +488,14 @@ function toggleCommentReveal(el) {
 function openCollabEditFromInbox(comicId, isDraft) {
   localStorage.setItem(isDraft ? 'edit_draft_id' : 'edit_comic_id', comicId);
   closeInboxPanel();
-  location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
+  location.href = 'create-mobile.html';  // old create.html retired
 }
 
 function escHtml(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── TEAM NOTIFICATIONS ───────────────────────────────────────
+// -- team notifications --
 async function checkTeamNotifications(userId) {
   const teamsBtn = document.getElementById('teams-btn');
   const { data: myTickets } = await supabaseClient
@@ -540,7 +519,7 @@ async function checkTeamNotifications(userId) {
     teamsBtn.querySelector('.card-title').innerText = 'Squads — Request Accepted!';
     return;
   }
-  // ── Co-create invite pending ──
+  // -- co-create invite pending --
   try {
     const { count: collabCount } = await supabaseClient
       .from('comic_collaborators').select('*', { count: 'exact', head: true })
@@ -549,10 +528,10 @@ async function checkTeamNotifications(userId) {
       teamsBtn.classList.add('has-notification');
       teamsBtn.querySelector('.card-title').innerText = `Squads — ${collabCount} Co-create Invite${collabCount > 1 ? 's' : ''}!`;
     }
-  } catch(e) { /* collab table not yet created */ }
+  } catch(e) { /* no collab table yet */ }
 }
 
-// ── Mobile Gestures ──────────────────────────────────────
+// -- mobile gestures --
 function addSwipeGestures() {
   const navCards = document.querySelectorAll('.nav-card');
   navCards.forEach(card => {
@@ -571,7 +550,7 @@ function addSwipeGestures() {
 
       if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
         isSwiping = true;
-        e.preventDefault(); // Prevent scrolling
+        e.preventDefault();  // stop scroll
       }
     }, { passive: false });
 
@@ -591,7 +570,7 @@ function addSwipeGestures() {
   });
 }
 
-// Add gestures after DOM loads
+// add gestures after dom load
 if ('ontouchstart' in window) {
   addSwipeGestures();
 }
@@ -627,7 +606,7 @@ function openCreateFlow() {
 
 function resumeDraft() {
   document.getElementById('draft-choice-modal').style.display = 'none';
-  window.location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
+  window.location.href = 'create-mobile.html';  // old create.html retired
 }
 
 function startNewFromDraftChoice() {
@@ -644,12 +623,12 @@ function pickRatio(w, h) {
 }
 
 function goToMyComics() {
-  window.location.href = 'my-comics.html'; // My Comics only exists as my-comics.html now — my-comics-mobile.html is retired
+  window.location.href = 'my-comics.html';  // old my-comics-mobile retired
 }
 
 function goToMode(mode) {
   const deviceMode = localStorage.getItem('cc-device-mode') || 'pc';
-  if (mode === 'comic') window.location.href = 'create-mobile.html'; // comic editor only exists as create-mobile.html now — create.html is retired
+  if (mode === 'comic') window.location.href = 'create-mobile.html';  // old create.html retired
   else window.location.href = deviceMode === 'mobile' ? 'story-mobile.html' : 'story.html';
 }
 
@@ -664,11 +643,7 @@ function applyDeviceMode() {
 }
 
 applyDeviceMode();
-// Wait for Supabase to confirm the session has actually finished loading
-// (including exchanging a magic-link token) before deciding whether to
-// show the app or redirect to login. Calling getSession() immediately on
-// page load can race with that restore process and return null even when
-// the user IS logged in — this is a known Supabase gotcha.
+// wait for session before redirect
 supabaseClient.auth.onAuthStateChange((event, session) => {
   if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
     checkUser(session);
