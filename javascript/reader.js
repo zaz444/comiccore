@@ -91,11 +91,13 @@ function enableToonScroll(dir, fromConfig = false) {
     document.body.classList.add('toonscroll');
     initToonScrollStrip();
 
-    // hide exit button only when creator locked to toonscroll on purpose, otherwise keep it
+    // always give the reader a real way back out — even on comics the creator
+    // locked to ToonScroll-only. The badge still communicates "locked" (it
+    // sits in the opposite corner now, so the two never overlap).
     const isLocked = fromConfig && toonScrollConfig && toonScrollConfig.visibility === 'only';
     const exitBtn = document.getElementById('ts-exit-btn');
     const lockedBadge = document.getElementById('ts-locked-badge');
-    if (exitBtn) exitBtn.style.display = isLocked ? 'none' : 'flex';
+    if (exitBtn) exitBtn.style.display = 'flex';
     if (lockedBadge) lockedBadge.style.display = isLocked ? 'flex' : 'none';
 
     // hint so the reader knows why they're here
