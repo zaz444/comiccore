@@ -280,6 +280,196 @@ function applyReaderPanelClip(f, l, el, sx, sy) {
     el.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
 }
 
+// Shared per-layer visual renderer — single source of truth for turning a
+// layer's saved data into DOM/CSS. Both the single-frame reader
+// (_renderFrameDOM) and the ToonScroll strip (renderFrameToStrip) call this
+// so bubble tails, thought dots, and text styling (decorations, subtitle
+// markup, etc.) can't drift out of sync between the two render paths again —
+// that drift is why ToonScroll bubbles were missing tails/thought dots and
+// text-decoration while the normal reader had them.
+function renderLayerContent(l, el, sx, sy, lw, ovScale) {
+  // rotation + flip, transform-origin must be center to match create.html
+  const rot  = l.rotation || 0;
+  const flip = l.flipped ? -1 : 1;
+  el.style.transform       = `rotate(${rot}deg) scaleX(${flip})`;
+  el.style.transformOrigin = 'center center';
+
+  // opacity, handles both desktop (opacity) and mobile (fxOpacity)
+  const opacityVal = l.opacity ?? l.fxOpacity;
+  if (opacityVal != null && opacityVal !== 100) {
+    el.style.opacity = opacityVal / 100;
+  }
+
+  // fx: blur + layer filter, handles both desktop and mobile field names
+  const blurCSS = getSpriteFilterCSS(l);
+  // desktop: layerFilter, mobile: fxFilter
+  const lfCSS = ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '')
+             || ((l.fxFilter    && l.fxFilter    !== 'none') ? l.fxFilter    : '');
+  const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
+
+  if (l.type === 'img') {
+    const hasFxSrc   = !!l._fxSrc;
+    const bStrength  = (l.blurStrength != null) ? l.blurStrength : 100;
+    // blurCSS skipped when a baked _fxSrc snapshot already exists, avoids double-applying
+    const imgBlurCSS   = hasFxSrc ? '' : blurCSS;
+    const imgFilterCSS = [imgBlurCSS, lfCSS].filter(Boolean).join(' ');
+
+    if (hasFxSrc && bStrength < 100) {
+      // clean base + fx overlay at blur-opacity, matches create.html
+      if (l.src && l.src.startsWith('http')) {
+        const base = document.createElement('img');
+        base.src = l.src;
+        base.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;';
+        el.appendChild(base);
+      }
+      if (l._fxSrc.startsWith('http')) {
+        const overlay = document.createElement('img');
+        overlay.src = l._fxSrc;
+        overlay.style.cssText = `width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;opacity:${bStrength / 100};`;
+        if (lfCSS) overlay.style.filter = lfCSS;
+        el.appendChild(overlay);
+      }
+      el.style.position = 'relative';
+    } else {
+      const imgSrc = hasFxSrc ? l._fxSrc : l.src;
+      // skip base64 blobs, only render real urls
+      if (imgSrc && imgSrc.startsWith('http')) {
+        const img = document.createElement('img');
+        img.src = imgSrc;
+        img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+        if (imgFilterCSS) img.style.filter = imgFilterCSS;
+        el.appendChild(img);
+      }
+    }
+    // color fx overlay, sprite layers only, matches create.html
+    applyColorFxToDOM(el, l);
+
+  } else if (l.type === 'panel') {
+    const lh = (l.h != null ? l.h : l.w) * (ovScale || 1) * sy;
+    const bw = (l.borderWidth != null ? l.borderWidth : 4) * sx;
+    const fill = l.fill || 'transparent';
+    const bc = l.panelBorderColor || '#000000';
+    const rad = (l.radius || 0) * sx;
+    el.style.height = lh + 'px';
+    el.style.boxSizing = 'border-box';
+    el.style.background = fill;
+    if (bw > 0) el.style.border = `${bw}px solid ${bc}`;
+    el.style.borderRadius = rad + 'px';
+
+  } else if (l.type === 'bubble' || l.type === 'thinking') {
+    const fs = (l.fontSize || 28) * sx;
+    const ff = l.fontFamily || "'Inter', sans-serif";
+    const textColor = l.color || '#000';
+    const boldW     = l.bold   ? '900' : '800';
+    const italicS   = l.italic ? 'italic' : 'normal';
+    const alignS    = l.align  || 'center';
+    const decos     = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+    const isThinking = l.type === 'thinking';
+
+    // determine bubble style, default cloud for thinking round for speech
+    const bStyle = l.bubbleStyle || (isThinking ? 'cloud' : 'round');
+    const isCloud = bStyle === 'cloud';
+
+    // bubble-level border/bg color overrides, stored on layer in create.html
+    const bubBorder = l.bubbleBorderColor || '#000';
+    const bubBg     = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
+
+    el.style.width = lw + 'px';
+
+    const bubble = document.createElement('div');
+    bubble.className = `speech-bubble bubble-style-${bStyle}`;
+    // burst-style bubbles clip to a jagged polygon, plain css border leaves the interior unbordered so text renders in a nested fill layer instead
+    const isBurst = bStyle === 'spiky' || bStyle === 'shout';
+    bubble.style.cssText = [
+      `font-size:${fs}px`,
+      `font-family:${ff}`,
+      `--bubble-bg:${bubBg}`,
+      `--bubble-border:${bubBorder}`,
+    ].concat(isBurst ? [] : [
+      `color:${textColor}`,
+      `font-weight:${boldW}`,
+      `font-style:${italicS}`,
+      `text-align:${alignS}`,
+      `text-decoration:${decos}`,
+      `border-color:${bubBorder}`,
+      `background:${bubBg}`,
+    ].concat(l.outline ? [textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null)] : [])).join(';');
+
+    if (isBurst) {
+      const fill = document.createElement('div');
+      fill.className = 'bubble-clip-fill';
+      fill.style.cssText = [
+        `color:${textColor}`,
+        `font-weight:${boldW}`,
+        `font-style:${italicS}`,
+        `text-align:${alignS}`,
+        `text-decoration:${decos}`,
+      ].concat(l.outline ? [textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null)] : []).join(';');
+      fill.appendChild(document.createTextNode(l.content || ''));
+      bubble.appendChild(fill);
+    } else {
+      bubble.appendChild(document.createTextNode(l.content || ''));
+    }
+
+    // tail shown only for styles that use one. uses drag position + edge, falls back to legacy tailFlip for older saves
+    const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
+    if (showTail) {
+      const tailEdge = getBubbleTailEdge(l);
+      const tailPos  = getBubbleTailPos(l, bStyle);
+      const tail = bubbleTailEl(bStyle, tailEdge, tailPos, bubBorder, bubBg, sx);
+      if (tail) bubble.appendChild(tail);
+    }
+
+    // thought dots, shown for cloud/thinking bubbles
+    if (isCloud || isThinking) {
+      ['thought-dot-1','thought-dot-2','thought-dot-3'].forEach(cls => {
+        const d = document.createElement('div');
+        d.className = cls;
+        bubble.appendChild(d);
+      });
+    }
+
+    if (combinedFilter) el.style.filter = combinedFilter;
+    el.appendChild(bubble);
+
+  } else if (l.type === 'subtitle') {
+    const fs = (l.fontSize || 28) * sx;
+    const ff = l.fontFamily || "'Inter', sans-serif";
+    const nameColor   = l.nameColor  || '#ff9500';
+    const dialogColor = l.color || '#111';
+    const alignS  = l.align  || 'left';
+    const boldW   = l.bold   ? '900' : '700';
+    const italicS = l.italic ? 'italic' : 'normal';
+
+    el.style.width    = lw + 'px';
+    el.style.overflow = 'visible';
+    el.innerHTML = `
+      <div style="background:${nameColor};color:#fff;font-size:${Math.max(8, fs * 0.55)}px;font-weight:900;font-family:${ff};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;text-align:${alignS};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(l.characterName || 'CHARACTER')}</div>
+      <div style="background:rgba(255,255,255,0.96);color:${dialogColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,.1);border-top:none;${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}">${esc(l.content || '')}</div>`;
+
+    if (combinedFilter) el.style.filter = combinedFilter;
+
+  } else {
+    // plain text (type === 'text' or unlisted)
+    const fs = (l.fontSize || 28) * sx;
+    const ff = l.fontFamily || "'Inter', sans-serif";
+    const decos = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+    el.style.color          = l.color || '#000';
+    el.style.fontWeight     = l.bold   ? '900' : '700';
+    el.style.fontStyle      = l.italic ? 'italic' : 'normal';
+    el.style.textDecoration = decos;
+    el.style.textAlign      = l.align || 'left';
+    el.style.fontSize       = fs + 'px';
+    el.style.fontFamily     = ff;
+    el.style.lineHeight     = '1.3';
+    el.style.whiteSpace     = 'pre-wrap';
+    el.innerText            = l.content || '';
+    if (l.outline) el.style.cssText += textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null);
+
+    if (combinedFilter) el.style.filter = combinedFilter;
+  }
+}
+
 function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     frameEl.innerHTML = '';
 
@@ -396,118 +586,7 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         el.style.zIndex = 10 + layerIdx;
         if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = cssBlendMode(l.fxBlend);
 
-        const rot = l.rotation || 0;
-        const flip = l.flipped ? -1 : 1;
-        el.style.transform = `rotate(${rot}deg) scaleX(${flip})`;
-        el.style.transformOrigin = 'center center';
-
-        const opacityVal = l.opacity ?? l.fxOpacity;
-        if (opacityVal != null && opacityVal !== 100) {
-            el.style.opacity = opacityVal / 100;
-        }
-
-        const blurCSS = getSpriteFilterCSS(l);
-        const lfCSS = ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '')
-                   || ((l.fxFilter && l.fxFilter !== 'none') ? l.fxFilter : '');
-        const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
-
-        if (l.type === 'img') {
-            const hasFxSrc  = !!l._fxSrc;
-            const bStrength = (l.blurStrength != null) ? l.blurStrength : 100;
-            const imgBlurCSS   = hasFxSrc ? '' : blurCSS;
-            const imgFilterCSS = [imgBlurCSS, lfCSS].filter(Boolean).join(' ');
-
-            if (hasFxSrc && bStrength < 100) {
-                if (l.src && l.src.startsWith('http')) {
-                    const base = document.createElement('img');
-                    base.src = l.src;
-                    base.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;';
-                    el.appendChild(base);
-                }
-                if (l._fxSrc.startsWith('http')) {
-                    const overlay = document.createElement('img');
-                    overlay.src = l._fxSrc;
-                    overlay.style.cssText = `width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;opacity:${bStrength / 100};`;
-                    if (lfCSS) overlay.style.filter = lfCSS;
-                    el.appendChild(overlay);
-                }
-                el.style.position = 'relative';
-            } else {
-                const imgSrc = hasFxSrc ? l._fxSrc : l.src;
-                // skip base64 blobs, only render real urls
-                if (imgSrc && imgSrc.startsWith('http')) {
-                    const img = document.createElement('img');
-                    img.src = imgSrc;
-                    img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
-                    if (imgFilterCSS) img.style.filter = imgFilterCSS;
-                    el.appendChild(img);
-                }
-            }
-            applyColorFxToDOM(el, l);
-        } else if (l.type === 'panel') {
-            const lh = (l.h != null ? l.h : l.w) * (ov.scale || 1) * sy;
-            const bw = (l.borderWidth != null ? l.borderWidth : 4) * sx;
-            const fill = l.fill || 'transparent';
-            const bc = l.panelBorderColor || '#000000';
-            const rad = (l.radius || 0) * sx;
-            el.style.height = lh + 'px';
-            el.style.boxSizing = 'border-box';
-            el.style.background = fill;
-            if (bw > 0) el.style.border = `${bw}px solid ${bc}`;
-            el.style.borderRadius = rad + 'px';
-        } else if (l.type === 'bubble' || l.type === 'thinking') {
-            const fs = (l.fontSize || 28) * sx;
-            const ff = l.fontFamily || "'Inter', sans-serif";
-            const textColor = l.color || '#000';
-            const boldW = l.bold ? '900' : '800';
-            const italicS = l.italic ? 'italic' : 'normal';
-            const alignS = l.align || 'center';
-            const bStyle = l.bubbleStyle || (l.type === 'thinking' ? 'cloud' : 'round');
-            const bubBorder = l.bubbleBorderColor || '#000';
-            const bubBg = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
-
-            el.style.width = lw + 'px';
-            const bubble = document.createElement('div');
-            bubble.className = `speech-bubble bubble-style-${bStyle}`;
-            const isBurst = bStyle === 'spiky' || bStyle === 'shout';
-            bubble.style.cssText = `font-size:${fs}px;font-family:${ff};--bubble-bg:${bubBg};--bubble-border:${bubBorder};${isBurst ? '' : `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};border-color:${bubBorder};background:${bubBg};padding:${Math.max(10, 14 * sx)}px ${Math.max(14, 18 * sx)}px;${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}`}`;
-            if (isBurst) {
-                const fill = document.createElement('div');
-                fill.className = 'bubble-clip-fill';
-                fill.style.cssText = `color:${textColor};font-weight:${boldW};font-style:${italicS};text-align:${alignS};${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}`;
-                fill.appendChild(document.createTextNode(l.content || ''));
-                bubble.appendChild(fill);
-            } else {
-                bubble.appendChild(document.createTextNode(l.content || ''));
-            }
-            if (combinedFilter) el.style.filter = combinedFilter;
-            el.appendChild(bubble);
-        } else if (l.type === 'text' || l.type === 'subtitle') {
-            const fs = (l.fontSize || 28) * sx;
-            const ff = l.fontFamily || "'Inter', sans-serif";
-            const textColor = l.color || '#000';
-            const boldW = l.bold ? '900' : '800';
-            const italicS = l.italic ? 'italic' : 'normal';
-            const alignS = l.align || 'left';
-
-            el.style.color = textColor;
-            el.style.fontWeight = boldW;
-            el.style.fontStyle = italicS;
-            el.style.textAlign = alignS;
-            el.style.fontSize = fs + 'px';
-            el.style.fontFamily = ff;
-            el.style.lineHeight = '1.3';
-            el.style.whiteSpace = 'pre-wrap';
-            el.style.padding = Math.max(4, 8 * sx) + 'px';
-            if (l.outline && l.type !== 'subtitle') el.style.cssText += textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null);
-            if (l.type === 'subtitle') {
-                el.innerHTML = `<div style="background:${l.nameColor || '#ff9500'};color:#fff;font-size:${Math.max(8, fs * 0.55)}px;font-weight:900;font-family:${ff};padding:${Math.max(2, 3 * sx)}px ${Math.max(6, 10 * sx)}px;border-radius:5px 5px 0 0;">${esc(l.characterName || 'CHARACTER')}</div>
-                <div style="background:rgba(255,255,255,0.96);color:${textColor};font-size:${fs}px;font-weight:${boldW};font-family:${ff};padding:${Math.max(4, 6 * sx)}px ${Math.max(6, 10 * sx)}px;border-radius:0 0 5px 5px;border:1.5px solid rgba(0,0,0,.1);border-top:none;${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}">${esc(l.content || '')}</div>`;
-            } else {
-                el.innerText = l.content || '';
-            }
-            if (combinedFilter) el.style.filter = combinedFilter;
-        }
+        renderLayerContent(l, el, sx, sy, lw, ov.scale);
 
         frameEl.appendChild(el);
         applyReaderPanelClip(f, l, el, sx, sy);  // clip to whichever panel this sits on
@@ -1434,187 +1513,7 @@ function _renderFrameDOM(f, next, cw, ch) {
     el.style.zIndex = 10 + layerIdx;
     if (l.fxBlend && l.fxBlend !== 'normal') el.style.mixBlendMode = cssBlendMode(l.fxBlend);
 
-    // rotation + flip, transform-origin must be center to match create.html
-    const rot  = l.rotation || 0;
-    const flip = l.flipped ? -1 : 1;
-    el.style.transform       = `rotate(${rot}deg) scaleX(${flip})`;
-    el.style.transformOrigin = 'center center';
-
-    // opacity, handles both desktop (opacity) and mobile (fxOpacity)
-    const opacityVal = l.opacity ?? l.fxOpacity;
-    if (opacityVal != null && opacityVal !== 100) {
-      el.style.opacity = opacityVal / 100;
-    }
-
-    // fx: blur + layer filter, handles both desktop and mobile field names
-    const blurCSS = getSpriteFilterCSS(l);
-    // desktop: layerFilter, mobile: fxFilter
-    const lfCSS = ((l.layerFilter && l.layerFilter !== 'none') ? l.layerFilter : '')
-               || ((l.fxFilter    && l.fxFilter    !== 'none') ? l.fxFilter    : '');
-    const combinedFilter = [blurCSS, lfCSS].filter(Boolean).join(' ');
-
-    if (l.type === 'img') {
-      const hasFxSrc   = !!l._fxSrc;
-      const bStrength  = (l.blurStrength != null) ? l.blurStrength : 100;
-      // blurCSS skipped when a baked _fxSrc snapshot already exists, avoids double-applying
-      const imgBlurCSS   = hasFxSrc ? '' : blurCSS;
-      const imgFilterCSS = [imgBlurCSS, lfCSS].filter(Boolean).join(' ');
-
-      if (hasFxSrc && bStrength < 100) {
-        // clean base + fx overlay at blur-opacity, matches create.html
-        if (l.src && l.src.startsWith('http')) {
-          const base = document.createElement('img');
-          base.src = l.src;
-          base.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;';
-          el.appendChild(base);
-        }
-        if (l._fxSrc.startsWith('http')) {
-          const overlay = document.createElement('img');
-          overlay.src = l._fxSrc;
-          overlay.style.cssText = `width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;opacity:${bStrength / 100};`;
-          if (lfCSS) overlay.style.filter = lfCSS;
-          el.appendChild(overlay);
-        }
-        el.style.position = 'relative';
-      } else {
-        const imgSrc = hasFxSrc ? l._fxSrc : l.src;
-        // skip base64 blobs, only render real urls
-        if (imgSrc && imgSrc.startsWith('http')) {
-          const img = document.createElement('img');
-          img.src = imgSrc;
-          img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
-          if (imgFilterCSS) img.style.filter = imgFilterCSS;
-          el.appendChild(img);
-        }
-      }
-      // color fx overlay, sprite layers only, matches create.html
-      applyColorFxToDOM(el, l);
-
-    } else if (l.type === 'panel') {
-      const lh = (l.h != null ? l.h : l.w) * (ov.scale || 1) * sy;
-      const bw = (l.borderWidth != null ? l.borderWidth : 4) * sx;
-      const fill = l.fill || 'transparent';
-      const bc = l.panelBorderColor || '#000000';
-      const rad = (l.radius || 0) * sx;
-      el.style.height = lh + 'px';
-      el.style.boxSizing = 'border-box';
-      el.style.background = fill;
-      if (bw > 0) el.style.border = `${bw}px solid ${bc}`;
-      el.style.borderRadius = rad + 'px';
-
-    } else if (l.type === 'bubble' || l.type === 'thinking') {
-      const fs = (l.fontSize || 28) * sx;
-      const ff = l.fontFamily || "'Inter', sans-serif";
-      const textColor = l.color || '#000';
-      const boldW     = l.bold   ? '900' : '800';
-      const italicS   = l.italic ? 'italic' : 'normal';
-      const alignS    = l.align  || 'center';
-      const decos     = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
-      const isThinking = l.type === 'thinking';
-
-      // determine bubble style, default cloud for thinking round for speech
-      const bStyle = l.bubbleStyle || (isThinking ? 'cloud' : 'round');
-      const isCloud = bStyle === 'cloud';
-
-      // bubble-level border/bg color overrides, stored on layer in create.html
-      const bubBorder = l.bubbleBorderColor || '#000';
-      const bubBg     = l.bubbleBg || (bStyle === 'shout' ? '#ffeb3b' : bStyle === 'narrator' ? '#fffde7' : '#fff');
-
-      el.style.width = lw + 'px';
-
-      const bubble = document.createElement('div');
-      bubble.className = `speech-bubble bubble-style-${bStyle}`;
-      // burst-style bubbles clip to a jagged polygon, plain css border leaves the interior unbordered so text renders in a nested fill layer instead
-      const isBurst = bStyle === 'spiky' || bStyle === 'shout';
-      bubble.style.cssText = [
-        `font-size:${fs}px`,
-        `font-family:${ff}`,
-        `--bubble-bg:${bubBg}`,
-        `--bubble-border:${bubBorder}`,
-      ].concat(isBurst ? [] : [
-        `color:${textColor}`,
-        `font-weight:${boldW}`,
-        `font-style:${italicS}`,
-        `text-align:${alignS}`,
-        `text-decoration:${decos}`,
-        `border-color:${bubBorder}`,
-        `background:${bubBg}`,
-      ].concat(l.outline ? [textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null)] : [])).join(';');
-
-      if (isBurst) {
-        const fill = document.createElement('div');
-        fill.className = 'bubble-clip-fill';
-        fill.style.cssText = [
-          `color:${textColor}`,
-          `font-weight:${boldW}`,
-          `font-style:${italicS}`,
-          `text-align:${alignS}`,
-          `text-decoration:${decos}`,
-        ].concat(l.outline ? [textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null)] : []).join(';');
-        fill.appendChild(document.createTextNode(l.content || ''));
-        bubble.appendChild(fill);
-      } else {
-        bubble.appendChild(document.createTextNode(l.content || ''));
-      }
-
-      // tail shown only for styles that use one. uses drag position + edge, falls back to legacy tailFlip for older saves
-      const showTail = !['spiky','shout','electric','narrator','cloud'].includes(bStyle);
-      if (showTail) {
-        const tailEdge = getBubbleTailEdge(l);
-        const tailPos  = getBubbleTailPos(l, bStyle);
-        const tail = bubbleTailEl(bStyle, tailEdge, tailPos, bubBorder, bubBg, sx);
-        if (tail) bubble.appendChild(tail);
-      }
-
-      // thought dots, shown for cloud/thinking bubbles
-      if (isCloud || isThinking) {
-        ['thought-dot-1','thought-dot-2','thought-dot-3'].forEach(cls => {
-          const d = document.createElement('div');
-          d.className = cls;
-          // scale dot size to match scale factor
-          bubble.appendChild(d);
-        });
-      }
-
-      if (combinedFilter) el.style.filter = combinedFilter;
-      el.appendChild(bubble);
-
-    } else if (l.type === 'subtitle') {
-      const fs = (l.fontSize || 28) * sx;
-      const ff = l.fontFamily || "'Inter', sans-serif";
-      const nameColor   = l.nameColor  || '#ff9500';
-      const dialogColor = l.color || '#111';
-      const alignS  = l.align  || 'left';
-      const boldW   = l.bold   ? '900' : '700';
-      const italicS = l.italic ? 'italic' : 'normal';
-
-      el.style.width    = lw + 'px';
-      el.style.overflow = 'visible';
-      el.innerHTML = `
-        <div style="background:${nameColor};color:#fff;font-size:${Math.max(8, fs * 0.55)}px;font-weight:900;font-family:${ff};padding:3px 10px;border-radius:5px 5px 0 0;letter-spacing:1px;text-transform:uppercase;line-height:1.5;text-align:${alignS};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(l.characterName || 'CHARACTER')}</div>
-        <div style="background:rgba(255,255,255,0.96);color:${dialogColor};font-size:${fs}px;font-weight:${boldW};font-style:${italicS};font-family:${ff};padding:6px 10px;border-radius:0 0 5px 5px;text-align:${alignS};line-height:1.4;border:1.5px solid rgba(0,0,0,.1);border-top:none;${l.outline ? textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null) : ''}">${esc(l.content || '')}</div>`;
-
-      if (combinedFilter) el.style.filter = combinedFilter;
-
-    } else {
-      // plain text (type === 'text' or unlisted)
-      const fs = (l.fontSize || 28) * sx;
-      const ff = l.fontFamily || "'Inter', sans-serif";
-      const decos = [l.underline ? 'underline' : '', l.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
-      el.style.color          = l.color || '#000';
-      el.style.fontWeight     = l.bold   ? '900' : '700';
-      el.style.fontStyle      = l.italic ? 'italic' : 'normal';
-      el.style.textDecoration = decos;
-      el.style.textAlign      = l.align || 'left';
-      el.style.fontSize       = fs + 'px';
-      el.style.fontFamily     = ff;
-      el.style.lineHeight     = '1.3';
-      el.style.whiteSpace     = 'pre-wrap';
-      el.innerText            = l.content || '';
-      if (l.outline) el.style.cssText += textOutlineCSS(fs, l.outlineWidth != null ? l.outlineWidth * sx : null);
-
-      if (combinedFilter) el.style.filter = combinedFilter;
-    }
+    renderLayerContent(l, el, sx, sy, lw, ov.scale);
 
     next.appendChild(el);
     applyReaderPanelClip(f, l, el, sx, sy);  // clip to whichever panel this sits on
