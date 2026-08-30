@@ -802,6 +802,20 @@ async function boot() {
 
     }
   } else {
+    // this comic isn't in ToonScroll mode. cc-toonscroll is a GLOBAL (not
+    // per-comic) localStorage key, so if the reader was left in ToonScroll
+    // mode on a *different* comic, toonScrollMode can still boot as 'on'
+    // here even though body never gets the .toonscroll class (that only
+    // happens inside enableToonScroll(), which we're not calling). Left
+    // uncorrected, nextFrame()/prevFrame()/jumpTo() would then try to
+    // scrollToFrame() a #toonscroll-strip that was never built for this
+    // comic -- a silent no-op that looks exactly like swipe/arrows being
+    // dead. Reconcile it back to 'off' so navigation always matches what's
+    // actually on screen.
+    if (toonScrollMode !== 'off') {
+      toonScrollMode = 'off';
+      localStorage.setItem('cc-toonscroll', 'off');
+    }
     renderFrame();
     _updateReaderChrome();
   }
