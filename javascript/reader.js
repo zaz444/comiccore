@@ -314,18 +314,31 @@ function renderLayerContent(l, el, sx, sy, lw, ovScale) {
     const imgBlurCSS   = hasFxSrc ? '' : blurCSS;
     const imgFilterCSS = [imgBlurCSS, lfCSS].filter(Boolean).join(' ');
 
+    // free-transformed (distorted) sprites store a w/h independent of the source image's own
+    // aspect ratio (create.html's free-transform tool). Normally the <img> is left at its
+    // natural aspect (width:100%;height:auto) and el's own height is never set, since layer.h
+    // always matches that natural aspect anyway. A distorted layer's stored h does NOT match
+    // it, so el needs an explicit box and the <img> needs to stretch (object-fit:fill) to it,
+    // or the stretch the creator applied gets silently undone back to the original proportions.
+    const isDistorted = !!l.distorted;
+    if (isDistorted) {
+      const lh = (l.h != null ? l.h : l.w) * (ovScale || 1) * sy;
+      el.style.height = lh + 'px';
+    }
+    const imgSizeCSS = isDistorted ? 'width:100%;height:100%;object-fit:fill;' : 'width:100%;height:auto;';
+
     if (hasFxSrc && bStrength < 100) {
       // clean base + fx overlay at blur-opacity, matches create.html
       if (l.src && l.src.startsWith('http')) {
         const base = document.createElement('img');
         base.src = l.src;
-        base.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;';
+        base.style.cssText = imgSizeCSS + 'display:block;pointer-events:none;position:absolute;top:0;left:0;';
         el.appendChild(base);
       }
       if (l._fxSrc.startsWith('http')) {
         const overlay = document.createElement('img');
         overlay.src = l._fxSrc;
-        overlay.style.cssText = `width:100%;height:auto;display:block;pointer-events:none;position:absolute;top:0;left:0;opacity:${bStrength / 100};`;
+        overlay.style.cssText = imgSizeCSS + `display:block;pointer-events:none;position:absolute;top:0;left:0;opacity:${bStrength / 100};`;
         if (lfCSS) overlay.style.filter = lfCSS;
         el.appendChild(overlay);
       }
@@ -336,7 +349,7 @@ function renderLayerContent(l, el, sx, sy, lw, ovScale) {
       if (imgSrc && imgSrc.startsWith('http')) {
         const img = document.createElement('img');
         img.src = imgSrc;
-        img.style.cssText = 'width:100%;height:auto;display:block;pointer-events:none;';
+        img.style.cssText = imgSizeCSS + 'display:block;pointer-events:none;';
         if (imgFilterCSS) img.style.filter = imgFilterCSS;
         el.appendChild(img);
       }
@@ -492,7 +505,10 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
     const isBgGradient = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient');
     const isBgAnimated = isBgImage && isAnimatedBg(bg);
     const s = f.bgSettings || {};
-    const scale = s.scale ?? 100;
+    // was defaulting to 100 (a percent-scale assumption) instead of 1 — bgSettings.scale is
+    // stored as a small multiplier (1 = 100%, matches create-mobile.html's `s.scale ?? 1`),
+    // so an unset scale rendered at ~100x zoom instead of the intended 1x
+    const scale = s.scale ?? 1;
     const rotate = s.rotate ?? 0;
     const xOff = s.x ?? 0;
     const yOff = s.y ?? 0;
@@ -523,9 +539,17 @@ function renderFrameToStrip(frameEl, f, fw, fh, layerOverrides = {}) {
         }
         const imgAR = nat.w / nat.h, frameAR = fw / fh;
         let baseW, baseH;
-        if (imgAR > frameAR) { baseH = fh; baseW = baseH * imgAR; } else { baseW = fw; baseH = baseW / imgAR; }
+        // s.fit → contain (whole image visible, letterboxed one axis); default → cover.
+        // matches the fit branch in create-mobile.html's render() and renderFrameToCanvas()
+        if (s.fit) {
+            if (imgAR > frameAR) { baseW = fw; baseH = baseW / imgAR; } else { baseH = fh; baseW = baseH * imgAR; }
+        } else if (imgAR > frameAR) { baseH = fh; baseW = baseH * imgAR; } else { baseW = fw; baseH = baseW / imgAR; }
+        // no 1.25 fudge factor here — that inflated every background 25% beyond what the
+        // editor/export actually show, on top of scale already defaulting to 100 instead of 1
+        // (Math.max(1,100) = 100 → backgrounds were rendering at ~100x zoom whenever a frame's
+        // bgSettings.scale was left unset). Both removed to match create-mobile.html exactly.
         const svAll = Math.max(1, typeof scale === 'number' ? scale : 1);
-        const drawW = baseW * svAll * 1.25, drawH = baseH * svAll * 1.25;
+        const drawW = baseW * svAll, drawH = baseH * svAll;
         const posXfrac = Math.min(100, Math.max(0, 50 + xOff * 0.5)) / 100;
         const posYfrac = Math.min(100, Math.max(0, 50 + yOff * 0.5)) / 100;
         const posX = (fw - drawW) * posXfrac, posY = (fh - drawH) * posYfrac;
@@ -1427,7 +1451,8 @@ function _renderFrameDOM(f, next, cw, ch) {
   next.style.backgroundPosition = '';
 
   const s = f.bgSettings || {};
-  const scale  = s.scale  ?? 100;
+  // was defaulting to 100 instead of 1 — see matching note in renderFrameToStrip
+  const scale  = s.scale  ?? 1;
   const rotate = s.rotate ?? 0;
   const xOff   = s.x      ?? 0;
   const yOff   = s.y      ?? 0;
@@ -1461,9 +1486,13 @@ function _renderFrameDOM(f, next, cw, ch) {
     }
     const imgAR = nat.w / nat.h, frameAR = cw / ch;
     let baseW, baseH;
-    if (imgAR > frameAR) { baseH = ch; baseW = baseH * imgAR; } else { baseW = cw; baseH = baseW / imgAR; }
+    // s.fit → contain, default → cover — see matching note in renderFrameToStrip
+    if (s.fit) {
+        if (imgAR > frameAR) { baseW = cw; baseH = baseW / imgAR; } else { baseH = ch; baseW = baseH * imgAR; }
+    } else if (imgAR > frameAR) { baseH = ch; baseW = baseH * imgAR; } else { baseW = cw; baseH = baseW / imgAR; }
+    // no 1.25 fudge factor — see matching note in renderFrameToStrip
     const svAll = Math.max(1, typeof scale === 'number' ? scale : 1);
-    const drawW = baseW * svAll * 1.25, drawH = baseH * svAll * 1.25;
+    const drawW = baseW * svAll, drawH = baseH * svAll;
     const posXfrac = Math.min(100, Math.max(0, 50 + xOff * 0.5)) / 100;
     const posYfrac = Math.min(100, Math.max(0, 50 + yOff * 0.5)) / 100;
     const posX = (cw - drawW) * posXfrac, posY = (ch - drawH) * posYfrac;
