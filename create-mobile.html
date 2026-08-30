@@ -772,6 +772,7 @@
         background: #2a2a2c; border: none; color: var(--text);
         display: flex; align-items: center; justify-content: center; font-size: 15px;
     }
+    .ts-act-btn.icon-match.active { background: var(--accent); color: #000; }
 
     /* Text editing row in transform sheet */
     .ts-text-section { border-top: 1px solid #2c2c2e; padding-top: 14px; margin-top: 4px; }
@@ -2056,8 +2057,8 @@
         </div>
 
         <div class="ts-actions">
-            <button class="ts-act-btn icon-match" id="ts-swap-btn" onclick="editCurrentSpriteAction()" style="display:none;" title="Actions"><i class="fi fi-rs-shuffle"></i></button>
-            <button class="ts-act-btn icon-match" onclick="flipHorizontal()" title="Flip"><i class="fi fi-rs-flip-horizontal"></i></button>
+            <!-- Actions (pose swap) and Flip dropped from here — already on the on-canvas quick-action bar (sqa-btn/cfb-btn), no need to duplicate them in the sheet -->
+            <button class="ts-act-btn icon-match" id="ts-distort-btn" style="display:none;" onclick="toggleDistortMode()" title="Free Transform"><i class="fi fi-rs-resize"></i></button>
             <button class="ts-act-btn" onclick="resetTransform()">↺ Reset</button>
             <button class="ts-act-btn danger" onclick="deleteLayer()" title="Delete"><i class="fi fi-rs-trash"></i></button>
             <button class="ts-act-btn done" onclick="closeTransformSheet()">✓ Done</button>
@@ -2686,9 +2687,12 @@ function syncTransformSheet() {
         renderBubbleColorSwatches();
     }
 
-    // show swap only for pack sprites
-    const swapBtn = document.getElementById('ts-swap-btn');
-    if (swapBtn) swapBtn.style.display = (activeLayer.type === 'img' && activeLayer.packData) ? 'inline-flex' : 'none';
+    // free-transform (distort) toggle — sprites only, panels/text/bubbles keep their own resize rules
+    const distortBtn = document.getElementById('ts-distort-btn');
+    if (distortBtn) {
+        distortBtn.style.display = activeLayer.type === 'img' ? 'inline-flex' : 'none';
+        distortBtn.classList.toggle('active', !!activeLayer.distorted);
+    }
 
     if (activeLayer.type === 'img') {
         document.getElementById('sprite-nametag-input').value = activeLayer.nameTag || '';
@@ -3222,6 +3226,7 @@ function bubbleTailHTML(bStyle, edge, pos, bubBorder, bubBg) {
 function attachResizeHandles(el, layer) {
     el.querySelectorAll('.resize-handle').forEach(h => h.remove());
     el.querySelectorAll('.rotate-handle, .rotate-handle-stem').forEach(h => h.remove());
+    const isDistort = !!layer.distorted;
     ['tl','tr','bl','br'].forEach(corner => {
         const h = document.createElement('div');
         h.className = 'resize-handle ' + corner;
@@ -3248,16 +3253,26 @@ function attachResizeHandles(el, layer) {
                 const rawDy = (mv.touches[0].clientY - startClientY) / _cScale;
                 const dx = isLeft ? -rawDx : rawDx;
                 const dy = isTop  ? -rawDy : rawDy;
-                const delta = (dx + dy) / 2;
-                const newW = Math.max(20, Math.min(_maxSpriteW, Math.round(origW + delta)));
-                const newH = (origW ? Math.round(origH * newW / origW) : newW);
+                let newW, newH;
+                if (isDistort) {
+                    // free transform — width and height stretch independently, no aspect lock
+                    newW = Math.max(20, Math.min(_maxSpriteW, Math.round(origW + dx)));
+                    newH = Math.max(20, Math.round(origH + dy));
+                } else {
+                    const delta = (dx + dy) / 2;
+                    newW = Math.max(20, Math.min(_maxSpriteW, Math.round(origW + delta)));
+                    newH = (origW ? Math.round(origH * newW / origW) : newW);
+                }
                 layer.h = newH;
                 layer.w = newW;
                 // keep canonical pose-swap reference in sync with manual resizes, otherwise the next
                 // action/pose swap snaps back to a stale charHeight/charScale from before this drag
                 // (this path was missing this sync, unlike pinch-resize — see handleActionSelect)
-                if (layer.charHeight != null) layer.charHeight = newH;
-                if (origCharScale != null && origH) layer.charScale = origCharScale * (newH / origH);
+                // skipped while distorting — a non-uniform w/h isn't a valid charScale basis
+                if (!isDistort) {
+                    if (layer.charHeight != null) layer.charHeight = newH;
+                    if (origCharScale != null && origH) layer.charScale = origCharScale * (newH / origH);
+                }
                 // lock non-dragged edges so resize doesn't drift — was missing for top handles, made tl/tr resize look like a move
                 if (isLeft) layer.x = origX + (origW - newW);
                 if (isTop)  layer.y = origY + (origH - newH);
@@ -3265,9 +3280,13 @@ function attachResizeHandles(el, layer) {
                 if (el) {
                     el.style.width = newW + 'px';
                     el.style.height = newH + 'px';
-                    // resize inner img to match handle
+                    // resize inner img to match handle — distorted sprites stretch to fill (object-fit:fill,
+                    // see render()), so the img itself also needs an explicit height, not just width
                     const imgEl = el.querySelector('img');
-                    if (imgEl) imgEl.style.width = newW + 'px';
+                    if (imgEl) {
+                        imgEl.style.width = newW + 'px';
+                        if (isDistort) imgEl.style.height = newH + 'px';
+                    }
                     if (isLeft) el.style.left = layer.x + 'px';
                     if (isTop)  el.style.top  = layer.y + 'px';
                 }
@@ -3289,45 +3308,57 @@ function attachResizeHandles(el, layer) {
         el.appendChild(h);
     });
 
-    // rotate dial above bbox connected by a stem, drag around center to rotate, snaps to common angles
+    // rotate dial above bbox connected by a stem. normally drag around center to rotate, snaps to
+    // common angles. while free transform (distort) is active on this layer, this same dial swaps
+    // to a ⤡ icon and becomes a tap-to-exit button instead — dragging to rotate and distorting the
+    // shape don't mix, so distort mode borrows the dial rather than adding a second control.
     const stem = document.createElement('div');
     stem.className = 'rotate-handle-stem';
     el.appendChild(stem);
     const rh = document.createElement('div');
     rh.className = 'rotate-handle';
-    rh.textContent = '↻';
-    rh.addEventListener('touchstart', (ev) => {
-        ev.preventDefault(); ev.stopPropagation();
-        saveState();
-        const onMove = (mv) => {
-            if (mv.touches.length > 1) return;
-            mv.preventDefault(); mv.stopPropagation();
-            const t = mv.touches[0];
-            // re-measure center each move, doesn't need the _cScale correction the resize drag uses
-            const elRect = el.getBoundingClientRect();
-            const cx = elRect.left + elRect.width / 2;
-            const cy = elRect.top + elRect.height / 2;
-            const dx = t.clientX - cx;
-            const dy = t.clientY - cy;
-            let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
-            angle = ((angle % 360) + 360) % 360;
-            for (const sp of [0, 45, 90, 135, 180, 225, 270, 315, 360]) {
-                if (Math.abs(angle - sp) < 4) { angle = sp % 360; break; }
-            }
-            angle = Math.round(angle);
-            layer.rotation = angle;
-            el.style.transform = `rotate(${angle}deg) scaleX(${layer.flipped ? -1 : 1})`;
-            const rs = document.getElementById('rotate-slider');
-            if (rs) { rs.value = angle; const rn = document.getElementById('rotate-num'); if (rn) rn.value = angle; }
-        };
-        const onUp = () => {
-            rh.removeEventListener('touchmove', onMove);
-            rh.removeEventListener('touchend', onUp);
-            render();
-        };
-        rh.addEventListener('touchmove', onMove, { passive: false });
-        rh.addEventListener('touchend', onUp, { once: true });
-    }, { passive: false });
+    if (isDistort) {
+        rh.textContent = '⤡';
+        rh.title = 'Exit Free Transform';
+        rh.addEventListener('touchstart', (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            toggleDistortMode();
+        }, { passive: false });
+    } else {
+        rh.textContent = '↻';
+        rh.addEventListener('touchstart', (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            saveState();
+            const onMove = (mv) => {
+                if (mv.touches.length > 1) return;
+                mv.preventDefault(); mv.stopPropagation();
+                const t = mv.touches[0];
+                // re-measure center each move, doesn't need the _cScale correction the resize drag uses
+                const elRect = el.getBoundingClientRect();
+                const cx = elRect.left + elRect.width / 2;
+                const cy = elRect.top + elRect.height / 2;
+                const dx = t.clientX - cx;
+                const dy = t.clientY - cy;
+                let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
+                angle = ((angle % 360) + 360) % 360;
+                for (const sp of [0, 45, 90, 135, 180, 225, 270, 315, 360]) {
+                    if (Math.abs(angle - sp) < 4) { angle = sp % 360; break; }
+                }
+                angle = Math.round(angle);
+                layer.rotation = angle;
+                el.style.transform = `rotate(${angle}deg) scaleX(${layer.flipped ? -1 : 1})`;
+                const rs = document.getElementById('rotate-slider');
+                if (rs) { rs.value = angle; const rn = document.getElementById('rotate-num'); if (rn) rn.value = angle; }
+            };
+            const onUp = () => {
+                rh.removeEventListener('touchmove', onMove);
+                rh.removeEventListener('touchend', onUp);
+                render();
+            };
+            rh.addEventListener('touchmove', onMove, { passive: false });
+            rh.addEventListener('touchend', onUp, { once: true });
+        }, { passive: false });
+    }
     el.appendChild(rh);
 }
 
@@ -3692,16 +3723,20 @@ function _renderNow() {
 
             // transform goes on EL not img so selection outline + tail follow sprite flip
             const elTransform = `rotate(${layer.rotation||0}deg) scaleX(${layer.flipped ? -1 : 1})`;
+            // free-transformed sprites store a w/h independent of the source image's own aspect
+            // ratio, so the <img> needs to stretch (object-fit:fill) rather than letterbox
+            // (object-fit:contain) to actually show that stretch instead of quietly ignoring it
+            const spriteFit = layer.distorted ? 'fill' : 'contain';
 
             if (hasFxSrc && bStrength < 100) {
                 // blend: base + fx overlay
                 const base = _getImg(layer.src);
                 base.src = layer.src; base.draggable = false;
-                base.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;user-select:none;';
+                base.style.cssText = `width:100%;height:100%;object-fit:${spriteFit};display:block;user-select:none;`;
                 if (layer.fxOpacity !== undefined) base.style.opacity = layer.fxOpacity / 100;
                 const overlay = _getImg(layer._fxSrc);
                 overlay.src = layer._fxSrc; overlay.draggable = false;
-                overlay.style.cssText = `width:100%;height:100%;object-fit:contain;display:block;user-select:none;position:absolute;top:0;left:0;opacity:${bStrength/100};`;
+                overlay.style.cssText = `width:100%;height:100%;object-fit:${spriteFit};display:block;user-select:none;position:absolute;top:0;left:0;opacity:${bStrength/100};`;
                 el.style.position = 'relative';
                 el.appendChild(base);
                 el.appendChild(overlay);
@@ -3710,7 +3745,7 @@ function _renderNow() {
                 const img = _getImg(_mSrc);
                 img.src = _mSrc;
                 img.draggable = false;
-                img.style.cssText = 'width:100%;display:block;user-select:none;';
+                img.style.cssText = layer.distorted ? 'width:100%;height:100%;object-fit:fill;display:block;user-select:none;' : 'width:100%;display:block;user-select:none;';
                 if (combinedFilter) img.style.filter = combinedFilter;
                 if (layer.fxOpacity !== undefined) img.style.opacity = layer.fxOpacity / 100;
 
@@ -3723,7 +3758,9 @@ function _renderNow() {
                     // untrimmed src is in place (persists across re-renders, not just the next one —
                     // a one-shot flag here let the box snap to the padded ratio on the following
                     // unrelated render, e.g. dragging another layer or switching frames and back)
-                    if (layer._cropBlocked) return;
+                    // also skipped once distorted — the whole point is a h that DOESN'T match the
+                    // natural aspect ratio, so auto-fit would just silently undo the free transform
+                    if (layer._cropBlocked || layer.distorted) return;
                     const expectedH = Math.round(layer.w * img.naturalHeight / img.naturalWidth);
                     if (layer.h == null || Math.abs(layer.h - expectedH) > Math.max(4, expectedH * 0.05)) {
                         const prevH = layer.h;
@@ -5260,6 +5297,18 @@ function attachLayerDrag(handle, item, layerIdx) {
 
 function deleteLayer() { if (!activeLayer) return; saveState(); const f = frames[currentIdx]; f.layers = f.layers.filter(l => l !== activeLayer); activeLayer = null; closeTransformSheet(); render(); renderMobLayers(); }
 function flipHorizontal() { if (!activeLayer) return; saveState(); activeLayer.flipped = !activeLayer.flipped; render(); }
+
+// toggles a sprite between normal (locked-aspect) resize and free transform (distort), where the
+// 4 orange corner handles stretch width/height independently instead of scaling together. also
+// flippable from the on-canvas rotate handle itself (see attachResizeHandles) so exiting distort
+// mode doesn't require reopening this sheet.
+function toggleDistortMode() {
+    if (!activeLayer || activeLayer.type !== 'img') return;
+    saveState();
+    activeLayer.distorted = !activeLayer.distorted;
+    syncTransformSheet();
+    render();
+}
 // transform-sheet panel section — swatches + slider sync (separate DOM from the on-canvas
 // popover version, same underlying mobSqaPanelPickFill/Border/SetBorderWidth/SetRadius setters)
 function syncPanelSettingsUI() {
@@ -5302,7 +5351,7 @@ function tsApplyPanelRadius(val) {
 function resetTransform() {
     if (!activeLayer) return;
     saveState();
-    activeLayer.rotation = 0; activeLayer.flipped = false;
+    activeLayer.rotation = 0; activeLayer.flipped = false; activeLayer.distorted = false;
     if (activeLayer.type === 'img') {
         const resetProbe = new Image();
         resetProbe.onload = () => {
@@ -5453,7 +5502,9 @@ function buildLayerPreviewElement(layer) {
         el.src = layer._fxSrc || layer.src;
         el.draggable = false;
         const h = (layer.h != null) ? layer.h + 'px' : 'auto';
-        el.style.cssText = `width:${layer.w||120}px;height:${h};display:block;object-fit:contain;transform:scaleX(${layer.flipped ? -1 : 1});`;
+        // distorted sprites need fill here too, or this little sheet preview shows the
+        // undistorted original instead of the actual stretched shape on canvas
+        el.style.cssText = `width:${layer.w||120}px;height:${h};display:block;object-fit:${layer.distorted ? 'fill' : 'contain'};transform:scaleX(${layer.flipped ? -1 : 1});`;
     } else if (layer.type === 'panel') {
         el = document.createElement('div');
         const bw = layer.borderWidth != null ? layer.borderWidth : 4;
@@ -5528,13 +5579,13 @@ function renderFxPreview() {
         const bStrength = (layer.blurStrength != null) ? layer.blurStrength : 100;
         const lfCSS     = (layer.fxFilter && layer.fxFilter !== 'none') ? layer.fxFilter : '';
         const holder = document.createElement('div');
-        holder.style.cssText = `position:relative;display:inline-block;width:${layer.w||120}px;`;
+        holder.style.cssText = `position:relative;display:inline-block;width:${layer.w||120}px;height:${layer.h != null ? layer.h + 'px' : 'auto'};`;
 
         if (hasFxSrc && bStrength < 100) {
             // blend: base + fx overlay (matches main canvas)
             const base = document.createElement('img');
             base.src = layer.src; base.draggable = false;
-            base.style.cssText = 'width:100%;display:block;object-fit:contain;';
+            base.style.cssText = `width:100%;height:100%;display:block;object-fit:${layer.distorted ? 'fill' : 'contain'};`;
             if (layer.fxOpacity !== undefined) base.style.opacity = layer.fxOpacity / 100;
             el.style.position = 'absolute';
             el.style.top = '0';
